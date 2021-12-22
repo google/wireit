@@ -16,6 +16,11 @@
   show writing a small script and using `|` to check the status.
 - Finish README
 
+## Features
+
+- Few dependencies! Wireit depends only on `fast-glob` for matching file
+  patterns, and `chokidar` for watching the filesystem.
+
 ## Motivation
 
 NPM package build configurations can get pretty complicated. Here's an example
@@ -51,7 +56,8 @@ What's wrong with this picture?
 - Our `:watch` scripts don't coordinate well. Rollup might trigger before
   TypeScript finishes writing all of its output, causing Rollup to unnecessarily
   trigger twice. And Rust doesn't include it's own watch mode, so we have to use
-  a third-party watch tool.
+  a third-party watch tool. Also, some built-in watch tools don't automatically
+  restart themselves when their own config file changes.
 
 - Too much mental overhead. I either have to build everything every time, or
   frequently switch between different commands depending on which files I am
@@ -194,7 +200,7 @@ Adding a dependency to a task tells wireit what the inputs to that task are.
 This allows wireit to skip certain tasks when it knows that none of its
 inputs have changed since the last time it ran.
 
-There are two main types of dependencies: tasks and files/globs.
+There are two main types of dependencies: tasks and files.
 
 ### Task dependencies
 
@@ -220,7 +226,7 @@ should always run before it, because the output of `tsc` is the input to
       "bundle": {
         "command": "rollup -c",
         "dependencies": [
-          "task:build"
+          "build"
         ]
       }
     }
@@ -250,16 +256,18 @@ and its config file, and also that `rollup` depends on its own config file:
     "tasks": {
       "build": {
         "command": "tsc",
-        "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json"
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
         ]
       },
       "bundle": {
         "command": "rollup -c",
         "dependencies": [
-          "task:build",
-          "file:rollup.config.js"
+          "build",
+        ],
+        "files": [
+          "rollup.config.js"
         ]
       }
     }
@@ -293,9 +301,11 @@ last run, then it will need to be run again:
     "tasks": {
       "bundle": {
         "command": "rollup -c",
-        "dependencies": [
-          "env:MINIFY",
-          "file:rollup.config.js"
+        "env": [
+          "MINIFY",
+        ],
+        "files": [
+          "rollup.config.js"
         ]
       }
     }
@@ -350,9 +360,11 @@ build our package, the package we depend on is also freshly built:
       "build": {
         "command": "tsc",
         "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json",
-          "task:../some-other-package:build"
+          "../some-other-package:build",
+        ],
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
         ]
       }
     }
@@ -361,8 +373,8 @@ build our package, the package we depend on is also freshly built:
 ```
 <!-- prettier-ignore-end -->
 
-The same goes for `file:` and `glob:` targets. For example, it is common to base
-one `tsconfig.json` on another one:
+The same goes for file targets. For example, it is common to base one
+`tsconfig.json` on another one:
 
 <!-- prettier-ignore-start -->
 ```json
@@ -374,10 +386,10 @@ one `tsconfig.json` on another one:
     "tasks": {
       "build": {
         "command": "tsc",
-        "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json",
-          "file:../../tsconfig.base.json"
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json",
+          "../../tsconfig.base.json"
         ]
       }
     }
@@ -402,8 +414,7 @@ Specifically, wireit checks:
 3. [1] and [2] for all parent directories, recursively.
 
 If you have a task that you're sure doesn't depend on `node_modules/`, then you
-can remove this automatic dependency by adding `-npm` to the task's
-`dependencies` (in general, a `-` minus-sign prefix means "remove"). This will
+can remove this automatic dependency by setting `"npm": false`. This will
 prevent this task from running needlessly every time you change your NPM
 dependencies.
 
@@ -419,9 +430,7 @@ For example:
     "tasks": {
       "foo": {
         "command": "command that doesn't depend on node_modules",
-        "dependencies": [
-          "-npm",
-        ]
+        "npm": false
       }
     }
   }
@@ -434,18 +443,18 @@ For example:
 wireit includes a built-in watch mode which will continuously execute tasks
 whenever their dependencies change.
 
-If you are running tasks with `wireit run <task>`, then append `--watch`:
-
-```sh
-wireit run build --watch
-```
-
 If you are running tasks with `npm run <task>`, then append `-- --watch`. Note
 the extra `--` is needed because that's how you tell `npm run` to forward
 arguments to the script's program.
 
 ```sh
 npm run build -- --watch
+```
+
+You can also use the `wireit` runner directly by using the `watch` command:
+
+```sh
+npx wireit watch build
 ```
 
 You may prefer to define a dedicated script for this purpose:
@@ -455,15 +464,15 @@ You may prefer to define a dedicated script for this purpose:
 {
   "scripts": {
     "build": "wireit",
-    "build:watch": "npm run build -- --watch"
+    "build:watch": "wireit watch build"
   },
   "wireit": {
     "tasks": {
       "build": {
         "command": "tsc",
-        "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json"
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
         ]
       },
     }
@@ -498,14 +507,14 @@ In this example, the `serve` command depends on a `.js` file that is built by
         "command": "node lib/server.js",
         "daemon": true,
         "dependencies": [
-          "task:tsc"
+          "tsc"
         ]
       },
       "build": {
         "command": "tsc",
-        "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json"
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
         ]
       },
     }
@@ -543,16 +552,18 @@ may still want to inspect or execute the results of the full build graph:
       "bundle": {
         "command": "rollup -c",
         "dependencies": [
-          "task:tsc",
-          "file:rollup.config.js"
+          "tsc",
+        ],
+        "files": [
+          "rollup.config.js"
         ]
       },
       "build": {
         "command": "tsc",
         "fail": "eventually",
-        "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json"
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
         ]
       },
     }
@@ -605,7 +616,7 @@ string, and write `::wireit-status=noop` when it is present:
 
 - A wireit task is similar to a Bazel target.
 
-- The `wireit run <task> --watch` command is similar to `ibazel <target>`.
+- The `wireit watch <task>` command is similar to `ibazel <target>`.
 
 - Bazel is implemented in Java. wireit is implemented in JavaScript.
 
