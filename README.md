@@ -1,5 +1,21 @@
 ## wireit
 
+## TODO
+
+- Run commands with `npm exec`
+- Set up linting
+- Change syntax from `dependencies: [ task:foo, glob:bar ]` to `dependencies: [foo], files: [bar]`
+- Tests
+- Check for cycles
+- Ability to run multiple tasks `wireit run packages/*:foo`
+- Watch mode for servers
+- Caching (probably skip this)
+- Plugin interface
+- A way for a program to report whether it actually "ran" or not (maybe it can
+  output a special string to its stdout, like in GitHub actions). Example can
+  show writing a small script and using `|` to check the status.
+- Finish README
+
 ## Tasks
 
 To convert an existing NPM script into a wireit script, set
@@ -412,36 +428,39 @@ may still want to inspect or execute the results of the full build graph:
 ```
 <!-- prettier-ignore-end -->
 
-## Subtasks
+## Run status
 
-<!-- prettier-ignore-start -->
-```json
-{
-  "scripts": {
-    "build": "wireit"
-  },
-  "wireit": {
-    "tasks": {
-      "build": {
-        "command": "node read-database.js",
-        "dependencies": [
-          "task:tsc",
-          "file:rollup.config.js"
-        ]
-      },
-      "build": {
-        "command": "tsc",
-        "fail": "eventually",
-        "dependencies": [
-          "glob:src/**/*.ts",
-          "file:tsconfig.json"
-        ]
-      },
-    }
-  }
+By default, the fact that a task ran at all is sufficient to cause all
+downstream tasks to also run, because it is assumed that the first task may have
+produced new output which is an input to the second task.
+
+In some cases, it may be useful to distinguish between a task that ran but
+didn't actually make any changes that would affect downstream tasks. For
+example, imagine a program that conditionally writes to an external database,
+which is then read by downstream processes. If the database did not need to be
+updated, then the tasks that read from that database don't need to run just
+because the updating program ran.
+
+Writing `::wireit-status=noop` to the `stdout` of a task will cause the task to
+act as though it didn't run.
+
+You can write this string directly from your program, for example:
+
+```js
+const databaseChanged = updateDatabase();
+if (!databaseChanged) {
+  console.log('::wireit-status=noop');
 }
 ```
-<!-- prettier-ignore-end -->
+
+You could also use `grep` or any similar command to check for a different
+string, and write `::wireit-status=noop` when it is present:
+
+```json
+{
+  "command": "write-database | grep updated && echo ::wireit-status=noop || true"
+}
+```
 
 ## Comparisons
 
