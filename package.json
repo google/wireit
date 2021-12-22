@@ -1,0 +1,29 @@
+{
+  "name": "wireit",
+  "private": true,
+  "version": "0.0.1",
+  "description": "A build system",
+  "main": "bin/wireit.js",
+  "bin": {
+    "wireit": "bin/wireit.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf lib",
+    "nuke": "rimraf node_modules && npm ci",
+    "upgrade": "rimraf node_modules package-lock.json && npm i",
+    "watch": "tsc --watch"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^17.0.1",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.5.4"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.2",
+    "fast-glob": "^3.2.7",
+    "pkg-up": "^4.0.0"
+  }
+}
