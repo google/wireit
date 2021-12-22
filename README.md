@@ -16,6 +16,139 @@
   show writing a small script and using `|` to check the status.
 - Finish README
 
+## Motivation
+
+NPM package build configurations can get pretty complicated. Here's an example
+of a website that uses TypeScript, Rollup, Eleventy, and Rust. Setups like this
+are very common!
+
+```json
+{
+  "scripts": {
+    "build": "npm run build:tsc && npm run build:rollup && npm run build:eleventy && npm run build:rust",
+    "build:watch": "npm run build:tsc:watch & npm run build:rollup:watch & npm run build:eleventy:watch & npm run build:rust:watch",
+    "build:tsc": "tsc",
+    "build:tsc:watch": "tsc --watch",
+    "build:rollup": "rollup -c",
+    "build:rollup:watch": "rollup -c --watch",
+    "build:eleventy": "eleventy",
+    "build:eleventy:watch": "eleventy --watch",
+    "build:rust": "cargo -p my-server",
+    "build:rust:watch": "nodemon --watch 'server/**/*.rs' --exec cargo -p my-server"
+  }
+}
+```
+
+What's wrong with this picture?
+
+- All of the steps in `build` run in serial, even though some of them could run
+  in parallel.
+
+- Incremental building is hit-and-miss. If you only changed some Rust code, then
+  there's no reason to run Eleventy, Rollup, or TypeScript again. Some tools
+  have built-in incremental compilation support, but most don't!
+
+- Our `:watch` scripts don't coordinate well. Rollup might trigger before
+  TypeScript finishes writing all of its output, causing Rollup to unnecessarily
+  trigger twice. And Rust doesn't include it's own watch mode, so we have to use
+  a third-party watch tool.
+
+- Too much mental overhead. I either have to build everything every time, or
+  frequently switch between different commands depending on which files I am
+  changing.
+
+- There's a hidden dependency that we didn't even account for! This example is a
+  monorepo, and our TypeScript code depends on another package from the same
+  monorepo.
+
+Wireit solves all of these problems. By specifying which files and other tasks a
+task depends on, all of the commands we had before can be replaced by `npm run build` and `npm run build -- --watch`.
+
+```json
+{
+  "scripts": {
+    "build": "wireit",
+    "build:watch": "wireit watch build",
+  },
+  "wireit": {
+    "tasks": {
+      "build": {
+        "dependencies": [
+          "eleventy",
+          "rollup",
+          "rust"
+        ]
+      },
+      "eleventy": {
+        "command": "eleventy",
+        "files": [
+          "site/**/*",
+          "eleventy.config.js"
+        ]
+      },
+      "rollup": {
+        "command": "rollup -c",
+        "dependencies": {
+          "tsc"
+        },
+        "files": [
+          "rollup.config.js"
+        ]
+      },
+      "tsc": {
+        "command": "tsc",
+        "dependencies": {
+          "../another-package:build"
+        },
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
+        ]
+      },
+      "rust": {
+        "command": "cargo -p my-server",
+        "files": [
+          "server/**/*.rs"
+        ]
+      }
+    }
+  }
+}
+```
+
+- Use your cores more effectively! Eleventy, Rollup, and Rust now run in
+  parallel, but TypeScript always runs before Rollup.
+
+- Incrementally build everything! `npm run build` now only runs the tasks that
+  need to change. For example, if you change a TypeScript file, then `tsc` and
+  `rollup` will run, but `eleventy` and `rust` won't.
+
+- Watch everything with no races! `npm run build:watch` automatically watches
+  all of the input files for the build, and triggers only the tasks that need to
+  run. But if one task depends on another, it will wait for the first task to
+  finish completely before the next one starts.
+
+## Philosophy
+
+### Commands, not plugins
+
+Many build systems require installing plugins to integrate with each of the
+build tools you use. Plugins can get out of date, omit features you need,
+contain bugs, and add bloat to your package.
+
+Wireit follows the UNIX philosophy: make each program do one thing well, and
+write programs that work together. Wireit tasks are like NPM scripts, just a
+little smarter because they know what other tasks need to run first, and they
+only run when they need to.
+
+### Harmony with NPM scripts
+
+Wireit doesn't make you replace your `npm run` workflows with an alternative
+task runner frontend. Instead, you can incrementally upgrade your existing NPM
+scripts into wireit tasks, and make the same command a little smarter. And if
+you're using a monorepo, you don't need to remember to run your commands from
+the root; just run them directly from the sub-package.
+
 ## Tasks
 
 To convert an existing NPM script into a wireit script, set
