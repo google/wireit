@@ -30,10 +30,10 @@ are very common!
 ```json
 {
   "scripts": {
-    "build": "npm run build:tsc && npm run build:rollup && npm run build:eleventy && npm run build:rust",
-    "build:watch": "npm run build:tsc:watch & npm run build:rollup:watch & npm run build:eleventy:watch & npm run build:rust:watch",
-    "build:tsc": "tsc",
-    "build:tsc:watch": "tsc --watch",
+    "build": "npm run build:ts && npm run build:rollup && npm run build:eleventy && npm run build:rust",
+    "build:watch": "npm run build:ts:watch & npm run build:rollup:watch & npm run build:eleventy:watch & npm run build:rust:watch",
+    "build:ts": "tsc",
+    "build:ts:watch": "tsc --watch",
     "build:rollup": "rollup -c",
     "build:rollup:watch": "rollup -c --watch",
     "build:eleventy": "eleventy",
@@ -56,8 +56,8 @@ What's wrong with this picture?
 - Our `:watch` scripts don't coordinate well. Rollup might trigger before
   TypeScript finishes writing all of its output, causing Rollup to unnecessarily
   trigger twice. And Rust doesn't include it's own watch mode, so we have to use
-  a third-party watch tool. Also, some built-in watch tools don't automatically
-  restart themselves when their own config file changes.
+  a third-party watch tool. Also, some tool's built-in watch modes don't
+  automatically restart themselves when their own config file changes.
 
 - Too much mental overhead. I either have to build everything every time, or
   frequently switch between different commands depending on which files I am
@@ -68,7 +68,7 @@ What's wrong with this picture?
   monorepo.
 
 Wireit solves all of these problems. By specifying which files and other tasks a
-task depends on, all of the commands we had before can be replaced by `npm run build` and `npm run build -- --watch`.
+task depends on, all of the commands we had before can be replaced by `npm run build` and `npm run build:watch`.
 
 ```json
 {
@@ -90,18 +90,24 @@ task depends on, all of the commands we had before can be replaced by `npm run b
         "files": [
           "site/**/*",
           "eleventy.config.js"
+        ],
+        "output": [
+          "_site/**/*"
         ]
       },
       "rollup": {
         "command": "rollup -c",
         "dependencies": {
-          "tsc"
+          "ts"
         },
         "files": [
           "rollup.config.js"
+        ],
+        "output": [
+          "js/**/*"
         ]
       },
-      "tsc": {
+      "ts": {
         "command": "tsc",
         "dependencies": {
           "../another-package:build"
@@ -109,6 +115,9 @@ task depends on, all of the commands we had before can be replaced by `npm run b
         "files": [
           "src/**/*.ts",
           "tsconfig.json"
+        ],
+        "output": [
+          "lib/**/*"
         ]
       },
       "rust": {
@@ -122,17 +131,17 @@ task depends on, all of the commands we had before can be replaced by `npm run b
 }
 ```
 
-- Use your cores more effectively! Eleventy, Rollup, and Rust now run in
-  parallel, but TypeScript always runs before Rollup.
+- Use your cores more effectively! Eleventy, Rollup, and Rust now build in
+  parallel, but TypeScript still runs before Rollup.
 
 - Incrementally build everything! `npm run build` now only runs the tasks that
   need to change. For example, if you change a TypeScript file, then `tsc` and
   `rollup` will run, but `eleventy` and `rust` won't.
 
-- Watch everything with no races! `npm run build:watch` automatically watches
-  all of the input files for the build, and triggers only the tasks that need to
-  run. But if one task depends on another, it will wait for the first task to
-  finish completely before the next one starts.
+- Watch everything with no races! `npm run build:watch` monitors all of the
+  input files for the build, and triggers only the tasks that need to run. But
+  if one task depends on another, it will wait for the first task to finish
+  completely before the next one starts.
 
 ## Philosophy
 
@@ -143,7 +152,7 @@ build tools you use. Plugins can get out of date, omit features you need,
 contain bugs, and add bloat to your package.
 
 Wireit follows the UNIX philosophy: make each program do one thing well, and
-write programs that work together. Wireit tasks are like NPM scripts, just a
+write programs that work together. Wireit tasks are like NPM scripts, but just a
 little smarter because they know what other tasks need to run first, and they
 only run when they need to.
 
@@ -196,15 +205,7 @@ matches it to the wireit task with the same name.
 
 ## Dependencies
 
-Adding a dependency to a task tells wireit what the inputs to that task are.
-This allows wireit to skip certain tasks when it knows that none of its
-inputs have changed since the last time it ran.
-
-There are two main types of dependencies: tasks and files.
-
-### Task dependencies
-
-A task dependency tells wireit that another task must complete before the
+The `dependencies` property tells wireit which tasks must complete before the
 current one.
 
 For example, when we add a `bundle` script, we should declare that `build`
@@ -237,10 +238,9 @@ should always run before it, because the output of `tsc` is the input to
 
 Now when we run `npm run bundle`, wireit will automatically run `build` first.
 
-### File and glob dependencies
+## Files
 
-A file or glob dependency tells wireit that some files on disk are an input
-to that task.
+A file tells wireit that some files on disk are an input to that task.
 
 For example, we can tell wireit that `tsc` depends on our TypeScript files
 and its config file, and also that `rollup` depends on its own config file:
@@ -281,7 +281,7 @@ Now, the `bundle` task will only run if either the `build` task ran, _or_ if the
 `build` task will only run if any of the `.ts` files in the `src` directory or
 the `tsconfig.json` file have changed since the last time it ran.
 
-### Environment variable dependencies
+## Environment variables
 
 Sometimes the behavior of a task depends on the value of an environment
 variable.
@@ -314,12 +314,12 @@ last run, then it will need to be run again:
 ```
 <!-- prettier-ignore-end -->
 
-### Missing and empty dependencies
+## Missing and empty dependencies
 
-If a task doesn't have a `dependencies` property set at all, then the task will
-_always_ run. wireit is designed this way so that if you forget to add
-dependencies, or haven't figured out what they are yet, you'll get the safer
-option of always running the task.
+If a task doesn't have a `dependencies`, `files`, or `env` property set at all,
+then the task will _always_ run. wireit is designed this way so that if you
+forget to add dependencies, or haven't figured out what they are yet, you'll get
+the safer option of always running the task.
 
 If a task has a `dependencies` property, but it is an empty array (`[]`), then
 the task will only ever run once.
@@ -603,6 +603,46 @@ string, and write `::wireit-status=noop` when it is present:
 ```json
 {
   "command": "write-database | grep updated && echo ::wireit-status=noop || true"
+}
+```
+
+## Caching
+
+By default, only 1 previous state can be cached for each task.
+
+Adding an `output` property to a task allows wireit to track the specific
+outputs of each task, allowing for an arbitrary number of historical outputs to
+be tracked.
+
+An example of how this can be useful is if you save, make a change, save, undo
+change, save. By default, this would require 3 builds, but if the outputs are
+tracked, it only requires 2. That's because wireit notices that the inputs to
+the 3rd save were the same as the 1st, so it can restore the cached output of
+the 1st build.
+
+```json
+{
+  "scripts": {
+    "build": "wireit",
+    "build:watch": "wireit watch build",
+  },
+  "wireit": {
+    "tasks": {
+      "ts": {
+        "command": "tsc",
+        "dependencies": {
+          "../another-package:build"
+        },
+        "files": [
+          "src/**/*.ts",
+          "tsconfig.json"
+        ],
+        "output": [
+          "lib/**/*",
+        ]
+      }
+    }
+  }
 }
 ```
 
