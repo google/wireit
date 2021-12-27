@@ -4,9 +4,7 @@
 
 - Run commands with `npm exec`
 - Set up linting
-- Change syntax from `dependencies: [ task:foo, glob:bar ]` to `dependencies: [foo], files: [bar]`
 - Tests
-- Check for cycles
 - Ability to run multiple tasks `wireit run packages/*:foo`
 - Watch mode for servers
 - Caching (probably skip this)
@@ -16,10 +14,10 @@
   show writing a small script and using `|` to check the status.
 - Finish README
 
-## Features
+## Dependencies
 
-- Few dependencies! Wireit depends only on `fast-glob` for matching file
-  patterns, and `chokidar` for watching the filesystem.
+- [`fast-glob`](https://github.com/mrmlnc/fast-glob) for matching file paths
+- [`chokidar`](https://github.com/paulmillr/chokidar) for watching the filesystem
 
 ## Motivation
 
@@ -593,7 +591,7 @@ You can write this string directly from your program, for example:
 ```js
 const databaseChanged = updateDatabase();
 if (!databaseChanged) {
-  console.log('::wireit-status=noop');
+  console.log("::wireit-status=noop");
 }
 ```
 

@@ -1,164 +1,172 @@
-import {readConfig} from '../shared/read-config.js';
-import {exec as execCallback} from 'child_process';
-import {promisify} from 'util';
-import {readState, writeState} from '../shared/read-write-state.js';
-import {dirname} from 'path';
+import { KnownError } from "../shared/known-error.js";
+import { readConfig } from "../shared/read-config.js";
+import { exec as execCallback } from "child_process";
+import { promisify } from "util";
+import * as pathlib from "path";
+import { findNearestPackageJson } from "../shared/nearest-package-json.js";
+import fastglob from "fast-glob";
+import { readState, writeState } from "../shared/read-write-state.js";
+import { resolveTask } from "../shared/resolve-task.js";
 
-import type {Config} from '../types/config.js';
-import type {State} from '../types/state.js';
+import type { Config, Task } from "../types/config.js";
+import type { State } from "../types/state.js";
 
 const exec = promisify(execCallback);
 
 export default async (args: string[]) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
-    throw new Error(`run: Expected 1 argument, but got ${args.length}`);
+    throw new KnownError(`Expected 1 argument but got ${args.length}`);
   }
+
+  const packageJsonPath =
+    process.env.npm_package_json ??
+    (await findNearestPackageJson(process.cwd()));
+  if (packageJsonPath === undefined) {
+    throw new KnownError(
+      `Could not find a package.json in ${process.cwd()} or parents`
+    );
+  }
+
+  const runner = new TaskRunner();
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
+  await runner.run(packageJsonPath, taskName, new Set());
+  await runner.writeStates();
+};
 
-  const watch = true;
-  do {
-    const {config, packageJsonPath} = await readConfig();
-    console.log('=====================================');
-    let state;
-    try {
-      state = await readState(dirname(packageJsonPath));
-    } catch (e) {
-      state = {tasks: {}};
+export class TaskRunner {
+  private readonly _configs = new Map<string, Promise<Config>>();
+  private readonly _taskPromises = new Map<string, Promise<boolean>>();
+  private readonly _states = new Map<string, Promise<State>>();
+
+  /**
+   * @returns A promise that resolves to true if the task ran, otherwise false.
+   */
+  async run(
+    packageJsonPath: string,
+    taskName: string,
+    stack: Set<string>
+  ): Promise<boolean> {
+    const taskId = JSON.stringify([packageJsonPath, taskName]);
+    if (stack.has(taskId)) {
+      throw new KnownError(
+        `Cycle detected at task ${taskName} in ${packageJsonPath}`
+      );
     }
-    const watchGlobs: string[] = [packageJsonPath];
-    await run(
-      config,
+
+    let promise = this._taskPromises.get(taskId);
+    if (promise !== undefined) {
+      return promise;
+    }
+    let resolve: (value: boolean) => void;
+    promise = new Promise<boolean>((r) => (resolve = r));
+    this._taskPromises.set(taskId, promise);
+
+    const { config, task } = await this._findConfigAndTask(
       packageJsonPath,
-      taskName,
-      state,
-      watch,
-      watchGlobs,
-      new Map()
+      taskName
     );
-    await writeState(dirname(packageJsonPath), state);
-    console.log('=====================================');
-    if (watch) {
-      await new Promise<void>(async (resolve) => {
-        const chokidar = await import('chokidar');
-        const watcher = chokidar.watch(watchGlobs).on('change', async () => {
-          await watcher.close();
-          resolve();
-        });
+
+    let anyDepTasksRan = false;
+    if (task.dependencies?.length) {
+      const depTaskPromises = [];
+      for (const depTaskName of task.dependencies) {
+        depTaskPromises.push(
+          this.run(
+            config.packageJsonPath,
+            depTaskName,
+            new Set(stack).add(taskId)
+          )
+        );
+      }
+      const results = await Promise.all(depTaskPromises);
+      anyDepTasksRan = results.some((ran) => ran === true);
+    }
+
+    let fileCacheKey = "";
+    if (task.files?.length) {
+      const entries = await fastglob(task.files, {
+        stats: true,
+        cwd: pathlib.dirname(config.packageJsonPath),
       });
+      let maxModTime = 0;
+      for (const entry of entries) {
+        const stats = entry.stats!;
+        maxModTime = Math.max(maxModTime, stats.mtimeMs, stats.ctimeMs);
+      }
+      const numFiles = entries.length;
+      fileCacheKey = `${maxModTime}:${numFiles}`;
     }
-  } while (watch);
-};
 
-const run = async (
-  config: Config,
-  packageJsonPath: string,
-  taskName: string,
-  state: State,
-  watch: boolean,
-  watchGlobs: Array<string>,
-  doneTaskIds: Map<string, Promise<boolean>>
-): Promise<boolean> => {
-  const taskId = JSON.stringify({packageJsonPath, taskName});
-  let taskRanPromise = doneTaskIds.get(taskId);
-  if (taskRanPromise !== undefined) {
-    return taskRanPromise;
+    const newCacheKey = JSON.stringify({
+      command: task.command,
+      files: fileCacheKey,
+    });
+
+    const state = await this._getState(pathlib.dirname(config.packageJsonPath));
+    const oldCacheKey = state.cacheKeys[taskName];
+    const cacheKeyStale =
+      oldCacheKey === undefined || newCacheKey !== oldCacheKey;
+    if (cacheKeyStale) {
+      state.cacheKeys[taskName] = newCacheKey;
+    }
+    if (!cacheKeyStale && !anyDepTasksRan) {
+      resolve!(false);
+      return promise;
+    }
+    if (task.command) {
+      console.log("Running task", taskId);
+      // TODO(aomarks) Something better with stdout/stderr.
+      // TODO(aomarks) Use npx
+      const { stdout, stderr } = await exec(task.command);
+      console.log(stdout);
+      console.log(stderr);
+    }
+    resolve!(true);
+    return promise;
   }
 
-  let resolveTaskRan: (value: boolean) => void;
-  taskRanPromise = new Promise<boolean>((resolve) => {
-    resolveTaskRan = resolve;
-  });
-  doneTaskIds.set(taskId, taskRanPromise);
-
-  const task = config.tasks?.[taskName];
-  if (task === undefined) {
-    throw new Error(
-      `run: Could not find task ${taskName} in wireit.tasks` +
-        ` from ${packageJsonPath}`
-    );
+  async writeStates(): Promise<void> {
+    const promises = [];
+    for (const [root, statePromise] of this._states.entries()) {
+      promises.push(statePromise.then((state) => writeState(root, state)));
+    }
+    await Promise.all(promises);
   }
 
-  const taskDeps: Array<Promise<boolean>> = [];
-  const nonTaskDeps: Array<{ruleName: string; ruleArgs: string}> = [];
-  for (const dep of task.dependencies ?? []) {
-    const match = dep.match(/^([^:]+)(?::(.*))?$/);
-    if (match === null) {
-      throw new Error(
-        `Invalid dependency syntax ${dep}` +
-          ', must match syntax "rulename[:ruleargs]"'
+  private async _findConfigAndTask(
+    packageJsonPath: string,
+    taskName: string
+  ): Promise<{ config: Config; task: Task }> {
+    const resolved = resolveTask(packageJsonPath, taskName);
+    packageJsonPath = resolved.packageJsonPath;
+    taskName = resolved.taskName;
+    const config = await this._getConfig(packageJsonPath);
+    const task = config.tasks?.[taskName];
+    if (task === undefined) {
+      throw new KnownError(
+        `Could not find task ${taskName} in ${packageJsonPath}`
       );
     }
-    const [, ruleName, ruleArgs] = match;
-    if (ruleName === 'task') {
-      taskDeps.push(
-        run(
-          config,
-          packageJsonPath,
-          ruleArgs,
-          state,
-          watch,
-          watchGlobs,
-          doneTaskIds
-        )
-      );
-    } else {
-      nonTaskDeps.push({ruleName, ruleArgs});
+    return { config, task };
+  }
+
+  private async _getConfig(packageJsonPath: string): Promise<Config> {
+    let promise = this._configs.get(packageJsonPath);
+    if (promise === undefined) {
+      promise = readConfig(packageJsonPath);
+      this._configs.set(packageJsonPath, promise);
     }
-  }
-  const anyDependencyTasksRan = (await Promise.all(taskDeps)).some(
-    (result) => result
-  );
-
-  const cacheKeyPromises: Array<Promise<string | boolean | null>> = [];
-  for (const {ruleName, ruleArgs} of nonTaskDeps) {
-    cacheKeyPromises.push(
-      (async () => {
-        const ruleModule = await import(`../rules/${ruleName}.js`);
-        const ruleClass = ruleModule.default;
-        const rule = new ruleClass();
-        if (watch) {
-          watchGlobs.push(...rule.watchPaths(ruleArgs));
-        }
-        return rule.cacheKey(ruleArgs);
-      })()
-    );
+    return promise;
   }
 
-  const cacheData = {
-    command: task.command,
-    dependencies: (await Promise.all(cacheKeyPromises))
-      .map((cacheKey, idx) => {
-        const {ruleName, ruleArgs} = nonTaskDeps[idx];
-        return `${ruleName}:${ruleArgs}:${cacheKey}`;
-      })
-      .sort(),
-  };
-
-  const cacheKey = JSON.stringify(cacheData);
-
-  let taskState = state.tasks[taskName];
-  if (taskState === undefined) {
-    taskState = {};
-    state.tasks[taskName] = taskState;
-  } else if (!anyDependencyTasksRan && cacheKey === taskState.cacheKey) {
-    console.log(`[${taskName}] Cached`);
-    resolveTaskRan!(false);
-    return taskRanPromise;
+  private async _getState(root: string): Promise<State> {
+    let promise = this._states.get(root);
+    if (promise === undefined) {
+      promise = readState(root).then((state) =>
+        state === undefined ? { cacheKeys: {} } : state
+      );
+      this._states.set(root, promise);
+    }
+    return promise;
   }
-
-  console.log(`[${taskName}] Running`);
-  console.log('    ', {
-    oldKey: taskState.cacheKey,
-    newKey: cacheKey,
-    anyDependencyTasksRan,
-  });
-  if (task.command !== undefined) {
-    const {stdout, stderr} = await exec(task.command);
-    console.log(stdout);
-    console.log(stderr);
-  }
-
-  taskState.cacheKey = cacheKey;
-  resolveTaskRan!(true);
-  return taskRanPromise;
-};
+}

@@ -10,21 +10,19 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "clean": "rimraf lib",
-    "nuke": "rimraf node_modules && npm ci",
-    "upgrade": "rimraf node_modules package-lock.json && npm i",
+    "clean": "rm -rf lib",
+    "nuke": "rm -rf node_modules && npm ci",
+    "upgrade": "rm -rf node_modules package-lock.json && npm i",
     "watch": "tsc --watch"
   },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^17.0.1",
-    "rimraf": "^3.0.2",
     "typescript": "^4.5.4",
     "uvu": "^0.5.2"
   },
   "dependencies": {
     "chokidar": "^3.5.2",
-    "fast-glob": "^3.2.7",
-    "pkg-up": "^4.0.0"
+    "fast-glob": "^3.2.7"
   }
 }

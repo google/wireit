@@ -1,23 +1,11 @@
-import * as fs from 'fs/promises';
-import {pkgUp} from 'pkg-up';
+import * as fs from "fs/promises";
 
-import type {Config} from '../types/config.js';
+import type { PackageJson, Config } from "../types/config.js";
 
-export const readConfig = async (): Promise<{
-  config: Config;
-  packageJsonPath: string;
-}> => {
-  const packageJsonPath = await pkgUp();
-  if (packageJsonPath === undefined) {
-    throw new Error(
-      `Could not find a package.json file in ${process.cwd()}` +
-        ` or any of its parent directories`
-    );
-  }
-
+export const readConfig = async (packageJsonPath: string): Promise<Config> => {
   let packageJsonStr;
   try {
-    packageJsonStr = await fs.readFile(packageJsonPath, 'utf8');
+    packageJsonStr = await fs.readFile(packageJsonPath, "utf8");
   } catch (e) {
     throw new Error(
       `Could not read package.json file ${packageJsonPath}:` +
@@ -25,7 +13,7 @@ export const readConfig = async (): Promise<{
     );
   }
 
-  let packageJson;
+  let packageJson: PackageJson;
   try {
     packageJson = JSON.parse(packageJsonStr);
   } catch (e) {
@@ -35,10 +23,11 @@ export const readConfig = async (): Promise<{
     );
   }
 
-  const config = packageJson.wireit as Config;
+  const config = packageJson.wireit;
   if (config === undefined) {
     throw new Error(`No wireit config in package.json ${packageJsonPath}`);
   }
+  config.packageJsonPath = packageJsonPath;
 
-  return {config, packageJsonPath};
+  return config;
 };

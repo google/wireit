@@ -1,8 +1,14 @@
+export interface PackageJson {
+  wireit?: Config;
+}
+
 export interface Config {
-  tasks?: {[taskName: string]: Task};
+  packageJsonPath: string;
+  tasks?: { [taskName: string]: Task };
 }
 
 export interface Task {
   command?: string;
   dependencies?: string[];
+  files?: string[];
 }

@@ -1,21 +1,23 @@
+import { KnownError } from "./shared/known-error.js";
+
 const main = async () => {
-  const cmd = process.argv[2];
-  const tail = process.argv.slice(3);
+  const args = process.argv.slice(2);
+  const cmd = args[0] ? args.shift() : "run";
   try {
-    if (cmd === 'analyze') {
-      await (await import('./commands/analyze.js')).default(tail);
-    } else if (
-      cmd === 'run' ||
-      (cmd === undefined && process.env.npm_lifecycle_event)
-    ) {
-      await (await import('./commands/run.js')).default(tail);
+    if (cmd === "run") {
+      await (await import("./commands/run.js")).default(args);
+    } else if (cmd === "watch") {
+      await (await import("./commands/watch.js")).default(args);
     } else {
-      console.error('Valid commmands are: analyze, run');
+      console.error("Valid commmands are: run, watch");
       process.exit(1);
     }
   } catch (e) {
     console.error(`Command ${cmd} failed`);
     console.error((e as Error).message);
+    if (!(e instanceof KnownError)) {
+      console.error((e as Error).stack);
+    }
     process.exit(1);
   }
 };
