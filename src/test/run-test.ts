@@ -81,7 +81,7 @@ test('2 tasks, 2 succeed', async () => {
   await cmd2.waitUntilStarted();
 
   // cmd1 shouldn't start until cmd2 has finished
-  await rig.sleep(100);
+  await rig.sleep(50);
   assert.not(cmd1.running);
   await cmd2.exit(0);
   await cmd1.waitUntilStarted();
@@ -127,7 +127,7 @@ test('2 tasks, first fails', async () => {
   assert.equal(code, 1);
 
   // cmd1 should never have started
-  await rig.sleep(100);
+  await rig.sleep(50);
   assert.not(cmd1.running);
   assert.equal(cmd1.startedCount, 0);
   assert.equal(cmd2.startedCount, 1);
@@ -135,12 +135,24 @@ test('2 tasks, first fails', async () => {
   await rig.cleanup();
 });
 
+/**
+ *     cmd1 <-- run
+ *     /   \
+ *    /     \
+ *   v       v
+ *  cmd2   cmd3
+ *    \     /
+ *     \   /
+ *      v v
+ *      cmd4
+ */
 test('diamond', async () => {
   const rig = new TestRig();
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   const cmd3 = rig.newCommand();
   const cmd4 = rig.newCommand();
+
   await rig.writeFiles({
     'package.json': {
       scripts: {
@@ -188,6 +200,51 @@ test('diamond', async () => {
   assert.equal(cmd3.startedCount, 1);
   assert.equal(cmd4.startedCount, 1);
 
+  await rig.cleanup();
+});
+
+test('cross package', async () => {
+  const rig = new TestRig();
+  const cmd1 = rig.newCommand();
+  const cmd2 = rig.newCommand();
+  await rig.writeFiles({
+    'pkg1/package.json': {
+      scripts: {
+        cmd1: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['../pkg2:cmd2'],
+          },
+        },
+      },
+    },
+    'pkg2/package.json': {
+      wireit: {
+        tasks: {
+          cmd2: {
+            command: cmd2.command(),
+          },
+        },
+      },
+    },
+  });
+
+  const out = rig.exec('npm run cmd1', {cwd: 'pkg1'});
+
+  await cmd2.waitUntilStarted();
+  await rig.sleep(50);
+  assert.not(cmd1.running);
+  await cmd2.exit(0);
+  await cmd1.waitUntilStarted();
+
+  await cmd1.exit(0);
+  const {code} = await out;
+  assert.equal(code, 0);
+  assert.equal(cmd1.startedCount, 1);
+  assert.equal(cmd2.startedCount, 1);
   await rig.cleanup();
 });
 

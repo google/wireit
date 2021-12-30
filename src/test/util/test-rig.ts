@@ -39,11 +39,13 @@ export class TestRig {
   }
 
   async exec(
-    command: string
+    command: string,
+    opts?: {cwd?: string}
   ): Promise<{stdout: string; stderr: string; code: number}> {
     this._checkNotDone();
+    const cwd = path.resolve(this._filesTempDir, opts?.cwd ?? '.');
     return new Promise((resolve) => {
-      exec(command, {cwd: this._filesTempDir}, (error, stdout, stderr) =>
+      exec(command, {cwd}, (error, stdout, stderr) =>
         resolve({stdout, stderr, code: error?.code ?? 0})
       );
     });
