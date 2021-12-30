@@ -1,2 +1,4 @@
-/node_modules/
+/.wireit/
 /lib/
+/node_modules/
+/temp/

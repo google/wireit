@@ -9,11 +9,33 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "node bin/wireit.js",
+    "test": "node bin/wireit.js",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
     "upgrade": "rm -rf node_modules package-lock.json && npm i",
     "watch": "tsc --watch"
+  },
+  "wireit": {
+    "tasks": {
+      "build": {
+        "dependendies": [
+          "ts"
+        ]
+      },
+      "test": {
+        "command": "node lib/test/run-test.js",
+        "dependencies": [
+          "ts"
+        ]
+      },
+      "ts": {
+        "command": "npx tsc",
+        "files": [
+          "src/**/*.ts"
+        ]
+      }
+    }
   },
   "license": "MIT",
   "devDependencies": {

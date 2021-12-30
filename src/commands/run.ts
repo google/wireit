@@ -1,15 +1,15 @@
-import { KnownError } from "../shared/known-error.js";
-import { readConfig } from "../shared/read-config.js";
-import { exec as execCallback } from "child_process";
-import { promisify } from "util";
-import * as pathlib from "path";
-import { findNearestPackageJson } from "../shared/nearest-package-json.js";
-import fastglob from "fast-glob";
-import { readState, writeState } from "../shared/read-write-state.js";
-import { resolveTask } from "../shared/resolve-task.js";
+import {KnownError} from '../shared/known-error.js';
+import {readConfig} from '../shared/read-config.js';
+import {exec as execCallback} from 'child_process';
+import {promisify} from 'util';
+import * as pathlib from 'path';
+import {findNearestPackageJson} from '../shared/nearest-package-json.js';
+import fastglob from 'fast-glob';
+import {readState, writeState} from '../shared/read-write-state.js';
+import {resolveTask} from '../shared/resolve-task.js';
 
-import type { Config, Task } from "../types/config.js";
-import type { State } from "../types/state.js";
+import type {Config, Task} from '../types/config.js';
+import type {State} from '../types/state.js';
 
 const exec = promisify(execCallback);
 
@@ -61,7 +61,7 @@ export class TaskRunner {
     promise = new Promise<boolean>((r) => (resolve = r));
     this._taskPromises.set(taskId, promise);
 
-    const { config, task } = await this._findConfigAndTask(
+    const {config, task} = await this._findConfigAndTask(
       packageJsonPath,
       taskName
     );
@@ -82,7 +82,7 @@ export class TaskRunner {
       anyDepTasksRan = results.some((ran) => ran === true);
     }
 
-    let fileCacheKey = "";
+    let fileCacheKey = '';
     if (task.files?.length) {
       const entries = await fastglob(task.files, {
         stats: true,
@@ -114,10 +114,12 @@ export class TaskRunner {
       return promise;
     }
     if (task.command) {
-      console.log("Running task", taskId);
+      console.log('Running task', taskId);
       // TODO(aomarks) Something better with stdout/stderr.
       // TODO(aomarks) Use npx
-      const { stdout, stderr } = await exec(task.command);
+      const {stdout, stderr} = await exec(task.command, {
+        cwd: pathlib.dirname(config.packageJsonPath),
+      });
       console.log(stdout);
       console.log(stderr);
     }
@@ -136,7 +138,7 @@ export class TaskRunner {
   private async _findConfigAndTask(
     packageJsonPath: string,
     taskName: string
-  ): Promise<{ config: Config; task: Task }> {
+  ): Promise<{config: Config; task: Task}> {
     const resolved = resolveTask(packageJsonPath, taskName);
     packageJsonPath = resolved.packageJsonPath;
     taskName = resolved.taskName;
@@ -147,7 +149,7 @@ export class TaskRunner {
         `Could not find task ${taskName} in ${packageJsonPath}`
       );
     }
-    return { config, task };
+    return {config, task};
   }
 
   private async _getConfig(packageJsonPath: string): Promise<Config> {
@@ -163,7 +165,7 @@ export class TaskRunner {
     let promise = this._states.get(root);
     if (promise === undefined) {
       promise = readState(root).then((state) =>
-        state === undefined ? { cacheKeys: {} } : state
+        state === undefined ? {cacheKeys: {}} : state
       );
       this._states.set(root, promise);
     }
