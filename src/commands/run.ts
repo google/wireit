@@ -27,6 +27,8 @@ export default async (args: string[]) => {
   const runner = new TaskRunner();
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
+  // TODO(aomarks) Maybe we should write states more frequently so that as long
+  // as a step actually finished, even a kill -9 wouldn't prevent caching.
   await runner.writeStates();
 };
 
