@@ -7,6 +7,7 @@
     "rootDir": "src/",
     "outDir": "lib/",
     "strict": true,
+    "sourceMap": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,

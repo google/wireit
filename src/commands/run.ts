@@ -30,9 +30,31 @@ export default async (args: string[]) => {
   await runner.writeStates();
 };
 
+interface TaskStatus {
+  ran: boolean;
+  cacheKey: CacheKey;
+}
+
+interface CacheKey {
+  command: string;
+  // Must be sorted by filename.
+  files: {[filename: string]: FileCacheKey};
+  // Must be sorted by taskname.
+  dependencies: {[taskname: string]: CacheKey};
+}
+
+// TODO(aomarks) Add FileHashKey
+type FileCacheKey = FileModKey;
+
+interface FileModKey {
+  type: 'mod';
+  m: number;
+  c: number;
+}
+
 export class TaskRunner {
   private readonly _configs = new Map<string, Promise<Config>>();
-  private readonly _taskPromises = new Map<string, Promise<boolean>>();
+  private readonly _taskPromises = new Map<string, Promise<TaskStatus>>();
   private readonly _states = new Map<string, Promise<State>>();
 
   /**
@@ -42,7 +64,7 @@ export class TaskRunner {
     packageJsonPath: string,
     taskName: string,
     stack: Set<string>
-  ): Promise<boolean> {
+  ): Promise<TaskStatus> {
     const taskId = JSON.stringify([packageJsonPath, taskName]);
     if (stack.has(taskId)) {
       throw new KnownError(
@@ -54,8 +76,8 @@ export class TaskRunner {
     if (promise !== undefined) {
       return promise;
     }
-    let resolve: (value: boolean) => void;
-    promise = new Promise<boolean>((r) => (resolve = r));
+    let resolve: (value: TaskStatus) => void;
+    promise = new Promise<TaskStatus>((r) => (resolve = r));
     this._taskPromises.set(taskId, promise);
 
     const {config, task} = await this._findConfigAndTask(
@@ -63,8 +85,17 @@ export class TaskRunner {
       taskName
     );
 
-    let anyDepTasksRan = false;
+    const newCacheKeyData: CacheKey = {
+      command: task.command!, // TODO(aomarks) This shouldn't be undefined.
+      files: {},
+      dependencies: {},
+    };
+
     if (task.dependencies?.length) {
+      // IMPORTANT: We must sort here, because it's important that the insertion
+      // order of dependency entries in our cache key is deterministic.
+      task.dependencies.sort((a, b) => a.localeCompare(b));
+
       const depTaskPromises = [];
       for (const depTaskName of task.dependencies) {
         depTaskPromises.push(
@@ -76,29 +107,39 @@ export class TaskRunner {
         );
       }
       const results = await Promise.all(depTaskPromises);
-      anyDepTasksRan = results.some((ran) => ran === true);
+      for (let i = 0; i < task.dependencies.length; i++) {
+        const depTaskName = task.dependencies[i];
+        const result = results[i];
+        newCacheKeyData.dependencies[depTaskName] = result.cacheKey;
+      }
     }
 
-    let fileCacheKey = '';
     if (task.files?.length) {
       const entries = await fastglob(task.files, {
         stats: true,
         cwd: pathlib.dirname(config.packageJsonPath),
       });
-      let maxModTime = 0;
+
+      // IMPORTANT: We must sort here, because it's important that the insertion
+      // order of file entries in our cache key is deterministic.
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+
       for (const entry of entries) {
-        const stats = entry.stats!;
-        maxModTime = Math.max(maxModTime, stats.mtimeMs, stats.ctimeMs);
+        const stats = entry.stats;
+        if (stats === undefined) {
+          throw new Error(`No file stats for ${entry.name}`);
+        }
+        // TODO(aomarks) Pin down whether entry.name is dealing with relative vs
+        // absolute paths correctly.
+        newCacheKeyData.files[entry.name] = {
+          type: 'mod',
+          m: stats.mtimeMs,
+          c: stats.ctimeMs,
+        };
       }
-      const numFiles = entries.length;
-      fileCacheKey = `${maxModTime}:${numFiles}`;
     }
 
-    const newCacheKey = JSON.stringify({
-      command: task.command,
-      files: fileCacheKey,
-    });
-
+    const newCacheKey = JSON.stringify(newCacheKeyData);
     const state = await this._getState(pathlib.dirname(config.packageJsonPath));
     const oldCacheKey = state.cacheKeys[taskName];
     const cacheKeyStale =
@@ -106,8 +147,8 @@ export class TaskRunner {
     if (cacheKeyStale) {
       state.cacheKeys[taskName] = newCacheKey;
     }
-    if (!cacheKeyStale && !anyDepTasksRan) {
-      resolve!(false);
+    if (!cacheKeyStale) {
+      resolve!({ran: false, cacheKey: newCacheKeyData});
       return promise;
     }
     if (task.command) {
@@ -131,7 +172,7 @@ export class TaskRunner {
         });
       });
     }
-    resolve!(true);
+    resolve!({ran: true, cacheKey: newCacheKeyData});
     return promise;
   }
 
