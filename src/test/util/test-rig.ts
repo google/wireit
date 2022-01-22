@@ -2,7 +2,7 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 import * as net from 'net';
 import * as fs from 'fs/promises';
-import {exec} from 'child_process';
+import {spawn} from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,9 +45,20 @@ export class TestRig {
     this._checkNotDone();
     const cwd = path.resolve(this._filesTempDir, opts?.cwd ?? '.');
     return new Promise((resolve) => {
-      exec(command, {cwd}, (error, stdout, stderr) =>
-        resolve({stdout, stderr, code: error?.code ?? 0})
-      );
+      const child = spawn(command, [], {cwd, shell: true});
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (chunk) => {
+        process.stdout.write(chunk);
+        stdout += chunk;
+      });
+      child.stderr.on('data', (chunk) => {
+        process.stderr.write(chunk);
+        stderr += chunk;
+      });
+      child.on('close', (code) => {
+        resolve({stdout, stderr, code: code ?? 0});
+      });
     });
   }
 
@@ -72,19 +83,19 @@ export class TestRig {
 class Command {
   private readonly _socketfile: string;
   private readonly _server: net.Server;
-  private _resolveFirstConnection!: (socket: net.Socket) => void;
-  private _firstConnection: Promise<net.Socket>;
+  private _resolveConnectionPromise!: (socket: net.Socket) => void;
+  private _connectionPromise: Promise<net.Socket>;
   private _running = false;
   private _startedCount = 0;
 
   constructor(socketfile: string) {
     this._socketfile = socketfile;
-    this._firstConnection = new Promise((resolve) => {
-      this._resolveFirstConnection = resolve;
-    });
     this._server = net.createServer(this._onConnection);
     fs.mkdir(path.dirname(socketfile), {recursive: true}).then(() => {
       this._server.listen(this._socketfile);
+    });
+    this._connectionPromise = new Promise((resolve) => {
+      this._resolveConnectionPromise = resolve;
     });
   }
 
@@ -93,7 +104,7 @@ class Command {
   }
 
   async waitUntilStarted(): Promise<void> {
-    await this._firstConnection;
+    await this._connectionPromise;
   }
 
   get running(): boolean {
@@ -105,9 +116,15 @@ class Command {
   }
 
   async exit(code: number): Promise<void> {
-    const connection = await this._firstConnection;
+    if (!this.running) {
+      throw new Error('Command is not running; cannot exit.');
+    }
+    const connection = await this._connectionPromise;
     connection.write(String(code));
     this._running = false;
+    this._connectionPromise = new Promise((resolve) => {
+      this._resolveConnectionPromise = resolve;
+    });
   }
 
   close(): Promise<void> {
@@ -117,9 +134,12 @@ class Command {
   }
 
   private readonly _onConnection = (socket: net.Socket) => {
+    if (this._running) {
+      throw new Error('Unexpected multiple simultaneous command invocations.');
+    }
     this._running = true;
     this._startedCount++;
-    this._resolveFirstConnection(socket);
+    this._resolveConnectionPromise(socket);
   };
 }
 

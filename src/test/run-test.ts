@@ -248,4 +248,66 @@ test('cross package', async () => {
   await rig.cleanup();
 });
 
+test('1 task: run, cached, run, cached', async () => {
+  const rig = new TestRig();
+  const cmd = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      scripts: {
+        cmd: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v1',
+    },
+  });
+
+  // Run the first time.
+  {
+    const out = rig.exec('npm run cmd');
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+    const {code} = await out;
+    assert.equal(code, 0);
+    assert.equal(cmd.startedCount, 1);
+  }
+
+  // Don't run because the input files haven't changed.
+  {
+    const out = rig.exec('npm run cmd');
+    const {code} = await out;
+    assert.equal(code, 0);
+    await rig.sleep(50);
+    assert.equal(cmd.startedCount, 1);
+  }
+
+  // Change the input files. Now we should run again.
+  {
+    await rig.writeFiles({'input.txt': 'v2'});
+    const out = rig.exec('npm run cmd');
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+    const {code} = await out;
+    assert.equal(code, 0);
+    assert.equal(cmd.startedCount, 2);
+  }
+
+  // Don't run because the input files haven't changed.
+  {
+    const out = rig.exec('npm run cmd');
+    const {code} = await out;
+    assert.equal(code, 0);
+    await rig.sleep(50);
+    assert.equal(cmd.startedCount, 2);
+  }
+
+  await rig.cleanup();
+});
+
 test.run();

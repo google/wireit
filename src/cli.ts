@@ -1,15 +1,15 @@
-import { KnownError } from "./shared/known-error.js";
+import {KnownError} from './shared/known-error.js';
 
 const main = async () => {
   const args = process.argv.slice(2);
-  const cmd = args[0] ? args.shift() : "run";
+  const cmd = args[0] ? args.shift() : 'run';
   try {
-    if (cmd === "run") {
-      await (await import("./commands/run.js")).default(args);
-    } else if (cmd === "watch") {
-      await (await import("./commands/watch.js")).default(args);
+    if (cmd === 'run') {
+      await (await import('./commands/run.js')).default(args);
+    } else if (cmd === 'watch') {
+      await (await import('./commands/watch.js')).default(args);
     } else {
-      console.error("Valid commmands are: run, watch");
+      console.error('Valid commmands are: run, watch');
       process.exit(1);
     }
   } catch (e) {

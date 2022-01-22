@@ -1,7 +1,6 @@
 import {KnownError} from '../shared/known-error.js';
 import {readConfig} from '../shared/read-config.js';
-import {exec as execCallback} from 'child_process';
-import {promisify} from 'util';
+import {spawn} from 'child_process';
 import * as pathlib from 'path';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
@@ -10,8 +9,6 @@ import {resolveTask} from '../shared/resolve-task.js';
 
 import type {Config, Task} from '../types/config.js';
 import type {State} from '../types/state.js';
-
-const exec = promisify(execCallback);
 
 export default async (args: string[]) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
@@ -114,14 +111,25 @@ export class TaskRunner {
       return promise;
     }
     if (task.command) {
-      console.log('Running task', taskId);
-      // TODO(aomarks) Something better with stdout/stderr.
-      // TODO(aomarks) Use npx
-      const {stdout, stderr} = await exec(task.command, {
+      // TODO(aomarks) Run with npx (or the configured shell).
+      const child = spawn(task.command, [], {
         cwd: pathlib.dirname(config.packageJsonPath),
+        shell: true,
       });
-      console.log(stdout);
-      console.log(stderr);
+      child.stdout.on('data', (chunk) => {
+        process.stdout.write(chunk);
+      });
+      child.stderr.on('data', (chunk) => {
+        process.stderr.write(chunk);
+      });
+      await new Promise<void>((resolve) => {
+        child.on('close', (code) => {
+          if (code !== 0) {
+            throw new Error(`Command ${taskName} failed with code ${code}`);
+          }
+          resolve();
+        });
+      });
     }
     resolve!(true);
     return promise;
