@@ -38,28 +38,39 @@ export class TestRig {
     );
   }
 
-  async exec(
+  exec(
     command: string,
     opts?: {cwd?: string}
-  ): Promise<{stdout: string; stderr: string; code: number}> {
+  ): {
+    kill: (signal: string | number) => void;
+    done: Promise<{stdout: string; stderr: string; code: number}>;
+  } {
     this._checkNotDone();
     const cwd = path.resolve(this._filesTempDir, opts?.cwd ?? '.');
-    return new Promise((resolve) => {
-      const child = spawn(command, [], {cwd, shell: true});
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', (chunk) => {
-        process.stdout.write(chunk);
-        stdout += chunk;
-      });
-      child.stderr.on('data', (chunk) => {
-        process.stderr.write(chunk);
-        stderr += chunk;
-      });
-      child.on('close', (code) => {
-        resolve({stdout, stderr, code: code ?? 0});
-      });
+    const child = spawn(command, [], {
+      cwd,
+      shell: true,
+      detached: true,
     });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      process.stdout.write(chunk);
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      process.stderr.write(chunk);
+      stderr += chunk;
+    });
+    const close = new Promise<{stdout: string; stderr: string; code: number}>(
+      (resolve) => {
+        child.on('close', (code) => {
+          resolve({stdout, stderr, code: code ?? 0});
+        });
+      }
+    );
+    const kill = (signal: string | number) => process.kill(-child.pid!, signal);
+    return {done: close, kill};
   }
 
   async cleanup(): Promise<void> {

@@ -22,7 +22,7 @@ test('1 task succeeds', async () => {
   const out = rig.exec('npm run cmd');
   await cmd.waitUntilStarted();
   await cmd.exit(0);
-  const {code} = await out;
+  const {code} = await out.done;
   assert.equal(code, 0);
 
   // TODO(aomarks) Cleanup should happen even on failure. Is there a way to do
@@ -50,7 +50,7 @@ test('1 task fails', async () => {
   const out = rig.exec('npm run cmd');
   await cmd.waitUntilStarted();
   await cmd.exit(37); // Specific code doesn't matter.
-  const {code} = await out;
+  const {code} = await out.done;
   assert.equal(code, 1);
   assert.equal(cmd.startedCount, 1);
   await rig.cleanup();
@@ -90,7 +90,7 @@ test('2 tasks, 2 succeed', async () => {
   await cmd1.waitUntilStarted();
 
   await cmd1.exit(0);
-  const {code} = await out;
+  const {code} = await out.done;
   assert.equal(code, 0);
   assert.equal(cmd1.startedCount, 1);
   assert.equal(cmd2.startedCount, 1);
@@ -126,7 +126,7 @@ test('2 tasks, first fails', async () => {
   await cmd2.exit(37);
 
   // Fail because a task failed
-  const {code} = await out;
+  const {code} = await out.done;
   assert.equal(code, 1);
 
   // cmd1 should never have started
@@ -196,7 +196,7 @@ test('diamond', async () => {
   await cmd1.waitUntilStarted();
   await cmd1.exit(0);
 
-  const {code} = await out;
+  const {code} = await out.done;
   assert.equal(code, 0);
   assert.equal(cmd1.startedCount, 1);
   assert.equal(cmd2.startedCount, 1);
@@ -244,7 +244,7 @@ test('cross package', async () => {
   await cmd1.waitUntilStarted();
 
   await cmd1.exit(0);
-  const {code} = await out;
+  const {code} = await out.done;
   assert.equal(code, 0);
   assert.equal(cmd1.startedCount, 1);
   assert.equal(cmd2.startedCount, 1);
@@ -276,7 +276,7 @@ test('1 task: run, cached, run, cached', async () => {
     const out = rig.exec('npm run cmd');
     await cmd.waitUntilStarted();
     await cmd.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd.startedCount, 1);
   }
@@ -284,7 +284,7 @@ test('1 task: run, cached, run, cached', async () => {
   // [2] Don't run because the input files haven't changed.
   {
     const out = rig.exec('npm run cmd');
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     await rig.sleep(50);
     assert.equal(cmd.startedCount, 1);
@@ -296,7 +296,7 @@ test('1 task: run, cached, run, cached', async () => {
     const out = rig.exec('npm run cmd');
     await cmd.waitUntilStarted();
     await cmd.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd.startedCount, 2);
   }
@@ -304,7 +304,7 @@ test('1 task: run, cached, run, cached', async () => {
   // [4] Don't run because the input files haven't changed.
   {
     const out = rig.exec('npm run cmd');
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     await rig.sleep(50);
     assert.equal(cmd.startedCount, 2);
@@ -348,7 +348,7 @@ test('2 tasks: run, cached, run, cached', async () => {
     await cmd2.exit(0);
     await cmd1.waitUntilStarted();
     await cmd1.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd1.startedCount, 1);
     assert.equal(cmd2.startedCount, 1);
@@ -357,7 +357,7 @@ test('2 tasks: run, cached, run, cached', async () => {
   // [2] Don't run because the input files haven't changed.
   {
     const out = rig.exec('npm run cmd1');
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     await rig.sleep(50);
     assert.equal(cmd1.startedCount, 1);
@@ -377,7 +377,7 @@ test('2 tasks: run, cached, run, cached', async () => {
     await cmd2.exit(0);
     await cmd1.waitUntilStarted();
     await cmd1.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd1.startedCount, 2);
     assert.equal(cmd2.startedCount, 2);
@@ -386,7 +386,7 @@ test('2 tasks: run, cached, run, cached', async () => {
   // [4] Don't run because the input files haven't changed.
   {
     const out = rig.exec('npm run cmd1');
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     await rig.sleep(50);
     assert.equal(cmd1.startedCount, 2);
@@ -432,7 +432,7 @@ test('2 tasks: run, cached, run, cached', async () => {
     await cmd2.exit(0);
     await cmd1.waitUntilStarted();
     await cmd1.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd1.startedCount, 1);
     assert.equal(cmd2.startedCount, 1);
@@ -441,7 +441,7 @@ test('2 tasks: run, cached, run, cached', async () => {
   // [2] Don't run because the input files haven't changed.
   {
     const out = rig.exec('npm run cmd1');
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     await rig.sleep(50);
     assert.equal(cmd1.startedCount, 1);
@@ -456,7 +456,7 @@ test('2 tasks: run, cached, run, cached', async () => {
     const out = rig.exec('npm run cmd2');
     await cmd2.waitUntilStarted();
     await cmd2.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd1.startedCount, 1);
     assert.equal(cmd2.startedCount, 2);
@@ -468,7 +468,7 @@ test('2 tasks: run, cached, run, cached', async () => {
     const out = rig.exec('npm run cmd1');
     await cmd1.waitUntilStarted();
     await cmd1.exit(0);
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     assert.equal(cmd1.startedCount, 2);
     assert.equal(cmd2.startedCount, 2);
@@ -477,7 +477,7 @@ test('2 tasks: run, cached, run, cached', async () => {
   // [5] Don't run because the input files haven't changed.
   {
     const out = rig.exec('npm run cmd1');
-    const {code} = await out;
+    const {code} = await out.done;
     assert.equal(code, 0);
     await rig.sleep(50);
     assert.equal(cmd1.startedCount, 2);

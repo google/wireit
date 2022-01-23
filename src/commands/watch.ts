@@ -31,7 +31,7 @@ export default async (args: string[]) => {
     await runner.writeStates();
   };
   for (const [cwd, globs] of pkgGlobs.entries()) {
-    const watcher = chokidar.watch(globs, {cwd});
+    const watcher = chokidar.watch(globs, {cwd, alwaysStat: true});
     watcher.on('all', onChange);
     ready.push(
       new Promise<void>((resolve) => {
@@ -43,5 +43,8 @@ export default async (args: string[]) => {
   }
   await Promise.all(ready);
   r = true;
+  const runner = new TaskRunner();
+  await runner.run(packageJsonPath, taskName, new Set());
+  await runner.writeStates();
   console.log('ready');
 };
