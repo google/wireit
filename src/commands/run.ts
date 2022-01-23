@@ -158,12 +158,7 @@ export class TaskRunner {
       const child = spawn(task.command, [], {
         cwd: pathlib.dirname(config.packageJsonPath),
         shell: true,
-      });
-      child.stdout.on('data', (chunk) => {
-        process.stdout.write(chunk);
-      });
-      child.stderr.on('data', (chunk) => {
-        process.stderr.write(chunk);
+        stdio: 'inherit',
       });
       await new Promise<void>((resolve) => {
         child.on('close', (code) => {

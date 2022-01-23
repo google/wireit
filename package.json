@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "description": "A build system",
+  "license": "MIT",
   "main": "bin/wireit.js",
   "bin": {
     "wireit": "bin/wireit.js"
@@ -11,10 +12,10 @@
   "scripts": {
     "build": "node bin/wireit.js",
     "test": "node bin/wireit.js",
+    "test:watch": "node bin/wireit.js watch test",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
-    "upgrade": "rm -rf node_modules package-lock.json && npm i",
-    "watch": "tsc --watch"
+    "upgrade": "rm -rf node_modules package-lock.json && npm i"
   },
   "wireit": {
     "tasks": {
@@ -23,21 +24,20 @@
           "ts"
         ]
       },
-      "test": {
-        "command": "node lib/test/run-test.js",
-        "dependencies": [
-          "ts"
-        ]
-      },
       "ts": {
         "command": "npx tsc",
         "files": [
           "src/**/*.ts"
         ]
+      },
+      "test": {
+        "command": "npx uvu lib/test",
+        "dependencies": [
+          "ts"
+        ]
       }
     }
   },
-  "license": "MIT",
   "devDependencies": {
     "@types/node": "^17.0.1",
     "typescript": "^4.5.4",
