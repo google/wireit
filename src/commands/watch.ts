@@ -19,32 +19,72 @@ export default async (args: string[]) => {
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   const pkgGlobs = new Map();
   await analyze(packageJsonPath, taskName, pkgGlobs);
-  const ready = [];
-  let r = false;
-  const onChange = async (ev: unknown, path: unknown) => {
-    if (!r) {
+
+  // TODO(aomarks) Pretty sure this is not quite correct. Especially the case:
+  //
+  // 1. Build A starts
+  // 2. File changed
+  // 3. <debounce expires>
+  // 4. File changed
+  // 5. Build B starts, but without waiting for <debounce expires>
+  //
+  // Can probably be simplified too.
+  let buildIsWaitingToStart = false;
+  let activeBuild: Promise<void> | undefined;
+  const run = async () => {
+    if (buildIsWaitingToStart) {
       return;
     }
-    console.log('CHANGE DETECTED', ev, path);
-    const runner = new TaskRunner();
-    await runner.run(packageJsonPath, taskName, new Set());
-    await runner.writeStates();
+    if (activeBuild !== undefined) {
+      await activeBuild;
+    }
+    buildIsWaitingToStart = false;
+    activeBuild = (async () => {
+      const runner = new TaskRunner();
+      await runner.run(packageJsonPath, taskName, new Set());
+      await runner.writeStates();
+      activeBuild = undefined;
+    })();
   };
+
+  const debounce = 50;
+  let nextRunTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
+  const invalidate = () => {
+    if (nextRunTimeout !== undefined) {
+      clearTimeout(nextRunTimeout);
+    }
+    nextRunTimeout = setTimeout(run, debounce);
+  };
+
+  // We want to create as few chokidar watchers as possible, but we need at
+  // least one per cwd, because each globs need to be evaluated relative to its
+  // cwd, and it's not possible (or is at least difficult and error-prone) to
+  // turn relative globs into absolute ones (pathlib.resolve won't do it because
+  // glob syntax is more complicated than standard path syntax).
+  const globsByCwd = new Map<string, string[]>();
   for (const [cwd, globs] of pkgGlobs.entries()) {
+    let arr = globsByCwd.get(cwd);
+    if (arr === undefined) {
+      arr = [];
+      globsByCwd.set(cwd, arr);
+    }
+    arr.push(...globs);
+  }
+
+  const watcherPromises: Array<Promise<chokidar.FSWatcher>> = [];
+  for (const [cwd, globs] of globsByCwd) {
     const watcher = chokidar.watch(globs, {cwd, alwaysStat: true});
-    watcher.on('all', onChange);
-    ready.push(
-      new Promise<void>((resolve) => {
-        watcher.on('ready', () => {
-          resolve();
-        });
-      })
+    watcherPromises.push(
+      new Promise((resolve) => watcher.on('ready', () => resolve(watcher)))
     );
   }
-  await Promise.all(ready);
-  r = true;
-  const runner = new TaskRunner();
-  await runner.run(packageJsonPath, taskName, new Set());
-  await runner.writeStates();
-  console.log('ready');
+
+  // Defer the first run until all chokidar watchers are ready.
+  const watchers = await Promise.all(watcherPromises);
+  for (const watcher of watchers) {
+    watcher.on('all', () => invalidate());
+  }
+
+  // Always run initially.
+  invalidate();
 };
