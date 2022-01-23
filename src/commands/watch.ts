@@ -37,9 +37,10 @@ export default async (args: string[]) => {
     }
     if (activeBuild !== undefined) {
       await activeBuild;
+    } else {
     }
     buildIsWaitingToStart = false;
-    activeBuild = (async () => {
+    activeBuild = new Promise(async (resolve) => {
       const runner = new TaskRunner();
       try {
         await runner.run(packageJsonPath, taskName, new Set());
@@ -50,9 +51,11 @@ export default async (args: string[]) => {
         } else {
           throw err;
         }
+      } finally {
+        resolve();
+        activeBuild = undefined;
       }
-      activeBuild = undefined;
-    })();
+    });
   };
 
   const debounce = 50;

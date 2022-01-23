@@ -213,7 +213,23 @@ test("don't kill watcher when task fails", async () => {
   assert.equal(cmd.startedCount, 2);
   assert.equal(process.running(), true);
 
-  // // Kill the parent process.
+  // Modify the input. Expect another run. Fails.
+  await rig.writeFiles({'input.txt': 'v3'});
+  await cmd.waitUntilStarted();
+  await cmd.exit(1);
+  await rig.sleep(50);
+  assert.equal(cmd.startedCount, 3);
+  assert.equal(process.running(), true);
+
+  // Modify the input. Expect another run. Succeeds.
+  await rig.writeFiles({'input.txt': 'v2'});
+  await cmd.waitUntilStarted();
+  await cmd.exit(0);
+  await rig.sleep(50);
+  assert.equal(cmd.startedCount, 4);
+  assert.equal(process.running(), true);
+
+  // Kill the parent process.
   process.kill('SIGINT');
   const {code} = await process.done;
   assert.equal(code, 0);
