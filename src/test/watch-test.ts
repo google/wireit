@@ -172,4 +172,54 @@ test('watch modified during run', async () => {
   await rig.cleanup();
 });
 
+test("don't kill watcher when task fails", async () => {
+  const rig = new TestRig();
+  const cmd = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      scripts: {
+        cmd: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+          },
+        },
+      },
+    },
+    'input.txt': 'v1',
+  });
+
+  // Start watching
+  const process = rig.exec('npx wireit watch cmd');
+
+  // Initial run fails
+  await cmd.waitUntilStarted();
+  await cmd.exit(1);
+  assert.equal(process.running(), true);
+
+  // Make sure nothing happens for a while
+  await rig.sleep(50);
+  assert.equal(cmd.startedCount, 1);
+  assert.equal(process.running(), true);
+
+  // Modify the input. Expect another run. This time it succeeds.
+  await rig.writeFiles({'input.txt': 'v2'});
+  await cmd.waitUntilStarted();
+  await cmd.exit(0);
+  await rig.sleep(50);
+  assert.equal(cmd.startedCount, 2);
+  assert.equal(process.running(), true);
+
+  // // Kill the parent process.
+  process.kill('SIGINT');
+  const {code} = await process.done;
+  assert.equal(code, 0);
+  assert.equal(process.running(), false);
+
+  await rig.cleanup();
+});
+
 test.run();

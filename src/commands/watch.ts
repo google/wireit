@@ -2,7 +2,7 @@ import {KnownError} from '../shared/known-error.js';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
-import {TaskRunner} from './run.js';
+import {TaskRunner, CommandFailedError} from './run.js';
 
 export default async (args: string[]) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
@@ -41,8 +41,16 @@ export default async (args: string[]) => {
     buildIsWaitingToStart = false;
     activeBuild = (async () => {
       const runner = new TaskRunner();
-      await runner.run(packageJsonPath, taskName, new Set());
-      await runner.writeStates();
+      try {
+        await runner.run(packageJsonPath, taskName, new Set());
+        await runner.writeStates();
+      } catch (err) {
+        if (err instanceof CommandFailedError) {
+          console.error(`Task failed: ${err.message}`);
+        } else {
+          throw err;
+        }
+      }
       activeBuild = undefined;
     })();
   };

@@ -10,6 +10,8 @@ import {resolveTask} from '../shared/resolve-task.js';
 import type {Config, Task} from '../types/config.js';
 import type {State} from '../types/state.js';
 
+export class CommandFailedError extends Error {}
+
 export default async (args: string[]) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
     throw new KnownError(`Expected 1 argument but got ${args.length}`);
@@ -160,12 +162,17 @@ export class TaskRunner {
         shell: true,
         stdio: 'inherit',
       });
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         child.on('close', (code) => {
           if (code !== 0) {
-            throw new Error(`Command ${taskName} failed with code ${code}`);
+            reject(
+              new CommandFailedError(
+                `Command ${taskName} failed with code ${code}`
+              )
+            );
+          } else {
+            resolve();
           }
-          resolve();
         });
       });
     }

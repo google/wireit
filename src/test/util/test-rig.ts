@@ -44,6 +44,7 @@ export class TestRig {
   ): {
     kill: (signal: string | number) => void;
     done: Promise<{stdout: string; stderr: string; code: number}>;
+    running: () => boolean;
   } {
     this._checkNotDone();
     const cwd = path.resolve(this._filesTempDir, opts?.cwd ?? '.');
@@ -62,15 +63,17 @@ export class TestRig {
       process.stderr.write(chunk);
       stderr += chunk;
     });
+    let running = true;
     const close = new Promise<{stdout: string; stderr: string; code: number}>(
       (resolve) => {
         child.on('close', (code) => {
+          running = false;
           resolve({stdout, stderr, code: code ?? 0});
         });
       }
     );
     const kill = (signal: string | number) => process.kill(-child.pid!, signal);
-    return {done: close, kill};
+    return {done: close, kill, running: () => running};
   }
 
   async cleanup(): Promise<void> {
