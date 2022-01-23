@@ -11,8 +11,9 @@
   overall (tsc style).
 - Documentation
 
-# V2
+# Followup
 
 - Windows support
 - Automatic panels (maybe using tmux)
 - Progress bar
+- Website
