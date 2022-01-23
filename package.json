@@ -13,6 +13,10 @@
     "build": "node bin/wireit.js",
     "test": "node bin/wireit.js",
     "test:watch": "node bin/wireit.js watch test",
+    "test:runmode": "node bin/wireit.js",
+    "test:runmode:watch": "node bin/wireit.js watch test:runmode",
+    "test:watchmode": "node bin/wireit.js",
+    "test:watchmode:watch": "node bin/wireit.js watch test:watchmode",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
     "upgrade": "rm -rf node_modules package-lock.json && npm i"
@@ -25,13 +29,25 @@
         ]
       },
       "ts": {
-        "command": "npx tsc",
+        "command": "tsc",
         "files": [
           "src/**/*.ts"
         ]
       },
       "test": {
-        "command": "npx uvu lib/test",
+        "command": "uvu lib/test",
+        "dependencies": [
+          "ts"
+        ]
+      },
+      "test:runmode": {
+        "command": "uvu lib/test 'run-test.js$'",
+        "dependencies": [
+          "ts"
+        ]
+      },
+      "test:watchmode": {
+        "command": "uvu lib/test 'watch-test.js$'",
         "dependencies": [
           "ts"
         ]

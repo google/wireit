@@ -17,9 +17,10 @@ export default async (args: string[]) => {
     throw new KnownError(`Expected 1 argument but got ${args.length}`);
   }
 
-  const packageJsonPath =
-    process.env.npm_package_json ??
-    (await findNearestPackageJson(process.cwd()));
+  // We could check process.env.npm_package_json here, but it's actually wrong
+  // in some cases. E.g. when we invoke wireit from one npm script, but we're
+  // asking it to evaluate another directory.
+  const packageJsonPath = await findNearestPackageJson(process.cwd());
   if (packageJsonPath === undefined) {
     throw new KnownError(
       `Could not find a package.json in ${process.cwd()} or parents`
@@ -152,14 +153,17 @@ export class TaskRunner {
       state.cacheKeys[taskName] = newCacheKey;
     }
     if (!cacheKeyStale) {
+      console.log(`Task ${taskName} already fresh`);
       resolve!({ran: false, cacheKey: newCacheKeyData});
       return promise;
     }
     if (task.command) {
-      // TODO(aomarks) Run with npx (or the configured shell).
-      const child = spawn(task.command, [], {
+      // We run tasks via npx so that PATH will include the node_modules/.bin
+      // directory, matching the standard behavior of an NPM script. This also
+      // gives access to other NPM-specific environment variables that a user's
+      // script might need.
+      const child = spawn('npx', ['-c', task.command], {
         cwd: pathlib.dirname(config.packageJsonPath),
-        shell: true,
         stdio: 'inherit',
       });
       await new Promise<void>((resolve, reject) => {

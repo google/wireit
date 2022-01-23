@@ -38,6 +38,11 @@ export class TestRig {
     );
   }
 
+  async chmod(file: string, mode: Parameters<typeof fs.chmod>[1]) {
+    const absolute = path.resolve(this._filesTempDir, file);
+    return fs.chmod(absolute, mode);
+  }
+
   exec(
     command: string,
     opts?: {cwd?: string}

@@ -30,6 +30,65 @@ test('1 task succeeds', async () => {
   await rig.cleanup();
 });
 
+test('runs node binaries when invoked via npm script', async () => {
+  const rig = new TestRig();
+  const cmd = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      scripts: {
+        cmd: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd: {
+            command: 'installed-binary',
+          },
+        },
+      },
+    },
+    'node_modules/.bin/installed-binary': [
+      '#!/usr/bin/env bash',
+      cmd.command(),
+    ].join('\n'),
+  });
+  await rig.chmod('node_modules/.bin/installed-binary', '755');
+  const out = rig.exec('npm run cmd');
+  await cmd.waitUntilStarted();
+  await cmd.exit(0);
+  const {code} = await out.done;
+  assert.equal(code, 0);
+
+  await rig.cleanup();
+});
+
+test('runs node binaries when invoked directly', async () => {
+  const rig = new TestRig();
+  const cmd = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      wireit: {
+        tasks: {
+          cmd: {
+            command: 'installed-binary',
+          },
+        },
+      },
+    },
+    'node_modules/.bin/installed-binary': [
+      '#!/usr/bin/env bash',
+      cmd.command(),
+    ].join('\n'),
+  });
+  await rig.chmod('node_modules/.bin/installed-binary', '755');
+  const out = rig.exec('node ../../../bin/wireit.js run cmd');
+  await cmd.waitUntilStarted();
+  await cmd.exit(0);
+  const {code} = await out.done;
+  assert.equal(code, 0);
+
+  await rig.cleanup();
+});
+
 test('1 task fails', async () => {
   const rig = new TestRig();
   const cmd = rig.newCommand();
