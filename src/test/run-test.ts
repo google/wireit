@@ -1,9 +1,18 @@
-import {test} from 'uvu';
+import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {TestRig} from './util/test-rig.js';
 
-test('1 task succeeds', async () => {
-  const rig = new TestRig();
+const test = suite<{rig: TestRig}>();
+
+test.before.each((ctx) => {
+  ctx.rig = new TestRig();
+});
+
+test.after.each(async (ctx) => {
+  await ctx.rig.cleanup();
+});
+
+test('1 task succeeds', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -24,14 +33,9 @@ test('1 task succeeds', async () => {
   await cmd.exit(0);
   const {code} = await out.done;
   assert.equal(code, 0);
-
-  // TODO(aomarks) Cleanup should happen even on failure. Is there a way to do
-  // that in uvu?
-  await rig.cleanup();
 });
 
-test('runs node binaries when invoked via npm script', async () => {
-  const rig = new TestRig();
+test('runs node binaries when invoked via npm script', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -57,12 +61,9 @@ test('runs node binaries when invoked via npm script', async () => {
   await cmd.exit(0);
   const {code} = await out.done;
   assert.equal(code, 0);
-
-  await rig.cleanup();
 });
 
-test('runs node binaries when invoked directly', async () => {
-  const rig = new TestRig();
+test('runs node binaries when invoked directly', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -85,12 +86,9 @@ test('runs node binaries when invoked directly', async () => {
   await cmd.exit(0);
   const {code} = await out.done;
   assert.equal(code, 0);
-
-  await rig.cleanup();
 });
 
-test('1 task fails', async () => {
-  const rig = new TestRig();
+test('1 task fails', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -112,11 +110,9 @@ test('1 task fails', async () => {
   const {code} = await out.done;
   assert.equal(code, 1);
   assert.equal(cmd.startedCount, 1);
-  await rig.cleanup();
 });
 
-test('2 tasks, 2 succeed', async () => {
-  const rig = new TestRig();
+test('2 tasks, 2 succeed', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   await rig.writeFiles({
@@ -153,11 +149,9 @@ test('2 tasks, 2 succeed', async () => {
   assert.equal(code, 0);
   assert.equal(cmd1.startedCount, 1);
   assert.equal(cmd2.startedCount, 1);
-  await rig.cleanup();
 });
 
-test('2 tasks, first fails', async () => {
-  const rig = new TestRig();
+test('2 tasks, first fails', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   await rig.writeFiles({
@@ -193,8 +187,6 @@ test('2 tasks, first fails', async () => {
   assert.not(cmd1.running);
   assert.equal(cmd1.startedCount, 0);
   assert.equal(cmd2.startedCount, 1);
-
-  await rig.cleanup();
 });
 
 /**
@@ -208,8 +200,7 @@ test('2 tasks, first fails', async () => {
  *      v v
  *      cmd4
  */
-test('diamond', async () => {
-  const rig = new TestRig();
+test('diamond', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   const cmd3 = rig.newCommand();
@@ -261,12 +252,9 @@ test('diamond', async () => {
   assert.equal(cmd2.startedCount, 1);
   assert.equal(cmd3.startedCount, 1);
   assert.equal(cmd4.startedCount, 1);
-
-  await rig.cleanup();
 });
 
-test('cross package', async () => {
-  const rig = new TestRig();
+test('cross package', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   await rig.writeFiles({
@@ -307,11 +295,9 @@ test('cross package', async () => {
   assert.equal(code, 0);
   assert.equal(cmd1.startedCount, 1);
   assert.equal(cmd2.startedCount, 1);
-  await rig.cleanup();
 });
 
-test('1 task: run, cached, run, cached', async () => {
-  const rig = new TestRig();
+test('1 task: run, cached, run, cached', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -368,12 +354,9 @@ test('1 task: run, cached, run, cached', async () => {
     await rig.sleep(50);
     assert.equal(cmd.startedCount, 2);
   }
-
-  await rig.cleanup();
 });
 
-test('2 tasks: run, cached, run, cached', async () => {
-  const rig = new TestRig();
+test('2 tasks: run, cached, run, cached', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   await rig.writeFiles({
@@ -451,12 +434,9 @@ test('2 tasks: run, cached, run, cached', async () => {
     assert.equal(cmd1.startedCount, 2);
     assert.equal(cmd2.startedCount, 2);
   }
-
-  await rig.cleanup();
 });
 
-test('2 tasks: run, cached, run, cached', async () => {
-  const rig = new TestRig();
+test('2 tasks: run, cached, run, cached', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   await rig.writeFiles({
@@ -542,8 +522,6 @@ test('2 tasks: run, cached, run, cached', async () => {
     assert.equal(cmd1.startedCount, 2);
     assert.equal(cmd2.startedCount, 2);
   }
-
-  await rig.cleanup();
 });
 
 test.run();

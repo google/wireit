@@ -1,9 +1,18 @@
-import {test} from 'uvu';
+import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {TestRig} from './util/test-rig.js';
 
-test('watch 1 task', async () => {
-  const rig = new TestRig();
+const test = suite<{rig: TestRig}>();
+
+test.before.each((ctx) => {
+  ctx.rig = new TestRig();
+});
+
+test.after.each(async (ctx) => {
+  await ctx.rig.cleanup();
+});
+
+test('watch 1 task', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -44,12 +53,9 @@ test('watch 1 task', async () => {
   process.kill('SIGINT');
   const {code} = await process.done;
   assert.equal(code, 0);
-
-  await rig.cleanup();
 });
 
-test('watch 2 task', async () => {
-  const rig = new TestRig();
+test('watch 2 task', async ({rig}) => {
   const cmd1 = rig.newCommand();
   const cmd2 = rig.newCommand();
   await rig.writeFiles({
@@ -109,12 +115,9 @@ test('watch 2 task', async () => {
   process.kill('SIGINT');
   const {code} = await process.done;
   assert.equal(code, 0);
-
-  await rig.cleanup();
 });
 
-test('watch modified during run', async () => {
-  const rig = new TestRig();
+test('watch modified during run', async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -168,12 +171,9 @@ test('watch modified during run', async () => {
   process.kill('SIGINT');
   const {code} = await process.done;
   assert.equal(code, 0);
-
-  await rig.cleanup();
 });
 
-test("don't kill watcher when task fails", async () => {
-  const rig = new TestRig();
+test("don't kill watcher when task fails", async ({rig}) => {
   const cmd = rig.newCommand();
   await rig.writeFiles({
     'package.json': {
@@ -234,8 +234,6 @@ test("don't kill watcher when task fails", async () => {
   const {code} = await process.done;
   assert.equal(code, 0);
   assert.equal(process.running(), false);
-
-  await rig.cleanup();
 });
 
 test.run();

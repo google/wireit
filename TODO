@@ -10,13 +10,15 @@
 - Documentation
 - Investigate script-shell
 - Test that processes are getting cleaned up
-- Make cleanup always run even when uvu test fails
 - Test for detecting cycles
 - A way to run scripts like "wireit packages/foo:task"
+- Test that output is getting logged
 
 # Followup
 
+- More efficient use of chokidar
 - Windows support
 - Automatic panels (maybe using tmux)
 - Progress bar
 - Website
+- Bash completion
