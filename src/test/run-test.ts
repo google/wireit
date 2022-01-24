@@ -524,4 +524,58 @@ test('2 tasks: run, cached, run, cached', async ({rig}) => {
   }
 });
 
+test('detects cycles of length 1', async ({rig}) => {
+  const cmd = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      scripts: {
+        cmd: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd: {
+            command: cmd.command(),
+            dependencies: ['cmd'],
+          },
+        },
+      },
+    },
+  });
+  const out = rig.exec('npm run cmd');
+  const {code} = await out.done;
+  await rig.sleep(50);
+  assert.equal(cmd.startedCount, 0);
+  assert.equal(code, 1);
+});
+
+test('detects cycles of length 2', async ({rig}) => {
+  const cmd1 = rig.newCommand();
+  const cmd2 = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      scripts: {
+        cmd: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            dependencies: ['cmd1'],
+          },
+        },
+      },
+    },
+  });
+  const out = rig.exec('npm run cmd');
+  const {code} = await out.done;
+  await rig.sleep(50);
+  assert.equal(cmd1.startedCount, 0);
+  assert.equal(cmd2.startedCount, 0);
+  assert.equal(code, 1);
+});
+
 test.run();
