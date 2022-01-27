@@ -776,7 +776,7 @@ test(
 
     // Now the main process can exit.
     const {code} = await process.done;
-    assert.equal(code, 1);
+    assert.equal(code, 130);
 
     // cmd1 should never have started, the other two started once each.
     assert.equal(cmd1.startedCount, 0);
