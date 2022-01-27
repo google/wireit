@@ -1,6 +1,5 @@
 # MVP
 
-- Tests are timing out! How to get uvu to handle timeouts?
 - Signal handling
 - Watch mode should reload configs when the configs change.
 - Watch mode debouncing correctness
