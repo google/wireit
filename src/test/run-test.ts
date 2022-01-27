@@ -683,4 +683,60 @@ test('package-lock changes invalidate cache keys', async ({rig}) => {
   }
 });
 
+test('SIGINT waits for children to exit', async ({rig}) => {
+  const cmd1 = rig.newCommand();
+  const cmd2 = rig.newCommand();
+  const cmd3 = rig.newCommand();
+  await rig.writeFiles({
+    'package.json': {
+      scripts: {
+        cmd1: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+          },
+          cmd3: {
+            command: cmd3.command(),
+          },
+        },
+      },
+    },
+  });
+  const process = rig.exec('npm run cmd1');
+
+  // The two dependency processes should start in parallel.
+  await cmd2.waitUntilStarted();
+  await cmd3.waitUntilStarted();
+
+  // Now we send SIGINT to the main wireit process.
+  process.kill('SIGINT');
+
+  // Both dependency processes should receive this.
+  assert.equal(await cmd2.receivedSignal, 'SIGINT');
+  assert.equal(await cmd3.receivedSignal, 'SIGINT');
+
+  // Child 1/1, but we can't exit yet because 2/2 is still running.
+  await cmd2.exit(1);
+  await rig.sleep(50);
+  assert.equal(process.running(), true);
+
+  // Child 2/2 exits
+  await cmd3.exit(1);
+
+  // Now the main process can exit.
+  const {code} = await process.done;
+  assert.equal(code, 1);
+
+  // cmd1 should never have started, the other two started once each.
+  assert.equal(cmd1.startedCount, 0);
+  assert.equal(cmd2.startedCount, 1);
+  assert.equal(cmd3.startedCount, 1);
+});
+
 test.run();

@@ -81,6 +81,7 @@ export class TestRig {
       (resolve) => {
         child.on('close', (code) => {
           running = false;
+          // TODO(aomarks) Why is code sometimes null?
           resolve({stdout, stderr, code: code ?? 0});
         });
       }
@@ -114,6 +115,8 @@ class Command {
   private _connectionPromise: Promise<net.Socket>;
   private _running = false;
   private _startedCount = 0;
+  private _nextSignal: Promise<string>;
+  private _nextSignalResolve!: (signal: string) => void;
 
   constructor(socketfile: string) {
     this._socketfile = socketfile;
@@ -123,6 +126,9 @@ class Command {
     });
     this._connectionPromise = new Promise((resolve) => {
       this._resolveConnectionPromise = resolve;
+    });
+    this._nextSignal = new Promise((resolve) => {
+      this._nextSignalResolve = resolve;
     });
   }
 
@@ -154,10 +160,12 @@ class Command {
     });
   }
 
-  close(): Promise<void> {
-    return new Promise((resolve) => {
-      this._server.close(() => resolve());
-    });
+  async close(): Promise<void> {
+    await this._server.close();
+  }
+
+  get receivedSignal() {
+    return this._nextSignal;
   }
 
   private readonly _onConnection = (socket: net.Socket) => {
@@ -166,6 +174,13 @@ class Command {
     }
     this._running = true;
     this._startedCount++;
+    socket.on('data', (data) => {
+      const signal = data.toString();
+      this._nextSignalResolve(signal);
+      this._nextSignal = new Promise((resolve) => {
+        this._nextSignalResolve = resolve;
+      });
+    });
     this._resolveConnectionPromise(socket);
   };
 }
@@ -173,6 +188,9 @@ class Command {
 const socketfile = process.env.SOCKETFILE;
 if (socketfile) {
   const client = net.createConnection(socketfile);
+  process.on('SIGINT', async () => {
+    client.write('SIGINT');
+  });
   client.on('data', (data: Buffer) => {
     const code = Number(data.toString());
     process.exit(code);

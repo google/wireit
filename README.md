@@ -3,6 +3,7 @@
 ## TODO
 
 - Run commands with `npm exec`
+- CTRL-C seems to be caching too aggressively (task didn't actually finish).
 - Set up linting
 - Tests
 - Ability to run multiple tasks `wireit run packages/*:foo`
@@ -591,7 +592,7 @@ You can write this string directly from your program, for example:
 ```js
 const databaseChanged = updateDatabase();
 if (!databaseChanged) {
-  console.log("::wireit-status=noop");
+  console.log('::wireit-status=noop');
 }
 ```
 

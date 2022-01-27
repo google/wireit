@@ -5,8 +5,9 @@ import chokidar from 'chokidar';
 import {TaskRunner, CommandFailedError} from './run.js';
 import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
 import * as pathlib from 'path';
+import {AbortManager} from '../shared/aborted.js';
 
-export default async (args: string[]) => {
+export default async (args: string[], aborted: AbortManager) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
     throw new KnownError(`Expected 1 argument but got ${args.length}`);
   }
@@ -43,7 +44,7 @@ export default async (args: string[]) => {
     }
     buildIsWaitingToStart = false;
     activeBuild = new Promise(async (resolve) => {
-      const runner = new TaskRunner();
+      const runner = new TaskRunner(aborted);
       try {
         await runner.run(packageJsonPath, taskName, new Set());
         await runner.writeStates();

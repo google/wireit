@@ -7,13 +7,14 @@ import fastglob from 'fast-glob';
 import {readState, writeState} from '../shared/read-write-state.js';
 import {resolveTask} from '../shared/resolve-task.js';
 import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
+import {AbortManager, Aborted} from '../shared/aborted.js';
 
 import type {Config, Task} from '../types/config.js';
 import type {State} from '../types/state.js';
 
 export class CommandFailedError extends Error {}
 
-export default async (args: string[]) => {
+export default async (args: string[], abort: AbortManager) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
     throw new KnownError(`Expected 1 argument but got ${args.length}`);
   }
@@ -28,7 +29,7 @@ export default async (args: string[]) => {
     );
   }
 
-  const runner = new TaskRunner();
+  const runner = new TaskRunner(abort);
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
   // TODO(aomarks) Maybe we should write states more frequently so that as long
@@ -63,6 +64,11 @@ export class TaskRunner {
   private readonly _configs = new Map<string, Promise<Config>>();
   private readonly _taskPromises = new Map<string, Promise<TaskStatus>>();
   private readonly _states = new Map<string, Promise<State>>();
+  private readonly _abort: AbortManager;
+
+  constructor(abort: AbortManager) {
+    this._abort = abort;
+  }
 
   /**
    * @returns A promise that resolves to true if the task ran, otherwise false.
@@ -177,12 +183,15 @@ export class TaskRunner {
       // directory, matching the standard behavior of an NPM script. This also
       // gives access to other NPM-specific environment variables that a user's
       // script might need.
+      this._abort.increment();
       const child = spawn('npx', ['-c', task.command], {
         cwd: pathlib.dirname(config.packageJsonPath),
         stdio: 'inherit',
+        detached: true,
       });
-      await new Promise<void>((resolve, reject) => {
+      const completed = new Promise<void>((resolve, reject) => {
         child.on('close', (code) => {
+          this._abort.decrement();
           if (code !== 0) {
             reject(
               new CommandFailedError(
@@ -194,6 +203,10 @@ export class TaskRunner {
           }
         });
       });
+      const result = await Promise.race([completed, this._abort.aborted]);
+      if (result === Aborted) {
+        process.kill(-child.pid!, 'SIGINT');
+      }
     }
     resolve!({cacheKey: newCacheKeyData});
     return promise;
