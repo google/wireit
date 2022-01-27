@@ -79,10 +79,12 @@ export class TestRig {
     let running = true;
     const close = new Promise<{stdout: string; stderr: string; code: number}>(
       (resolve) => {
-        child.on('close', (code) => {
+        child.on('exit', (code) => {
           running = false;
-          // TODO(aomarks) Why is code sometimes null?
-          resolve({stdout, stderr, code: code ?? 0});
+          // Code will be null when the process was killed via a signal. 130 is
+          // the conventional return code used in this case.
+          // TODO(aomarks) We should probably signal vs code explicitly.
+          resolve({stdout, stderr, code: code ?? 130});
         });
       }
     );

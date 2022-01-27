@@ -52,7 +52,7 @@ test('watch 1 task', async ({rig}) => {
   // Kill the parent process.
   process.kill('SIGINT');
   const {code} = await process.done;
-  assert.equal(code, 0);
+  assert.equal(code, 130);
 });
 
 test('watch 2 task', async ({rig}) => {
@@ -114,7 +114,7 @@ test('watch 2 task', async ({rig}) => {
   // Kill the parent process.
   process.kill('SIGINT');
   const {code} = await process.done;
-  assert.equal(code, 0);
+  assert.equal(code, 130);
 });
 
 test('watch modified during run', async ({rig}) => {
@@ -170,7 +170,7 @@ test('watch modified during run', async ({rig}) => {
   // Kill the parent process.
   process.kill('SIGINT');
   const {code} = await process.done;
-  assert.equal(code, 0);
+  assert.equal(code, 130);
 });
 
 test("don't kill watcher when task fails", async ({rig}) => {
@@ -232,7 +232,7 @@ test("don't kill watcher when task fails", async ({rig}) => {
   // Kill the parent process.
   process.kill('SIGINT');
   const {code} = await process.done;
-  assert.equal(code, 0);
+  assert.equal(code, 130);
   assert.equal(process.running(), false);
 });
 
@@ -297,7 +297,7 @@ test('watch package-lock.json files', async ({rig}) => {
   // Kill the parent process.
   process.kill('SIGINT');
   const {code} = await process.done;
-  assert.equal(code, 0);
+  assert.equal(code, 130);
   assert.equal(process.running(), false);
 });
 

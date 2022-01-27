@@ -190,7 +190,7 @@ export class TaskRunner {
         detached: true,
       });
       const completed = new Promise<void>((resolve, reject) => {
-        child.on('close', (code) => {
+        child.on('exit', (code) => {
           this._abort.decrement();
           if (code !== 0) {
             reject(
