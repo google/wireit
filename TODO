@@ -1,5 +1,7 @@
 # MVP
 
+- Watch mode should apply to package locks too.
+- Watch mode should reload configs when the configs change.
 - Watch mode debouncing correctness
 - Signal handling
 - Initial watch build shouldn't wait the 50ms
