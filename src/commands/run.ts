@@ -6,7 +6,7 @@ import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
 import {readState, writeState} from '../shared/read-write-state.js';
 import {resolveTask} from '../shared/resolve-task.js';
-import * as fs from 'fs/promises';
+import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
 
 import type {Config, Task} from '../types/config.js';
 import type {State} from '../types/state.js';
@@ -148,8 +148,14 @@ export class TaskRunner {
     }
 
     if (task.npm ?? true) {
-      newCacheKeyData.npmPackageLocks = await this._getAllPackageLocks(
+      const packageLocks = await statReachablePackageLock(
         pathlib.dirname(packageJsonPath)
+      );
+      newCacheKeyData.npmPackageLocks = Object.fromEntries(
+        packageLocks.map(([filename, stat]) => [
+          filename,
+          {type: 'mod', m: stat.mtimeMs, c: stat.ctimeMs},
+        ])
       );
     }
 
@@ -236,40 +242,5 @@ export class TaskRunner {
       this._states.set(root, promise);
     }
     return promise;
-  }
-
-  private async _getAllPackageLocks(
-    root: string
-  ): Promise<{[filename: string]: FileCacheKey}> {
-    // TODO(aomarks) We should cache these results for each directory for each
-    // run.
-    const promises: Array<Promise<[string, FileCacheKey] | undefined>> = [];
-    let cur = root;
-    while (true) {
-      const filename = pathlib.join(cur, 'package-lock.json');
-      promises.push(
-        (async () => {
-          try {
-            const stat = await fs.stat(filename);
-            return [filename, {type: 'mod', m: stat.mtimeMs, c: stat.ctimeMs}];
-          } catch (err) {
-            if ((err as {code?: string}).code === 'ENOENT') {
-              return undefined;
-            }
-            throw err;
-          }
-        })()
-      );
-      const parent = pathlib.dirname(cur);
-      if (parent === '' || parent === cur) {
-        break;
-      }
-      cur = parent;
-    }
-    const entries = await Promise.all(promises);
-    const filtered = entries.filter((entry) => entry !== undefined) as Array<
-      [string, FileCacheKey]
-    >;
-    return Object.fromEntries(filtered);
   }
 }

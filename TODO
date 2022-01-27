@@ -1,6 +1,5 @@
 # MVP
 
-- Watch mode should apply to package locks too.
 - Watch mode should reload configs when the configs change.
 - Watch mode debouncing correctness
 - Signal handling
@@ -12,7 +11,6 @@
 - Documentation
 - Investigate script-shell
 - Test that processes are getting cleaned up
-  - A way to run scripts like "wireit packages/foo:task"
 - Test that output is getting logged
 
 # Followup
@@ -23,3 +21,5 @@
 - Progress bar
 - Website
 - Bash completion
+- Build multiple packages (... etc. syntax)
+- A way to run scripts like "wireit packages/foo:task"

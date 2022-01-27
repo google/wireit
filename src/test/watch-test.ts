@@ -236,4 +236,69 @@ test("don't kill watcher when task fails", async ({rig}) => {
   assert.equal(process.running(), false);
 });
 
+test('watch package-lock.json files', async ({rig}) => {
+  const cmd1 = rig.newCommand();
+  const cmd2 = rig.newCommand();
+  await rig.writeFiles({
+    'foo/package.json': {
+      scripts: {
+        cmd1: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            npm: false,
+          },
+        },
+      },
+    },
+    'foo/package-lock.json': 'v1',
+    'package-lock.json': 'v1',
+  });
+
+  // Start watching
+  const process = rig.exec('npx wireit watch cmd1', {cwd: 'foo'});
+
+  // Both run initially.
+  await cmd2.waitUntilStarted();
+  await cmd2.exit(0);
+  await cmd1.waitUntilStarted();
+  await cmd1.exit(0);
+  assert.equal(cmd1.startedCount, 1);
+  assert.equal(cmd2.startedCount, 1);
+  assert.equal(process.running(), true);
+
+  // Modify the nearest package lock. Expect another run, but only of cmd1,
+  // because cmd2 has npm:false.
+  await rig.writeFiles({'foo/package-lock.json': 'v2'});
+  await cmd1.waitUntilStarted();
+  await cmd1.exit(0);
+  assert.equal(cmd1.startedCount, 2);
+  assert.equal(cmd2.startedCount, 1);
+  assert.equal(process.running(), true);
+
+  // Modify the parent package lock. Expect another run of only cmd1.
+  await rig.writeFiles({'package-lock.json': 'v2'});
+  await cmd1.waitUntilStarted();
+  await cmd1.exit(0);
+  assert.equal(cmd1.startedCount, 3);
+  assert.equal(cmd2.startedCount, 1);
+  assert.equal(process.running(), true);
+
+  // TODO(aomarks) Why do we have to sleep here to avoid an ECONNRESET uncaught
+  // error?
+  await rig.sleep(0);
+
+  // Kill the parent process.
+  process.kill('SIGINT');
+  const {code} = await process.done;
+  assert.equal(code, 0);
+  assert.equal(process.running(), false);
+});
+
 test.run();

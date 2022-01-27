@@ -3,6 +3,8 @@ import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
 import {TaskRunner, CommandFailedError} from './run.js';
+import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
+import * as pathlib from 'path';
 
 export default async (args: string[]) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
@@ -82,8 +84,26 @@ export default async (args: string[]) => {
     arr.push(...globs);
   }
 
+  const packageLocks = await statReachablePackageLock(
+    pathlib.dirname(packageJsonPath)
+  );
+  for (const [lock] of packageLocks) {
+    const cwd = pathlib.dirname(lock);
+    let arr = globsByCwd.get(cwd);
+    if (arr === undefined) {
+      arr = [];
+      globsByCwd.set(cwd, arr);
+    }
+    arr.push(pathlib.basename(lock));
+  }
+
   const watcherPromises: Array<Promise<chokidar.FSWatcher>> = [];
   for (const [cwd, globs] of globsByCwd) {
+    if (globs.length === 0) {
+      // TODO(aomarks) Add a run test for this check. If you give chokidar an
+      // empty set of globs, it never fires ready.
+      continue;
+    }
     const watcher = chokidar.watch(globs, {cwd, alwaysStat: true});
     watcherPromises.push(
       new Promise((resolve) => watcher.on('ready', () => resolve(watcher)))

@@ -31,7 +31,8 @@
       "ts": {
         "command": "tsc",
         "files": [
-          "src/**/*.ts"
+          "src/**/*.ts",
+          "tsconfig.json"
         ]
       },
       "test": {
