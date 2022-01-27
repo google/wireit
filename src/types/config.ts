@@ -4,11 +4,12 @@ export interface PackageJson {
 
 export interface Config {
   packageJsonPath: string;
-  tasks?: { [taskName: string]: Task };
+  tasks?: {[taskName: string]: Task};
 }
 
 export interface Task {
   command?: string;
   dependencies?: string[];
   files?: string[];
+  npm?: boolean;
 }

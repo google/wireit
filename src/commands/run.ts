@@ -6,6 +6,7 @@ import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
 import {readState, writeState} from '../shared/read-write-state.js';
 import {resolveTask} from '../shared/resolve-task.js';
+import * as fs from 'fs/promises';
 
 import type {Config, Task} from '../types/config.js';
 import type {State} from '../types/state.js';
@@ -45,6 +46,8 @@ interface CacheKey {
   files: {[filename: string]: FileCacheKey};
   // Must be sorted by taskname.
   dependencies: {[taskname: string]: CacheKey};
+  // Must be sorted by filename.
+  npmPackageLocks: {[filename: string]: FileCacheKey};
 }
 
 // TODO(aomarks) Add FileHashKey
@@ -93,6 +96,7 @@ export class TaskRunner {
       command: task.command!, // TODO(aomarks) This shouldn't be undefined.
       files: {},
       dependencies: {},
+      npmPackageLocks: {},
     };
 
     if (task.dependencies?.length) {
@@ -141,6 +145,12 @@ export class TaskRunner {
           c: stats.ctimeMs,
         };
       }
+    }
+
+    if (task.npm ?? true) {
+      newCacheKeyData.npmPackageLocks = await this._getAllPackageLocks(
+        pathlib.dirname(packageJsonPath)
+      );
     }
 
     const newCacheKey = JSON.stringify(newCacheKeyData);
@@ -226,5 +236,40 @@ export class TaskRunner {
       this._states.set(root, promise);
     }
     return promise;
+  }
+
+  private async _getAllPackageLocks(
+    root: string
+  ): Promise<{[filename: string]: FileCacheKey}> {
+    // TODO(aomarks) We should cache these results for each directory for each
+    // run.
+    const promises: Array<Promise<[string, FileCacheKey] | undefined>> = [];
+    let cur = root;
+    while (true) {
+      const filename = pathlib.join(cur, 'package-lock.json');
+      promises.push(
+        (async () => {
+          try {
+            const stat = await fs.stat(filename);
+            return [filename, {type: 'mod', m: stat.mtimeMs, c: stat.ctimeMs}];
+          } catch (err) {
+            if ((err as {code?: string}).code === 'ENOENT') {
+              return undefined;
+            }
+            throw err;
+          }
+        })()
+      );
+      const parent = pathlib.dirname(cur);
+      if (parent === '' || parent === cur) {
+        break;
+      }
+      cur = parent;
+    }
+    const entries = await Promise.all(promises);
+    const filtered = entries.filter((entry) => entry !== undefined) as Array<
+      [string, FileCacheKey]
+    >;
+    return Object.fromEntries(filtered);
   }
 }

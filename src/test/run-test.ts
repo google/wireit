@@ -578,4 +578,109 @@ test('detects cycles of length 2', async ({rig}) => {
   assert.equal(code, 1);
 });
 
+test('package-lock changes invalidate cache keys', async ({rig}) => {
+  const cmd1 = rig.newCommand();
+  const cmd2 = rig.newCommand();
+  await rig.writeFiles({
+    'foo/package.json': {
+      scripts: {
+        cmd1: 'wireit',
+        cmd2: 'wireit',
+      },
+      wireit: {
+        tasks: {
+          cmd1: {
+            command: cmd1.command(),
+          },
+          cmd2: {
+            command: cmd2.command(),
+            npm: false,
+          },
+        },
+      },
+    },
+    'package-lock.json': 'v1',
+    'foo/package-lock.json': 'v1',
+  });
+
+  // Command 1 and 2 always run the first time.
+
+  {
+    const out = rig.exec('npm run cmd1', {cwd: 'foo'});
+    await cmd1.waitUntilStarted();
+    await cmd1.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd1.startedCount, 1);
+  }
+
+  {
+    const out = rig.exec('npm run cmd2', {cwd: 'foo'});
+    await cmd2.waitUntilStarted();
+    await cmd2.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd2.startedCount, 1);
+  }
+
+  // Neither command 1 nor 2 run again because nothing has changed.
+
+  {
+    const out = rig.exec('npm run cmd1', {cwd: 'foo'});
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd1.startedCount, 1);
+  }
+
+  {
+    const out = rig.exec('npm run cmd2', {cwd: 'foo'});
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd2.startedCount, 1);
+  }
+
+  // Change foo/package-lock.json. Command 1 should run because we respect
+  // package-locks by default. Command 2 should not run because it has npm:false
+  // configured.
+
+  await rig.writeFiles({'foo/package-lock.json': 'v2'});
+
+  {
+    const out = rig.exec('npm run cmd1', {cwd: 'foo'});
+    await cmd1.waitUntilStarted();
+    await cmd1.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd1.startedCount, 2);
+  }
+
+  {
+    const out = rig.exec('npm run cmd2', {cwd: 'foo'});
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd2.startedCount, 1);
+  }
+
+  // Change the parent package-lock.json. This should also invalidate command 1,
+  // because we recursively check the package locks of all parent directories.
+
+  await rig.writeFiles({'package-lock.json': 'v2'});
+
+  {
+    const out = rig.exec('npm run cmd1', {cwd: 'foo'});
+    await cmd1.waitUntilStarted();
+    await cmd1.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd1.startedCount, 3);
+  }
+
+  {
+    const out = rig.exec('npm run cmd2', {cwd: 'foo'});
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd2.startedCount, 1);
+  }
+});
+
 test.run();

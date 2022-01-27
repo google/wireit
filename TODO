@@ -1,6 +1,5 @@
 # MVP
 
-- package-lock.json files in cache key
 - Watch mode debouncing correctness
 - Signal handling
 - Initial watch build shouldn't wait the 50ms
