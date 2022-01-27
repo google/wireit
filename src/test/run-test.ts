@@ -760,11 +760,17 @@ test(
     await cmd3.waitUntilStarted();
 
     // Now we send SIGINT to the main wireit process.
+
+    // TODO(aomarks) We must grab these promises first, or else there's a race
+    // condition where we reset the promise before we have a chance to grab it.
+    // Better API?
+    const signal1 = cmd2.receivedSignal;
+    const signal2 = cmd3.receivedSignal;
     process.kill('SIGINT');
 
     // Both dependency processes should receive this.
-    assert.equal(await cmd2.receivedSignal, 'SIGINT');
-    assert.equal(await cmd3.receivedSignal, 'SIGINT');
+    assert.equal(await signal1, 'SIGINT');
+    assert.equal(await signal2, 'SIGINT');
 
     // Child 1/1, but we can't exit yet because 2/2 is still running.
     await cmd2.exit(1);
