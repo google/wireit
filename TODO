@@ -1,5 +1,6 @@
 # MVP
 
+- package-lock.json files in cache key
 - Watch mode debouncing correctness
 - Signal handling
 - Initial watch build shouldn't wait the 50ms
@@ -10,7 +11,7 @@
 - Documentation
 - Investigate script-shell
 - Test that processes are getting cleaned up
-- A way to run scripts like "wireit packages/foo:task"
+  - A way to run scripts like "wireit packages/foo:task"
 - Test that output is getting logged
 
 # Followup

@@ -36,7 +36,6 @@ export default async (args: string[]) => {
 };
 
 interface TaskStatus {
-  ran: boolean;
   cacheKey: CacheKey;
 }
 
@@ -154,7 +153,7 @@ export class TaskRunner {
     }
     if (!cacheKeyStale) {
       console.log(`Task ${taskName} already fresh`);
-      resolve!({ran: false, cacheKey: newCacheKeyData});
+      resolve!({cacheKey: newCacheKeyData});
       return promise;
     }
     if (task.command) {
@@ -180,7 +179,7 @@ export class TaskRunner {
         });
       });
     }
-    resolve!({ran: true, cacheKey: newCacheKeyData});
+    resolve!({cacheKey: newCacheKeyData});
     return promise;
   }
 
