@@ -120,7 +120,7 @@ test(
     await cmd.waitUntilStarted();
     await cmd.exit(37); // Specific code doesn't matter.
     const {code} = await out.done;
-    assert.equal(code, 1);
+    assert.equal(code, 1, 'code');
     assert.equal(cmd.startedCount, 1);
   })
 );
@@ -788,6 +788,141 @@ test(
     assert.equal(cmd1.startedCount, 0);
     assert.equal(cmd2.startedCount, 1);
     assert.equal(cmd3.startedCount, 1);
+  })
+);
+
+test(
+  'SIGINT cancelled task is not considered cached',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+        },
+        wireit: {
+          tasks: {
+            cmd1: {
+              command: cmd1.command(),
+            },
+          },
+        },
+      },
+    });
+
+    // The first run is cancelled before cmd1 gets a chance to finish.
+    {
+      const process = rig.exec('npm run cmd1');
+      await cmd1.waitUntilStarted();
+      const signal = cmd1.receivedSignal;
+      process.kill('SIGINT');
+      assert.equal(await signal, 'SIGINT');
+      await cmd1.exit(1);
+      const {code} = await process.done;
+      assert.equal(code, 130);
+      assert.equal(cmd1.startedCount, 1);
+    }
+
+    // On the second run, cmd1 should run again, because it didn't finish
+    // before.
+    {
+      const process = rig.exec('npm run cmd1');
+      await cmd1.waitUntilStarted();
+      await cmd1.exit(0);
+      const {code} = await process.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 2);
+    }
+  })
+);
+
+test(
+  'SIGINT caching',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    const cmd3 = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+        },
+        wireit: {
+          tasks: {
+            cmd1: {
+              command: cmd1.command(),
+              dependencies: ['cmd2', 'cmd3'],
+            },
+            cmd2: {
+              command: cmd2.command(),
+            },
+            cmd3: {
+              command: cmd3.command(),
+            },
+          },
+        },
+      },
+    });
+
+    // First run.
+    {
+      const process = rig.exec('npm run cmd1');
+
+      // cmd2 and cmd3 start concurrently
+      await cmd2.waitUntilStarted();
+      await cmd3.waitUntilStarted();
+
+      // cmd2 finishes
+      cmd2.exit(0);
+
+      // TODO(aomarks) We need enough time to allow wireit to notice cmd2's exit
+      // code and write the status.
+      await rig.sleep(100);
+
+      // wireit killed
+      const signal3 = cmd3.receivedSignal;
+      process.kill('SIGINT');
+
+      // cmd3 receives signal and exits
+      assert.equal(await signal3, 'SIGINT');
+      await cmd3.exit(1);
+
+      // wireit exits
+      const {code} = await process.done;
+      assert.equal(code, 130);
+
+      // cmd1 should never have started, the other two started once each.
+      assert.equal(cmd1.startedCount, 0);
+      assert.equal(cmd2.startedCount, 1);
+      assert.equal(cmd3.startedCount, 1);
+    }
+
+    // Second run
+    {
+      const process = rig.exec('npm run cmd1');
+
+      // cmd2 already finished, so only cmd3 starts. It finishes successfully.
+      await cmd3.waitUntilStarted();
+      await cmd3.exit(0);
+
+      // cmd1 starts and finishes successfully
+
+      await cmd1.waitUntilStarted();
+      await cmd1.exit(0);
+
+      // wire it finishes
+      const {code} = await process.done;
+      assert.equal(code, 0);
+
+      // cmd1 should have run once because it didn't start the first time
+      assert.equal(cmd1.startedCount, 1);
+
+      // cmd2 should have run once because it completed the first time
+      assert.equal(cmd2.startedCount, 1);
+
+      // cmd3 should have run twice because it was cancelled the first time
+      assert.equal(cmd3.startedCount, 2);
+    }
   })
 );
 

@@ -2,73 +2,30 @@ import {KnownError} from '../shared/known-error.js';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
-import {TaskRunner, CommandFailedError} from './run.js';
+import {TaskRunner} from './run.js';
 import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
 import * as pathlib from 'path';
-import {AbortManager} from '../shared/aborted.js';
+import {Abort} from '../shared/abort.js';
 
-export default async (args: string[], aborted: AbortManager) => {
+export default async (args: string[], abort: Promise<typeof Abort>) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
-    throw new KnownError(`Expected 1 argument but got ${args.length}`);
+    throw new KnownError(
+      'invalid-argument',
+      `Expected 1 argument but got ${args.length}`
+    );
   }
   const packageJsonPath =
     process.env.npm_package_json ??
     (await findNearestPackageJson(process.cwd()));
   if (packageJsonPath === undefined) {
     throw new KnownError(
+      'invalid-argument',
       `Could not find a package.json in ${process.cwd()} or parents`
     );
   }
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   const pkgGlobs = new Map();
   await analyze(packageJsonPath, taskName, pkgGlobs);
-
-  // TODO(aomarks) Pretty sure this is not quite correct. Especially the case:
-  //
-  // 1. Build A starts
-  // 2. File changed
-  // 3. <debounce expires>
-  // 4. File changed
-  // 5. Build B starts, but without waiting for <debounce expires>
-  //
-  // Can probably be simplified too.
-  let buildIsWaitingToStart = false;
-  let activeBuild: Promise<void> | undefined;
-  const run = async () => {
-    if (buildIsWaitingToStart) {
-      return;
-    }
-    if (activeBuild !== undefined) {
-      await activeBuild;
-    } else {
-    }
-    buildIsWaitingToStart = false;
-    activeBuild = new Promise(async (resolve) => {
-      const runner = new TaskRunner(aborted);
-      try {
-        await runner.run(packageJsonPath, taskName, new Set());
-        await runner.writeStates();
-      } catch (err) {
-        if (err instanceof CommandFailedError) {
-          console.error(`Task failed: ${err.message}`);
-        } else {
-          throw err;
-        }
-      } finally {
-        resolve();
-        activeBuild = undefined;
-      }
-    });
-  };
-
-  const debounce = 50;
-  let nextRunTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
-  const invalidate = () => {
-    if (nextRunTimeout !== undefined) {
-      clearTimeout(nextRunTimeout);
-    }
-    nextRunTimeout = setTimeout(run, debounce);
-  };
 
   // We want to create as few chokidar watchers as possible, but we need at
   // least one per cwd, because each globs need to be evaluated relative to its
@@ -113,10 +70,57 @@ export default async (args: string[], aborted: AbortManager) => {
 
   // Defer the first run until all chokidar watchers are ready.
   const watchers = await Promise.all(watcherPromises);
+
+  let resolveNotification!: () => void;
+  let notification = new Promise<void>((resolve) => {
+    resolveNotification = resolve;
+  });
+
+  const debounce = 50;
+  let lastFileChangeMs = (global as any).performance.now();
   for (const watcher of watchers) {
-    watcher.on('all', () => invalidate());
+    watcher.on('all', () => {
+      lastFileChangeMs = (global as any).performance.now();
+      setTimeout(() => resolveNotification(), debounce);
+    });
   }
 
+  const runIgnoringTaskFailures = async () => {
+    const runner = new TaskRunner(abort);
+    try {
+      await runner.run(packageJsonPath, taskName, new Set());
+    } catch (err) {
+      if (
+        !(
+          err instanceof KnownError &&
+          (err.code === 'task-failed' || err.code === 'task-cancelled')
+        )
+      ) {
+        throw err;
+      }
+    }
+  };
+
   // Always run initially.
-  invalidate();
+  await runIgnoringTaskFailures();
+
+  while (true) {
+    const action = await Promise.race([notification, abort]);
+    if (action === Abort) {
+      break;
+    }
+    notification = new Promise<void>((resolve) => {
+      resolveNotification = resolve;
+    });
+    const now = (global as any).performance.now();
+    const elapsed = now - lastFileChangeMs;
+    if (elapsed >= debounce) {
+      await runIgnoringTaskFailures();
+    } else {
+      setTimeout(() => resolveNotification(), debounce - elapsed);
+    }
+  }
+
+  resolveNotification?.();
+  await Promise.all(watchers.map((watcher) => watcher.close()));
 };

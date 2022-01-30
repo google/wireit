@@ -162,7 +162,7 @@ test(
     await rig.writeFiles({'input.txt': 'v3'});
 
     // Ensure we don't start the second run before the first finishes.
-    await rig.sleep(100);
+    await rig.sleep(1000);
     assert.equal(cmd.startedCount, 2);
 
     // Eventually the first run finishes.

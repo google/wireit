@@ -1,7 +1,7 @@
-import { KnownError } from "../shared/known-error.js";
-import { readConfig } from "../shared/read-config.js";
-import { resolveTask } from "../shared/resolve-task.js";
-import * as pathlib from "path";
+import {KnownError} from '../shared/known-error.js';
+import {readConfig} from '../shared/read-config.js';
+import {resolveTask} from '../shared/resolve-task.js';
+import * as pathlib from 'path';
 
 export const analyze = async (
   packageJsonPath: string,
@@ -11,7 +11,10 @@ export const analyze = async (
   const config = await readConfig(packageJsonPath);
   const task = config.tasks?.[taskName];
   if (task === undefined) {
-    throw new KnownError(`No such task ${taskName} in ${packageJsonPath}`);
+    throw new KnownError(
+      'task-not-found',
+      `No such task ${taskName} in ${packageJsonPath}`
+    );
   }
   const promises = [];
   for (const dep of task.dependencies ?? []) {

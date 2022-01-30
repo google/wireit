@@ -4,19 +4,19 @@ import {spawn} from 'child_process';
 import * as pathlib from 'path';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
-import {readState, writeState} from '../shared/read-write-state.js';
 import {resolveTask} from '../shared/resolve-task.js';
 import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
-import {AbortManager, Aborted} from '../shared/aborted.js';
+import {Abort} from '../shared/abort.js';
+import {StateManager} from '../shared/state-manager.js';
 
 import type {Config, Task} from '../types/config.js';
-import type {State} from '../types/state.js';
 
-export class CommandFailedError extends Error {}
-
-export default async (args: string[], abort: AbortManager) => {
+export default async (args: string[], abort: Promise<typeof Abort>) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
-    throw new KnownError(`Expected 1 argument but got ${args.length}`);
+    throw new KnownError(
+      'invalid-argument',
+      `Expected 1 argument but got ${args.length}`
+    );
   }
 
   // We could check process.env.npm_package_json here, but it's actually wrong
@@ -25,6 +25,7 @@ export default async (args: string[], abort: AbortManager) => {
   const packageJsonPath = await findNearestPackageJson(process.cwd());
   if (packageJsonPath === undefined) {
     throw new KnownError(
+      'invalid-argument',
       `Could not find a package.json in ${process.cwd()} or parents`
     );
   }
@@ -32,9 +33,6 @@ export default async (args: string[], abort: AbortManager) => {
   const runner = new TaskRunner(abort);
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
-  // TODO(aomarks) Maybe we should write states more frequently so that as long
-  // as a step actually finished, even a kill -9 wouldn't prevent caching.
-  await runner.writeStates();
 };
 
 interface TaskStatus {
@@ -63,10 +61,10 @@ interface FileModKey {
 export class TaskRunner {
   private readonly _configs = new Map<string, Promise<Config>>();
   private readonly _taskPromises = new Map<string, Promise<TaskStatus>>();
-  private readonly _states = new Map<string, Promise<State>>();
-  private readonly _abort: AbortManager;
+  private readonly _abort: Promise<typeof Abort>;
+  private readonly _stateManager = new StateManager();
 
-  constructor(abort: AbortManager) {
+  constructor(abort: Promise<typeof Abort>) {
     this._abort = abort;
   }
 
@@ -81,6 +79,7 @@ export class TaskRunner {
     const taskId = JSON.stringify([packageJsonPath, taskName]);
     if (stack.has(taskId)) {
       throw new KnownError(
+        'cycle',
         `Cycle detected at task ${taskName} in ${packageJsonPath}`
       );
     }
@@ -120,11 +119,18 @@ export class TaskRunner {
           )
         );
       }
-      const results = await Promise.all(depTaskPromises);
+      // Note we use Promise.allSettled() instead of Promise.all() here because
+      // we want don't want our top-level task to throw until all sub-tasks have
+      // had a chance to clean up in the case of a failure.
+      const results = await Promise.allSettled(depTaskPromises);
       for (let i = 0; i < task.dependencies.length; i++) {
         const depTaskName = task.dependencies[i];
         const result = results[i];
-        newCacheKeyData.dependencies[depTaskName] = result.cacheKey;
+        if (result.status === 'rejected') {
+          // TODO(aomarks) Could create a compound error here.
+          throw result.reason;
+        }
+        newCacheKeyData.dependencies[depTaskName] = result.value.cacheKey;
       }
     }
 
@@ -141,7 +147,9 @@ export class TaskRunner {
       for (const entry of entries) {
         const stats = entry.stats;
         if (stats === undefined) {
-          throw new Error(`No file stats for ${entry.name}`);
+          throw new Error(
+            `Unexpected internal error. No file stats for ${entry.name}.`
+          );
         }
         // TODO(aomarks) Pin down whether entry.name is dealing with relative vs
         // absolute paths correctly.
@@ -166,35 +174,50 @@ export class TaskRunner {
     }
 
     const newCacheKey = JSON.stringify(newCacheKeyData);
-    const state = await this._getState(pathlib.dirname(config.packageJsonPath));
-    const oldCacheKey = state.cacheKeys[taskName];
+    const oldCacheKey = await this._stateManager.getCacheKey(
+      config.packageJsonPath,
+      taskName
+    );
     const cacheKeyStale =
       oldCacheKey === undefined || newCacheKey !== oldCacheKey;
-    if (cacheKeyStale) {
-      state.cacheKeys[taskName] = newCacheKey;
-    }
     if (!cacheKeyStale) {
-      console.log(`Task ${taskName} already fresh`);
       resolve!({cacheKey: newCacheKeyData});
       return promise;
     }
+
     if (task.command) {
       // We run tasks via npx so that PATH will include the node_modules/.bin
       // directory, matching the standard behavior of an NPM script. This also
       // gives access to other NPM-specific environment variables that a user's
       // script might need.
-      this._abort.increment();
       const child = spawn('npx', ['-c', task.command], {
         cwd: pathlib.dirname(config.packageJsonPath),
         stdio: 'inherit',
         detached: true,
       });
       const completed = new Promise<void>((resolve, reject) => {
-        child.on('exit', (code) => {
-          this._abort.decrement();
-          if (code !== 0) {
+        // TODO(aomarks) Do we need to handle "close"? Is there any way a
+        // "close" event can be fired, but not an "exit" or "error" event?
+        child.on('error', () => {
+          reject(
+            new KnownError(
+              'task-control-error',
+              `Command ${taskName} failed to start`
+            )
+          );
+        });
+        child.on('exit', (code, signal) => {
+          if (signal !== null) {
             reject(
-              new CommandFailedError(
+              new KnownError(
+                'task-cancelled',
+                `Command ${taskName} exited with signal ${code}`
+              )
+            );
+          } else if (code !== 0) {
+            reject(
+              new KnownError(
+                'task-failed',
                 `Command ${taskName} failed with code ${code}`
               )
             );
@@ -203,21 +226,24 @@ export class TaskRunner {
           }
         });
       });
-      const result = await Promise.race([completed, this._abort.aborted]);
-      if (result === Aborted) {
+      const result = await Promise.race([completed, this._abort]);
+      if (result === Abort) {
         process.kill(-child.pid!, 'SIGINT');
+        await completed;
+        throw new Error(
+          `Unexpected internal error. Task ${taskName} should have thrown.`
+        );
       }
     }
+
+    await this._stateManager.setCacheKey(
+      config.packageJsonPath,
+      taskName,
+      newCacheKey
+    );
+
     resolve!({cacheKey: newCacheKeyData});
     return promise;
-  }
-
-  async writeStates(): Promise<void> {
-    const promises = [];
-    for (const [root, statePromise] of this._states.entries()) {
-      promises.push(statePromise.then((state) => writeState(root, state)));
-    }
-    await Promise.all(promises);
   }
 
   private async _findConfigAndTask(
@@ -231,6 +257,7 @@ export class TaskRunner {
     const task = config.tasks?.[taskName];
     if (task === undefined) {
       throw new KnownError(
+        'task-not-found',
         `Could not find task ${taskName} in ${packageJsonPath}`
       );
     }
@@ -242,17 +269,6 @@ export class TaskRunner {
     if (promise === undefined) {
       promise = readConfig(packageJsonPath);
       this._configs.set(packageJsonPath, promise);
-    }
-    return promise;
-  }
-
-  private async _getState(root: string): Promise<State> {
-    let promise = this._states.get(root);
-    if (promise === undefined) {
-      promise = readState(root).then((state) =>
-        state === undefined ? {cacheKeys: {}} : state
-      );
-      this._states.set(root, promise);
     }
     return promise;
   }

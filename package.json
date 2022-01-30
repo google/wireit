@@ -36,7 +36,7 @@
         ]
       },
       "test": {
-        "command": "uvu lib/test",
+        "command": "uvu lib/test '-test.js$'",
         "dependencies": [
           "ts"
         ]

@@ -1,9 +1,7 @@
 # MVP
 
-- Signal handling
+- What happens if you run two command simultaneously
 - Watch mode should reload configs when the configs change.
-- Watch mode debouncing correctness
-- Initial watch build shouldn't wait the 50ms
 - Linear output mode that prevents interleaving of output
 - --watch flag (so that you can do "npm run build -- --watch")
 - Ability to say that a task shouldn't block the next step, but still fail
