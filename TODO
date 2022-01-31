@@ -1,5 +1,6 @@
 # MVP
 
+- Test that changing the command invalidates the cache
 - What happens if you run two command simultaneously
 - Watch mode should reload configs when the configs change.
 - Linear output mode that prevents interleaving of output

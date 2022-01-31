@@ -6,7 +6,7 @@ import type {Stats} from 'fs';
  * Finds all package-lock.json files in the given root directory, and all of
  * that directory's ancestors. Ordered from longest to shortest path.
  */
-export const statReachablePackageLock = async (
+export const statReachablePackageLocks = async (
   root: string
 ): Promise<Array<[string, Stats]>> => {
   const promises = [];

@@ -3,7 +3,7 @@ import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
 import {TaskRunner} from './run.js';
-import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
+import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.js';
 import * as pathlib from 'path';
 import {Abort} from '../shared/abort.js';
 
@@ -42,7 +42,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     arr.push(...globs);
   }
 
-  const packageLocks = await statReachablePackageLock(
+  const packageLocks = await statReachablePackageLocks(
     pathlib.dirname(packageJsonPath)
   );
   for (const [lock] of packageLocks) {
@@ -121,6 +121,5 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     }
   }
 
-  resolveNotification?.();
   await Promise.all(watchers.map((watcher) => watcher.close()));
 };

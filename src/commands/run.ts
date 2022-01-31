@@ -5,7 +5,7 @@ import * as pathlib from 'path';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
 import {resolveTask} from '../shared/resolve-task.js';
-import {statReachablePackageLock} from '../shared/stat-reachable-package-locks.js';
+import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.js';
 import {Abort} from '../shared/abort.js';
 import {StateManager} from '../shared/state-manager.js';
 
@@ -162,7 +162,7 @@ export class TaskRunner {
     }
 
     if (task.npm ?? true) {
-      const packageLocks = await statReachablePackageLock(
+      const packageLocks = await statReachablePackageLocks(
         pathlib.dirname(packageJsonPath)
       );
       newCacheKeyData.npmPackageLocks = Object.fromEntries(
