@@ -35,7 +35,7 @@ test(
     });
 
     // Start watching
-    const process = rig.exec('npx wireit watch cmd');
+    const process = rig.exec('npm run cmd -- watch');
 
     // There's always an initial run
     await cmd.waitUntilStarted();
