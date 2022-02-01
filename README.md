@@ -132,7 +132,42 @@ Wireit can reference dependencies in other packages using `<path-to-package>:<sc
 }
 ```
 
+### How does wireit handle failures?
+By default, when a script fails, then none of the scripts that depend on it will run.
+
+> ⚠️ NOT YET IMPLEMENTED
+
+In some cases, it is useful to allow a script to continue in spite of a failure in one of its dependencies. To change this behavior, set `fail` to `eventually` in the script that is allowed to fail. Note that in `eventually` mode, the _overall_ `npm run` command will always fail if any dependency failed.
+
+For example, TypeScript will emit JavaScript even when there is a typing error, and we may want to let subsequent tasks consume that JavaScript in spite of the error:
+
+```json
+{
+  "scripts": {
+    "ts": "wireit",
+    "bundle": "wireit"
+  },
+  "wireit": {
+    "tasks": {
+      "ts": {
+        "command": "tsc",
+        "dependencies": ["../my-other-package:ts"],
+        "files": ["src/**/*.ts", "tsconfig.json"],
+        "fail": "eventually"
+      },
+      "bundle": {
+        "command": "rollup -c",
+        "dependencies": ["ts"],
+        "files": ["rollup.config.js"],
+      }
+    }
+  }
+}
+```
+
 ### How do I cache output in GitHub Actions CI?
+
+> ⚠️ NOT YET IMPLEMENTED
 
 1. Ensure every script whose output you want to be cached has an `output` section.
 2. Use `aomarks/wireit-github-workflow` to automatically use [GitHub Caching](https://docs.github.com/en/actions/advanced-guides/caching-dependencies-to-speed-up-workflows) to restore the output of any script whose input files have not changed in the current PR.
