@@ -1,19 +1,12 @@
 ## wireit
 
-## TODO
+Wireit is
 
-- Run commands with `npm exec`
-- CTRL-C seems to be caching too aggressively (task didn't actually finish).
-- Set up linting
-- Tests
-- Ability to run multiple tasks `wireit run packages/*:foo`
-- Watch mode for servers
-- Caching (probably skip this)
-- Plugin interface
-- A way for a program to report whether it actually "ran" or not (maybe it can
-  output a special string to its stdout, like in GitHub actions). Example can
-  show writing a small script and using `|` to check the status.
-- Finish README
+- 726 lines of code
+- 1472 lines of tests
+- 1.8M installed, 26 deps
+- turborepo: 8.6M, 3 deps
+- nx: 70M, 236 deps
 
 ## Dependencies
 

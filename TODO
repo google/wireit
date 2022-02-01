@@ -1,25 +1,49 @@
 # MVP
 
-- Test that changing the command invalidates the cache
-- What happens if you run two command simultaneously
-- Watch mode should reload configs when the configs change.
-- Linear output mode that prevents interleaving of output
-- Ability to say that a task shouldn't block the next step, but still fail
-  overall (tsc style).
-- Documentation
-- Investigate script-shell
+- Watch mode should reload configs when the configs change
 - Bug where we have to sleep before closing down watch mode or else we get error
 - Bug where pending processes don't exit
+- Test that changing the command invalidates the cache
 - Test that processes are getting cleaned up
 - Test that output is getting logged
+- Documentation
+- Usability problems
+  - Typing "cmd" instead of "command" and nothing happening
+  - Bug where after a failed "tsc" watch mode didn't re-run
+  - Need indication about what's running
+  - Forgetting the "tasks" object
+  - Glob patterns that don't match any files (warn or error)
+- Names
+  - wireit
+  - grum
+  - run2
+  - atr (another task runner)
+  - xenomorph
+  - zaatar
+  - mechane
+  - mecharun
+  - mechabuild
+  - mechascript
+  - mechbuild
 
 # Followup
 
+- Ability to say that a task shouldn't block the next step, but still fail
+  overall (tsc style).
 - More efficient use of chokidar
+- What happens if you run two command simultaneously
 - Windows support
+- Linear output mode that prevents interleaving of output
 - Automatic panels (maybe using tmux)
 - Progress bar
 - Website
 - Bash completion
 - Build multiple packages (... etc. syntax)
 - A way to run scripts like "wireit packages/foo:task"
+- Investigate script-shell
+- A way for a program to report whether it actually "ran" or not (maybe it can
+  output a special string to its stdout, like in GitHub actions). Example can
+  show writing a small script and using `|` to check the status.
+- More advanced caching
+- Better server support (e.g. how to know which inputs require reload)
+- Lint this repo
