@@ -20,12 +20,13 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
   "scripts": {
     "build": "wireit",
     "test": "wireit",
-    "ts": "wireit"
+    "ts": "wireit",
+    "rollup": "wireit"
   },
   "wireit": {
     "tasks": {
       "build": {
-        "dependencies": ["ts", "rollup"]
+        "dependencies": ["rollup"]
       },
       "test": {
         "command": "uvu lib/test",
