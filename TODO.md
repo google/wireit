@@ -6,18 +6,27 @@
 
     - Make the cache key (normally, except with content hashes of input files)
     - Check for "<cache-key>-manifest.json"
+
       - If we get a hit, that means we have output for this step cached. The
         manifest file just contains the list of output files with their content
         hashes, rather than the actual files. We separate them because it may
         turn out that we never need the actual files.
+
         - We apply this manifest to our virtual system (but keep track of the fact
           that the files aren't actually available yet). When we run our globs, we
           do both a filesystem glob, and iterate through our virtual files to add
           virtual matches. (Input file globs should be able to assume that the
           outputs from prior tasks are present -- though if we broke this
           assumption, then we could check for cache hits concurrently)
+
       - If we don't get a hit, then we need to materialize all of our transitive
         dependencies, which will trigger a recursive cascade of builds.
+
+      - Note that this lazy mode should only happen when you pass a flag like
+        "--skip-if-cached", because otherwise it could be surprising that the
+        filesystem is not changed in the case that all tasks have cache hits. If
+        all tasks have cache hits and the flag is not present, then the effect
+        is that we download all task outputs (but never run the commands).
 
   - After running a task
 
