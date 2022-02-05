@@ -182,7 +182,7 @@ export class TaskRunner {
     );
     const cacheKeyStale = newCacheKey !== existingFsCacheKey;
     if (!cacheKeyStale) {
-      console.log(`[${taskName}] Already up to date`);
+      console.log(`🔌 [${taskName}] Already up to date`);
       resolve!({cacheKey: newCacheKeyData});
       return promise;
     }
@@ -200,10 +200,10 @@ export class TaskRunner {
         );
       }
       if (cachedOutput !== undefined) {
-        console.log(`[${taskName}] Restoring from cache`);
+        console.log(`🔌 [${taskName}] Restoring from cache`);
         await cachedOutput.apply();
       } else {
-        console.log(`[${taskName}] Running command`);
+        console.log(`🔌 [${taskName}] Running command`);
         // We run tasks via npx so that PATH will include the node_modules/.bin
         // directory, matching the standard behavior of an NPM script. This also
         // gives access to other NPM-specific environment variables that a user's
@@ -246,13 +246,14 @@ export class TaskRunner {
         });
         const result = await Promise.race([completed, this._abort]);
         if (result === Abort) {
+          console.log(`🔌 [${taskName}] Killing`);
           process.kill(-child.pid!, 'SIGINT');
           await completed;
           throw new Error(
             `Unexpected internal error. Task ${taskName} should have thrown.`
           );
         }
-        console.log(`[${taskName}] Command completed`);
+        console.log(`🔌 [${taskName}] Completed`);
         if (this._cache !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutputs(
