@@ -8,7 +8,9 @@ import {resolveTask} from '../shared/resolve-task.js';
 import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.js';
 import {Abort} from '../shared/abort.js';
 import {StateManager} from '../shared/state-manager.js';
+import {FilesystemCache} from '../shared/filesystem-cache.js';
 
+import type {Cache} from '../shared/cache.js';
 import type {Config, Task} from '../types/config.js';
 
 export default async (args: string[], abort: Promise<typeof Abort>) => {
@@ -30,7 +32,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     );
   }
 
-  const runner = new TaskRunner(abort);
+  const runner = new TaskRunner(abort, new FilesystemCache());
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
 };
@@ -63,9 +65,11 @@ export class TaskRunner {
   private readonly _taskPromises = new Map<string, Promise<TaskStatus>>();
   private readonly _abort: Promise<typeof Abort>;
   private readonly _stateManager = new StateManager();
+  private readonly _cache: Cache;
 
-  constructor(abort: Promise<typeof Abort>) {
+  constructor(abort: Promise<typeof Abort>, cache: Cache) {
     this._abort = abort;
+    this._cache = cache;
   }
 
   /**
@@ -186,53 +190,74 @@ export class TaskRunner {
     }
 
     if (task.command) {
-      // We run tasks via npx so that PATH will include the node_modules/.bin
-      // directory, matching the standard behavior of an NPM script. This also
-      // gives access to other NPM-specific environment variables that a user's
-      // script might need.
-      const child = spawn('npx', ['-c', task.command], {
-        cwd: pathlib.dirname(config.packageJsonPath),
-        stdio: 'inherit',
-        detached: true,
-      });
-      const completed = new Promise<void>((resolve, reject) => {
-        // TODO(aomarks) Do we need to handle "close"? Is there any way a
-        // "close" event can be fired, but not an "exit" or "error" event?
-        child.on('error', () => {
-          reject(
-            new KnownError(
-              'task-control-error',
-              `Command ${taskName} failed to start`
-            )
+      // TODO(aomarks) Output needs to be in the cache key too.
+      // TODO(aomarks) We should race against abort here too (any expensive operation).
+      const cachedOutput = await this._cache?.getOutputs(
+        packageJsonPath,
+        taskName,
+        newCacheKey
+      );
+      if (cachedOutput !== undefined) {
+        await cachedOutput.apply();
+      } else {
+        // We run tasks via npx so that PATH will include the node_modules/.bin
+        // directory, matching the standard behavior of an NPM script. This also
+        // gives access to other NPM-specific environment variables that a user's
+        // script might need.
+        const child = spawn('npx', ['-c', task.command], {
+          cwd: pathlib.dirname(config.packageJsonPath),
+          stdio: 'inherit',
+          detached: true,
+        });
+        const completed = new Promise<void>((resolve, reject) => {
+          // TODO(aomarks) Do we need to handle "close"? Is there any way a
+          // "close" event can be fired, but not an "exit" or "error" event?
+          child.on('error', () => {
+            reject(
+              new KnownError(
+                'task-control-error',
+                `Command ${taskName} failed to start`
+              )
+            );
+          });
+          child.on('exit', (code, signal) => {
+            if (signal !== null) {
+              reject(
+                new KnownError(
+                  'task-cancelled',
+                  `Command ${taskName} exited with signal ${code}`
+                )
+              );
+            } else if (code !== 0) {
+              reject(
+                new KnownError(
+                  'task-failed',
+                  `Command ${taskName} failed with code ${code}`
+                )
+              );
+            } else {
+              resolve();
+            }
+          });
+        });
+        const result = await Promise.race([completed, this._abort]);
+        if (result === Abort) {
+          process.kill(-child.pid!, 'SIGINT');
+          await completed;
+          throw new Error(
+            `Unexpected internal error. Task ${taskName} should have thrown.`
           );
-        });
-        child.on('exit', (code, signal) => {
-          if (signal !== null) {
-            reject(
-              new KnownError(
-                'task-cancelled',
-                `Command ${taskName} exited with signal ${code}`
-              )
-            );
-          } else if (code !== 0) {
-            reject(
-              new KnownError(
-                'task-failed',
-                `Command ${taskName} failed with code ${code}`
-              )
-            );
-          } else {
-            resolve();
-          }
-        });
-      });
-      const result = await Promise.race([completed, this._abort]);
-      if (result === Abort) {
-        process.kill(-child.pid!, 'SIGINT');
-        await completed;
-        throw new Error(
-          `Unexpected internal error. Task ${taskName} should have thrown.`
-        );
+        }
+        if (this._cache !== undefined) {
+          // TODO(aomarks) Shouldn't need to block on this finishing.
+          await this._cache.saveOutputs(
+            packageJsonPath,
+            taskName,
+            newCacheKey,
+            // TODO(aomarks) Should we be calling the cache with no outputs?
+            task.outputs ?? []
+          );
+        }
       }
     }
 

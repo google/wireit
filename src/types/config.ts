@@ -11,5 +11,6 @@ export interface Task {
   command?: string;
   dependencies?: string[];
   files?: string[];
+  outputs?: string[];
   npm?: boolean;
 }

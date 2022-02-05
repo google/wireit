@@ -6,6 +6,7 @@ import {TaskRunner} from './run.js';
 import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.js';
 import * as pathlib from 'path';
 import {Abort} from '../shared/abort.js';
+import {FilesystemCache} from '../shared/filesystem-cache.js';
 
 export default async (args: string[], abort: Promise<typeof Abort>) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
@@ -86,7 +87,8 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   }
 
   const runIgnoringTaskFailures = async () => {
-    const runner = new TaskRunner(abort);
+    // TODO(aomarks) Should the filesystem cache be shared between runs?
+    const runner = new TaskRunner(abort, new FilesystemCache());
     try {
       await runner.run(packageJsonPath, taskName, new Set());
     } catch (err) {
