@@ -38,6 +38,11 @@ export class TestRig {
     );
   }
 
+  async readFile(filename: string): Promise<string> {
+    const absolute = path.resolve(this._filesTempDir, filename);
+    return fs.readFile(absolute, 'utf8');
+  }
+
   async chmod(file: string, mode: Parameters<typeof fs.chmod>[1]) {
     const absolute = path.resolve(this._filesTempDir, file);
     return fs.chmod(absolute, mode);
