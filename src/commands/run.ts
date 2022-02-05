@@ -180,7 +180,12 @@ export class TaskRunner {
             c: stats.ctimeMs,
           };
         } else {
-          const content = await fs.readFile(entry.name, 'utf8');
+          // TODO(aomarks) A test case to confirm that we are reading from the
+          // right directory (it passed a test, but failed in reality).
+          const content = await fs.readFile(
+            pathlib.resolve(pathlib.dirname(packageJsonPath), entry.path),
+            'utf8'
+          );
           const sha256 = createHash('sha256').update(content).digest('hex');
           newCacheKeyData.files[entry.name] = {
             type: 'content',

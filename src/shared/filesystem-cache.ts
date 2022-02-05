@@ -78,6 +78,7 @@ class FilesystemCachedOutput {
   }
 
   async apply(): Promise<void> {
+    console.log('RESTORING CACHE');
     return fs.cp(this._sourceDir, this._destDir, {recursive: true});
   }
 }

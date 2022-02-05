@@ -33,7 +33,8 @@
         "files": [
           "src/**/*.ts",
           "tsconfig.json"
-        ]
+        ],
+        "outputs": ["lib/**/*"]
       },
       "test": {
         "command": "uvu lib/test '-test.js$'",

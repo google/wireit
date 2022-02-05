@@ -74,11 +74,11 @@ export class TestRig {
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => {
-      process.stdout.write(chunk);
+      // process.stdout.write(chunk);
       stdout += chunk;
     });
     child.stderr.on('data', (chunk) => {
-      process.stderr.write(chunk);
+      // process.stderr.write(chunk);
       stderr += chunk;
     });
     let running = true;
