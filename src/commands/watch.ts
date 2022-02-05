@@ -3,7 +3,7 @@ import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
 import {TaskRunner} from './run.js';
-import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.js';
+import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import * as pathlib from 'path';
 import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
@@ -43,7 +43,8 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     arr.push(...globs);
   }
 
-  const packageLocks = await statReachablePackageLocks(
+  // TODO(aomarks) We don't actually need the hashes here, just the filenames.
+  const packageLocks = await hashReachablePackageLocks(
     pathlib.dirname(packageJsonPath)
   );
   for (const [lock] of packageLocks) {
@@ -88,7 +89,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
 
   const runIgnoringTaskFailures = async () => {
     // TODO(aomarks) Should the filesystem cache be shared between runs?
-    const runner = new TaskRunner(abort, 'content', new FilesystemCache());
+    const runner = new TaskRunner(abort, new FilesystemCache());
     try {
       await runner.run(packageJsonPath, taskName, new Set());
     } catch (err) {

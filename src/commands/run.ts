@@ -5,7 +5,7 @@ import * as pathlib from 'path';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
 import {resolveTask} from '../shared/resolve-task.js';
-import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.js';
+import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import {Abort} from '../shared/abort.js';
 import {StateManager} from '../shared/state-manager.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
@@ -34,8 +34,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     );
   }
 
-  // TODO(aomarks) A way to control the file key mode.
-  const runner = new TaskRunner(abort, 'content', new FilesystemCache());
+  const runner = new TaskRunner(abort, new FilesystemCache());
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
 };
@@ -47,26 +46,15 @@ interface TaskStatus {
 interface CacheKey {
   command: string;
   // Must be sorted by filename.
-  files: {[filename: string]: FileCacheKey};
+  files: {[filename: string]: FileContentHash};
   // Must be sorted by taskname.
   dependencies: {[taskname: string]: CacheKey};
   // Must be sorted by filename.
-  npmPackageLocks: {[filename: string]: FileCacheKey};
-}
-
-type FileCacheKey = FileModKey | FileContentHashKey;
-
-type FileCacheType = FileCacheKey['type'];
-
-interface FileModKey {
-  type: 'mod';
-  m: number;
-  c: number;
+  npmPackageLocks: {[filename: string]: FileContentHash};
 }
 
 // TODO(aomarks) What about permission bits?
-interface FileContentHashKey {
-  type: 'content';
+interface FileContentHash {
   sha256: string;
 }
 
@@ -76,15 +64,9 @@ export class TaskRunner {
   private readonly _abort: Promise<typeof Abort>;
   private readonly _stateManager = new StateManager();
   private readonly _cache: Cache;
-  private readonly _fileCacheType: FileCacheType;
 
-  constructor(
-    abort: Promise<typeof Abort>,
-    fileCacheMode: FileCacheType,
-    cache: Cache
-  ) {
+  constructor(abort: Promise<typeof Abort>, cache: Cache) {
     this._abort = abort;
-    this._fileCacheType = fileCacheMode;
     this._cache = cache;
   }
 
@@ -156,66 +138,42 @@ export class TaskRunner {
 
     if (task.files?.length) {
       const entries = await fastglob(task.files, {
-        stats: true,
         cwd: pathlib.dirname(config.packageJsonPath),
       });
 
       // IMPORTANT: We must sort here, because it's important that the insertion
       // order of file entries in our cache key is deterministic.
-      entries.sort((a, b) => a.name.localeCompare(b.name));
+      entries.sort((a, b) => a.localeCompare(b));
 
       const fileHashPromises: Array<Promise<string>> = [];
       for (const entry of entries) {
-        const stats = entry.stats;
-        if (stats === undefined) {
-          throw new Error(
-            `Unexpected internal error. No file stats for ${entry.name}.`
-          );
-        }
-        // TODO(aomarks) Pin down whether entry.name is dealing with relative vs
-        // absolute paths correctly.
-        if (this._fileCacheType === 'mod') {
-          newCacheKeyData.files[entry.name] = {
-            type: 'mod',
-            m: stats.mtimeMs,
-            c: stats.ctimeMs,
-          };
-        } else {
-          // TODO(aomarks) A test case to confirm that we are reading from the
-          // right directory (it passed a test, but failed in reality).
-          fileHashPromises.push(
-            fs
-              .readFile(
-                pathlib.resolve(pathlib.dirname(packageJsonPath), entry.path),
-                'utf8'
-              )
-              .then((content) =>
-                createHash('sha256').update(content).digest('hex')
-              )
-          );
-        }
+        // TODO(aomarks) A test case to confirm that we are reading from the
+        // right directory (it passed a test, but failed in reality).
+        fileHashPromises.push(
+          fs
+            .readFile(
+              pathlib.resolve(pathlib.dirname(packageJsonPath), entry),
+              'utf8'
+            )
+            .then((content) =>
+              createHash('sha256').update(content).digest('hex')
+            )
+        );
       }
-      if (this._fileCacheType === 'content') {
-        const fileHashes = await Promise.all(fileHashPromises);
-        for (let i = 0; i < entries.length; i++) {
-          newCacheKeyData.files[entries[i].name] = {
-            type: 'content',
-            sha256: fileHashes[i],
-          };
-        }
+      const fileHashes = await Promise.all(fileHashPromises);
+      for (let i = 0; i < entries.length; i++) {
+        newCacheKeyData.files[entries[i]] = {
+          sha256: fileHashes[i],
+        };
       }
     }
 
     if (task.npm ?? true) {
-      const packageLocks = await statReachablePackageLocks(
+      const packageLockHashes = await hashReachablePackageLocks(
         pathlib.dirname(packageJsonPath)
       );
       newCacheKeyData.npmPackageLocks = Object.fromEntries(
-        packageLocks.map(([filename, stat]) => [
-          filename,
-          // TODO(aomarks) This needs to be content based too.
-          {type: 'mod', m: stat.mtimeMs, c: stat.ctimeMs},
-        ])
+        packageLockHashes.map(([filename, sha256]) => [filename, {sha256}])
       );
     }
 
