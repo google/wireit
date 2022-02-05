@@ -3,7 +3,7 @@ export interface Cache {
     packageJsonPath: string,
     taskName: string,
     cacheKey: string
-  ): Promise<CachedOutput>;
+  ): Promise<CachedOutput | undefined>;
 
   saveOutputs(
     packageJsonPath: string,

@@ -198,6 +198,7 @@ export class TaskRunner {
         newCacheKey
       );
       if (cachedOutput !== undefined) {
+        console.log('CACHED');
         await cachedOutput.apply();
       } else {
         // We run tasks via npx so that PATH will include the node_modules/.bin
@@ -248,6 +249,7 @@ export class TaskRunner {
             `Unexpected internal error. Task ${taskName} should have thrown.`
           );
         }
+        console.log(0);
         if (this._cache !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutputs(
