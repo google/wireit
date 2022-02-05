@@ -12,13 +12,9 @@
   "scripts": {
     "build": "node bin/wireit.js",
     "test": "node bin/wireit.js",
-    "test:watch": "node bin/wireit.js watch test",
     "test:runmode": "node bin/wireit.js",
-    "test:runmode:watch": "npm run test:runmode -- watch",
     "test:watchmode": "node bin/wireit.js",
-    "test:watchmode:watch": "npm run test:watchmode -- watch",
     "test:caching": "node bin/wireit.js",
-    "test:caching:watch": "npm run test:caching -- watch",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
     "upgrade": "rm -rf node_modules package-lock.json && npm i"
