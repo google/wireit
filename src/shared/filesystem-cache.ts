@@ -81,7 +81,6 @@ class FilesystemCachedOutput {
   }
 
   async apply(): Promise<void> {
-    console.log('RESTORING CACHE');
     // TODO(aomarks) What about CLEARING the output dir?
     return fs.cp(this._sourceDir, this._destDir, {recursive: true});
   }

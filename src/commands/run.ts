@@ -7,7 +7,6 @@ import fastglob from 'fast-glob';
 import {resolveTask} from '../shared/resolve-task.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import {Abort} from '../shared/abort.js';
-import {StateManager} from '../shared/state-manager.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
@@ -62,7 +61,6 @@ export class TaskRunner {
   private readonly _configs = new Map<string, Promise<Config>>();
   private readonly _taskPromises = new Map<string, Promise<TaskStatus>>();
   private readonly _abort: Promise<typeof Abort>;
-  private readonly _stateManager = new StateManager();
   private readonly _cache: Cache;
 
   constructor(abort: Promise<typeof Abort>, cache: Cache) {
@@ -178,13 +176,13 @@ export class TaskRunner {
     }
 
     const newCacheKey = JSON.stringify(newCacheKeyData);
-    const oldCacheKey = await this._stateManager.getCacheKey(
+    const existingFsCacheKey = await this._readCurrentState(
       config.packageJsonPath,
       taskName
     );
-    const cacheKeyStale =
-      oldCacheKey === undefined || newCacheKey !== oldCacheKey;
+    const cacheKeyStale = newCacheKey !== existingFsCacheKey;
     if (!cacheKeyStale) {
+      console.log(`[${taskName}] Already up to date`);
       resolve!({cacheKey: newCacheKeyData});
       return promise;
     }
@@ -202,8 +200,10 @@ export class TaskRunner {
         );
       }
       if (cachedOutput !== undefined) {
+        console.log(`[${taskName}] Restoring from cache`);
         await cachedOutput.apply();
       } else {
+        console.log(`[${taskName}] Running command`);
         // We run tasks via npx so that PATH will include the node_modules/.bin
         // directory, matching the standard behavior of an NPM script. This also
         // gives access to other NPM-specific environment variables that a user's
@@ -252,6 +252,7 @@ export class TaskRunner {
             `Unexpected internal error. Task ${taskName} should have thrown.`
           );
         }
+        console.log(`[${taskName}] Command completed`);
         if (this._cache !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutputs(
@@ -264,7 +265,7 @@ export class TaskRunner {
       }
     }
 
-    await this._stateManager.setCacheKey(
+    await this._writeCurrentState(
       config.packageJsonPath,
       taskName,
       newCacheKey
@@ -299,5 +300,40 @@ export class TaskRunner {
       this._configs.set(packageJsonPath, promise);
     }
     return promise;
+  }
+
+  private async _readCurrentState(
+    packageJsonPath: string,
+    taskName: string
+  ): Promise<string | undefined> {
+    const stateFile = pathlib.resolve(
+      pathlib.dirname(packageJsonPath),
+      '.wireit',
+      'state',
+      taskName
+    );
+    try {
+      return await fs.readFile(stateFile, 'utf8');
+    } catch (err) {
+      if ((err as {code?: string}).code === 'ENOENT') {
+        return undefined;
+      }
+      throw err;
+    }
+  }
+
+  private async _writeCurrentState(
+    packageJsonPath: string,
+    taskName: string,
+    state: string
+  ): Promise<void> {
+    const stateFile = pathlib.resolve(
+      pathlib.dirname(packageJsonPath),
+      '.wireit',
+      'state',
+      taskName
+    );
+    await fs.mkdir(pathlib.dirname(stateFile), {recursive: true});
+    return fs.writeFile(stateFile, state, 'utf8');
   }
 }
