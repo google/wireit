@@ -14,9 +14,11 @@
     "test": "node bin/wireit.js",
     "test:watch": "node bin/wireit.js watch test",
     "test:runmode": "node bin/wireit.js",
-    "test:runmode:watch": "node bin/wireit.js watch test:runmode",
+    "test:runmode:watch": "npm run test:runmode -- watch",
     "test:watchmode": "node bin/wireit.js",
-    "test:watchmode:watch": "node bin/wireit.js watch test:watchmode",
+    "test:watchmode:watch": "npm run test:watchmode -- watch",
+    "test:caching": "node bin/wireit.js",
+    "test:caching:watch": "npm run test:caching -- watch",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
     "upgrade": "rm -rf node_modules package-lock.json && npm i"
@@ -37,19 +39,26 @@
         "outputs": ["lib/**/*"]
       },
       "test": {
-        "command": "uvu lib/test '-test.js$'",
         "dependencies": [
-          "ts"
+          "test:runmode",
+          "test:watchmode",
+          "test:caching"
         ]
       },
       "test:runmode": {
-        "command": "uvu lib/test 'run-test.js$'",
+        "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
         "dependencies": [
           "ts"
         ]
       },
       "test:watchmode": {
-        "command": "uvu lib/test 'watch-test.js$'",
+        "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch-test.js$\"",
+        "dependencies": [
+          "ts"
+        ]
+      },
+      "test:caching": {
+        "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"caching-test.js$\"",
         "dependencies": [
           "ts"
         ]
