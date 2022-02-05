@@ -234,7 +234,7 @@ test(
     assert.equal(process.running(), true);
 
     // Modify the input. Expect another run. Succeeds.
-    await rig.writeFiles({'input.txt': 'v2'});
+    await rig.writeFiles({'input.txt': 'v4'});
     await cmd.waitUntilStarted();
     await cmd.exit(0);
     await rig.sleep(50);

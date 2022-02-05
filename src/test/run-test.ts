@@ -439,7 +439,7 @@ test(
     // [3] Change the input file. Now both should run again.
     {
       await rig.writeFiles({
-        'cmd2.input.txt': 'v1',
+        'cmd2.input.txt': 'v2',
       });
       const out = rig.exec('npm run cmd1');
       await cmd2.waitUntilStarted();
@@ -447,6 +447,7 @@ test(
       await rig.sleep(50);
       assert.not(cmd1.running);
       await cmd2.exit(0);
+
       await cmd1.waitUntilStarted();
       await cmd1.exit(0);
       const {code} = await out.done;
@@ -523,7 +524,7 @@ test(
     // [3] Change the input file and run cmd2.
     {
       await rig.writeFiles({
-        'cmd2.input.txt': 'v1',
+        'cmd2.input.txt': 'v2',
       });
       const out = rig.exec('npm run cmd2');
       await cmd2.waitUntilStarted();

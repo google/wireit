@@ -218,11 +218,15 @@ export class TaskRunner {
     if (task.command) {
       // TODO(aomarks) Output needs to be in the cache key too.
       // TODO(aomarks) We should race against abort here too (any expensive operation).
-      const cachedOutput = await this._cache?.getOutputs(
-        packageJsonPath,
-        taskName,
-        newCacheKey
-      );
+      // TODO(aomarks) What should we be doing when there is a cache but a task has no outputs? What about empty array outputs vs undefined?
+      let cachedOutput;
+      if (this._cache !== undefined && task.outputs !== undefined) {
+        cachedOutput = await this._cache.getOutputs(
+          packageJsonPath,
+          taskName,
+          newCacheKey
+        );
+      }
       if (cachedOutput !== undefined) {
         await cachedOutput.apply();
       } else {
@@ -274,14 +278,14 @@ export class TaskRunner {
             `Unexpected internal error. Task ${taskName} should have thrown.`
           );
         }
-        if (this._cache !== undefined) {
+        if (this._cache !== undefined && task.outputs !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutputs(
             packageJsonPath,
             taskName,
             newCacheKey,
             // TODO(aomarks) Should we be calling the cache with no outputs?
-            task.outputs ?? []
+            task.outputs
           );
         }
       }
