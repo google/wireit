@@ -88,7 +88,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
 
   const runIgnoringTaskFailures = async () => {
     // TODO(aomarks) Should the filesystem cache be shared between runs?
-    const runner = new TaskRunner(abort, new FilesystemCache());
+    const runner = new TaskRunner(abort, 'content', new FilesystemCache());
     try {
       await runner.run(packageJsonPath, taskName, new Set());
     } catch (err) {

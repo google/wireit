@@ -20,8 +20,6 @@ export class FilesystemCache implements Cache {
       hashCacheKey(cacheKey)
     );
     try {
-      console.log('READ', cacheDir);
-      console.log('  ', cacheKey);
       await fs.access(cacheDir);
     } catch (err) {
       if ((err as {code?: string}).code === 'ENOENT') {
@@ -29,7 +27,7 @@ export class FilesystemCache implements Cache {
       }
       throw err;
     }
-    return new FilesystemCachedOutput(cacheDir);
+    return new FilesystemCachedOutput(cacheDir, packageRoot);
   }
 
   async saveOutputs(
@@ -57,8 +55,6 @@ export class FilesystemCache implements Cache {
       // TODO(aomarks) Check that we are still within the cache dir. Could it be
       // valid for a task to emit outside of the package?
       const absDest = pathlib.resolve(cacheDir, outputFilePath);
-      console.log('WRITE', absDest);
-      console.log('  ', cacheKey);
       copies.push(
         fs
           .mkdir(pathlib.dirname(absDest), {recursive: true})
@@ -73,13 +69,15 @@ const hashCacheKey = (key: string): string =>
   createHash('sha256').update(key).digest('hex');
 
 class FilesystemCachedOutput {
-  private readonly _dir: string;
+  private readonly _sourceDir: string;
+  private readonly _destDir: string;
 
-  constructor(dir: string) {
-    this._dir = dir;
+  constructor(sourceDir: string, destDir: string) {
+    this._sourceDir = sourceDir;
+    this._destDir = destDir;
   }
 
   async apply(): Promise<void> {
-    return undefined;
+    return fs.cp(this._sourceDir, this._destDir, {recursive: true});
   }
 }

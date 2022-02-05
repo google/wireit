@@ -9,6 +9,8 @@ import {statReachablePackageLocks} from '../shared/stat-reachable-package-locks.
 import {Abort} from '../shared/abort.js';
 import {StateManager} from '../shared/state-manager.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
+import * as fs from 'fs/promises';
+import {createHash} from 'crypto';
 
 import type {Cache} from '../shared/cache.js';
 import type {Config, Task} from '../types/config.js';
@@ -32,7 +34,8 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     );
   }
 
-  const runner = new TaskRunner(abort, new FilesystemCache());
+  // TODO(aomarks) A way to control the file key mode.
+  const runner = new TaskRunner(abort, 'content', new FilesystemCache());
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
 };
@@ -51,13 +54,20 @@ interface CacheKey {
   npmPackageLocks: {[filename: string]: FileCacheKey};
 }
 
-// TODO(aomarks) Add FileHashKey
-type FileCacheKey = FileModKey;
+type FileCacheKey = FileModKey | FileContentHashKey;
+
+type FileCacheType = FileCacheKey['type'];
 
 interface FileModKey {
   type: 'mod';
   m: number;
   c: number;
+}
+
+// TODO(aomarks) What about permission bits?
+interface FileContentHashKey {
+  type: 'content';
+  sha256: string;
 }
 
 export class TaskRunner {
@@ -66,9 +76,15 @@ export class TaskRunner {
   private readonly _abort: Promise<typeof Abort>;
   private readonly _stateManager = new StateManager();
   private readonly _cache: Cache;
+  private readonly _fileCacheType: FileCacheType;
 
-  constructor(abort: Promise<typeof Abort>, cache: Cache) {
+  constructor(
+    abort: Promise<typeof Abort>,
+    fileCacheMode: FileCacheType,
+    cache: Cache
+  ) {
     this._abort = abort;
+    this._fileCacheType = fileCacheMode;
     this._cache = cache;
   }
 
@@ -157,11 +173,20 @@ export class TaskRunner {
         }
         // TODO(aomarks) Pin down whether entry.name is dealing with relative vs
         // absolute paths correctly.
-        newCacheKeyData.files[entry.name] = {
-          type: 'mod',
-          m: stats.mtimeMs,
-          c: stats.ctimeMs,
-        };
+        if (this._fileCacheType === 'mod') {
+          newCacheKeyData.files[entry.name] = {
+            type: 'mod',
+            m: stats.mtimeMs,
+            c: stats.ctimeMs,
+          };
+        } else {
+          const content = await fs.readFile(entry.name, 'utf8');
+          const sha256 = createHash('sha256').update(content).digest('hex');
+          newCacheKeyData.files[entry.name] = {
+            type: 'content',
+            sha256,
+          };
+        }
       }
     }
 
@@ -172,6 +197,7 @@ export class TaskRunner {
       newCacheKeyData.npmPackageLocks = Object.fromEntries(
         packageLocks.map(([filename, stat]) => [
           filename,
+          // TODO(aomarks) This needs to be content based too.
           {type: 'mod', m: stat.mtimeMs, c: stat.ctimeMs},
         ])
       );
@@ -198,7 +224,6 @@ export class TaskRunner {
         newCacheKey
       );
       if (cachedOutput !== undefined) {
-        console.log('CACHED');
         await cachedOutput.apply();
       } else {
         // We run tasks via npx so that PATH will include the node_modules/.bin
@@ -249,7 +274,6 @@ export class TaskRunner {
             `Unexpected internal error. Task ${taskName} should have thrown.`
           );
         }
-        console.log(0);
         if (this._cache !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutputs(
