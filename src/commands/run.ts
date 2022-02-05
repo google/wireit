@@ -164,6 +164,7 @@ export class TaskRunner {
       // order of file entries in our cache key is deterministic.
       entries.sort((a, b) => a.name.localeCompare(b.name));
 
+      const fileHashPromises: Array<Promise<string>> = [];
       for (const entry of entries) {
         const stats = entry.stats;
         if (stats === undefined) {
@@ -182,14 +183,24 @@ export class TaskRunner {
         } else {
           // TODO(aomarks) A test case to confirm that we are reading from the
           // right directory (it passed a test, but failed in reality).
-          const content = await fs.readFile(
-            pathlib.resolve(pathlib.dirname(packageJsonPath), entry.path),
-            'utf8'
+          fileHashPromises.push(
+            fs
+              .readFile(
+                pathlib.resolve(pathlib.dirname(packageJsonPath), entry.path),
+                'utf8'
+              )
+              .then((content) =>
+                createHash('sha256').update(content).digest('hex')
+              )
           );
-          const sha256 = createHash('sha256').update(content).digest('hex');
-          newCacheKeyData.files[entry.name] = {
+        }
+      }
+      if (this._fileCacheType === 'content') {
+        const fileHashes = await Promise.all(fileHashPromises);
+        for (let i = 0; i < entries.length; i++) {
+          newCacheKeyData.files[entries[i].name] = {
             type: 'content',
-            sha256,
+            sha256: fileHashes[i],
           };
         }
       }
