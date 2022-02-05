@@ -73,13 +73,18 @@ export class TestRig {
     });
     let stdout = '';
     let stderr = '';
+    const showOutput = process.env.SHOW_OUTPUT;
     child.stdout.on('data', (chunk) => {
-      // process.stdout.write(chunk);
       stdout += chunk;
+      if (showOutput) {
+        process.stdout.write(chunk);
+      }
     });
     child.stderr.on('data', (chunk) => {
-      // process.stderr.write(chunk);
       stderr += chunk;
+      if (showOutput) {
+        process.stderr.write(chunk);
+      }
     });
     let running = true;
     const close = new Promise<{stdout: string; stderr: string; code: number}>(

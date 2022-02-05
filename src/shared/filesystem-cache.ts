@@ -50,6 +50,9 @@ export class FilesystemCache implements Cache {
       hashCacheKey(cacheKey)
     );
     const copies = [];
+    // Create the dirname even if there are no files to save, so that we can get
+    // a cache hit even in that case.
+    await fs.mkdir(cacheDir, {recursive: true});
     for (const outputFilePath of entries) {
       const absSrc = pathlib.resolve(packageRoot, outputFilePath);
       // TODO(aomarks) Check that we are still within the cache dir. Could it be
@@ -79,6 +82,7 @@ class FilesystemCachedOutput {
 
   async apply(): Promise<void> {
     console.log('RESTORING CACHE');
+    // TODO(aomarks) What about CLEARING the output dir?
     return fs.cp(this._sourceDir, this._destDir, {recursive: true});
   }
 }
