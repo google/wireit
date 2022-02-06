@@ -1,4 +1,5 @@
-# wireit
+
+<img src="wireit.svg" height="80" alt="wireit"/>
 
 > A lightweight NPM script runner for incremental builds
 
