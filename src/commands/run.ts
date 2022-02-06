@@ -8,6 +8,7 @@ import {resolveTask} from '../shared/resolve-task.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
+import {GitHubCache} from '../shared/github-cache.js';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 
@@ -33,7 +34,10 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     );
   }
 
-  const runner = new TaskRunner(abort, new FilesystemCache());
+  const cache = process.env.GITHUB_CACHE
+    ? new GitHubCache()
+    : new FilesystemCache();
+  const runner = new TaskRunner(abort, cache);
   const taskName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, taskName, new Set());
 };
@@ -196,7 +200,8 @@ export class TaskRunner {
         cachedOutput = await this._cache.getOutputs(
           packageJsonPath,
           taskName,
-          newCacheKey
+          newCacheKey,
+          task.outputs ?? []
         );
       }
       if (cachedOutput !== undefined) {

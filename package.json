@@ -32,7 +32,9 @@
           "src/**/*.ts",
           "tsconfig.json"
         ],
-        "outputs": ["lib/**/*"]
+        "outputs": [
+          "lib/**/*"
+        ]
       },
       "test": {
         "dependencies": [
@@ -67,6 +69,7 @@
     "uvu": "^0.5.2"
   },
   "dependencies": {
+    "@actions/cache": "^1.0.8",
     "chokidar": "^3.5.2",
     "fast-glob": "^3.2.7"
   }
