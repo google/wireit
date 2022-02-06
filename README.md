@@ -1,4 +1,4 @@
-# wireitx
+# wireit
 
 > A lightweight NPM script runner for incremental builds
 
