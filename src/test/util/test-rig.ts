@@ -16,6 +16,16 @@ export class TestRig {
   private _nextCommandId = 0;
   private _done = false;
 
+  async setup() {
+    await fs.mkdir(path.join(this._tempDir, 'node_modules', '.bin'), {
+      recursive: true,
+    });
+    await fs.symlink(
+      '../../../../bin/wireit.js',
+      path.join(this._tempDir, 'node_modules', '.bin', 'wireit')
+    );
+  }
+
   newCommand(): Command {
     this._checkNotDone();
     const command = new Command(

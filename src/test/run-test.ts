@@ -5,18 +5,18 @@ import {timeout} from './util/uvu-timeout.js';
 
 const test = suite<{rig: TestRig}>();
 
-test.before.each((ctx) => {
+test.before.each(async (ctx) => {
   ctx.rig = new TestRig();
+  await ctx.rig.setup();
 });
 
 test.after.each(async (ctx) => {
   await ctx.rig.cleanup();
 });
 
-test.only(
+test(
   '1 task succeeds',
   timeout(async ({rig}) => {
-    console.log(0);
     const cmd = rig.newCommand();
     await rig.writeFiles({
       'package.json': {
@@ -32,17 +32,11 @@ test.only(
         },
       },
     });
-    console.log(1);
     const out = rig.exec('npm run cmd');
-    console.log(2);
     await cmd.waitUntilStarted();
-    console.log(3);
     await cmd.exit(0);
-    console.log(4);
     const {code} = await out.done;
-    console.log(5);
     assert.equal(code, 0);
-    console.log(6);
   })
 );
 

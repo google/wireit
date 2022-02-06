@@ -5,8 +5,9 @@ import {timeout} from './util/uvu-timeout.js';
 
 const test = suite<{rig: TestRig}>();
 
-test.before.each((ctx) => {
+test.before.each(async (ctx) => {
   ctx.rig = new TestRig();
+  await ctx.rig.setup();
 });
 
 test.after.each(async (ctx) => {

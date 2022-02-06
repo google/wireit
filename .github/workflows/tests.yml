@@ -21,4 +21,4 @@ jobs:
       # TODO(aomarks) Install a known good version for bootstrapping.
       - run: npx tsc
 
-      - run: npm run test:runmode
+      - run: npm test
