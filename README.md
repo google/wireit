@@ -10,7 +10,7 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 - 🔗 Automatically run dependencies between your NPM scripts
 - 👀 Watch any script to continuously re-run when files change
 - ♻️ Cache script output locally or in the GitHub Actions cache
-- 🙂 Use the `npm run` syntax you already know
+- 🙂 Use the `npm run` commands you already know
 
 ## Example
 
