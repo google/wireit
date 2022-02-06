@@ -1,4 +1,4 @@
-# wireit
+# wireitx
 
 > A lightweight NPM script runner for incremental builds
 
@@ -14,6 +14,7 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 ## Example
 
 > package.json
+
 ```json
 {
   "name": "my-project",
@@ -108,12 +109,15 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 </table>
 
 ### How do I run a wireit script?
+
 Run `npm run <task>`. Wireit scripts are regular NPM scripts, so you use the NPM commands you already know.
 
 ### How do I watch a wireit script?
+
 Run `npm run <task> -- watch`. Wireit can watch any script, and re-runs it any time an input file to it or any of its dependencies changes. Note the `--` is needed so that the `watch` argument is passed to `wireit`, instead of `npm`.
 
 ### How do I use wireit with a monorepo?
+
 Wireit can reference dependencies in other packages using `<path-to-package>:<script>` syntax. For example:
 
 ```json
@@ -134,6 +138,7 @@ Wireit can reference dependencies in other packages using `<path-to-package>:<sc
 ```
 
 ### How does wireit handle failures?
+
 By default, when a script fails, then none of the scripts that depend on it will run.
 
 > ⚠️ NOT YET IMPLEMENTED
@@ -159,7 +164,7 @@ For example, TypeScript will emit JavaScript even when there is a typing error, 
       "bundle": {
         "command": "rollup -c",
         "dependencies": ["ts"],
-        "files": ["rollup.config.js"],
+        "files": ["rollup.config.js"]
       }
     }
   }
