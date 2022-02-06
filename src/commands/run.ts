@@ -141,13 +141,13 @@ export class TaskRunner {
       }
     }
 
-    console.log(1);
+    console.log(taskName, 1);
 
     if (task.files?.length) {
       const entries = await fastglob(task.files, {
         cwd: pathlib.dirname(config.packageJsonPath),
       });
-      console.log(2);
+      console.log(taskName, 2);
 
       // IMPORTANT: We must sort here, because it's important that the insertion
       // order of file entries in our cache key is deterministic.
@@ -169,7 +169,7 @@ export class TaskRunner {
         );
       }
       const fileHashes = await Promise.all(fileHashPromises);
-      console.log(3);
+      console.log(taskName, 3);
 
       for (let i = 0; i < entries.length; i++) {
         newCacheKeyData.files[entries[i]] = {
@@ -182,7 +182,7 @@ export class TaskRunner {
       const packageLockHashes = await hashReachablePackageLocks(
         pathlib.dirname(packageJsonPath)
       );
-      console.log(4);
+      console.log(taskName, 4);
 
       newCacheKeyData.npmPackageLocks = Object.fromEntries(
         packageLockHashes.map(([filename, sha256]) => [filename, {sha256}])
@@ -194,7 +194,7 @@ export class TaskRunner {
       config.packageJsonPath,
       taskName
     );
-    console.log(5);
+    console.log(taskName, 5);
 
     const cacheKeyStale = newCacheKey !== existingFsCacheKey;
     if (!cacheKeyStale) {
@@ -204,6 +204,7 @@ export class TaskRunner {
     }
 
     if (task.command) {
+      console.log(taskName, 5.1);
       // TODO(aomarks) Output needs to be in the cache key too.
       // TODO(aomarks) We should race against abort here too (any expensive operation).
       // TODO(aomarks) What should we be doing when there is a cache but a task has no outputs? What about empty array outputs vs undefined?
@@ -215,12 +216,12 @@ export class TaskRunner {
           newCacheKey,
           task.outputs ?? []
         );
-        console.log(6);
+        console.log(taskName, 6);
       }
       if (cachedOutput !== undefined) {
         console.log(`🔌 [${taskName}] Restoring from cache`);
         await cachedOutput.apply();
-        console.log(7);
+        console.log(taskName, 7);
       } else {
         console.log(`🔌 [${taskName}] Running command`);
         // We run tasks via npx so that PATH will include the node_modules/.bin
