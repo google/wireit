@@ -56,7 +56,7 @@
         ]
       },
       "test:caching": {
-        "command": " NODE_OPTIONS=--enable-source-maps uvu lib/test \"caching-test.js$\"",
+        "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"caching-test.js$\"",
         "dependencies": [
           "ts"
         ]
