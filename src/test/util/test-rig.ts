@@ -73,7 +73,9 @@ export class TestRig {
     // that is inherited from the script that's used to run the wireit tests.
     // Should we be doing something like this within wireit itself, too?
     const env = Object.fromEntries(
-      Object.entries(process.env).filter(([k]) => !k.startsWith('npm_'))
+      Object.entries(process.env).filter(
+        ([k]) => !k.startsWith('npm_') && k !== 'GITHUB_CACHE'
+      )
     );
     const child = spawn(command, [], {
       cwd,
