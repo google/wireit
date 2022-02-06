@@ -124,7 +124,7 @@ To enable freshness tracking, tell `wireit` what your input files are using the 
 
 Now when you run `npm run bundle`, `wireit` first checks if `build` is already fresh by comparing the contents of `src/**/*.ts` and `tsconfig.json` to last time. Then it checks if `bundle` is fresh by checking `rollup.config.json`. This way, if you only change your `rollup.config.json` file, then the `build` command won't run again. And if you've only changed your `README.md` file, then neither script runs again, because `wireit` knows that `README.md` isn't an input to either script.
 
-> If a script doesn't have a `files` list defined at all, then it will *always* run, because `wireit` doesn't want to accidentally skip execution only because you haven't yet gotten around to declaring your input files. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
+> If a script doesn't have a `files` list defined at all, then it will *always* run, because `wireit` doesn't want to accidentally skip execution of tasks that haven't been fully configured yet. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
 
 ## Watch mode
 
@@ -164,7 +164,9 @@ If a script isn't currently fresh, but has *previously* successfully run with th
 
 Now when you run `npm run bundle`, if the script is not fresh, then `wireit` will first check the `.wireit/cache` directory to see it already has cached output, before it runs the command.
 
-> Occasionally, a script may be able to run faster than the time it takes to check and restore from a cache. Set `wireit.<task>.caching` to `false` to disable caching.
+Occasionally, a script may be able to run faster than the time it takes to check and restore from a cache. Set `wireit.<task>.caching` to `false` to disable caching.
+
+> If a script doesn't have an `output` list defined at all, then it will *never* be cached, because `wireit` doesn't want to accidentally cache empty output for a script that hasn't been fully configured yet. To allow a script to be cached that really produces no output (such as a test), set `output` to an empty array (`output: []`). Obviously no output will be copied from the cache in this case, but it will still allow the script to be skipped when a cache hit is detected.
 
 ### GitHub Actions caching
 
