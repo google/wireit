@@ -80,6 +80,7 @@ export class TaskRunner {
     taskName: string,
     stack: Set<string>
   ): Promise<TaskStatus> {
+    console.log('RUN', taskName);
     const taskId = JSON.stringify([packageJsonPath, taskName]);
     if (stack.has(taskId)) {
       throw new KnownError(
