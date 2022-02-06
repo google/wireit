@@ -27,7 +27,7 @@ test(
           cmd: {
             command: cmd.command(),
             files: ['input.txt'],
-            outputs: ['output.txt'],
+            output: ['output.txt'],
           },
         },
       },

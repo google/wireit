@@ -12,8 +12,6 @@
 
 - Rename state to fresh
 
-- "output" or "outputs"?
-
 - Does the globbing behavior of chokidar and fast-glob match?
 
 - Ability to depend on scripts that aren't in wireup config

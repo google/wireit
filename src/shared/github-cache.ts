@@ -6,7 +6,7 @@ import * as cache from '@actions/cache';
 import type {Cache} from './cache.js';
 
 export class GitHubCache implements Cache {
-  async getOutputs(
+  async getOutput(
     packageJsonPath: string,
     scriptName: string,
     cacheKey: string,
@@ -40,7 +40,7 @@ export class GitHubCache implements Cache {
     }
   }
 
-  async saveOutputs(
+  async saveOutput(
     packageJsonPath: string,
     scriptName: string,
     cacheKey: string,

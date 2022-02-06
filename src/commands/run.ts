@@ -198,14 +198,14 @@ export class ScriptRunner {
     if (script.command) {
       // TODO(aomarks) Output needs to be in the cache key too.
       // TODO(aomarks) We should race against abort here too (any expensive operation).
-      // TODO(aomarks) What should we be doing when there is a cache but a script has no outputs? What about empty array outputs vs undefined?
+      // TODO(aomarks) What should we be doing when there is a cache but a script has no output? What about empty array output vs undefined?
       let cachedOutput;
       if (this._cache !== undefined) {
-        cachedOutput = await this._cache.getOutputs(
+        cachedOutput = await this._cache.getOutput(
           packageJsonPath,
           scriptName,
           newCacheKey,
-          script.outputs ?? []
+          script.output ?? []
         );
       }
       if (cachedOutput !== undefined) {
@@ -265,11 +265,11 @@ export class ScriptRunner {
         console.log(`🔌 [${scriptName}] Completed`);
         if (this._cache !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
-          await this._cache.saveOutputs(
+          await this._cache.saveOutput(
             packageJsonPath,
             scriptName,
             newCacheKey,
-            script.outputs ?? []
+            script.output ?? []
           );
         }
       }

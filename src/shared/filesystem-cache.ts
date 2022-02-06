@@ -6,7 +6,7 @@ import {createHash} from 'crypto';
 import type {Cache} from './cache.js';
 
 export class FilesystemCache implements Cache {
-  async getOutputs(
+  async getOutput(
     packageJsonPath: string,
     scriptName: string,
     cacheKey: string
@@ -30,7 +30,7 @@ export class FilesystemCache implements Cache {
     return new FilesystemCachedOutput(cacheDir, packageRoot);
   }
 
-  async saveOutputs(
+  async saveOutput(
     packageJsonPath: string,
     scriptName: string,
     cacheKey: string,

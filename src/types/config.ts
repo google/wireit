@@ -11,6 +11,6 @@ export interface Script {
   command?: string;
   dependencies?: string[];
   files?: string[];
-  outputs?: string[];
+  output?: string[];
   npm?: boolean;
 }
