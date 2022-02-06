@@ -12,15 +12,20 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     taskOutputGlobs: string[]
   ): Promise<GitHubCachedOutput | undefined> {
+    console.log(taskName, 6);
     if (taskOutputGlobs.length === 0) {
+      console.log(taskName, 6.1);
       // Cache API requires at least one path.
       return undefined;
     }
+    console.log(taskName, 6.2);
     const packageRoot = pathlib.dirname(packageJsonPath);
+    console.log(taskName, 6.3);
     const paths = await fastglob(taskOutputGlobs, {
       cwd: packageRoot,
       absolute: true,
     });
+    console.log(taskName, 6.4);
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${taskName}:${hashCacheKey(cacheKey)}`;
     // TODO(aomarks) @actions/cache doesn't let us just test for a cache hit, so
@@ -28,6 +33,7 @@ export class GitHubCache implements Cache {
     // library does. But what we really want is a separate manifest cache item
     // that we can apply to a virtual fielsystem.
     const id = await cache.restoreCache(paths, key);
+    console.log(taskName, 6.5);
     if (id !== undefined) {
       console.log('CACHE HIT', {taskName, key, id});
       return new GitHubCachedOutput();

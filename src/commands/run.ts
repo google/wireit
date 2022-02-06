@@ -102,7 +102,7 @@ export class TaskRunner {
       taskName
     );
 
-    console.log(0);
+    console.log(taskName, 0);
 
     const newCacheKeyData: CacheKey = {
       command: task.command!, // TODO(aomarks) This shouldn't be undefined.
@@ -216,12 +216,11 @@ export class TaskRunner {
           newCacheKey,
           task.outputs ?? []
         );
-        console.log(taskName, 6);
+        console.log(taskName, 7);
       }
       if (cachedOutput !== undefined) {
         console.log(`🔌 [${taskName}] Restoring from cache`);
         await cachedOutput.apply();
-        console.log(taskName, 7);
       } else {
         console.log(`🔌 [${taskName}] Running command`);
         // We run tasks via npx so that PATH will include the node_modules/.bin
