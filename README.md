@@ -22,6 +22,7 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 - [Freshness tracking](#freshness-tracking)
 - [Caching](#caching)
   - [GitHub Actions caching](#github-actions-caching)
+  - [Only status required](#only-status-required)
 - [Watch mode](#watch-mode)
 
 
