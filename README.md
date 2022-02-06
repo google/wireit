@@ -20,11 +20,11 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 - [Setup](#setup)
 - [Dependencies](#dependencies)
 - [Freshness tracking](#freshness-tracking)
+- [Watch mode](#watch-mode)
 - [Caching](#caching)
   - [GitHub Actions caching](#github-actions-caching)
   - [Only status required](#only-status-required)
-- [Watch mode](#watch-mode)
-
+- [Failures](#failures)
 
 ## Install
 
@@ -203,3 +203,32 @@ steps:
 ```
 
 Now when tests run in CI, if none of the transitive input files to `test` have changed since the last successful run, then no files will need to be downloaded from the cache at all. Instead, only much smaller *manifest* files are downloaded from the cache, describing the files that *would* be outputted.
+
+## Failures
+
+By default, when a script fails, then none of the other scripts that depend on it will run.
+
+In some cases, it is useful to allow a script to continue in spite of a failure in one of its dependencies. To change this behavior, set `wireit.<task>.fail` to `"eventually"` in the script that is allowed to fail. Note that in `eventually` mode, the _overall_ `npm run` command will still report a failing error code.
+
+For example, TypeScript will emit JavaScript even when there is a typing error, and we may want to let subsequent tasks consume that JavaScript in spite of the error:
+
+```json
+{
+  "scripts": {
+    "build": "wireit",
+    "bundle": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": ["src/**/*.ts", "tsconfig.json"],
+      "fail": "eventually"
+    },
+    "bundle": {
+      "command": "rollup -c",
+      "dependencies": ["build"],
+      "files": ["rollup.config.js"]
+    }
+  }
+}
+```
