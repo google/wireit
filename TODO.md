@@ -52,6 +52,12 @@
 - Are all NPM package script names safe to put in the .wireit folder? Need
   escaping?
 
+- `--parallelism` or `--concurrency` flag
+
+- Does it make sense to add a `caching:false` option? E.g. tasks that are faster
+  to run than cache? But how does that interact with `--only-status-required`
+  mode?
+
 - Windows support and test in CI
 
 - Output mode that prevents interleaved output (when concurrent scripts running,
