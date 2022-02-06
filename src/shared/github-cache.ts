@@ -33,14 +33,10 @@ export class GitHubCache implements Cache {
     try {
       id = await cache.restoreCache(paths, key);
     } catch (err) {
-      console.log('RESTORE CACHE ERROR', taskName, err);
       throw err;
     }
     if (id !== undefined) {
-      console.log('CACHE HIT', {taskName, key, id});
       return new GitHubCachedOutput();
-    } else {
-      console.log('CACHE MISS', {taskName, key, id});
     }
   }
 
@@ -63,7 +59,7 @@ export class GitHubCache implements Cache {
     });
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${taskName}:${hashCacheKey(cacheKey)}`;
-    console.log('SAVING CACHE', {taskName, key});
+    console.log(`🔌 [${taskName}] Saving to GitHub cache`);
     await cache.saveCache(paths, key);
   }
 }
