@@ -14,7 +14,9 @@ export class GitHubCache implements Cache {
   ): Promise<GitHubCachedOutput | undefined> {
     if (taskOutputGlobs.length === 0) {
       // Cache API requires at least one path.
-      return undefined;
+      // return undefined;
+      // TODO(aomarks) Temporary hack
+      taskOutputGlobs = ['README.md'];
     }
     const packageRoot = pathlib.dirname(packageJsonPath);
     const paths = await fastglob(taskOutputGlobs, {
@@ -50,7 +52,9 @@ export class GitHubCache implements Cache {
   ): Promise<void> {
     if (taskOutputGlobs.length === 0) {
       // Cache API requires at least one path.
-      return undefined;
+      // return undefined;
+      // TODO(aomarks) Temporary hack
+      taskOutputGlobs = ['README.md'];
     }
     const packageRoot = pathlib.dirname(packageJsonPath);
     const paths = await fastglob(taskOutputGlobs, {

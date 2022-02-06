@@ -25,4 +25,4 @@ jobs:
       - name: Expose GitHub variables
         uses: crazy-max/ghaction-github-runtime@v1
 
-      - run: npm test
+      - run: npm test:caching
