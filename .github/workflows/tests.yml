@@ -22,4 +22,7 @@ jobs:
       # TODO(aomarks) Install a known good version for bootstrapping.
       - run: npx tsc
 
+      - name: Expose GitHub variables
+        uses: crazy-max/ghaction-github-runtime@v1
+
       - run: npm test

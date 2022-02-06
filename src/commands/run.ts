@@ -135,6 +135,7 @@ export class TaskRunner {
         const result = results[i];
         if (result.status === 'rejected') {
           // TODO(aomarks) Could create a compound error here.
+          console.log('THROWING', depTaskName, result.reason);
           throw result.reason;
         }
         newCacheKeyData.dependencies[depTaskName] = result.value.cacheKey;
