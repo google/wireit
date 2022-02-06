@@ -210,7 +210,7 @@ By default, when a script fails, then none of the other scripts that depend on i
 
 In some cases, it is useful to allow a script to continue in spite of a failure in one of its dependencies. To change this behavior, set `wireit.<task>.fail` to `"eventually"` in the script that is allowed to fail. Note that in `eventually` mode, the _overall_ `npm run` command will still report a failing error code.
 
-For example, TypeScript will emit JavaScript even when there is a typing error, and we may want to let subsequent tasks consume that JavaScript in spite of the error:
+For example, TypeScript will emit JavaScript even when there is a typing error, and we may want to let subsequent tasks consume that JavaScript in spite of the error, so that we can still see the final results:
 
 ```json
 {
