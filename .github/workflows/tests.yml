@@ -3,7 +3,7 @@ name: Tests
 on: [push, pull_request, workflow_dispatch]
 
 env:
-  SHOW_OUTPUT: 1
+  # SHOW_OUTPUT: 1
   GITHUB_CACHE: 1
 
 jobs:
