@@ -69,6 +69,8 @@
   - Need indication about what's running
   - Glob patterns that don't match any files (warn or error)
 
+- Progress bars and other nice console output? Should be optional.
+
 - Ability to run scripts like "wireit run foo bar" or "wireit run
   packages/\*:test"
 
