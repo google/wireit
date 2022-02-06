@@ -32,6 +32,7 @@ export class GitHubCache implements Cache {
     // we apply immediately and the output object is a no-op. The underlying
     // library does. But what we really want is a separate manifest cache item
     // that we can apply to a virtual fielsystem.
+    console.log(taskName, 6.45, {key, paths, cache});
     const id = await cache.restoreCache(paths, key);
     console.log(taskName, 6.5);
     if (id !== undefined) {
