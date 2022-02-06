@@ -1,4 +1,3 @@
-
 <img src="wireit.svg" height="80" alt="wireit"/>
 
 > A lightweight NPM script runner for incremental builds
@@ -34,7 +33,7 @@ npm i -D wireit
 
 ## Setup
 
-Wireit works *with* `npm run` instead of replacing it. To configure an NPM script for `wireit`, move the command into a new `wireit` section of your `package.json`, and replace the original script with the `wireit` command.
+Wireit works _with_ `npm run` instead of replacing it. To configure an NPM script for `wireit`, move the command into a new `wireit` section of your `package.json`, and replace the original script with the `wireit` command.
 
 <table>
 <tr>
@@ -74,7 +73,7 @@ Now when you run `npm run build`, `wireit` will manage the execution of your scr
 
 ## Dependencies
 
-When you `npm run` a script that has been configured for `wireit`, then the script's command doesn't always run right away. Instead, the *dependencies* of each script are run first, if needed. To declare a dependecy between two tasks, edit the `wireit.<task>.dependencies` list:
+When you `npm run` a script that has been configured for `wireit`, then the script's command doesn't always run right away. Instead, the _dependencies_ of each script are run first, if needed. To declare a dependecy between two tasks, edit the `wireit.<task>.dependencies` list:
 
 ```json
 {
@@ -94,11 +93,11 @@ When you `npm run` a script that has been configured for `wireit`, then the scri
 }
 ```
 
-Now when you run `npm run bundle`, the `build` script will automatically run first. This way, you don't have to remember the order that your scripts need to run in. This is also better than a chained shell command like `tsc && rollup -c`, because of *freshness tracking* and *caching*.
+Now when you run `npm run bundle`, the `build` script will automatically run first. This way, you don't have to remember the order that your scripts need to run in. This is also better than a chained shell command like `tsc && rollup -c`, because of _freshness tracking_ and _caching_.
 
 ## Freshness tracking
 
-After you `npm run` a `wireit` script, `wireit` stores a record of the exact inputs to the script inside the `.wireit/state` directory. The next time you run the script, `wireit` checks the inputs again, and if nothing changed, the script is considered *fresh* and skips execution.
+After you `npm run` a `wireit` script, `wireit` stores a record of the exact inputs to the script inside the `.wireit/state` directory. The next time you run the script, `wireit` checks the inputs again, and if nothing changed, the script is considered _fresh_ and skips execution.
 
 To enable freshness tracking, tell `wireit` what your input files are using the `wireit.<command>.files` list:
 
@@ -126,7 +125,7 @@ To enable freshness tracking, tell `wireit` what your input files are using the 
 
 Now when you run `npm run bundle`, `wireit` first checks if `build` is already fresh by comparing the contents of `src/**/*.ts` and `tsconfig.json` to last time. Then it checks if `bundle` is fresh by checking `rollup.config.json`. This way, if you only change your `rollup.config.json` file, then the `build` command won't run again. And if you've only changed your `README.md` file, then neither script runs again, because `wireit` knows that `README.md` isn't an input to either script.
 
-> If a script doesn't have a `files` list defined at all, then it will *always* run, because `wireit` doesn't want to accidentally skip execution of tasks that haven't been fully configured yet. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
+> If a script doesn't have a `files` list defined at all, then it will _always_ run, because `wireit` doesn't want to accidentally skip execution of tasks that haven't been fully configured yet. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
 
 ## Watch mode
 
@@ -136,11 +135,11 @@ You can watch and automatically re-run any script that is configured for `wireit
 
 In watch mode, whenever an input file to a script changes, then the script automatically re-runs. And if an input file of a dependency changes, then the dependency automatically runs too. This way, no matter how complex your build graph, you can freely jump around in your project, edit any file, and automatically start computing the result instantly.
 
-Wireit's watch mode is also better than running the built-in watch modes that many tools come with, because it prevents race conditions and redundant builds. For example, if you run `tsc --watch & rollup -c --watch`, then it's possible for `rollup` to be triggered *while `tsc` is only part-way done emitting its output*, requiring another build afterwards, or even causing an error due to consuming an incomplete build.
+Wireit's watch mode is also better than running the built-in watch modes that many tools come with, because it prevents race conditions and redundant builds. For example, if you run `tsc --watch & rollup -c --watch`, then it's possible for `rollup` to be triggered _while `tsc` is only part-way done emitting its output_, requiring another build afterwards, or even causing an error due to consuming an incomplete build.
 
 ## Caching
 
-If a script isn't currently fresh, but has *previously* successfully run with the exact input state, then `wireit` can *copy* the output from the cache, instead of running the command. To enable caching, tell `wireit` what the output files of your scripts are:
+If a script isn't currently fresh, but has _previously_ successfully run with the exact input state, then `wireit` can _copy_ the output from the cache, instead of running the command. To enable caching, tell `wireit` what the output files of your scripts are:
 
 ```json
 {
@@ -166,13 +165,11 @@ If a script isn't currently fresh, but has *previously* successfully run with th
 
 Now when you run `npm run bundle`, if the script is not fresh, then `wireit` will first check the `.wireit/cache` directory to see it already has cached output, before it runs the command.
 
-Occasionally, a script may be able to run faster than the time it takes to check and restore from a cache. Set `wireit.<task>.caching` to `false` to disable caching.
-
-> If a script doesn't have an `output` list defined at all, then it will *never* be cached, because `wireit` doesn't want to accidentally cache empty output for a script that hasn't been fully configured yet. To allow a script to be cached that really produces no output (such as a test), set `output` to an empty array (`output: []`). Obviously no output will be copied from the cache in this case, but it will still allow the script to be skipped when a cache hit is detected.
+> If a script doesn't have an `output` list defined at all, then it will _never_ be cached, because `wireit` doesn't want to accidentally cache empty output for a script that hasn't been fully configured yet. To allow a script to be cached that really produces no output (such as a test), set `output` to an empty array (`output: []`). Obviously no output will be copied from the cache in this case, but it will still allow the script to be skipped when a cache hit is detected.
 
 ### GitHub Actions caching
 
-Wireit caching also works *across different builds* when you use GitHub Actions. This works the same way as local caching, except wireit checks the remote GitHub Actions Cache, instead of the local filesystem. To enable remote caching with GitHub Actions, use the `aomarks/wireit-github-actions` workflow before you run your scripts:
+Wireit caching also works _across different builds_ when you use GitHub Actions. This works the same way as local caching, except wireit checks the remote GitHub Actions Cache, instead of the local filesystem. To enable remote caching with GitHub Actions, use the `aomarks/wireit-github-actions` workflow before you run your scripts:
 
 ```yaml
 steps:
@@ -189,7 +186,7 @@ steps:
 
 It's often the case, particularly when running tests in CI, that we would prefer to entirely skip tests for which there is no possible way for its result to have changed since the last time it successfully ran. Wireit's caching feature already gets you most of this benefit, because it prefer to download output files from the cache rather than recompute it, but we can do even better by using the `--only-status-required` flag.
 
-When you run `npm run <script> -- --only-status-required`, then the output files for the script, and all of its transitive dependencies, *won't even be downloaded from the cache*, unless they are needed by a script that isn't cached.
+When you run `npm run <script> -- --only-status-required`, then the output files for the script, and all of its transitive dependencies, _won't even be downloaded from the cache_, unless they are needed by a script that isn't cached.
 
 Using this flag is recommended for use-cases like running tests in CI:
 
@@ -202,33 +199,4 @@ steps:
     run: npm test -- --only-status-required
 ```
 
-Now when tests run in CI, if none of the transitive input files to `test` have changed since the last successful run, then no files will need to be downloaded from the cache at all. Instead, only much smaller *manifest* files are downloaded from the cache, describing the files that *would* be outputted.
-
-## Failures
-
-By default, when a script fails, then none of the other scripts that depend on it will run.
-
-In some cases, it is useful to allow a script to continue in spite of a failure in one of its dependencies. To change this behavior, set `wireit.<task>.fail` to `"eventually"` in the script that is allowed to fail. Note that in `eventually` mode, the _overall_ `npm run` command will still report a failing error code.
-
-For example, TypeScript will emit JavaScript even when there is a typing error, and we may want to let subsequent tasks consume that JavaScript in spite of the error, so that we can still see the final results:
-
-```json
-{
-  "scripts": {
-    "build": "wireit",
-    "bundle": "wireit"
-  },
-  "wireit": {
-    "build": {
-      "command": "tsc",
-      "files": ["src/**/*.ts", "tsconfig.json"],
-      "fail": "eventually"
-    },
-    "bundle": {
-      "command": "rollup -c",
-      "dependencies": ["build"],
-      "files": ["rollup.config.js"]
-    }
-  }
-}
-```
+Now when tests run in CI, if none of the transitive input files to `test` have changed since the last successful run, then no files will need to be downloaded from the cache at all. Instead, only much smaller _manifest_ files are downloaded from the cache, describing the files that _would_ be outputted.

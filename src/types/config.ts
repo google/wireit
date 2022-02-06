@@ -1,5 +1,5 @@
 export interface PackageJson {
-  wireit?: Config;
+  wireit?: {[taskName: string]: Task};
 }
 
 export interface Config {

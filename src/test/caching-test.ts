@@ -24,12 +24,10 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              files: ['input.txt'],
-              outputs: ['output.txt'],
-            },
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+            outputs: ['output.txt'],
           },
         },
       },
