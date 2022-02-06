@@ -102,6 +102,8 @@ export class TaskRunner {
       taskName
     );
 
+    console.log(0);
+
     const newCacheKeyData: CacheKey = {
       command: task.command!, // TODO(aomarks) This shouldn't be undefined.
       files: {},
@@ -139,10 +141,13 @@ export class TaskRunner {
       }
     }
 
+    console.log(1);
+
     if (task.files?.length) {
       const entries = await fastglob(task.files, {
         cwd: pathlib.dirname(config.packageJsonPath),
       });
+      console.log(2);
 
       // IMPORTANT: We must sort here, because it's important that the insertion
       // order of file entries in our cache key is deterministic.
@@ -164,6 +169,8 @@ export class TaskRunner {
         );
       }
       const fileHashes = await Promise.all(fileHashPromises);
+      console.log(3);
+
       for (let i = 0; i < entries.length; i++) {
         newCacheKeyData.files[entries[i]] = {
           sha256: fileHashes[i],
@@ -175,6 +182,8 @@ export class TaskRunner {
       const packageLockHashes = await hashReachablePackageLocks(
         pathlib.dirname(packageJsonPath)
       );
+      console.log(4);
+
       newCacheKeyData.npmPackageLocks = Object.fromEntries(
         packageLockHashes.map(([filename, sha256]) => [filename, {sha256}])
       );
@@ -185,6 +194,8 @@ export class TaskRunner {
       config.packageJsonPath,
       taskName
     );
+    console.log(5);
+
     const cacheKeyStale = newCacheKey !== existingFsCacheKey;
     if (!cacheKeyStale) {
       console.log(`🔌 [${taskName}] Already up to date`);
@@ -204,10 +215,12 @@ export class TaskRunner {
           newCacheKey,
           task.outputs ?? []
         );
+        console.log(6);
       }
       if (cachedOutput !== undefined) {
         console.log(`🔌 [${taskName}] Restoring from cache`);
         await cachedOutput.apply();
+        console.log(7);
       } else {
         console.log(`🔌 [${taskName}] Running command`);
         // We run tasks via npx so that PATH will include the node_modules/.bin
