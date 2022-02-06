@@ -1,6 +1,6 @@
 import type * as uvu from 'uvu';
 
-const DEFAULT_TIMEOUT = 5000;
+const DEFAULT_TIMEOUT = 30000;
 
 export const timeout = <T>(
   handler: uvu.Callback<T>,
