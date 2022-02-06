@@ -71,6 +71,12 @@
 
 - Progress bars and other nice console output? Should be optional.
 
+- Ability to pass args directly to commands. Must be included in cache key.
+
+- Ability to configure environment variables that are significant.
+
+- Ability to configure arbitrary commands that is significant for caching.
+
 - Ability to run scripts like "wireit run foo bar" or "wireit run
   packages/\*:test"
 
