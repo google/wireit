@@ -12,9 +12,6 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     taskOutputGlobs: string[]
   ): Promise<GitHubCachedOutput | undefined> {
-    if (1 + 1 === 2) {
-      return undefined;
-    }
     if (taskOutputGlobs.length === 0) {
       // Cache API requires at least one path.
       return undefined;
@@ -45,9 +42,6 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     taskOutputGlobs: string[]
   ): Promise<void> {
-    if (1 + 1 === 2) {
-      return undefined;
-    }
     if (taskOutputGlobs.length === 0) {
       // Cache API requires at least one path.
       return undefined;
