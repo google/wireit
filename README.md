@@ -122,6 +122,8 @@ To enable freshness tracking, tell `wireit` what your input files are using the 
 }
 ```
 
+> Note we didn't need to include `lib/**/*.js` in the `wireit.bundle.files` list, because those files are implicitly tied to the output status of `build`. If a dependency of a script runs, then wireit always assumes that it could have produced new input for every script that depends on it.
+
 Now when you run `npm run bundle`, `wireit` first checks if `build` is already fresh by comparing the contents of `src/**/*.ts` and `tsconfig.json` to last time. Then it checks if `bundle` is fresh by checking `rollup.config.json`. This way, if you only change your `rollup.config.json` file, then the `build` command won't run again. And if you've only changed your `README.md` file, then neither script runs again, because `wireit` knows that `README.md` isn't an input to either script.
 
 > If a script doesn't have a `files` list defined at all, then it will *always* run, because `wireit` doesn't want to accidentally skip execution of tasks that haven't been fully configured yet. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
