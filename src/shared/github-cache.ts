@@ -27,8 +27,13 @@ export class GitHubCache implements Cache {
     // we apply immediately and the output object is a no-op. The underlying
     // library does. But what we really want is a separate manifest cache item
     // that we can apply to a virtual fielsystem.
-    await cache.restoreCache(paths, key);
-    return new GitHubCachedOutput();
+    const id = await cache.restoreCache(paths, key);
+    if (id !== undefined) {
+      console.log('CACHE HIT', {taskName, key, id});
+      return new GitHubCachedOutput();
+    } else {
+      console.log('CACHE MISS', {taskName, key, id});
+    }
   }
 
   async saveOutputs(
@@ -48,7 +53,7 @@ export class GitHubCache implements Cache {
     });
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${taskName}:${hashCacheKey(cacheKey)}`;
-    console.log('CACHING', {key, paths});
+    console.log('SAVING CACHE', {taskName, key});
     await cache.saveCache(paths, key);
   }
 }
