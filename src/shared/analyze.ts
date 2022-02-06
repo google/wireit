@@ -1,25 +1,27 @@
 import {KnownError} from '../shared/known-error.js';
 import {readConfig} from '../shared/read-config.js';
-import {resolveTask} from '../shared/resolve-task.js';
+import {resolveScript} from '../shared/resolve-script.js';
 import * as pathlib from 'path';
 
 export const analyze = async (
   packageJsonPath: string,
-  taskName: string,
+  scriptName: string,
   globs: Map<string, string[]>
 ) => {
   const config = await readConfig(packageJsonPath);
-  const task = config.tasks?.[taskName];
-  if (task === undefined) {
+  const script = config.scripts?.[scriptName];
+  if (script === undefined) {
     throw new KnownError(
-      'task-not-found',
-      `No such task ${taskName} in ${packageJsonPath}`
+      'script-not-found',
+      `No such script ${scriptName} in ${packageJsonPath}`
     );
   }
   const promises = [];
-  for (const dep of task.dependencies ?? []) {
-    const resolved = resolveTask(packageJsonPath, dep);
-    promises.push(analyze(resolved.packageJsonPath, resolved.taskName, globs));
+  for (const dep of script.dependencies ?? []) {
+    const resolved = resolveScript(packageJsonPath, dep);
+    promises.push(
+      analyze(resolved.packageJsonPath, resolved.scriptName, globs)
+    );
   }
   await Promise.all(promises);
   const root = pathlib.dirname(packageJsonPath);
@@ -28,7 +30,7 @@ export const analyze = async (
     arr = [];
     globs.set(root, arr);
   }
-  if (task.files !== undefined) {
-    arr.push(...task.files);
+  if (script.files !== undefined) {
+    arr.push(...script.files);
   }
 };

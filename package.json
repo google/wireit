@@ -20,47 +20,45 @@
     "upgrade": "rm -rf node_modules package-lock.json && npm i"
   },
   "wireit": {
-    "tasks": {
-      "build": {
-        "dependendies": [
-          "ts"
-        ]
-      },
-      "ts": {
-        "command": "tsc",
-        "files": [
-          "src/**/*.ts",
-          "tsconfig.json"
-        ],
-        "outputs": [
-          "lib/**/*"
-        ]
-      },
-      "test": {
-        "dependencies": [
-          "test:runmode",
-          "test:watchmode",
-          "test:caching"
-        ]
-      },
-      "test:runmode": {
-        "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
-        "dependencies": [
-          "ts"
-        ]
-      },
-      "test:watchmode": {
-        "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch-test.js$\"",
-        "dependencies": [
-          "ts"
-        ]
-      },
-      "test:caching": {
-        "command": " NODE_OPTIONS=--enable-source-maps uvu lib/test \"caching-test.js$\"",
-        "dependencies": [
-          "ts"
-        ]
-      }
+    "build": {
+      "dependendies": [
+        "ts"
+      ]
+    },
+    "ts": {
+      "command": "tsc",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "outputs": [
+        "lib/**/*"
+      ]
+    },
+    "test": {
+      "dependencies": [
+        "test:runmode",
+        "test:watchmode",
+        "test:caching"
+      ]
+    },
+    "test:runmode": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
+      "dependencies": [
+        "ts"
+      ]
+    },
+    "test:watchmode": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch-test.js$\"",
+      "dependencies": [
+        "ts"
+      ]
+    },
+    "test:caching": {
+      "command": " NODE_OPTIONS=--enable-source-maps uvu lib/test \"caching-test.js$\"",
+      "dependencies": [
+        "ts"
+      ]
     }
   },
   "devDependencies": {

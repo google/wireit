@@ -8,23 +8,23 @@ import type {Cache} from './cache.js';
 export class GitHubCache implements Cache {
   async getOutputs(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     cacheKey: string,
-    taskOutputGlobs: string[]
+    scriptOutputGlobs: string[]
   ): Promise<GitHubCachedOutput | undefined> {
-    if (taskOutputGlobs.length === 0) {
+    if (scriptOutputGlobs.length === 0) {
       // Cache API requires at least one path.
       // return undefined;
       // TODO(aomarks) Temporary hack
-      taskOutputGlobs = ['README.md'];
+      scriptOutputGlobs = ['README.md'];
     }
     const packageRoot = pathlib.dirname(packageJsonPath);
-    const paths = await fastglob(taskOutputGlobs, {
+    const paths = await fastglob(scriptOutputGlobs, {
       cwd: packageRoot,
       absolute: true,
     });
     // TODO(aomarks) Is packageJsonPath reliable?
-    const key = `${packageJsonPath}:${taskName}:${hashCacheKey(cacheKey)}`;
+    const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     // TODO(aomarks) @actions/cache doesn't let us just test for a cache hit, so
     // we apply immediately and the output object is a no-op. The underlying
     // library does. But what we really want is a separate manifest cache item
@@ -42,24 +42,24 @@ export class GitHubCache implements Cache {
 
   async saveOutputs(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     cacheKey: string,
-    taskOutputGlobs: string[]
+    scriptOutputGlobs: string[]
   ): Promise<void> {
-    if (taskOutputGlobs.length === 0) {
+    if (scriptOutputGlobs.length === 0) {
       // Cache API requires at least one path.
       // return undefined;
       // TODO(aomarks) Temporary hack
-      taskOutputGlobs = ['README.md'];
+      scriptOutputGlobs = ['README.md'];
     }
     const packageRoot = pathlib.dirname(packageJsonPath);
-    const paths = await fastglob(taskOutputGlobs, {
+    const paths = await fastglob(scriptOutputGlobs, {
       cwd: packageRoot,
       absolute: true,
     });
     // TODO(aomarks) Is packageJsonPath reliable?
-    const key = `${packageJsonPath}:${taskName}:${hashCacheKey(cacheKey)}`;
-    console.log(`🔌 [${taskName}] Saving to GitHub cache`);
+    const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
+    console.log(`🔌 [${scriptName}] Saving to GitHub cache`);
     await cache.saveCache(paths, key);
   }
 }

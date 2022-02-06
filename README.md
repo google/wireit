@@ -73,7 +73,7 @@ Now when you run `npm run build`, `wireit` will manage the execution of your scr
 
 ## Dependencies
 
-When you `npm run` a script that has been configured for `wireit`, then the script's command doesn't always run right away. Instead, the _dependencies_ of each script are run first, if needed. To declare a dependecy between two tasks, edit the `wireit.<task>.dependencies` list:
+When you `npm run` a script that has been configured for `wireit`, then the script's command doesn't always run right away. Instead, the _dependencies_ of each script are run first, if needed. To declare a dependecy between two scripts, edit the `wireit.<script>.dependencies` list:
 
 ```json
 {
@@ -125,7 +125,10 @@ To enable freshness tracking, tell `wireit` what your input files are using the 
 
 Now when you run `npm run bundle`, `wireit` first checks if `build` is already fresh by comparing the contents of `src/**/*.ts` and `tsconfig.json` to last time. Then it checks if `bundle` is fresh by checking `rollup.config.json`. This way, if you only change your `rollup.config.json` file, then the `build` command won't run again. And if you've only changed your `README.md` file, then neither script runs again, because `wireit` knows that `README.md` isn't an input to either script.
 
-> If a script doesn't have a `files` list defined at all, then it will _always_ run, because `wireit` doesn't want to accidentally skip execution of tasks that haven't been fully configured yet. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
+> If a script doesn't have a `files` list defined at all, then it will _always_
+> run, because `wireit` doesn't want to accidentally skip execution of scripts
+> that haven't been fully configured yet. To allow a script to be freshness
+> checked that really has no input files, set `files` to an empty array (`files: []`).
 
 ## Watch mode
 

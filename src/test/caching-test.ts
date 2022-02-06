@@ -15,7 +15,7 @@ test.after.each(async (ctx) => {
 });
 
 test(
-  'task output is cached',
+  'script output is cached',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -82,7 +82,7 @@ test(
 );
 
 test(
-  'task is cached even with no output files',
+  'script is cached even with no output files',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -91,11 +91,9 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              files: ['input.txt'],
-            },
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
           },
         },
       },

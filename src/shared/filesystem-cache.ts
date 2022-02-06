@@ -8,7 +8,7 @@ import type {Cache} from './cache.js';
 export class FilesystemCache implements Cache {
   async getOutputs(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     cacheKey: string
   ): Promise<FilesystemCachedOutput | undefined> {
     const packageRoot = pathlib.dirname(packageJsonPath);
@@ -16,7 +16,7 @@ export class FilesystemCache implements Cache {
       packageRoot,
       '.wireit',
       'cache',
-      taskName,
+      scriptName,
       hashCacheKey(cacheKey)
     );
     try {
@@ -32,21 +32,21 @@ export class FilesystemCache implements Cache {
 
   async saveOutputs(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     cacheKey: string,
-    taskOutputGlobs: string[]
+    scriptOutputGlobs: string[]
   ): Promise<void> {
     // TODO(aomarks) Think about symlinks, here and in normal run mode.
     // TODO(aomarks) Note that you can pass a custom "fs" to fastglob.
     const packageRoot = pathlib.dirname(packageJsonPath);
-    const entries = await fastglob(taskOutputGlobs, {
+    const entries = await fastglob(scriptOutputGlobs, {
       cwd: packageRoot,
     });
     const cacheDir = pathlib.resolve(
       packageRoot,
       '.wireit',
       'cache',
-      taskName,
+      scriptName,
       hashCacheKey(cacheKey)
     );
     const copies = [];
@@ -56,7 +56,7 @@ export class FilesystemCache implements Cache {
     for (const outputFilePath of entries) {
       const absSrc = pathlib.resolve(packageRoot, outputFilePath);
       // TODO(aomarks) Check that we are still within the cache dir. Could it be
-      // valid for a task to emit outside of the package?
+      // valid for a script to emit outside of the package?
       const absDest = pathlib.resolve(cacheDir, outputFilePath);
       copies.push(
         fs

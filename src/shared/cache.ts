@@ -1,16 +1,16 @@
 export interface Cache {
   getOutputs(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     cacheKey: string,
-    taskOutputGlobs: string[]
+    scriptOutputGlobs: string[]
   ): Promise<CachedOutput | undefined>;
 
   saveOutputs(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     cacheKey: string,
-    taskOutputGlobs: string[]
+    scriptOutputGlobs: string[]
   ): Promise<void>;
 }
 

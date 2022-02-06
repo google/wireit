@@ -15,7 +15,7 @@ test.after.each(async (ctx) => {
 });
 
 test(
-  '1 task succeeds',
+  '1 script succeeds',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -24,10 +24,8 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-            },
+          cmd: {
+            command: cmd.command(),
           },
         },
       },
@@ -50,10 +48,8 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: 'installed-binary',
-            },
+          cmd: {
+            command: 'installed-binary',
           },
         },
       },
@@ -78,10 +74,8 @@ test(
     await rig.writeFiles({
       'package.json': {
         wireit: {
-          tasks: {
-            cmd: {
-              command: 'installed-binary',
-            },
+          cmd: {
+            command: 'installed-binary',
           },
         },
       },
@@ -100,7 +94,7 @@ test(
 );
 
 test(
-  '1 task fails',
+  '1 script fails',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -109,10 +103,8 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-            },
+          cmd: {
+            command: cmd.command(),
           },
         },
       },
@@ -127,7 +119,7 @@ test(
 );
 
 test(
-  '2 tasks, 2 succeed',
+  '2 scripts, 2 succeed',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     const cmd2 = rig.newCommand();
@@ -137,14 +129,12 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
           },
         },
       },
@@ -169,7 +159,7 @@ test(
 );
 
 test(
-  '2 tasks, first fails',
+  '2 scripts, first fails',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     const cmd2 = rig.newCommand();
@@ -179,14 +169,12 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
           },
         },
       },
@@ -197,7 +185,7 @@ test(
     await cmd2.waitUntilStarted();
     await cmd2.exit(37);
 
-    // Fail because a task failed
+    // Fail because a script failed
     const {code} = await out.done;
     assert.equal(code, 1);
 
@@ -234,22 +222,20 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2', 'cmd3'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-              dependencies: ['cmd4'],
-            },
-            cmd3: {
-              command: cmd3.command(),
-              dependencies: ['cmd4'],
-            },
-            cmd4: {
-              command: cmd4.command(),
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            dependencies: ['cmd4'],
+          },
+          cmd3: {
+            command: cmd3.command(),
+            dependencies: ['cmd4'],
+          },
+          cmd4: {
+            command: cmd4.command(),
           },
         },
       },
@@ -288,20 +274,16 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['../pkg2:cmd2'],
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['../pkg2:cmd2'],
           },
         },
       },
       'pkg2/package.json': {
         wireit: {
-          tasks: {
-            cmd2: {
-              command: cmd2.command(),
-            },
+          cmd2: {
+            command: cmd2.command(),
           },
         },
       },
@@ -324,7 +306,7 @@ test(
 );
 
 test(
-  '1 task: run, cached, run, cached',
+  '1 script: run, cached, run, cached',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -333,11 +315,9 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              files: ['input.txt'],
-            },
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
           },
         },
         'input.txt': 'v1',
@@ -386,7 +366,7 @@ test(
 );
 
 test(
-  '2 tasks: run, cached, run, cached',
+  '2 scripts: run, cached, run, cached',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     const cmd2 = rig.newCommand();
@@ -396,15 +376,13 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-              files: ['cmd2.input.txt'],
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            files: ['cmd2.input.txt'],
           },
         },
       },
@@ -470,7 +448,7 @@ test(
 );
 
 test(
-  '2 tasks: run, cached, run, cached',
+  '2 scripts: run, cached, run, cached',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     const cmd2 = rig.newCommand();
@@ -481,15 +459,13 @@ test(
           cmd2: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-              files: ['cmd2.input.txt'],
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            files: ['cmd2.input.txt'],
           },
         },
       },
@@ -570,11 +546,9 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              dependencies: ['cmd'],
-            },
+          cmd: {
+            command: cmd.command(),
+            dependencies: ['cmd'],
           },
         },
       },
@@ -598,15 +572,13 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-              dependencies: ['cmd1'],
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            dependencies: ['cmd1'],
           },
         },
       },
@@ -632,14 +604,12 @@ test(
           cmd2: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-            },
-            cmd2: {
-              command: cmd2.command(),
-              npm: false,
-            },
+          cmd1: {
+            command: cmd1.command(),
+          },
+          cmd2: {
+            command: cmd2.command(),
+            npm: false,
           },
         },
       },
@@ -740,17 +710,15 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2', 'cmd3'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-            },
-            cmd3: {
-              command: cmd3.command(),
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+          },
+          cmd3: {
+            command: cmd3.command(),
           },
         },
       },
@@ -794,7 +762,7 @@ test(
 );
 
 test(
-  'SIGINT cancelled task is not considered cached',
+  'SIGINT cancelled script is not considered cached',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     await rig.writeFiles({
@@ -803,10 +771,8 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-            },
+          cmd1: {
+            command: cmd1.command(),
           },
         },
       },
@@ -850,17 +816,15 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2', 'cmd3'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-            },
-            cmd3: {
-              command: cmd3.command(),
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+          },
+          cmd3: {
+            command: cmd3.command(),
           },
         },
       },

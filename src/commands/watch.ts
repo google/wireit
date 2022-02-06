@@ -2,7 +2,7 @@ import {KnownError} from '../shared/known-error.js';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
-import {TaskRunner} from './run.js';
+import {ScriptRunner} from './run.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import * as pathlib from 'path';
 import {Abort} from '../shared/abort.js';
@@ -24,9 +24,9 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
       `Could not find a package.json in ${process.cwd()} or parents`
     );
   }
-  const taskName = args[0] ?? process.env.npm_lifecycle_event;
+  const scriptName = args[0] ?? process.env.npm_lifecycle_event;
   const pkgGlobs = new Map();
-  await analyze(packageJsonPath, taskName, pkgGlobs);
+  await analyze(packageJsonPath, scriptName, pkgGlobs);
 
   // We want to create as few chokidar watchers as possible, but we need at
   // least one per cwd, because each globs need to be evaluated relative to its
@@ -87,16 +87,16 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     });
   }
 
-  const runIgnoringTaskFailures = async () => {
+  const runIgnoringScriptFailures = async () => {
     // TODO(aomarks) Should the filesystem cache be shared between runs?
-    const runner = new TaskRunner(abort, new FilesystemCache());
+    const runner = new ScriptRunner(abort, new FilesystemCache());
     try {
-      await runner.run(packageJsonPath, taskName, new Set());
+      await runner.run(packageJsonPath, scriptName, new Set());
     } catch (err) {
       if (
         !(
           err instanceof KnownError &&
-          (err.code === 'task-failed' || err.code === 'task-cancelled')
+          (err.code === 'script-failed' || err.code === 'script-cancelled')
         )
       ) {
         throw err;
@@ -105,7 +105,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   };
 
   // Always run initially.
-  await runIgnoringTaskFailures();
+  await runIgnoringScriptFailures();
 
   while (true) {
     const action = await Promise.race([notification, abort]);
@@ -118,7 +118,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     const now = (global as any).performance.now();
     const elapsed = now - lastFileChangeMs;
     if (elapsed >= debounce) {
-      await runIgnoringTaskFailures();
+      await runIgnoringScriptFailures();
     } else {
       setTimeout(() => resolveNotification(), debounce - elapsed);
     }

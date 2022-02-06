@@ -1,14 +1,32 @@
 # MVP
 
-- Get rid of "tasks" layer
-
 - Sweep all TODOs into here
 
 - Rename "npm" to "checkNpmPackageLocks"
 
 - Document "checkNpmPackageLocks"
 
+- Include output files in cache key
+
+- Save sha256 instead of entire JSON in state
+
+- Rename state to fresh
+
+- "output" or "outputs"?
+
+- Does the globbing behavior of chokidar and fast-glob match?
+
+- Ability to depend on scripts that aren't in wireup config
+
+- Don't cache (or freshness check?) when no output files
+
+- Don't freshness check when no input files
+
 - Watch mode should reload configs when the configs change
+
+- Nicer error output messages
+
+- Find places that could be more concurent, like writing caches
 
 - Lint this repo
 
@@ -24,6 +42,7 @@
   - Test that we display stdout/stderr
   - Test that changing the command invalidates the cache
   - Test that processes get cleaned up
+  - Tests for missing script
   - Run CI tests on macOS
 
 # Next
@@ -32,9 +51,12 @@
 
 - More efficient use of chokidar.
 
+- Are all NPM package script names safe to put in the .wireit folder? Need
+  escaping?
+
 - Windows support and test in CI
 
-- Output mode that prevents interleaved output (when concurrent tasks running,
+- Output mode that prevents interleaved output (when concurrent scripts running,
   only one can have a lock on stdout/stderr at a time).
 
 - Usability problems
@@ -46,7 +68,7 @@
 - Ability to run scripts like "wireit run foo bar" or "wireit run
   packages/\*:test"
 
-- Ability to say that a task shouldn't block the next step, but still fail
+- Ability to say that a script shouldn't block the next step, but still fail
   overall (tsc style).
 
 - A way to detect when running to wireit commands simultaneously to prevent
@@ -62,5 +84,5 @@
   show writing a small script and using `|` to check the status.
 
 - Diagnose mode: run each step with no concurrency, and check for overlapping
-  output files (two tasks that both write to the same file, or whose output
-  globs includes another tasks's output)
+  output files (two script that both write to the same file, or whose output
+  globs includes another script's output)

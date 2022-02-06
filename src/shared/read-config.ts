@@ -24,14 +24,15 @@ export const readConfig = async (packageJsonPath: string): Promise<Config> => {
     );
   }
 
-  const config = packageJson.wireit;
-  if (config === undefined) {
+  const scripts = packageJson.wireit;
+  if (scripts === undefined) {
     throw new KnownError(
-      'task-not-found',
+      'script-not-found',
       `No wireit config in package.json ${packageJsonPath}`
     );
   }
-  config.packageJsonPath = packageJsonPath;
-
-  return config;
+  return {
+    packageJsonPath,
+    scripts,
+  };
 };

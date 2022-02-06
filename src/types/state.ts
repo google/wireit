@@ -1,3 +1,3 @@
 export interface State {
-  cacheKeys: { [taskName: string]: string };
+  cacheKeys: {[scriptName: string]: string};
 }

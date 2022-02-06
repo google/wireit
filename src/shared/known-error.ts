@@ -14,8 +14,8 @@ export class KnownError extends Error {
 
 export type ErrorCode =
   | /** A user error. */ 'invalid-argument'
-  | /** A cycle in the task graph. */ 'cycle'
-  | /** A task process exited with a non-zero exit code. */ 'task-failed'
-  | /** A task aborted because of a user signal. */ 'task-cancelled'
-  | /** An error spawning or communicating with a task. */ 'task-control-error'
-  | /** A task could not be found in a package.json wireit config. */ 'task-not-found';
+  | /** A cycle in the script graph. */ 'cycle'
+  | /** A script process exited with a non-zero exit code. */ 'script-failed'
+  | /** A script aborted because of a user signal. */ 'script-cancelled'
+  | /** An error spawning or communicating with a script. */ 'script-control-error'
+  | /** A script could not be found in a package.json wireit config. */ 'script-not-found';

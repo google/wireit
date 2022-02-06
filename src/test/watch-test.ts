@@ -15,7 +15,7 @@ test.after.each(async (ctx) => {
 });
 
 test(
-  'watch 1 task',
+  'watch 1 script',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -24,11 +24,9 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              files: ['input.txt'],
-            },
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
           },
         },
       },
@@ -61,7 +59,7 @@ test(
 );
 
 test(
-  'watch 2 task',
+  'watch 2 script',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     const cmd2 = rig.newCommand();
@@ -71,16 +69,14 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              files: ['cmd1.input.txt'],
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-              files: ['cmd2.input.txt'],
-            },
+          cmd1: {
+            command: cmd1.command(),
+            files: ['cmd1.input.txt'],
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            files: ['cmd2.input.txt'],
           },
         },
       },
@@ -135,11 +131,9 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              files: ['input.txt'],
-            },
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
           },
         },
       },
@@ -185,7 +179,7 @@ test(
 );
 
 test(
-  "don't kill watcher when task fails",
+  "don't kill watcher when script fails",
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -194,11 +188,9 @@ test(
           cmd: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd: {
-              command: cmd.command(),
-              files: ['input.txt'],
-            },
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
           },
         },
       },
@@ -261,15 +253,13 @@ test(
           cmd1: 'wireit',
         },
         wireit: {
-          tasks: {
-            cmd1: {
-              command: cmd1.command(),
-              dependencies: ['cmd2'],
-            },
-            cmd2: {
-              command: cmd2.command(),
-              npm: false,
-            },
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            npm: false,
           },
         },
       },

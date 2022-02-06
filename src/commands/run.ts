@@ -4,7 +4,7 @@ import {spawn} from 'child_process';
 import * as pathlib from 'path';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
-import {resolveTask} from '../shared/resolve-task.js';
+import {resolveScript} from '../shared/resolve-script.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
@@ -13,7 +13,7 @@ import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 
 import type {Cache} from '../shared/cache.js';
-import type {Config, Task} from '../types/config.js';
+import type {Config, Script} from '../types/config.js';
 
 export default async (args: string[], abort: Promise<typeof Abort>) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
@@ -37,23 +37,23 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   const cache = process.env.GITHUB_CACHE
     ? new GitHubCache()
     : new FilesystemCache();
-  const runner = new TaskRunner(abort, cache);
-  const taskName = args[0] ?? process.env.npm_lifecycle_event;
-  await runner.run(packageJsonPath, taskName, new Set());
+  const runner = new ScriptRunner(abort, cache);
+  const scriptName = args[0] ?? process.env.npm_lifecycle_event;
+  await runner.run(packageJsonPath, scriptName, new Set());
 };
 
-interface TaskStatus {
+interface ScriptStatus {
   cacheKey: CacheKey;
 }
 
 interface CacheKey {
   command: string;
   // Must be sorted by filename.
-  files: {[filename: string]: FileContentHash};
-  // Must be sorted by taskname.
-  dependencies: {[taskname: string]: CacheKey};
-  // Must be sorted by filename.
-  npmPackageLocks: {[filename: string]: FileContentHash};
+  files: {[fileName: string]: FileContentHash};
+  // Must be sorted by script name.
+  dependencies: {[scriptName: string]: CacheKey};
+  // Must be sorted by script name.
+  npmPackageLocks: {[fileName: string]: FileContentHash};
 }
 
 // TODO(aomarks) What about permission bits?
@@ -61,9 +61,9 @@ interface FileContentHash {
   sha256: string;
 }
 
-export class TaskRunner {
+export class ScriptRunner {
   private readonly _configs = new Map<string, Promise<Config>>();
-  private readonly _taskPromises = new Map<string, Promise<TaskStatus>>();
+  private readonly _scriptPromises = new Map<string, Promise<ScriptStatus>>();
   private readonly _abort: Promise<typeof Abort>;
   private readonly _cache: Cache;
 
@@ -73,74 +73,74 @@ export class TaskRunner {
   }
 
   /**
-   * @returns A promise that resolves to true if the task ran, otherwise false.
+   * @returns A promise that resolves to true if the script ran, otherwise false.
    */
   async run(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     stack: Set<string>
-  ): Promise<TaskStatus> {
-    const taskId = JSON.stringify([packageJsonPath, taskName]);
-    if (stack.has(taskId)) {
+  ): Promise<ScriptStatus> {
+    const scriptId = JSON.stringify([packageJsonPath, scriptName]);
+    if (stack.has(scriptId)) {
       throw new KnownError(
         'cycle',
-        `Cycle detected at task ${taskName} in ${packageJsonPath}`
+        `Cycle detected at script ${scriptName} in ${packageJsonPath}`
       );
     }
 
-    let promise = this._taskPromises.get(taskId);
+    let promise = this._scriptPromises.get(scriptId);
     if (promise !== undefined) {
       return promise;
     }
-    let resolve: (value: TaskStatus) => void;
-    promise = new Promise<TaskStatus>((r) => (resolve = r));
-    this._taskPromises.set(taskId, promise);
+    let resolve: (value: ScriptStatus) => void;
+    promise = new Promise<ScriptStatus>((r) => (resolve = r));
+    this._scriptPromises.set(scriptId, promise);
 
-    const {config, task} = await this._findConfigAndTask(
+    const {config, script} = await this._findConfigAndScript(
       packageJsonPath,
-      taskName
+      scriptName
     );
 
     const newCacheKeyData: CacheKey = {
-      command: task.command!, // TODO(aomarks) This shouldn't be undefined.
+      command: script.command!, // TODO(aomarks) This shouldn't be undefined.
       files: {},
       dependencies: {},
       npmPackageLocks: {},
     };
 
-    if (task.dependencies?.length) {
+    if (script.dependencies?.length) {
       // IMPORTANT: We must sort here, because it's important that the insertion
       // order of dependency entries in our cache key is deterministic.
-      task.dependencies.sort((a, b) => a.localeCompare(b));
+      script.dependencies.sort((a, b) => a.localeCompare(b));
 
-      const depTaskPromises = [];
-      for (const depTaskName of task.dependencies) {
-        depTaskPromises.push(
+      const depScriptPromises = [];
+      for (const depScriptName of script.dependencies) {
+        depScriptPromises.push(
           this.run(
             config.packageJsonPath,
-            depTaskName,
-            new Set(stack).add(taskId)
+            depScriptName,
+            new Set(stack).add(scriptId)
           )
         );
       }
       // Note we use Promise.allSettled() instead of Promise.all() here because
-      // we want don't want our top-level task to throw until all sub-tasks have
-      // had a chance to clean up in the case of a failure.
-      const results = await Promise.allSettled(depTaskPromises);
-      for (let i = 0; i < task.dependencies.length; i++) {
-        const depTaskName = task.dependencies[i];
+      // we want don't want our top-level script to throw until all sub-scripts
+      // have had a chance to clean up in the case of a failure.
+      const results = await Promise.allSettled(depScriptPromises);
+      for (let i = 0; i < script.dependencies.length; i++) {
+        const depScritpName = script.dependencies[i];
         const result = results[i];
         if (result.status === 'rejected') {
           // TODO(aomarks) Could create a compound error here.
-          console.log('THROWING', depTaskName, result.reason);
+          console.log('THROWING', depScritpName, result.reason);
           throw result.reason;
         }
-        newCacheKeyData.dependencies[depTaskName] = result.value.cacheKey;
+        newCacheKeyData.dependencies[depScritpName] = result.value.cacheKey;
       }
     }
 
-    if (task.files?.length) {
-      const entries = await fastglob(task.files, {
+    if (script.files?.length) {
+      const entries = await fastglob(script.files, {
         cwd: pathlib.dirname(config.packageJsonPath),
       });
 
@@ -172,7 +172,7 @@ export class TaskRunner {
       }
     }
 
-    if (task.npm ?? true) {
+    if (script.npm ?? true) {
       const packageLockHashes = await hashReachablePackageLocks(
         pathlib.dirname(packageJsonPath)
       );
@@ -185,39 +185,39 @@ export class TaskRunner {
     const newCacheKey = JSON.stringify(newCacheKeyData);
     const existingFsCacheKey = await this._readCurrentState(
       config.packageJsonPath,
-      taskName
+      scriptName
     );
 
     const cacheKeyStale = newCacheKey !== existingFsCacheKey;
     if (!cacheKeyStale) {
-      console.log(`🔌 [${taskName}] Already up to date`);
+      console.log(`🔌 [${scriptName}] Already up to date`);
       resolve!({cacheKey: newCacheKeyData});
       return promise;
     }
 
-    if (task.command) {
+    if (script.command) {
       // TODO(aomarks) Output needs to be in the cache key too.
       // TODO(aomarks) We should race against abort here too (any expensive operation).
-      // TODO(aomarks) What should we be doing when there is a cache but a task has no outputs? What about empty array outputs vs undefined?
+      // TODO(aomarks) What should we be doing when there is a cache but a script has no outputs? What about empty array outputs vs undefined?
       let cachedOutput;
       if (this._cache !== undefined) {
         cachedOutput = await this._cache.getOutputs(
           packageJsonPath,
-          taskName,
+          scriptName,
           newCacheKey,
-          task.outputs ?? []
+          script.outputs ?? []
         );
       }
       if (cachedOutput !== undefined) {
-        console.log(`🔌 [${taskName}] Restoring from cache`);
+        console.log(`🔌 [${scriptName}] Restoring from cache`);
         await cachedOutput.apply();
       } else {
-        console.log(`🔌 [${taskName}] Running command`);
-        // We run tasks via npx so that PATH will include the node_modules/.bin
-        // directory, matching the standard behavior of an NPM script. This also
-        // gives access to other NPM-specific environment variables that a user's
-        // script might need.
-        const child = spawn('npx', ['-c', task.command], {
+        console.log(`🔌 [${scriptName}] Running command`);
+        // We run scripts via npx so that PATH will include the
+        // node_modules/.bin directory, matching the standard behavior of an NPM
+        // script. This also gives access to other NPM-specific environment
+        // variables that a user's script might need.
+        const child = spawn('npx', ['-c', script.command], {
           cwd: pathlib.dirname(config.packageJsonPath),
           stdio: 'inherit',
           detached: true,
@@ -228,8 +228,8 @@ export class TaskRunner {
           child.on('error', () => {
             reject(
               new KnownError(
-                'task-control-error',
-                `Command ${taskName} failed to start`
+                'script-control-error',
+                `Command ${scriptName} failed to start`
               )
             );
           });
@@ -237,15 +237,15 @@ export class TaskRunner {
             if (signal !== null) {
               reject(
                 new KnownError(
-                  'task-cancelled',
-                  `Command ${taskName} exited with signal ${code}`
+                  'script-cancelled',
+                  `Command ${scriptName} exited with signal ${code}`
                 )
               );
             } else if (code !== 0) {
               reject(
                 new KnownError(
-                  'task-failed',
-                  `Command ${taskName} failed with code ${code}`
+                  'script-failed',
+                  `Command ${scriptName} failed with code ${code}`
                 )
               );
             } else {
@@ -255,21 +255,21 @@ export class TaskRunner {
         });
         const result = await Promise.race([completed, this._abort]);
         if (result === Abort) {
-          console.log(`🔌 [${taskName}] Killing`);
+          console.log(`🔌 [${scriptName}] Killing`);
           process.kill(-child.pid!, 'SIGINT');
           await completed;
           throw new Error(
-            `Unexpected internal error. Task ${taskName} should have thrown.`
+            `Unexpected internal error. Script ${scriptName} should have thrown.`
           );
         }
-        console.log(`🔌 [${taskName}] Completed`);
+        console.log(`🔌 [${scriptName}] Completed`);
         if (this._cache !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutputs(
             packageJsonPath,
-            taskName,
+            scriptName,
             newCacheKey,
-            task.outputs ?? []
+            script.outputs ?? []
           );
         }
       }
@@ -277,7 +277,7 @@ export class TaskRunner {
 
     await this._writeCurrentState(
       config.packageJsonPath,
-      taskName,
+      scriptName,
       newCacheKey
     );
 
@@ -285,22 +285,22 @@ export class TaskRunner {
     return promise;
   }
 
-  private async _findConfigAndTask(
+  private async _findConfigAndScript(
     packageJsonPath: string,
-    taskName: string
-  ): Promise<{config: Config; task: Task}> {
-    const resolved = resolveTask(packageJsonPath, taskName);
+    scriptName: string
+  ): Promise<{config: Config; script: Script}> {
+    const resolved = resolveScript(packageJsonPath, scriptName);
     packageJsonPath = resolved.packageJsonPath;
-    taskName = resolved.taskName;
+    scriptName = resolved.scriptName;
     const config = await this._getConfig(packageJsonPath);
-    const task = config.tasks?.[taskName];
-    if (task === undefined) {
+    const script = config.scripts?.[scriptName];
+    if (script === undefined) {
       throw new KnownError(
-        'task-not-found',
-        `Could not find task ${taskName} in ${packageJsonPath}`
+        'script-not-found',
+        `Could not find script ${scriptName} in ${packageJsonPath}`
       );
     }
-    return {config, task};
+    return {config, script};
   }
 
   private async _getConfig(packageJsonPath: string): Promise<Config> {
@@ -314,13 +314,13 @@ export class TaskRunner {
 
   private async _readCurrentState(
     packageJsonPath: string,
-    taskName: string
+    scriptName: string
   ): Promise<string | undefined> {
     const stateFile = pathlib.resolve(
       pathlib.dirname(packageJsonPath),
       '.wireit',
       'state',
-      taskName
+      scriptName
     );
     try {
       return await fs.readFile(stateFile, 'utf8');
@@ -334,14 +334,14 @@ export class TaskRunner {
 
   private async _writeCurrentState(
     packageJsonPath: string,
-    taskName: string,
+    scriptName: string,
     state: string
   ): Promise<void> {
     const stateFile = pathlib.resolve(
       pathlib.dirname(packageJsonPath),
       '.wireit',
       'state',
-      taskName
+      scriptName
     );
     await fs.mkdir(pathlib.dirname(stateFile), {recursive: true});
     return fs.writeFile(stateFile, state, 'utf8');
