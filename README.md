@@ -7,60 +7,32 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 
 ## Features
 
-- 🔗 Automatically run dependencies between your NPM scripts
+- 🔗 Automatically run dependencies between your NPM scripts in parallel
 - 👀 Watch any script to continuously re-run when files change
 - ♻️ Cache script output locally or in the GitHub Actions cache
 - 🙂 Use the `npm run` commands you already know
 
-## Example
+## Contents
 
-> package.json
+- [Features](#features)
+- [Install](#install)
+- [Setup](#setup)
+- [Dependencies](#dependencies)
+- [Freshness tracking](#freshness-tracking)
+- [Caching](#caching)
+  - [GitHub Actions caching](#github-actions-caching)
+- [Watch mode](#watch-mode)
 
-```json
-{
-  "name": "my-project",
-  "scripts": {
-    "build": "wireit",
-    "test": "wireit",
-    "ts": "wireit",
-    "rollup": "wireit"
-  },
-  "wireit": {
-    "tasks": {
-      "build": {
-        "dependencies": ["rollup"]
-      },
-      "test": {
-        "command": "uvu lib/test",
-        "dependencies": ["ts"]
-      },
-      "ts": {
-        "command": "tsc",
-        "files": ["src/**/*.ts", "tsconfig.json"]
-      },
-      "rollup": {
-        "command": "rollup -c",
-        "dependencies": ["ts"],
-        "files": ["rollup.config.js"]
-      }
-    }
-  }
-}
+
+## Install
+
+```sh
+npm i wireit
 ```
 
-1. When you first run `npm run build`, `tsc` and `rollup` run.
-2. When you modify `rollup.config.js` and run `npm run build` again, only `rollup` runs. Wireit knows that `tsc` doesn't need to run because its input files didn't change.
-3. When you run `npm test -- watch`, every time you modify a `.ts` file, `tsc` and `uvu` will run.
+## Setup
 
-## Recipes
-
-### How do I configure a script with wireit?
-
-1. Create a `wireit` object in your `package.json`, and a `tasks` object within that.
-2. Add an entry to `wireit.tasks` with the same script name, and set `command` to the same script value.
-3. Replace the `script` entry with `wireit`. Wireit doesn't need any arguments because it uses the [`npm_lifecycle_event`](https://docs.npmjs.com/cli/v8/using-npm/scripts#current-lifecycle-event) environment variable to determine which NPM script is running.
-4. Use `dependencies` to declare which other scripts must run before this one.
-5. Use `files` to declare which files must change to require the script to run again.
+Wireit works *with* `npm run` instead of replacing it. To configure an NPM script for `wireit`, move the command into a new `wireit` section of your `package.json`, and replace the original script with the `wireit` command.
 
 <table>
 <tr>
@@ -72,9 +44,7 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 <pre lang="json">
 {
   "scripts": {
-    "build": "npm run ts && npm run bundle",
-    "bundle": "rollup -c",
-    "ts": "tsc"
+    "build": "tsc"
   }
 }
 </pre>
@@ -83,24 +53,11 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 <pre lang="json">
 {
   "scripts": {
-    "build": "wireit",
-    "ts": "wireit",
-    "rollup": "wireit"
+    "build": "wireit"
   },
   "wireit": {
-    "tasks": {
-      "build": {
-        "dependencies": ["bundle"]
-      },
-      "bundle": {
-        "command": "rollup -c",
-        "dependencies": ["ts"],
-        "files": ["rollup.config.js"]
-      },
-      "ts": {
-        "command": "tsc",
-        "files": ["src/**/*.ts", "tsconfig.json"]
-      }
+    "build": {
+      "command": "tsc"
     }
   }
 }
@@ -109,95 +66,111 @@ Wireit upgrades your NPM scripts to make them smarter and more efficient.
 </tr>
 </table>
 
-### How do I run a wireit script?
+Now when you run `npm run build`, `wireit` will manage the execution of your script behind-the-scenes, upgrading it with power of a dependency graph, caching, watch mode, and more.
 
-Run `npm run <task>`. Wireit scripts are regular NPM scripts, so you use the NPM commands you already know.
+> The `wireit` command doesn't need any arguments, because it uses the [`npm_lifecycle_event`](https://docs.npmjs.com/cli/v8/using-npm/scripts#current-lifecycle-event) environment variable to determine which NPM script is running.
 
-### How do I watch a wireit script?
+## Dependencies
 
-Run `npm run <task> -- watch`. Wireit can watch any script, and re-runs it any time an input file to it or any of its dependencies changes. Note the `--` is needed so that the `watch` argument is passed to `wireit`, instead of `npm`.
-
-### How do I use wireit with a monorepo?
-
-Wireit can reference dependencies in other packages using `<path-to-package>:<script>` syntax. For example:
+When you `npm run` a script that has been configured for `wireit`, then the script's command doesn't always run right away. Instead, the *dependencies* of each script are run first, if needed. To declare a dependecy between two tasks, edit the `wireit.<task>.dependencies` list:
 
 ```json
 {
   "scripts": {
-    "ts": "wireit"
-  },
-  "wireit": {
-    "tasks": {
-      "ts": {
-        "command": "tsc",
-        "dependencies": ["../my-other-package:ts"],
-        "files": ["src/**/*.ts", "tsconfig.json"]
-      }
-    }
-  }
-}
-```
-
-### How does wireit handle failures?
-
-By default, when a script fails, then none of the scripts that depend on it will run.
-
-> ⚠️ NOT YET IMPLEMENTED
-
-In some cases, it is useful to allow a script to continue in spite of a failure in one of its dependencies. To change this behavior, set `fail` to `eventually` in the script that is allowed to fail. Note that in `eventually` mode, the _overall_ `npm run` command will always fail if any dependency failed.
-
-For example, TypeScript will emit JavaScript even when there is a typing error, and we may want to let subsequent tasks consume that JavaScript in spite of the error:
-
-```json
-{
-  "scripts": {
-    "ts": "wireit",
+    "build": "wireit",
     "bundle": "wireit"
   },
   "wireit": {
-    "tasks": {
-      "ts": {
-        "command": "tsc",
-        "dependencies": ["../my-other-package:ts"],
-        "files": ["src/**/*.ts", "tsconfig.json"],
-        "fail": "eventually"
-      },
-      "bundle": {
-        "command": "rollup -c",
-        "dependencies": ["ts"],
-        "files": ["rollup.config.js"]
-      }
+    "build": {
+      "command": "tsc"
+    },
+    "bundle": {
+      "command": "rollup -c",
+      "dependencies": ["build"]
     }
   }
 }
 ```
 
-### How do I cache output in GitHub Actions CI?
+Now when you run `npm run bundle`, the `build` script will automatically run first. This way, you don't have to remember the order that your scripts need to run in. This is also better than a chained shell command like `tsc && rollup -c`, because of *freshness tracking* and *caching*.
 
-> ⚠️ NOT YET IMPLEMENTED
+## Freshness tracking
 
-1. Ensure every script whose output you want to be cached has an `output` section.
-2. Use `aomarks/wireit-github-workflow` to automatically use [GitHub Caching](https://docs.github.com/en/actions/advanced-guides/caching-dependencies-to-speed-up-workflows) to restore the output of any script whose input files have not changed in the current PR.
+After you `npm run` a `wireit` script, `wireit` stores a record of the exact inputs to the script inside the `.wireit/state` directory. The next time you run the script, `wireit` checks the inputs again, and if nothing changed, the script is considered *fresh* and skips execution.
+
+To enable freshness tracking, tell `wireit` what your input files are using the `wireit.<command>.files` list:
+
+```json
+{
+  "scripts": {
+    "build": "wireit",
+    "bundle": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": ["src/**/*.ts", "tsconfig.json"]
+    },
+    "bundle": {
+      "command": "rollup -c",
+      "dependencies": ["build"],
+      "files": ["rollup.config.json"]
+    }
+  }
+}
+```
+
+Now when you run `npm run bundle`, `wireit` first checks if `build` is already fresh by comparing the contents of `src/**/*.ts` and `tsconfig.json` to last time. Then it checks if `bundle` is fresh by checking `rollup.config.json`. This way, if you only change your `rollup.config.json` file, then the `build` command won't run again. And if you've only changed your `README.md` file, then neither script runs again, because `wireit` knows that `README.md` isn't an input to either scripts.
+
+> If a script doesn't have a `files` list defined at all, then it will *always* run, because `wireit` doesn't want to accidentally skip execution only because you haven't yet gotten around to declaring your input files yet. To allow a script to be freshness checked that really has no input files, set `files` to an empty array (`files: []`).
+
+## Caching
+
+If a script isn't currently fresh, but has *previously* successfully run with the exact input state, then `wireit` can *copy* the output from the cache, instead of running the command. To enable caching, tell `wireit` what the output files of your scripts are:
+
+```json
+{
+  "scripts": {
+    "build": "wireit",
+    "bundle": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": ["src/**/*.ts", "tsconfig.json"],
+      "output": ["lib/**/*"]
+    },
+    "bundle": {
+      "command": "rollup -c",
+      "dependencies": ["build"],
+      "files": ["rollup.config.json"],
+      "output": ["dist/bundle.js"]
+    }
+  }
+}
+```
+
+Now when you run `npm run bundle`, if the script is not fresh, then `wireit` will first check the `.wireit/cache` directory to see it already has cached output, before it runs the command.
+
+> Occasionally, a script may be able to run faster than the time it takes to check and restore from a cache. Set `wireit.<task>.caching` to `false` to disable caching.
+
+### GitHub Actions caching
+
+Wireit caching also works *across different builds* when you use GitHub Actions. This works the same way as local caching, except wireit checks the remote GitHub Actions Cache, instead of the local filesystem. To enable remote caching with GitHub Actions, use the `aomarks/wireit-github-actions` workflow before you run your scripts:
 
 ```yaml
 steps:
-  - name: Enable caching of wireit script output
-    uses: aomarks/wireit-github-workflow@v1
+  - name: Enable wireit caching
+    uses: aomarks/wireit-github-actions@v1
 
   - name: Test
     run: npm test
 ```
 
-Now when wireit runs a script, it uses the hashes of all transitive input files as a key to check the GitHub cache for an existing output tarball. Whenever possible, wireit will use a cached tarball instead of running the script. Furthermore, when a script and all of its dependencies have a cache hit, wireit doesn't even need to download any tarballs, because it knows that no output could have changed.
+> All GitHub users get 500MB of free storage with GitHub Actions which can be used for caching, and paid users can get more. The most recently accessed cache entries will be preferred if you hit your quota. See [About billing for GitHub Actions](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions) for more information about quota.
 
-To disable caching for a particular script, use `with.no-cache`:
+## Watch mode
 
-```yaml
-steps:
-  - name: Enable caching of wireit script output
-    uses: aomarks/wireit-github-workflow@v1
-    with:
-      no-cache: |
-        foo
-        packages/foo:bar
-```
+You can watch and automatically re-run any script that has been configured by `wireit`, with `npm run -- watch`.
+
+> Note the `--` is needed so that the `watch` argument is passed to `wireit`, instead of `npm`.
