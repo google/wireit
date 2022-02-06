@@ -16,6 +16,7 @@ test.after.each(async (ctx) => {
 test.only(
   '1 task succeeds',
   timeout(async ({rig}) => {
+    console.log(0);
     const cmd = rig.newCommand();
     await rig.writeFiles({
       'package.json': {
@@ -31,11 +32,17 @@ test.only(
         },
       },
     });
+    console.log(1);
     const out = rig.exec('npm run cmd');
+    console.log(2);
     await cmd.waitUntilStarted();
+    console.log(3);
     await cmd.exit(0);
+    console.log(4);
     const {code} = await out.done;
+    console.log(5);
     assert.equal(code, 0);
+    console.log(6);
   })
 );
 
