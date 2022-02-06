@@ -13,7 +13,7 @@ test.after.each(async (ctx) => {
   await ctx.rig.cleanup();
 });
 
-test(
+test.only(
   '1 task succeeds',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
