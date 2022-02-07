@@ -12,5 +12,5 @@ export interface Script {
   dependencies?: string[];
   files?: string[];
   output?: string[];
-  npm?: boolean;
+  checkPackageLocks?: boolean;
 }

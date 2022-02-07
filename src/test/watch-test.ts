@@ -259,7 +259,7 @@ test(
           },
           cmd2: {
             command: cmd2.command(),
-            npm: false,
+            checkPackageLocks: false,
           },
         },
       },
@@ -280,7 +280,7 @@ test(
     assert.equal(process.running(), true);
 
     // Modify the nearest package lock. Expect another run, but only of cmd1,
-    // because cmd2 has npm:false.
+    // because cmd2 has checkPackageLocks:false.
     await rig.writeFiles({'foo/package-lock.json': 'v2'});
     await cmd1.waitUntilStarted();
     await cmd1.exit(0);

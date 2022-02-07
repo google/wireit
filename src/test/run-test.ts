@@ -609,7 +609,7 @@ test(
           },
           cmd2: {
             command: cmd2.command(),
-            npm: false,
+            checkPackageLocks: false,
           },
         },
       },
@@ -654,8 +654,8 @@ test(
     }
 
     // Change foo/package-lock.json. Command 1 should run because we respect
-    // package-locks by default. Command 2 should not run because it has npm:false
-    // configured.
+    // package-locks by default. Command 2 should not run because it has
+    // checkPackageLocks:false configured.
 
     await rig.writeFiles({'foo/package-lock.json': 'v2'});
 

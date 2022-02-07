@@ -172,7 +172,7 @@ export class ScriptRunner {
       }
     }
 
-    if (script.npm ?? true) {
+    if (script.checkPackageLocks ?? true) {
       const packageLockHashes = await hashReachablePackageLocks(
         pathlib.dirname(packageJsonPath)
       );
