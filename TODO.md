@@ -2,10 +2,6 @@
 
 - Sweep all TODOs into here
 
-- Rename "npm" to "checkNpmPackageLocks"
-
-- Document "checkNpmPackageLocks"
-
 - Document how it works with NPM workspaces
 
 - Potential bugs

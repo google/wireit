@@ -19,12 +19,15 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
 - [Install](#install)
 - [Setup](#setup)
 - [Dependencies](#dependencies)
+  - [Vanilla scripts](#vanilla-scripts)
+  - [Cross package dependencies](#cross-package-dependencies)
 - [Freshness tracking](#freshness-tracking)
 - [Watch mode](#watch-mode)
 - [Caching](#caching)
   - [GitHub Actions caching](#github-actions-caching)
   - [Only status required](#only-status-required)
 - [Monorepos](#monorepos)
+- [NPM package locks](#npm-package-locks)
 - [Comparison](#comparison)
 
 ## Install
@@ -137,7 +140,7 @@ the script, `wireit` checks the inputs again, and if nothing changed, the script
 is considered _fresh_ and skips execution.
 
 To enable freshness tracking, tell `wireit` what your input files are using the
-`wireit.<command>.files` list:
+`wireit.<script>.files` list:
 
 ```json
 {
@@ -322,7 +325,18 @@ changed since the last successful run, then no files will need to be downloaded
 from the cache at all. Instead, only much smaller _manifest_ files are
 downloaded from the cache, describing the files that _would_ be outputted.
 
-## Comparisons
+## NPM package locks
+
+Wireit automatically treats any `package-lock.json` file in the package
+directory, or any of its parent directories, like an input file. This means when
+you `npm install` or `npm upgrade` a package dependency, all scripts will be
+considered stale, in case their behavior might have changed.
+
+If you're sure a script doesn't make use of any npm package dependencies, you
+can turn off this behavior by setting `wireit.<script>.checkNpmPackageLocks` to
+`false`.
+
+## Comparison
 
 Wireit shares many similarities with number of other great tools, and we
 encourage you to check them too before you start using wireit.
