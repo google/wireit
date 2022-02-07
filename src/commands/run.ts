@@ -200,7 +200,6 @@ export class ScriptRunner {
     }
 
     if (script.command) {
-      // TODO(aomarks) Output needs to be in the cache key too.
       // TODO(aomarks) We should race against abort here too (any expensive operation).
       // TODO(aomarks) What should we be doing when there is a cache but a script has no output? What about empty array output vs undefined?
       let cachedOutput;

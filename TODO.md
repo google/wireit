@@ -1,10 +1,12 @@
 # MVP
 
-- Sweep all TODOs into here
+- GitHub Actions testing
 
-- GitHub Actions polish and testing.
+- GitHub Actions bad implementation
 
 - Document how it works with NPM workspaces
+
+- Can scripts start with "." or ":." etc.? How to escape.
 
 - Potential bugs
 
@@ -14,6 +16,7 @@
   - Bug where pending processes don't exit
   - Bug when running task after "cd" command. Something to do with npm
     environment variable.
+  - Bug where failure in github caching silently exits
 
 - Save sha256 instead of entire JSON in state
 
@@ -23,13 +26,24 @@
 
 - Don't cache (or freshness check?) when no output files
 
+- Watch mode doesn't need to hash the package locks, just get their filenames.
+
 - Don't freshness check when no input files
+
+- Handle "close" vs "exit" and "error" events when spawning.
 
 - Watch mode should reload configs when the configs change
 
 - Nicer error output messages
 
+- Empty/clean output directories when defined.
+
 - Find places that could be more concurent, like writing caches
+
+- How to deal with symlinks in caching
+
+- Check that we stay within the package directory in caching. Should it be
+  possible to reach outside somehow?
 
 - Lint this repo
 
@@ -40,6 +54,7 @@
   - Test that changing the command invalidates the cache
   - Test that processes get cleaned up
   - Tests for missing script
+  - Test that chokidar works with empty globs.
   - Run CI tests on macOS
 
 # Next
@@ -51,6 +66,10 @@
 - Are all NPM package script names safe to put in the .wireit folder? Need
   escaping?
 
+- Test with a known good version so that we don't have to bootstrap.
+
+- Integrate crazy-max/ghaction-github-runtime solution for getting variables.
+
 - `--parallelism` or `--concurrency` flag
 
 - Control over whether `watch` mode restarts on changes, or waits for the
@@ -61,6 +80,10 @@
   mode?
 
 - Windows support and test in CI
+
+- How to deal with permission bits in file hash key.
+
+- Error if a script is missing a command.
 
 - Output mode that prevents interleaved output (when concurrent scripts running,
   only one can have a lock on stdout/stderr at a time).

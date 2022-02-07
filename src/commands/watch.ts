@@ -88,7 +88,6 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   }
 
   const runIgnoringScriptFailures = async () => {
-    // TODO(aomarks) Should the filesystem cache be shared between runs?
     const runner = new ScriptRunner(abort, new FilesystemCache());
     try {
       await runner.run(packageJsonPath, scriptName, new Set());
