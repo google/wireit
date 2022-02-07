@@ -15,6 +15,8 @@
   - Bug when running task after "cd" command. Something to do with npm
     environment variable.
   - Bug where failure in github caching silently exits
+  - GitHub actions is reporting success, even though script failed with
+    exception!
 
 - Save sha256 instead of entire JSON in state
 

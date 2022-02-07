@@ -132,14 +132,14 @@ export class ScriptRunner {
       // have had a chance to clean up in the case of a failure.
       const results = await Promise.allSettled(depScriptPromises);
       for (let i = 0; i < script.dependencies.length; i++) {
-        const depScritpName = script.dependencies[i];
+        const depScriptName = script.dependencies[i];
         const result = results[i];
         if (result.status === 'rejected') {
-          // TODO(aomarks) Could create a compound error here.
-          console.log('THROWING', depScritpName, result.reason);
+          // TODO(aomarks) There could be multiple failures, but we'll only show
+          // an arbitrary one.
           throw result.reason;
         }
-        newCacheKeyData.dependencies[depScritpName] = result.value.cacheKey;
+        newCacheKeyData.dependencies[depScriptName] = result.value.cacheKey;
       }
     }
 

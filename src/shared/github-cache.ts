@@ -1,5 +1,6 @@
 import {createHash} from 'crypto';
 import * as cache from '@actions/cache';
+import * as pathlib from 'path';
 
 import type {Cache} from './cache.js';
 
@@ -10,6 +11,9 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     scriptOutputGlobs: string[]
   ): Promise<GitHubCachedOutput | undefined> {
+    if (scriptOutputGlobs.length === 0) {
+      scriptOutputGlobs = [fakeFilenameForScriptWithNoOutput(packageJsonPath)];
+    }
     // TODO(aomarks)
     // https://github.com/actions/toolkit/blob/15e23998268e31520e3d93cbd106bd3228dea77f/packages/cache/src/cache.ts#L32
     // key can't have commas or be > 512 characters.
@@ -37,6 +41,9 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     scriptOutputGlobs: string[]
   ): Promise<void> {
+    if (scriptOutputGlobs.length === 0) {
+      scriptOutputGlobs = [fakeFilenameForScriptWithNoOutput(packageJsonPath)];
+    }
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     console.log(`🔌 [${scriptName}] Saving to GitHub cache`);
@@ -46,6 +53,25 @@ export class GitHubCache implements Cache {
     console.log(`🔌 [${scriptName}] Saved to GitHub cache`);
   }
 }
+
+/**
+ * @actions/cache throws if we don't provide at least one filepath. However, it
+ * doesn't actually matter whether or not it matches a file on disk.
+ *
+ * We _do_ want to cache tasks that have no outputs, because the cache hit alone
+ * serves as a useful signal that the task ran successfully with the exact input
+ * state, meaning we can skip it.
+ *
+ * Use an arbitrary path, but put it inside the .wireit directory so that we
+ * can't somehow accidentally match a real file.
+ */
+const fakeFilenameForScriptWithNoOutput = (packageJsonPath: string) =>
+  //  TODO(aomarks) Validate it will actually save and restore an empty tarball.
+  pathlib.join(
+    pathlib.dirname(packageJsonPath),
+    '.wireit',
+    `fake-file-for-script-with-no-output`
+  );
 
 const hashCacheKey = (key: string): string =>
   createHash('sha256').update(key).digest('hex');
