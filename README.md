@@ -360,13 +360,13 @@ encourage you to check them too before you start using wireit.
 | [Bazel](https://bazel.build/)                     | ✅                    | ✅                       | ✅               | ✅ ([Self-host / 3rd party](https://bazel.build/remote-execution-services.html)) |
 | [npm](https://docs.npmjs.com/cli/v6/commands/npm) | ❌                    | ❌                       | ❌               | ❌                                                                               |
 
-### Compatibility
+### Layout compatibility
 
-|                                                   | Base <br> install size | Transitive <br> deps | Implementation <br> language |
-| ------------------------------------------------- | ---------------------- | -------------------- | ---------------------------- |
-| [Wireit](#readme)                                 | `1.6MB`                | 24                   | JavaScript                   |
-| [Nx](https://nx.dev/)                             | `22MB`                 | 58                   | JavaScript                   |
-| [Turborepo](https://turborepo.org/)               | `8.6MB`                | ??                   | Go                           |
-| [Lerna](https://lerna.js.org/)                    | `85MB`                 | 613                  | JavaScript                   |
-| [Bazel](https://bazel.build/)                     | `191MB`                | ??                   | Java                         |
-| [npm](https://docs.npmjs.com/cli/v6/commands/npm) | `17MB`                 | 1                    | JavaScript                   |
+|                                                   | Single<br>package | npm<br>workspaces | Lerna<br>monorepo |
+| ------------------------------------------------- | ----------------- | ----------------- | ----------------- |
+| [Wireit](#readme)                                 | ✅                | ✅                | ✅                |
+| [Nx](https://nx.dev/)                             | ??                | ❌                | ❌                |
+| [Turborepo](https://turborepo.org/)               | ❌                | ✅                | ✅                |
+| [Lerna](https://lerna.js.org/)                    | ❌                | ❌                | ✅                |
+| [Bazel](https://bazel.build/)                     | ❌                | ❌                | ❌                |
+| [npm](https://docs.npmjs.com/cli/v6/commands/npm) | ✅                | ❌                | ❌                |
