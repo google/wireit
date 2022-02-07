@@ -54,6 +54,9 @@ interface CacheKey {
   dependencies: {[scriptName: string]: CacheKey};
   // Must be sorted by script name.
   npmPackageLocks: {[fileName: string]: FileContentHash};
+  // Must preserve the specified order, because the meaning of `!` depends on
+  // which globs preceded it.
+  outputGlobs: string[];
 }
 
 // TODO(aomarks) What about permission bits?
@@ -106,6 +109,7 @@ export class ScriptRunner {
       files: {},
       dependencies: {},
       npmPackageLocks: {},
+      outputGlobs: script.output ?? [],
     };
 
     if (script.dependencies?.length) {

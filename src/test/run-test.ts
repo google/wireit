@@ -336,6 +336,7 @@ test(
   })
 );
 
+// TODO(aomarks) Distinguish between caching and freshness.
 test(
   '1 script: run, cached, run, cached',
   timeout(async ({rig}) => {
@@ -563,6 +564,100 @@ test(
       await rig.sleep(50);
       assert.equal(cmd1.startedCount, 2);
       assert.equal(cmd2.startedCount, 2);
+    }
+  })
+);
+
+test(
+  'output globs affect freshness key',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+          },
+        },
+        'input.txt': 'v1',
+      },
+    });
+
+    // Run the first time with no output.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Change the output setting.
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+            output: ['output1.txt'],
+          },
+        },
+        'input.txt': 'v1',
+      },
+    });
+
+    // Run again because the output globs changed.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+
+    // Change the output setting again.
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+            output: ['output2.txt'],
+          },
+        },
+        'input.txt': 'v1',
+      },
+    });
+
+    // Run again because the output globs changed.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 3);
+    }
+
+    // Don't run because the input files haven't changed.
+    {
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      await rig.sleep(50);
+      assert.equal(cmd.startedCount, 3);
     }
   })
 );

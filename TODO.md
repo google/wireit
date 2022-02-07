@@ -2,6 +2,8 @@
 
 - Sweep all TODOs into here
 
+- GitHub Actions polish and testing.
+
 - Document how it works with NPM workspaces
 
 - Potential bugs
@@ -12,8 +14,6 @@
   - Bug where pending processes don't exit
   - Bug when running task after "cd" command. Something to do with npm
     environment variable.
-
-- Include output files in cache key
 
 - Save sha256 instead of entire JSON in state
 
