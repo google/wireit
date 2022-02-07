@@ -73,16 +73,16 @@ test(
       assert.equal(cmd.startedCount, 2);
     }
 
-    // // Run with input v1 again. We should not need to run the command, because
-    // // we already have the output of v1 cached.
-    // {
-    //   await rig.writeFiles({'input.txt': 'v1'});
-    //   const out = rig.exec('GITHUB_CACHE=1 npm run cmd');
-    //   const {code} = await out.done;
-    //   assert.equal(code, 0);
-    //   assert.equal(await rig.readFile('output.txt'), 'v1');
-    //   assert.equal(cmd.startedCount, 2);
-    // }
+    // Run with input v1 again. We should not need to run the command, because
+    // we already have the output of v1 cached.
+    {
+      await rig.writeFiles({'input.txt': 'v1'});
+      const out = rig.exec('GITHUB_CACHE=1 npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(await rig.readFile('output.txt'), 'v1');
+      assert.equal(cmd.startedCount, 2);
+    }
   })
 );
 

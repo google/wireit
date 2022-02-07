@@ -6,12 +6,12 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
 
 ## Features
 
-- ⛓️ Automatically run dependencies between your NPM scripts in parallel
-- 🥬 Check scripts for freshness, and skip them if they don't need to run
-- 👀 Watch any script to continuously re-run when files change
-- ♻️ Cache prior output locally, or remotely in your GitHub Actions
-- 🛠️ Works with single packages, npm workspaces, and Lerna monorepos
 - 🙂 Use the `npm run` commands you already know
+- ⛓️ Automatically run dependencies between npm scripts in parallel
+- 👀 Watch any script and continuously re-run on changes
+- 🥬 Skip scripts that are already fresh
+- ♻️ Cache output locally and on GitHub Actions
+- 🛠️ Works with single packages, npm workspaces, and Lerna monorepos
 
 ## Contents
 
