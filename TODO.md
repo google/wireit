@@ -1,6 +1,6 @@
 # MVP
 
-- GitHub Actions various bad implementation details.
+- GitHub Actions various bad implementation details
 
 - Document how it works with NPM workspaces
 
