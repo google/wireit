@@ -342,22 +342,22 @@ encourage you to check them too before you start using wireit.
 
 |                                                   | Run command   | Watch command                                                          | Configuration                 |
 | ------------------------------------------------- | ------------- | ---------------------------------------------------------------------- | ----------------------------- |
-| [Wireit](#readme)                                 | `npm run`     | ✔️ ([`npm run -- watch`](#watch-mode))                                 | `package.json`                |
-| [Nx](https://nx.dev/)                             | `nx run`      | ✔️ ([`nx build --watch`](https://nx.dev/cli/build#watch))              | `nx.json` + `package.json`    |
+| [Wireit](#readme)                                 | `npm run`     | ✅ ([`npm run -- watch`](#watch-mode))                                 | `package.json`                |
+| [Nx](https://nx.dev/)                             | `nx run`      | ✅ ([`nx build --watch`](https://nx.dev/cli/build#watch))              | `nx.json` + `package.json`    |
 | [Turborepo](https://turborepo.org/)               | `turbo run`   | ❌ ([discussion](https://github.com/vercel/turborepo/discussions/206)) | `package.json` (root only)    |
 | [Lerna](https://lerna.js.org/)                    | `lerna run`   | ❌                                                                     | `lerna.json` + `package.json` |
-| [Bazel](https://bazel.build/)                     | `bazel build` | ✔️ ([`ibazel`](https://github.com/bazelbuild/bazel-watcher))           | `BUILD` files                 |
+| [Bazel](https://bazel.build/)                     | `bazel build` | ✅ ([`ibazel`](https://github.com/bazelbuild/bazel-watcher))           | `BUILD` files                 |
 | [npm](https://docs.npmjs.com/cli/v6/commands/npm) | `npm run`     | ❌                                                                     | `package.json`                |
 
 ### Features
 
 |                                                   | Parallel<br>Execution | Distributed<br>Execution | Local<br>Caching | Remote<br>Caching                                                                |
 | ------------------------------------------------- | --------------------- | ------------------------ | ---------------- | -------------------------------------------------------------------------------- |
-| [Wireit](#readme)                                 | ✔️                    | ❌                       | ✔️               | ✔️ ([GitHub Actions](#github-actions-caching))                                   |
-| [Nx](https://nx.dev/)                             | ✔️                    | ✔️                       | ✔️               | ✔️ ([Nx Cloud](https://nx.app/))                                                 |
-| [Turborepo](https://turborepo.org/)               | ✔️                    | ❌                       | ✔️               | ✔️ ([Vercel](https://turborepo.org/docs/features/remote-caching))                |
-| [Lerna](https://lerna.js.org/)                    | ✔️                    | ❌                       | ❌               | ❌                                                                               |
-| [Bazel](https://bazel.build/)                     | ✔️                    | ✔️                       | ✔️               | ✔️ ([Self-host / 3rd party](https://bazel.build/remote-execution-services.html)) |
+| [Wireit](#readme)                                 | ✅                    | ❌                       | ✅               | ✅ ([GitHub Actions](#github-actions-caching))                                   |
+| [Nx](https://nx.dev/)                             | ✅                    | ✅                       | ✅               | ✅ ([Nx Cloud](https://nx.app/))                                                 |
+| [Turborepo](https://turborepo.org/)               | ✅                    | ❌                       | ✅               | ✅ ([Vercel](https://turborepo.org/docs/features/remote-caching))                |
+| [Lerna](https://lerna.js.org/)                    | ✅                    | ❌                       | ❌               | ❌                                                                               |
+| [Bazel](https://bazel.build/)                     | ✅                    | ✅                       | ✅               | ✅ ([Self-host / 3rd party](https://bazel.build/remote-execution-services.html)) |
 | [npm](https://docs.npmjs.com/cli/v6/commands/npm) | ❌                    | ❌                       | ❌               | ❌                                                                               |
 
 ### Compatibility
