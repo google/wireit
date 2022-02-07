@@ -21,8 +21,6 @@
 
 - Does the globbing behavior of chokidar and fast-glob match?
 
-- Ability to depend on scripts that aren't in wireup config
-
 - Don't cache (or freshness check?) when no output files
 
 - Don't freshness check when no input files
@@ -54,6 +52,9 @@
   escaping?
 
 - `--parallelism` or `--concurrency` flag
+
+- Control over whether `watch` mode restarts on changes, or waits for the
+  current build to end. Also a keyboard shortcut like `R` to force a restart.
 
 - Does it make sense to add a `caching:false` option? E.g. tasks that are faster
   to run than cache? But how does that interact with `--only-status-required`

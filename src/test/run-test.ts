@@ -306,6 +306,37 @@ test(
 );
 
 test(
+  'vanilla script dependency',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+          cmd2: cmd2.command(),
+        },
+        wireit: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+        },
+      },
+    });
+    const out = rig.exec('npm run cmd1');
+    await cmd2.waitUntilStarted();
+    await cmd2.exit(0);
+    await cmd1.waitUntilStarted();
+    await cmd1.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+    assert.equal(cmd1.startedCount, 1);
+    assert.equal(cmd2.startedCount, 1);
+  })
+);
+
+test(
   '1 script: run, cached, run, cached',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();

@@ -5,6 +5,9 @@ export const resolveScript = (
   packageJsonPath: string,
   scriptName: string
 ): {packageJsonPath: string; scriptName: string} => {
+  // TODO(aomarks) Can a script actually start with "."? In that case, maybe we
+  // require the syntax ":.foo". And if there is a script called ":.foo", then
+  // we require "::.foo".
   if (scriptName.startsWith('.')) {
     const match = scriptName.match(/([^:]+):(.+)$/);
     if (match == undefined) {

@@ -1,5 +1,4 @@
 import * as fs from 'fs/promises';
-import {KnownError} from './known-error.js';
 
 import type {PackageJson, Config} from '../types/config.js';
 
@@ -24,13 +23,21 @@ export const readConfig = async (packageJsonPath: string): Promise<Config> => {
     );
   }
 
-  const scripts = packageJson.wireit;
-  if (scripts === undefined) {
-    throw new KnownError(
-      'script-not-found',
-      `No wireit config in package.json ${packageJsonPath}`
-    );
+  // Wireit enabled scripts.
+  const scripts = packageJson.wireit ?? {};
+
+  // Vanilla scripts are scripts too. They just won't have any freshness,
+  // caching, or watch support.
+  if (packageJson.scripts !== undefined) {
+    for (const [scriptName, command] of Object.entries(packageJson.scripts)) {
+      if (scripts[scriptName] === undefined) {
+        scripts[scriptName] = {
+          command,
+        };
+      }
+    }
   }
+
   return {
     packageJsonPath,
     scripts,

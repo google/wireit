@@ -1,4 +1,5 @@
 export interface PackageJson {
+  scripts?: {[scriptName: string]: string};
   wireit?: {[scriptName: string]: Script};
 }
 
