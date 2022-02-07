@@ -1,8 +1,6 @@
 # MVP
 
-- GitHub Actions testing
-
-- GitHub Actions bad implementation
+- GitHub Actions various bad implementation details
 
 - Document how it works with NPM workspaces
 
@@ -20,7 +18,14 @@
 
 - Save sha256 instead of entire JSON in state
 
+- Don't make hash dependent on script name, so that scripts can be renamed
+  without dropping cache hits?
+
 - Rename state to fresh
+
+- State needs to know that we're in a failed state, or else it could have
+  partial failed output from one run, but we'll think it's good to go from the
+  previous state that was successful!
 
 - Does the globbing behavior of chokidar and fast-glob match?
 

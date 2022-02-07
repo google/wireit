@@ -229,6 +229,7 @@ export class ScriptRunner {
           // TODO(aomarks) Do we need to handle "close"? Is there any way a
           // "close" event can be fired, but not an "exit" or "error" event?
           child.on('error', () => {
+            console.log(`🔌 [${scriptName}] Failed to start`);
             reject(
               new KnownError(
                 'script-control-error',
@@ -238,6 +239,7 @@ export class ScriptRunner {
           });
           child.on('exit', (code, signal) => {
             if (signal !== null) {
+              console.log(`🔌 [${scriptName}] Exited with signal ${code}`);
               reject(
                 new KnownError(
                   'script-cancelled',
@@ -245,6 +247,7 @@ export class ScriptRunner {
                 )
               );
             } else if (code !== 0) {
+              console.log(`🔌 [${scriptName}] Failed with code ${code}`);
               reject(
                 new KnownError(
                   'script-failed',

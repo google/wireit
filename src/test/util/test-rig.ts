@@ -9,20 +9,20 @@ const __dirname = path.dirname(__filename);
 const tempRoot = path.resolve(__dirname, '..', '..', '..', 'temp');
 
 export class TestRig {
-  private readonly _tempDir = path.join(tempRoot, String(Math.random()));
-  private readonly _socketsTempDir = path.join(this._tempDir, 'sockets');
-  private readonly _filesTempDir = path.join(this._tempDir, 'files');
+  readonly tempDir = path.join(tempRoot, String(Math.random()));
+  private readonly _socketsTempDir = path.join(this.tempDir, 'sockets');
+  private readonly _filesTempDir = path.join(this.tempDir, 'files');
   private readonly _commands: Array<Command> = [];
   private _nextCommandId = 0;
   private _done = false;
 
   async setup() {
-    await fs.mkdir(path.join(this._tempDir, 'node_modules', '.bin'), {
+    await fs.mkdir(path.join(this.tempDir, 'node_modules', '.bin'), {
       recursive: true,
     });
     await fs.symlink(
       '../../../../bin/wireit.js',
-      path.join(this._tempDir, 'node_modules', '.bin', 'wireit')
+      path.join(this.tempDir, 'node_modules', '.bin', 'wireit')
     );
   }
 
@@ -118,7 +118,7 @@ export class TestRig {
     this._checkNotDone();
     this._done = true;
     await Promise.all(this._commands.map((command) => command.close()));
-    return fs.rm(this._tempDir, {recursive: true});
+    return fs.rm(this.tempDir, {recursive: true});
   }
 
   sleep(ms: number): Promise<void> {

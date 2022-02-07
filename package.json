@@ -14,7 +14,8 @@
     "test": "node bin/wireit.js",
     "test:runmode": "node bin/wireit.js",
     "test:watchmode": "node bin/wireit.js",
-    "test:caching": "node bin/wireit.js",
+    "test:filesystem-caching": "node bin/wireit.js",
+    "test:github-caching": "node bin/wireit.js",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
     "upgrade": "rm -rf node_modules package-lock.json && npm i"
@@ -39,7 +40,8 @@
       "dependencies": [
         "test:runmode",
         "test:watchmode",
-        "test:caching"
+        "test:filesystem-caching",
+        "test:github-caching"
       ]
     },
     "test:runmode": {
@@ -54,15 +56,21 @@
         "ts"
       ]
     },
-    "test:caching": {
-      "command": " NODE_OPTIONS=--enable-source-maps uvu lib/test \"caching-test.js$\"",
+    "test:filesystem-caching": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"filesystem-caching-test.js$\"",
+      "dependencies": [
+        "ts"
+      ]
+    },
+    "test:github-caching": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"github-caching-test.js$\"",
       "dependencies": [
         "ts"
       ]
     }
   },
   "devDependencies": {
-    "@types/node": "^17.0.1",
+    "@types/node": "^17.0.15",
     "typescript": "^4.5.4",
     "uvu": "^0.5.2"
   },

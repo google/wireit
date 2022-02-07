@@ -1,5 +1,3 @@
-import fastglob from 'fast-glob';
-import * as pathlib from 'path';
 import {createHash} from 'crypto';
 import * as cache from '@actions/cache';
 
@@ -12,17 +10,10 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     scriptOutputGlobs: string[]
   ): Promise<GitHubCachedOutput | undefined> {
-    if (scriptOutputGlobs.length === 0) {
-      // Cache API requires at least one path.
-      // return undefined;
-      // TODO(aomarks) Temporary hack
-      scriptOutputGlobs = ['README.md'];
-    }
-    const packageRoot = pathlib.dirname(packageJsonPath);
-    const paths = await fastglob(scriptOutputGlobs, {
-      cwd: packageRoot,
-      absolute: true,
-    });
+    // TODO(aomarks)
+    // https://github.com/actions/toolkit/blob/15e23998268e31520e3d93cbd106bd3228dea77f/packages/cache/src/cache.ts#L32
+    // key can't have commas or be > 512 characters.
+
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     // TODO(aomarks) @actions/cache doesn't let us just test for a cache hit, so
@@ -31,7 +22,7 @@ export class GitHubCache implements Cache {
     // that we can apply to a virtual fielsystem.
     let id;
     try {
-      id = await cache.restoreCache(paths, key);
+      id = await cache.restoreCache(scriptOutputGlobs, key);
     } catch (err) {
       throw err;
     }
@@ -46,21 +37,13 @@ export class GitHubCache implements Cache {
     cacheKey: string,
     scriptOutputGlobs: string[]
   ): Promise<void> {
-    if (scriptOutputGlobs.length === 0) {
-      // Cache API requires at least one path.
-      // return undefined;
-      // TODO(aomarks) Temporary hack
-      scriptOutputGlobs = ['README.md'];
-    }
-    const packageRoot = pathlib.dirname(packageJsonPath);
-    const paths = await fastglob(scriptOutputGlobs, {
-      cwd: packageRoot,
-      absolute: true,
-    });
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     console.log(`🔌 [${scriptName}] Saving to GitHub cache`);
-    await cache.saveCache(paths, key);
+    // TODO(aomarks) How can we be sure that the GitHub globbing library matches
+    // our one?
+    await cache.saveCache(scriptOutputGlobs, key);
+    console.log(`🔌 [${scriptName}] Saved to GitHub cache`);
   }
 }
 
