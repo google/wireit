@@ -89,6 +89,14 @@
 
 - Daemon mode for servers. A way to say which inputs require a restart.
 
+- Ability to set a custom `watch` command, along with `start`, `succeed` and
+  `fail` regular expressions. When set, watch mode launches this command, and
+  checks its stdout/stderr for those regexps to determine the status. This could
+  be much faster for e.g. repeated tsc builds. Need to think about what happens
+  when a dependency changes -- kill the watchers if a dependency changes, so
+  that we don't get partial runs? Also need to think about how to combine
+  multiple `tsc` invocations that are already linked through `--composite` mode.
+
 - Use e.g. tmux to display concurrent steps in different windows (e.g. so that
   parallel test output isn't mixed, and can be read independently)
 
