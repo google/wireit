@@ -7,11 +7,11 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
 ## Features
 
 - 🙂 Use the `npm run` commands you already know
+- 🛠️ Works with single packages, npm workspaces, and Lerna
 - ⛓️ Automatically run dependencies between npm scripts in parallel
 - 👀 Watch any script and continuously re-run on changes
 - 🥬 Skip scripts that are already fresh
 - ♻️ Cache output locally and on GitHub Actions
-- 🛠️ Works with single packages, npm workspaces, and Lerna monorepos
 
 ## Contents
 
@@ -290,11 +290,15 @@ Since `wireit` scripts are regular `npm` scripts, any script which you've
 configured for `wireit` will automatically take advantage of wireit's extra
 features.
 
-Note that `npm run --workspaces` always runs your scripts sequentially in the
-order they were defined in your `package.json`. This means that those scripts
-won't run in parallel. To create an even more optimal cross-workspace script,
-you can define a script in your workspaces root `package.json` which uses the
-special `__workspaces__` dependency prefix. For example:
+#### Optimizing npm workspaces
+
+Because `npm run --workspaces` always runs your scripts sequentially in the
+order they were defined in your `package.json`, those scripts won't be able to
+run in parallel.
+
+To create a more optimal cross-workspace script, you can define a script in your
+workspaces root `package.json` using the special `$WORKSPACES:<script>`
+dependency.
 
 ```json
 {
@@ -303,7 +307,7 @@ special `__workspaces__` dependency prefix. For example:
   },
   "wireit": {
     "build": {
-      "dependencies": ["__workspaces__:build"]
+      "dependencies": ["$WORKSPACES:build"]
     }
   }
 }
@@ -312,7 +316,10 @@ special `__workspaces__` dependency prefix. For example:
 Now when you run `npm run build` from your workspaces root, your `build` scripts
 will run in parallel whenever possible.
 
-> When using `__workspaces__`, wireit is careful to only parallelize when it's
+You can also just write `$WORKSPACES` if the scripts have the same name as the
+current one.
+
+> When using `$WORKSPACES`, wireit is careful to only parallelize when it's
 > sure that it's safe. A script that is not configured for wireit will not run
 > concurrently with a script that is. Wireit will respect the order of your
 > workspace packages by only parallelizing contiguous blocks of wireit scripts.
@@ -400,3 +407,20 @@ considered stale, in case their behavior might have changed.
 If you're sure a script doesn't make use of any npm package dependencies, you
 can turn off this behavior by setting `wireit.<script>.checkNpmPackageLocks` to
 `false`.
+
+## Configuration reference
+
+### Dependencies
+
+| Example                    | Description                                                                                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build`                    | A script named "build" in the current package.                                                                                                              |
+| `../other-package:build`   | A script named "build" in the `../other-package/` directory (note this is a _filesystem path_, not an npm package name).                                    |
+| `$WORKSPACES`              | All scripts with the same name as the current one which are in each of this package's [npm workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces). |
+| `$WORKSPACES:build`        | All scripts named "build" in each of this package's npm workspaces.                                                                                         |
+| `$WORKSPACE_DEPS`          | All scripts with the same name as the current one which are in this package's npm workspace dependencies.                                                   |
+| `$WORKSPACE_DEPS:build`    | All scripts named "build" which are in this package's npm workspace dependencies.                                                                           |
+| `$LERNA_DEPS`              | All scripts with the same name as the current one which are in this package's Lerna dependencies.                                                           |
+| `$LERNA_DEPS:build`        | All scripts named "build" which are in this package's Lerna dependencies.                                                                                   |
+| `\\../other-package:build` | A script literallyin the current package literally named "./other-package:build".                                                                           |
+| `\\$WORKSPACE_DEPS`        | A script in the current package literally named "$WORKSPACE_DEPS".                                                                                          |
