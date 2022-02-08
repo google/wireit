@@ -27,6 +27,7 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
   - [GitHub Actions caching](#github-actions-caching)
   - [Only status required](#only-status-required)
 - [Monorepos](#monorepos)
+  - [npm workspaces](#npm-workspaces)
 - [NPM package locks](#npm-package-locks)
 - [Comparison](#comparison)
 
@@ -270,6 +271,70 @@ package, followed by a `:` character, followed by the script name. For example:
 > When moving from one package to another, `wireit` always runs scripts with the
 > `cwd` set to the script's package directory with `npx`, so the `$PATH` is
 > always set correctly.
+
+### npm workspaces
+
+Wireit works great with [npm
+workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces). All of the
+built-in `npm` workspaces commands will work with no extra configuration.
+
+For example, to run the `build` script in all of your packages:
+
+```sh
+cd <workspaces-root>
+npm run build --workspaces --if-present
+```
+
+This `npm` runs the `build` script in all of your packages (if they have one).
+Since `wireit` scripts are regular `npm` scripts, any script which you've
+configured for `wireit` will automatically take advantage of wireit's extra
+features.
+
+Note that `npm run --workspaces` always runs your scripts sequentially in the
+order they were defined in your `package.json`. This means that those scripts
+won't run in parallel. To create an even more optimal cross-workspace script,
+you can define a script in your workspaces root `package.json` which uses the
+special `__workspaces__` dependency prefix. For example:
+
+```json
+{
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": ["__workspaces__:build"]
+    }
+  }
+}
+```
+
+Now when you run `npm run build` from your workspaces root, your `build` scripts
+will run in parallel whenever possible.
+
+> When using `__workspaces__`, wireit is careful to only parallelize when it's
+> sure that it's safe. A script that is not configured for wireit will not run
+> concurrently with a script that is. Wireit will respect the order of your
+> workspace packages by only parallelizing contiguous blocks of wireit scripts.
+
+### Lerna monorepos
+
+Wireit works great with [Lerna](https://lerna.js.org/) monorepos too. All of the
+`lerna` commands will work with no extra configuration.
+
+For example, to run the `build` script in all of your packages:
+
+```sh
+cd <lerna-root>
+npx lerna run build --stream
+```
+
+This Lerna command runs the `build` script in all of your packages (if they have
+one), in the topological order determined by the `dependencies` and
+`devDependencies` section of your `package.json` files, parallelizing where
+possible. Since `wireit` scripts are regular `npm` scripts, any script which
+you've configured for `wireit` will automatically take advantage of wireit's
+extra features.
 
 ### GitHub Actions caching
 

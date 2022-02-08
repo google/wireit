@@ -6,6 +6,8 @@
 
 - Can scripts start with "." or ":." etc.? How to escape.
 
+- GitHub Actions salt to force cache bust
+
 - Potential bugs
 
   - After a failed "tsc", watch mode doesn't re-run
@@ -37,6 +39,8 @@
 
 - Don't freshness check when no input files
 
+- Require that wireit scripts are regular scripts, or else `npm run --workspaces` won't work.
+
 - Handle "close" vs "exit" and "error" events when spawning.
 
 - Watch mode should reload configs when the configs change
@@ -63,6 +67,10 @@
   - Tests for missing script
   - Test that chokidar works with empty globs.
   - Run CI tests on macOS
+
+- Npm workspaces
+
+  - `npm run build -w foo -w bar` runs build script for foo, then bar
 
 # Next
 
