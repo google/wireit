@@ -39,8 +39,6 @@
 
 - Don't freshness check when no input files
 
-- Require that wireit scripts are regular scripts, or else `npm run --workspaces` won't work.
-
 - Handle "close" vs "exit" and "error" events when spawning.
 
 - Watch mode should reload configs when the configs change

@@ -73,6 +73,9 @@ test(
     const cmd = rig.newCommand();
     await rig.writeFiles({
       'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
         wireit: {
           cmd: {
             command: 'installed-binary',
@@ -127,6 +130,7 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -167,6 +171,7 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -220,6 +225,9 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
+          cmd3: 'wireit',
+          cmd4: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -281,6 +289,9 @@ test(
         },
       },
       'pkg2/package.json': {
+        scripts: {
+          cmd2: 'wireit',
+        },
         wireit: {
           cmd2: {
             command: cmd2.command(),
@@ -406,6 +417,7 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -695,7 +707,8 @@ test(
     await rig.writeFiles({
       'package.json': {
         scripts: {
-          cmd: 'wireit',
+          cmd1: 'wireit',
+          cmd2: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -709,7 +722,7 @@ test(
         },
       },
     });
-    const out = rig.exec('npm run cmd');
+    const out = rig.exec('npm run cmd1');
     const {code} = await out.done;
     await rig.sleep(50);
     assert.equal(cmd1.startedCount, 0);
@@ -834,6 +847,8 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
+          cmd3: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -940,6 +955,8 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
+          cmd3: 'wireit',
         },
         wireit: {
           cmd1: {
