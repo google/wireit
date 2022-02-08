@@ -2,8 +2,6 @@
 
 - GitHub Actions various bad implementation details
 
-- Document how it works with NPM workspaces
-
 - Can scripts start with "." or ":." etc.? How to escape.
 
 - GitHub Actions salt to force cache bust

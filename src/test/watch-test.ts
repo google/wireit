@@ -67,6 +67,7 @@ test(
       'package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
         },
         wireit: {
           cmd1: {
@@ -251,6 +252,7 @@ test(
       'foo/package.json': {
         scripts: {
           cmd1: 'wireit',
+          cmd2: 'wireit',
         },
         wireit: {
           cmd1: {
