@@ -247,12 +247,12 @@ output, before it runs the command.
 
 Wireit works great with either [npm
 workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces) or
-[Lerna](https://lerna.js.org/) monorepos. In fact, wireit is unopinionated about
-how your packages are laid out, and doesn't need to know whether you have a
-monorepo, or what kind it is.
+[Lerna](https://lerna.js.org/) monorepos, without any additional configuration.
 
-To configure a cross-package script dependency, use a relative path to the other
-package, followed by a `:` character, followed by the script name. For example:
+Wireit is agnostic to whether you are using these tools, because you can
+configure cross-package script dependencies by using a relative path to the
+other package's directory, followed by a `:` character, followed by the script
+name. For example:
 
 ```json
 {
@@ -262,14 +262,14 @@ package, followed by a `:` character, followed by the script name. For example:
   "wireit": {
     "build": {
       "command": "tsc",
-      "dependencies": ["../my-other-package:build"]
+      "dependencies": ["../other-pkg:build"]
     }
   }
 }
 ```
 
-> When moving from one package to another, `wireit` always runs scripts with the
-> `cwd` set to the script's package directory with `npx`, so the `$PATH` is
+> When moving from one package to another, `wireit` always runs scripts using
+> `npx` with the `cwd` set to the script's package directory, so the `$PATH` is
 > always set correctly.
 
 ### npm workspaces
@@ -367,36 +367,6 @@ steps:
 > Actions](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions)
 > for more information about quota.
 
-### Only status required
-
-It's often the case, particularly when running tests in CI, that we would prefer
-to entirely skip tests for which there is no possible way for its result to have
-changed since the last time it successfully ran. Wireit's caching feature
-already gets you most of this benefit, because it prefer to download output
-files from the cache rather than recompute it, but we can do even better by
-using the `--only-status-required` flag.
-
-When you run `npm run <script> -- --only-status-required`, then the output files
-for the script, and all of its transitive dependencies, _won't even be
-downloaded from the cache_, unless they are needed by a script that isn't
-cached.
-
-Using this flag is recommended for use-cases like running tests in CI:
-
-```yaml
-steps:
-  - name: Enable wireit caching
-    uses: aomarks/wireit-github-actions@v1
-
-  - name: Test
-    run: npm test -- --only-status-required
-```
-
-Now when tests run in CI, if none of the transitive input files to `test` have
-changed since the last successful run, then no files will need to be downloaded
-from the cache at all. Instead, only much smaller _manifest_ files are
-downloaded from the cache, describing the files that _would_ be outputted.
-
 ## NPM package locks
 
 Wireit automatically treats any `package-lock.json` file in the package
@@ -412,15 +382,22 @@ can turn off this behavior by setting `wireit.<script>.checkNpmPackageLocks` to
 
 ### Dependencies
 
-| Example                    | Description                                                                                                                                                 |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `build`                    | A script named "build" in the current package.                                                                                                              |
-| `../other-package:build`   | A script named "build" in the `../other-package/` directory (note this is a _filesystem path_, not an npm package name).                                    |
-| `$WORKSPACES`              | All scripts with the same name as the current one which are in each of this package's [npm workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces). |
-| `$WORKSPACES:build`        | All scripts named "build" in each of this package's npm workspaces.                                                                                         |
-| `$WORKSPACE_DEPS`          | All scripts with the same name as the current one which are in this package's npm workspace dependencies.                                                   |
-| `$WORKSPACE_DEPS:build`    | All scripts named "build" which are in this package's npm workspace dependencies.                                                                           |
-| `$LERNA_DEPS`              | All scripts with the same name as the current one which are in this package's Lerna dependencies.                                                           |
-| `$LERNA_DEPS:build`        | All scripts named "build" which are in this package's Lerna dependencies.                                                                                   |
-| `\\../other-package:build` | A script literallyin the current package literally named "./other-package:build".                                                                           |
-| `\\$WORKSPACE_DEPS`        | A script in the current package literally named "$WORKSPACE_DEPS".                                                                                          |
+| _Example_                    | _Description_                                                                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Same package**             |                                                                                                                                                             |
+| `build`                      | A script named "build" in the current package.                                                                                                              |
+| **Other packages**           |                                                                                                                                                             |
+| `../other-pkg:build`         | A script named "build" in the `../other-pkg/` directory (note this is a _filesystem path_, not an npm package name).                                        |
+| `$other-pkg:build`           | A script named "build" in the `other-pkg` npm package, where `other-pkg` is found using Node `require()`-style package resolution                           |
+| **npm workspaces**           |                                                                                                                                                             |
+| `$WORKSPACES`                | All scripts with the same name as the current one which are in each of this package's [npm workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces). |
+| `$WORKSPACES:build`          | All scripts named "build" in each of this package's npm workspaces.                                                                                         |
+| `$WORKSPACE_DEPS`            | All scripts with the same name as the current one which are in this package's npm workspace dependencies.                                                   |
+| `$WORKSPACE_DEPS:build`      | All scripts named "build" which are in this package's npm workspace dependencies.                                                                           |
+| **Lerna**                    |                                                                                                                                                             |
+| `$LERNA_DEPS`                | All scripts with the same name as the current one which are in this package's Lerna dependencies.                                                           |
+| `$LERNA_DEPS:build`          | All scripts named "build" which are in this package's Lerna dependencies.                                                                                   |
+| **Escaping**                 |                                                                                                                                                             |
+| `\\../other-pkg:build`       | A script in the current package literally named `"./other-package:build"`.                                                                                  |
+| `../other-pkg\\:build:build` | A script named `build` in the directory literally named `"../other-package:build"`.                                                                         |
+| `\\$WORKSPACE_DEPS`          | A script in the current package literally named `"$WORKSPACE_DEPS"`.                                                                                        |

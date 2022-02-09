@@ -142,3 +142,9 @@
 - Diagnose mode: run each step with no concurrency, and check for overlapping
   output files (two script that both write to the same file, or whose output
   globs includes another script's output)
+
+- Store the current npm install state. Add a "postinstall" script to each
+  package, which does "sha256sum package-lock.json > .wireit/npm-install-state"
+  or similar (probably also want to include the "dependencies" and
+  "devDependencies" field of package.json, also consider yarn). Now whenever
+  wireit runs, it could check that you are fresh and error.
