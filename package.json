@@ -15,6 +15,7 @@
     "ts": "wireit",
     "test": "wireit",
     "test:runmode": "wireit",
+    "test:freshness": "wireit",
     "test:watchmode": "wireit",
     "test:filesystem-caching": "wireit",
     "test:github-caching": "wireit",
@@ -41,6 +42,7 @@
     "test": {
       "dependencies": [
         "test:runmode",
+        "test:freshness",
         "test:watchmode",
         "test:filesystem-caching",
         "test:github-caching"
@@ -48,6 +50,12 @@
     },
     "test:runmode": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
+      "dependencies": [
+        "ts"
+      ]
+    },
+    "test:freshness": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"freshness-test.js$\"",
       "dependencies": [
         "ts"
       ]
