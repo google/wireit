@@ -1,5 +1,7 @@
 # MVP
 
+- Don't cache (or freshness check?) when no output files
+
 - GitHub Actions various bad implementation details
 
 - Can scripts start with "." or ":." etc.? How to escape.
@@ -27,11 +29,7 @@
 
 - Does the globbing behavior of chokidar and fast-glob match?
 
-- Don't cache (or freshness check?) when no output files
-
 - Watch mode doesn't need to hash the package locks, just get their filenames.
-
-- Don't freshness check when no input files
 
 - Handle "close" vs "exit" and "error" events when spawning.
 

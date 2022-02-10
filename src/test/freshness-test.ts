@@ -354,10 +354,12 @@ test(
         wireit: {
           cmd1: {
             command: cmd1.command(),
+            files: [],
           },
           cmd2: {
             command: cmd2.command(),
             checkPackageLocks: false,
+            files: [],
           },
         },
       },
@@ -631,6 +633,7 @@ test(
     // Delete the cache, because otherwise in the next step the output will be
     // restored from cache instead of cmd starting again, which makes it
     // difficult to tell that we invalidated freshness correctly.
+    // TODO(aomarks) Add a --nocache or similar flag instead.
     await rig.rmFile('.wireit/cache');
 
     // Even though we have the same state as run 1, and run 1 succeeded, this
@@ -643,6 +646,91 @@ test(
       const {code} = await out.done;
       assert.equal(code, 0);
       assert.equal(cmd.startedCount, 3);
+    }
+  })
+);
+
+test(
+  'scripts with undefined input files cannot be fresh',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+          },
+        },
+      },
+    });
+
+    // Run 1 succeeds.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Delete the cache, because otherwise in the next step the output will be
+    // restored from cache instead of cmd starting again, which makes it
+    // difficult to tell that we invalidated freshness correctly.
+    // TODO(aomarks) Add a --nocache or similar flag instead.
+    await rig.rmFile('.wireit/cache');
+
+    // Run 2 is not fresh, even though nothing has changed, because input files
+    // are undefined (as opposed to an empty array).
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+  })
+);
+
+test(
+  'scripts with empty input files can be fresh',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: [],
+          },
+        },
+      },
+    });
+
+    // Run 1 succeeds.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Run 2 is already fresh, so it can be skipped, because input files are an
+    // empty array (as opposed to undefined).
+    {
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
     }
   })
 );

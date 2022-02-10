@@ -195,16 +195,25 @@ export class ScriptRunner {
     }
 
     const newCacheKey = JSON.stringify(newCacheKeyData);
-    const existingFsCacheKey = await this._readCurrentState(
-      config.packageJsonPath,
-      scriptName
-    );
 
-    const cacheKeyStale = newCacheKey !== existingFsCacheKey;
-    if (!cacheKeyStale) {
-      console.log(`🔌 [${scriptName}] Already up to date`);
-      done.resolve({cacheKey: newCacheKeyData});
-      return done.promise;
+    // Only check for freshness if input files are defined. This requires the
+    // user to explicitly tell us when there are no input files to enable
+    // skipping scripts that are already fresh. If it's undefined, the user
+    // might not have gotten around to specifying the input files yet, so it's
+    // safer to assume that the inputs could be anything, and hence always might
+    // have changed.
+    if (script.files !== undefined) {
+      const existingFsCacheKey = await this._readCurrentState(
+        config.packageJsonPath,
+        scriptName
+      );
+
+      const cacheKeyStale = newCacheKey !== existingFsCacheKey;
+      if (!cacheKeyStale) {
+        console.log(`🔌 [${scriptName}] Already up to date`);
+        done.resolve({cacheKey: newCacheKeyData});
+        return done.promise;
+      }
     }
 
     if (script.command) {
