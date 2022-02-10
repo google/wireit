@@ -123,7 +123,7 @@ test(
 );
 
 test(
-  'watch modified during run',
+  'file modified during run in non-interrupt mode',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -176,6 +176,56 @@ test(
     process.kill('SIGINT');
     const {code} = await process.done;
     assert.equal(code, 130);
+  })
+);
+
+test(
+  'file modified during run in interrupt mode',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v1',
+    });
+
+    // Start watching
+    const process = rig.exec('npm run cmd -- watch --interrupt');
+
+    // There's always an initial run
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+
+    // Modify the input. Expect another run to start.
+    await rig.writeFiles({'input.txt': 'v2'});
+    await cmd.waitUntilStarted();
+
+    // Modify the input while running.
+    const cmdSignal = cmd.receivedSignal;
+    await rig.writeFiles({'input.txt': 'v3'});
+
+    // The current run should be aborted.
+    assert.equal(await cmdSignal, 'SIGINT');
+    await cmd.exit(1);
+
+    // And then another run should start. Let this one finish.
+    await cmd.waitUntilStarted();
+    await cmd.exit(1);
+
+    // Kill the parent process.
+    process.kill('SIGINT');
+    const {code} = await process.done;
+    assert.equal(code, 130);
+    assert.equal(cmd.startedCount, 3);
   })
 );
 

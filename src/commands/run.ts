@@ -6,7 +6,6 @@ import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import fastglob from 'fast-glob';
 import {resolveScript} from '../shared/resolve-script.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
-import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {GitHubCache} from '../shared/github-cache.js';
 import * as fs from 'fs/promises';
@@ -31,7 +30,7 @@ const parseArgs = (args: string[]): {scriptName: string} => {
   return {scriptName};
 };
 
-export default async (args: string[], abort: Promise<typeof Abort>) => {
+export default async (args: string[], abort: Promise<void>) => {
   const {scriptName} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
@@ -77,10 +76,10 @@ interface FileContentHash {
 export class ScriptRunner {
   private readonly _configs = new Map<string, Promise<Config>>();
   private readonly _scriptPromises = new Map<string, Promise<ScriptStatus>>();
-  private readonly _abort: Promise<typeof Abort>;
+  private readonly _abort: Promise<unknown>;
   private readonly _cache: Cache;
 
-  constructor(abort: Promise<typeof Abort>, cache: Cache) {
+  constructor(abort: Promise<unknown>, cache: Cache) {
     this._abort = abort;
     this._cache = cache;
   }
@@ -268,8 +267,11 @@ export class ScriptRunner {
             }
           });
         });
-        const result = await Promise.race([completed, this._abort]);
-        if (result === Abort) {
+        const result = await Promise.race([
+          completed,
+          this._abort.then(() => 'abort'),
+        ]);
+        if (result === 'abort') {
           console.log(`🔌 [${scriptName}] Killing`);
           process.kill(-child.pid!, 'SIGINT');
           await completed;

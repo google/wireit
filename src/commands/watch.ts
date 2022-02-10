@@ -5,17 +5,26 @@ import chokidar from 'chokidar';
 import {ScriptRunner} from './run.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import * as pathlib from 'path';
-import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {Deferred} from '../shared/deferred.js';
 
 const parseArgs = (
   args: string[]
-): {scriptName: string} => {
+): {scriptName: string; interruptMode: boolean} => {
   let scriptName = process.env.npm_lifecycle_event;
+  let interruptMode = false;
   for (const arg of args) {
     if (arg.startsWith('--')) {
-      throw new KnownError('invalid-argument', `Unknown watch flag ${arg}`);
+      if (arg === '--interrupt') {
+        interruptMode = true;
+      } else if (arg === '--interupt') {
+        throw new KnownError(
+          'invalid-argument',
+          `Unknown watch flag ${arg}. Did you mean --interrupt?`
+        );
+      } else {
+        throw new KnownError('invalid-argument', `Unknown watch flag ${arg}`);
+      }
     } else {
       scriptName = arg;
     }
@@ -23,11 +32,11 @@ const parseArgs = (
   if (scriptName === undefined) {
     throw new KnownError('invalid-argument', `No script to watch specified`);
   }
-  return {scriptName, interrupt};
+  return {scriptName, interruptMode};
 };
 
-export default async (args: string[], abort: Promise<typeof Abort>) => {
-  const {scriptName} = parseArgs(args);
+export default async (args: string[], abort: Promise<void>) => {
+  const {scriptName, interruptMode} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
   // in some cases. E.g. when we invoke wireit from one npm script, but we're
@@ -88,6 +97,7 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   const watchers = await Promise.all(watcherPromises);
 
   let notification = new Deferred<void>();
+  let interrupt = new Deferred<void>();
 
   const debounce = 50;
   let lastFileChangeMs = (global as any).performance.now();
@@ -95,11 +105,18 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     watcher.on('all', () => {
       lastFileChangeMs = (global as any).performance.now();
       setTimeout(() => notification.resolve(), debounce);
+      if (interruptMode) {
+        interrupt.resolve();
+        interrupt = new Deferred();
+      }
     });
   }
 
   const runIgnoringScriptFailures = async () => {
-    const runner = new ScriptRunner(abort, new FilesystemCache());
+    const runner = new ScriptRunner(
+      Promise.race([abort, interrupt.promise]),
+      new FilesystemCache()
+    );
     try {
       await runner.run(packageJsonPath, scriptName, new Set());
     } catch (err) {
@@ -118,8 +135,11 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   await runIgnoringScriptFailures();
 
   while (true) {
-    const action = await Promise.race([notification.promise, abort]);
-    if (action === Abort) {
+    const action = await Promise.race([
+      notification.promise,
+      abort.then(() => 'abort'),
+    ]);
+    if (action === 'abort') {
       break;
     }
     notification = new Deferred();

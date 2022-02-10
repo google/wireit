@@ -202,6 +202,18 @@ for `rollup` to be triggered _while `tsc` is only part-way done emitting its
 output_, requiring another build afterwards, or even causing an error due to
 consuming an incomplete build.
 
+### Interrupt
+
+By default, when an input file changes, the currently running build is allowed
+to complete before the next one starts
+
+Use the `--interrupt` flag to instead immediately cancel the currently running
+build and start the next one.
+
+```sh
+npm run build -- watch --interrupt
+```
+
 ## Caching
 
 If a script isn't currently fresh, but has _previously_ successfully run with

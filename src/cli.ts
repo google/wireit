@@ -1,13 +1,12 @@
 import {KnownError} from './shared/known-error.js';
-import {Abort} from './shared/abort.js';
 
 const main = async () => {
   const args = process.argv.slice(2);
   const cmd = args[0] ? args.shift() : 'run';
 
-  const abort = new Promise<typeof Abort>((resolve) => {
+  const abort = new Promise<void>((resolve) => {
     process.on('SIGINT', async () => {
-      resolve(Abort);
+      resolve();
     });
   });
 
