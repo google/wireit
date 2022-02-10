@@ -7,6 +7,7 @@ import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.
 import * as pathlib from 'path';
 import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
+import {Deferred} from '../shared/deferred.js';
 
 export default async (args: string[], abort: Promise<typeof Abort>) => {
   if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
@@ -73,17 +74,14 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   // Defer the first run until all chokidar watchers are ready.
   const watchers = await Promise.all(watcherPromises);
 
-  let resolveNotification!: () => void;
-  let notification = new Promise<void>((resolve) => {
-    resolveNotification = resolve;
-  });
+  let notification = new Deferred<void>();
 
   const debounce = 50;
   let lastFileChangeMs = (global as any).performance.now();
   for (const watcher of watchers) {
     watcher.on('all', () => {
       lastFileChangeMs = (global as any).performance.now();
-      setTimeout(() => resolveNotification(), debounce);
+      setTimeout(() => notification.resolve(), debounce);
     });
   }
 
@@ -107,19 +105,17 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
   await runIgnoringScriptFailures();
 
   while (true) {
-    const action = await Promise.race([notification, abort]);
+    const action = await Promise.race([notification.promise, abort]);
     if (action === Abort) {
       break;
     }
-    notification = new Promise<void>((resolve) => {
-      resolveNotification = resolve;
-    });
+    notification = new Deferred();
     const now = (global as any).performance.now();
     const elapsed = now - lastFileChangeMs;
     if (elapsed >= debounce) {
       await runIgnoringScriptFailures();
     } else {
-      setTimeout(() => resolveNotification(), debounce - elapsed);
+      setTimeout(() => notification.resolve(), debounce - elapsed);
     }
   }
 

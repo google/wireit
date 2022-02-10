@@ -11,6 +11,7 @@ import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {GitHubCache} from '../shared/github-cache.js';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
+import {Deferred} from '../shared/deferred.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {Config, Script} from '../types/config.js';
@@ -91,13 +92,12 @@ export class ScriptRunner {
       );
     }
 
-    let promise = this._scriptPromises.get(scriptId);
-    if (promise !== undefined) {
-      return promise;
+    const existingPromise = this._scriptPromises.get(scriptId);
+    if (existingPromise !== undefined) {
+      return existingPromise;
     }
-    let resolve: (value: ScriptStatus) => void;
-    promise = new Promise<ScriptStatus>((r) => (resolve = r));
-    this._scriptPromises.set(scriptId, promise);
+    const done = new Deferred<ScriptStatus>();
+    this._scriptPromises.set(scriptId, done.promise);
 
     const {config, script} = await this._findConfigAndScript(
       packageJsonPath,
@@ -195,8 +195,8 @@ export class ScriptRunner {
     const cacheKeyStale = newCacheKey !== existingFsCacheKey;
     if (!cacheKeyStale) {
       console.log(`🔌 [${scriptName}] Already up to date`);
-      resolve!({cacheKey: newCacheKeyData});
-      return promise;
+      done.resolve({cacheKey: newCacheKeyData});
+      return done.promise;
     }
 
     if (script.command) {
@@ -287,8 +287,8 @@ export class ScriptRunner {
       newCacheKey
     );
 
-    resolve!({cacheKey: newCacheKeyData});
-    return promise;
+    done.resolve({cacheKey: newCacheKeyData});
+    return done.promise;
   }
 
   private async _findConfigAndScript(

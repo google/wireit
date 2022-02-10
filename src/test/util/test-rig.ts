@@ -3,6 +3,7 @@ import {fileURLToPath} from 'url';
 import * as net from 'net';
 import * as fs from 'fs/promises';
 import {spawn} from 'child_process';
+import {Deferred} from '../../shared/deferred.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -135,24 +136,16 @@ export class TestRig {
 class Command {
   private readonly _socketfile: string;
   private readonly _server: net.Server;
-  private _resolveConnectionPromise!: (socket: net.Socket) => void;
-  private _connectionPromise: Promise<net.Socket>;
+  private _connection = new Deferred<net.Socket>();
   private _running = false;
   private _startedCount = 0;
-  private _nextSignal: Promise<string>;
-  private _nextSignalResolve!: (signal: string) => void;
+  private _nextSignal = new Deferred<string>();
 
   constructor(socketfile: string) {
     this._socketfile = socketfile;
     this._server = net.createServer(this._onConnection);
     fs.mkdir(path.dirname(socketfile), {recursive: true}).then(() => {
       this._server.listen(this._socketfile);
-    });
-    this._connectionPromise = new Promise((resolve) => {
-      this._resolveConnectionPromise = resolve;
-    });
-    this._nextSignal = new Promise((resolve) => {
-      this._nextSignalResolve = resolve;
     });
   }
 
@@ -161,7 +154,7 @@ class Command {
   }
 
   async waitUntilStarted(): Promise<void> {
-    await this._connectionPromise;
+    await this._connection.promise;
   }
 
   get running(): boolean {
@@ -176,12 +169,10 @@ class Command {
     if (!this.running) {
       throw new Error('Command is not running; cannot exit.');
     }
-    const connection = await this._connectionPromise;
+    const connection = await this._connection.promise;
     connection.write(String(code));
     this._running = false;
-    this._connectionPromise = new Promise((resolve) => {
-      this._resolveConnectionPromise = resolve;
-    });
+    this._connection = new Deferred();
   }
 
   async close(): Promise<void> {
@@ -189,7 +180,7 @@ class Command {
   }
 
   get receivedSignal() {
-    return this._nextSignal;
+    return this._nextSignal.promise;
   }
 
   private readonly _onConnection = (socket: net.Socket) => {
@@ -200,12 +191,10 @@ class Command {
     this._startedCount++;
     socket.on('data', (data) => {
       const signal = data.toString();
-      this._nextSignalResolve(signal);
-      this._nextSignal = new Promise((resolve) => {
-        this._nextSignalResolve = resolve;
-      });
+      this._nextSignal.resolve(signal);
+      this._nextSignal = new Deferred();
     });
-    this._resolveConnectionPromise(socket);
+    this._connection.resolve(socket);
   };
 }
 
