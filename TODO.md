@@ -1,6 +1,8 @@
 # MVP
 
-- Empty/clean output directories when defined.
+- Document that output files are cleared.
+
+- Add option to not clear output files?
 
 - Add test that we become fresh after restoring from cache.
 

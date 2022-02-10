@@ -60,6 +60,19 @@ export class TestRig {
     return fs.readFile(absolute, 'utf8');
   }
 
+  async fileExists(filename: string): Promise<boolean> {
+    const absolute = path.resolve(this._filesTempDir, filename);
+    try {
+      await fs.access(absolute);
+      return true;
+    } catch (err) {
+      if ((err as {code?: string}).code === 'ENOENT') {
+        return false;
+      }
+      throw err;
+    }
+  }
+
   async chmod(file: string, mode: Parameters<typeof fs.chmod>[1]) {
     const absolute = path.resolve(this._filesTempDir, file);
     return fs.chmod(absolute, mode);

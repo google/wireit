@@ -216,22 +216,43 @@ export class ScriptRunner {
       }
     }
 
+    // TODO(aomarks) What should we do if there's no command, but there is
+    // files/output? This is valid, and affects whether we report things as
+    // cached, and whether we clear outputfiles.
     if (script.command) {
       // TODO(aomarks) We should race against abort here too (any expensive operation).
       let cachedOutput;
 
-      if (this._cache !== undefined && script.output !== undefined) {
-        // Only cache if output files are defined. This requires the user to
-        // explicitly tell us when there are no output files to enable caching.
-        // If it's undefined, the user might not have gotten around to
-        // specifying the output yet, so it's safer to assume that the output
-        // could be anything, and we wouldn't otherwise capture them correctly.
-        cachedOutput = await this._cache.getOutput(
-          packageJsonPath,
-          scriptName,
-          newCacheKey,
-          script.output ?? []
-        );
+      if (script.output !== undefined) {
+        // Delete any existing output files.
+        const existingOutputFiles = await fastglob(script.output, {
+          cwd: pathlib.dirname(config.packageJsonPath),
+        });
+        if (existingOutputFiles.length > 0) {
+          console.log(
+            `🗑️ [${scriptName}] Deleting ${existingOutputFiles.length} existing output file(s)`
+          );
+          await Promise.all([
+            existingOutputFiles.map((file) =>
+              fs.rm(file, {recursive: true, force: true})
+            ),
+          ]);
+        }
+
+        if (this._cache !== undefined) {
+          // Only cache if output files are defined. This requires the user to
+          // explicitly tell us when there are no output files to enable
+          // caching. If it's undefined, the user might not have gotten around
+          // to specifying the output yet, so it's safer to assume that the
+          // output could be anything, and we wouldn't otherwise capture them
+          // correctly.
+          cachedOutput = await this._cache.getOutput(
+            packageJsonPath,
+            scriptName,
+            newCacheKey,
+            script.output
+          );
+        }
       }
       if (cachedOutput !== undefined) {
         console.log(`♻️ [${scriptName}] Restoring from cache`);
@@ -305,7 +326,7 @@ export class ScriptRunner {
             packageJsonPath,
             scriptName,
             newCacheKey,
-            script.output ?? []
+            script.output
           );
         }
       }
