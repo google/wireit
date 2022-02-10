@@ -224,6 +224,11 @@ export class ScriptRunner {
         await cachedOutput.apply();
       } else {
         console.log(`🔌 [${scriptName}] Running command`);
+        // Delete the current state before we start running, because if there
+        // was a previously successful run in a different state, and this run
+        // fails, then the next time we run, we would otherwise incorrectly
+        // think that the script was still fresh with the previous state
+        await this._clearCurrentState(packageJsonPath, scriptName);
         // We run scripts via npx so that PATH will include the
         // node_modules/.bin directory, matching the standard behavior of an NPM
         // script. This also gives access to other NPM-specific environment
@@ -347,6 +352,19 @@ export class ScriptRunner {
       }
       throw err;
     }
+  }
+
+  private async _clearCurrentState(
+    packageJsonPath: string,
+    scriptName: string
+  ): Promise<void> {
+    const stateFile = pathlib.resolve(
+      pathlib.dirname(packageJsonPath),
+      '.wireit',
+      'state',
+      scriptName
+    );
+    await fs.rm(stateFile, {force: true});
   }
 
   private async _writeCurrentState(

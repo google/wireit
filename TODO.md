@@ -25,10 +25,6 @@
 
 - Rename state to fresh
 
-- State needs to know that we're in a failed state, or else it could have
-  partial failed output from one run, but we'll think it's good to go from the
-  previous state that was successful!
-
 - Does the globbing behavior of chokidar and fast-glob match?
 
 - Don't cache (or freshness check?) when no output files

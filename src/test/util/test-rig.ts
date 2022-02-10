@@ -49,6 +49,11 @@ export class TestRig {
     );
   }
 
+  async rmFile(filename: string): Promise<void> {
+    const absolute = path.resolve(this._filesTempDir, filename);
+    return fs.rm(absolute, {force: true, recursive: true});
+  }
+
   async readFile(filename: string): Promise<string> {
     const absolute = path.resolve(this._filesTempDir, filename);
     return fs.readFile(absolute, 'utf8');

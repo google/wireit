@@ -1035,4 +1035,74 @@ test(
   })
 );
 
+// TODO(aomarks) Factor out freshness test.
+
+test(
+  'invalidate freshness on failure',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    // Run 1 succeeds.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Modify the input file.
+    await rig.writeFiles({
+      'input.txt': 'v1',
+    });
+
+    // Run 2 fails.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(1);
+      const {code} = await out.done;
+      assert.equal(code, 1);
+      assert.equal(cmd.startedCount, 2);
+    }
+
+    // Go back to the state of run 1.
+    await rig.writeFiles({
+      'input.txt': 'v0',
+    });
+
+    // Delete the cache, because otherwise in the next step the output will be
+    // restored from cache instead of cmd starting again, which makes it
+    // difficult to tell that we invalidated freshness correctly.
+    await rig.rmFile('.wireit/cache');
+
+    // Even though we have the same state as run 1, and run 1 succeeded, this
+    // script is not fresh, because there was a failed state inbetween, which
+    // might have modified the output files.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 3);
+    }
+  })
+);
+
 test.run();
