@@ -1,10 +1,15 @@
 # MVP
 
+- Bug where things are reported "restored from cache" instead of "fresh"
+
 - GitHub Actions various bad implementation details
 
 - Can scripts start with "." or ":." etc.? How to escape.
 
 - GitHub Actions salt to force cache bust
+
+- What does watch mode do with undefined or empty files? Maybe it should default
+  to all files in the package?
 
 - Potential bugs
 

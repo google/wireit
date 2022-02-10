@@ -88,6 +88,7 @@ test(
         wireit: {
           cmd1: {
             command: cmd1.command(),
+            files: [],
             dependencies: ['cmd2'],
           },
           cmd2: {
@@ -171,6 +172,7 @@ test(
         wireit: {
           cmd1: {
             command: cmd1.command(),
+            files: [],
             dependencies: ['cmd2'],
           },
           cmd2: {
@@ -340,7 +342,7 @@ test(
   })
 );
 
-test(
+test.only(
   'package-lock changes invalidate freshness keys',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
@@ -460,6 +462,7 @@ test(
         wireit: {
           cmd1: {
             command: cmd1.command(),
+            files: [],
           },
         },
       },
@@ -492,7 +495,7 @@ test(
 );
 
 test(
-  'SIGINT caching',
+  'SIGINT freshness',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
     const cmd2 = rig.newCommand();
@@ -508,12 +511,15 @@ test(
           cmd1: {
             command: cmd1.command(),
             dependencies: ['cmd2', 'cmd3'],
+            files: [],
           },
           cmd2: {
             command: cmd2.command(),
+            files: [],
           },
           cmd3: {
             command: cmd3.command(),
+            files: [],
           },
         },
       },

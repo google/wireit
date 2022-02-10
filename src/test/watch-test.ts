@@ -307,10 +307,12 @@ test(
         wireit: {
           cmd1: {
             command: cmd1.command(),
+            files: [],
             dependencies: ['cmd2'],
           },
           cmd2: {
             command: cmd2.command(),
+            files: [],
             checkPackageLocks: false,
           },
         },

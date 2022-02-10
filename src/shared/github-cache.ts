@@ -58,7 +58,7 @@ export class GitHubCache implements Cache {
  * @actions/cache throws if we don't provide at least one filepath. However, it
  * doesn't actually matter whether or not it matches a file on disk.
  *
- * We _do_ want to cache tasks that have no outputs, because the cache hit alone
+ * We _do_ want to cache tasks that have no output, because the cache hit alone
  * serves as a useful signal that the task ran successfully with the exact input
  * state, meaning we can skip it.
  *

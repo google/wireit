@@ -87,7 +87,7 @@ test(
 );
 
 test(
-  'script with no outputs is cached',
+  'script with empty output is cached',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -99,6 +99,7 @@ test(
           cmd: {
             command: cmd.command(),
             files: ['input.txt'],
+            output: [],
           },
         },
       },

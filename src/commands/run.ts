@@ -224,7 +224,7 @@ export class ScriptRunner {
         // Only cache if output files are defined. This requires the user to
         // explicitly tell us when there are no output files to enable caching.
         // If it's undefined, the user might not have gotten around to
-        // specifying the outputs yet, so it's safer to assume that the outputs
+        // specifying the output yet, so it's safer to assume that the output
         // could be anything, and we wouldn't otherwise capture them correctly.
         cachedOutput = await this._cache.getOutput(
           packageJsonPath,
