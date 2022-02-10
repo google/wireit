@@ -18,11 +18,11 @@ const main = async () => {
       const module = await import('./commands/watch.js');
       await module.default(args, abort);
     } else {
-      console.error('Valid commmands are: run, watch');
+      console.error('❌ Valid commmands are: run, watch');
       process.exitCode = 1;
     }
   } catch (e) {
-    console.error(`Command ${cmd} failed`);
+    console.error(`❌ Command ${cmd} failed`);
     console.error((e as Error).message);
     if (!(e instanceof KnownError)) {
       console.error((e as Error).stack);
