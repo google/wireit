@@ -16,13 +16,23 @@ import {Deferred} from '../shared/deferred.js';
 import type {Cache} from '../shared/cache.js';
 import type {Config, Script} from '../types/config.js';
 
-export default async (args: string[], abort: Promise<typeof Abort>) => {
-  if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
-    throw new KnownError(
-      'invalid-argument',
-      `Expected 1 argument but got ${args.length}`
-    );
+const parseArgs = (args: string[]): {scriptName: string} => {
+  let scriptName = process.env.npm_lifecycle_event;
+  for (const arg of args) {
+    if (arg.startsWith('--')) {
+      throw new KnownError('invalid-argument', `Unknown run flag ${arg}`);
+    } else {
+      scriptName = arg;
+    }
   }
+  if (scriptName === undefined) {
+    throw new KnownError('invalid-argument', `No script to run specified`);
+  }
+  return {scriptName};
+};
+
+export default async (args: string[], abort: Promise<typeof Abort>) => {
+  const {scriptName} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
   // in some cases. E.g. when we invoke wireit from one npm script, but we're
@@ -39,7 +49,6 @@ export default async (args: string[], abort: Promise<typeof Abort>) => {
     ? new GitHubCache()
     : new FilesystemCache();
   const runner = new ScriptRunner(abort, cache);
-  const scriptName = args[0] ?? process.env.npm_lifecycle_event;
   await runner.run(packageJsonPath, scriptName, new Set());
 };
 

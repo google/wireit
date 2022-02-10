@@ -9,23 +9,36 @@ import {Abort} from '../shared/abort.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {Deferred} from '../shared/deferred.js';
 
-export default async (args: string[], abort: Promise<typeof Abort>) => {
-  if (args.length !== 1 && process.env.npm_lifecycle_event === undefined) {
-    throw new KnownError(
-      'invalid-argument',
-      `Expected 1 argument but got ${args.length}`
-    );
+const parseArgs = (
+  args: string[]
+): {scriptName: string} => {
+  let scriptName = process.env.npm_lifecycle_event;
+  for (const arg of args) {
+    if (arg.startsWith('--')) {
+      throw new KnownError('invalid-argument', `Unknown watch flag ${arg}`);
+    } else {
+      scriptName = arg;
+    }
   }
-  const packageJsonPath =
-    process.env.npm_package_json ??
-    (await findNearestPackageJson(process.cwd()));
+  if (scriptName === undefined) {
+    throw new KnownError('invalid-argument', `No script to watch specified`);
+  }
+  return {scriptName, interrupt};
+};
+
+export default async (args: string[], abort: Promise<typeof Abort>) => {
+  const {scriptName} = parseArgs(args);
+
+  // We could check process.env.npm_package_json here, but it's actually wrong
+  // in some cases. E.g. when we invoke wireit from one npm script, but we're
+  // asking it to evaluate another directory.
+  const packageJsonPath = await findNearestPackageJson(process.cwd());
   if (packageJsonPath === undefined) {
     throw new KnownError(
       'invalid-argument',
       `Could not find a package.json in ${process.cwd()} or parents`
     );
   }
-  const scriptName = args[0] ?? process.env.npm_lifecycle_event;
   const pkgGlobs = new Map();
   await analyze(packageJsonPath, scriptName, pkgGlobs);
 
