@@ -74,6 +74,15 @@
 
 - More efficient use of chokidar.
 
+- Write output to file descripts keyed by task name. Now in watch mode, somebody
+  can do `tail -f .wireit/stdout/ts` to see the output of that script live.
+
+  - If you then run the same script in two different terminals, could we just
+    detect that one is already running, and tail its output? That way you could
+    do `npm run build -- watch` in one terminal and `npm run ts -- watch` in
+    another, in case you want to see the output of ts in a separate window ---
+    but without the two stepping on each other.
+
 - Are all NPM package script names safe to put in the .wireit folder? Need
   escaping?
 
