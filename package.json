@@ -50,6 +50,7 @@
     },
     "test:runmode": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
+      "files": [],
       "output": [],
       "dependencies": [
         "ts"
@@ -57,6 +58,7 @@
     },
     "test:freshness": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"freshness-test.js$\"",
+      "files": [],
       "output": [],
       "dependencies": [
         "ts"
@@ -64,6 +66,7 @@
     },
     "test:watchmode": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch-test.js$\"",
+      "files": [],
       "output": [],
       "dependencies": [
         "ts"
@@ -71,6 +74,7 @@
     },
     "test:filesystem-caching": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"filesystem-caching-test.js$\"",
+      "files": [],
       "output": [],
       "dependencies": [
         "ts"
@@ -78,6 +82,7 @@
     },
     "test:github-caching": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"github-caching-test.js$\"",
+      "files": [],
       "output": [],
       "dependencies": [
         "ts"
