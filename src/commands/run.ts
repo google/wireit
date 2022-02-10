@@ -196,13 +196,13 @@ export class ScriptRunner {
 
     const newCacheKey = JSON.stringify(newCacheKeyData);
 
-    // Only check for freshness if input files are defined. This requires the
-    // user to explicitly tell us when there are no input files to enable
-    // skipping scripts that are already fresh. If it's undefined, the user
-    // might not have gotten around to specifying the input files yet, so it's
-    // safer to assume that the inputs could be anything, and hence always might
-    // have changed.
     if (script.files !== undefined) {
+      // Only check for freshness if input files are defined. This requires the
+      // user to explicitly tell us when there are no input files to enable
+      // skipping scripts that are already fresh. If it's undefined, the user
+      // might not have gotten around to specifying the input files yet, so it's
+      // safer to assume that the inputs could be anything, and hence always
+      // might have changed.
       const existingFsCacheKey = await this._readCurrentState(
         config.packageJsonPath,
         scriptName
@@ -218,9 +218,14 @@ export class ScriptRunner {
 
     if (script.command) {
       // TODO(aomarks) We should race against abort here too (any expensive operation).
-      // TODO(aomarks) What should we be doing when there is a cache but a script has no output? What about empty array output vs undefined?
       let cachedOutput;
-      if (this._cache !== undefined) {
+
+      if (this._cache !== undefined && script.output !== undefined) {
+        // Only cache if output files are defined. This requires the user to
+        // explicitly tell us when there are no output files to enable caching.
+        // If it's undefined, the user might not have gotten around to
+        // specifying the outputs yet, so it's safer to assume that the outputs
+        // could be anything, and we wouldn't otherwise capture them correctly.
         cachedOutput = await this._cache.getOutput(
           packageJsonPath,
           scriptName,
@@ -294,7 +299,7 @@ export class ScriptRunner {
           );
         }
         console.log(`🔌 [${scriptName}] Completed`);
-        if (this._cache !== undefined) {
+        if (this._cache !== undefined && script.output !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutput(
             packageJsonPath,
@@ -306,11 +311,13 @@ export class ScriptRunner {
       }
     }
 
-    await this._writeCurrentState(
-      config.packageJsonPath,
-      scriptName,
-      newCacheKey
-    );
+    if (script.files !== undefined) {
+      await this._writeCurrentState(
+        config.packageJsonPath,
+        scriptName,
+        newCacheKey
+      );
+    }
 
     done.resolve({cacheKey: newCacheKeyData});
     return done.promise;

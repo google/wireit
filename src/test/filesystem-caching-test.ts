@@ -82,7 +82,7 @@ test(
 );
 
 test(
-  'script is cached even with no output files',
+  'script with empty output is cached',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -94,6 +94,7 @@ test(
           cmd: {
             command: cmd.command(),
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -139,6 +140,62 @@ test(
       const {code} = await out.done;
       assert.equal(code, 0);
       assert.equal(cmd.startedCount, 2);
+    }
+  })
+);
+
+test(
+  'script with undefined output is not cached',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    // Run with input v0.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Run with input v1 (so that v0 is not fresh).
+    {
+      await rig.writeFiles({'input.txt': 'v1'});
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+
+    // Run with input v0 again. If output was defined (even an empty array),
+    // then we would restore from cache here. But since it isn't, we assume that
+    // there could be output we weren't aware of, and err on the side of safety
+    // by executing again.
+    {
+      await rig.writeFiles({'input.txt': 'v0'});
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 3);
     }
   })
 );

@@ -1,7 +1,5 @@
 # MVP
 
-- Don't cache (or freshness check?) when no output files
-
 - GitHub Actions various bad implementation details
 
 - Can scripts start with "." or ":." etc.? How to escape.
