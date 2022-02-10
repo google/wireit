@@ -224,19 +224,21 @@ export class ScriptRunner {
       let cachedOutput;
 
       if (script.output !== undefined) {
-        // Delete any existing output files.
-        const existingOutputFiles = await fastglob(script.output, {
-          cwd: pathlib.dirname(config.packageJsonPath),
-        });
-        if (existingOutputFiles.length > 0) {
-          console.log(
-            `🗑️ [${scriptName}] Deleting ${existingOutputFiles.length} existing output file(s)`
-          );
-          await Promise.all([
-            existingOutputFiles.map((file) =>
-              fs.rm(file, {recursive: true, force: true})
-            ),
-          ]);
+        if (script.deleteOutputBeforeEachRun ?? true) {
+          // Delete any existing output files.
+          const existingOutputFiles = await fastglob(script.output, {
+            cwd: pathlib.dirname(config.packageJsonPath),
+          });
+          if (existingOutputFiles.length > 0) {
+            console.log(
+              `🗑️ [${scriptName}] Deleting ${existingOutputFiles.length} existing output file(s)`
+            );
+            await Promise.all([
+              existingOutputFiles.map((file) =>
+                fs.rm(file, {recursive: true, force: true})
+              ),
+            ]);
+          }
         }
 
         if (this._cache !== undefined) {

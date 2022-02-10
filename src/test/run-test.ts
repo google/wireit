@@ -470,7 +470,7 @@ test(
 );
 
 test(
-  'clears output',
+  'deletes output by default',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -492,6 +492,37 @@ test(
     const out = rig.exec('npm run cmd');
     await cmd.waitUntilStarted();
     assert.not(await rig.fileExists('output/foo/existing.abc'), 'v0');
+    assert.equal(await rig.readFile('output/foo/existing.xyz'), 'v0');
+    await cmd.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+  })
+);
+
+test(
+  'does not delete output when deleteOutputBeforeEachRun is set to false',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: [],
+            output: ['output/**/*.abc'],
+            deleteOutputBeforeEachRun: false,
+          },
+        },
+      },
+      'output/foo/existing.abc': 'v0',
+      'output/foo/existing.xyz': 'v0',
+    });
+    const out = rig.exec('npm run cmd');
+    await cmd.waitUntilStarted();
+    assert.equal(await rig.readFile('output/foo/existing.abc'), 'v0');
     assert.equal(await rig.readFile('output/foo/existing.xyz'), 'v0');
     await cmd.exit(0);
     const {code} = await out.done;

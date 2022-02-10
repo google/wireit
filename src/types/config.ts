@@ -14,4 +14,5 @@ export interface Script {
   files?: string[];
   output?: string[];
   checkPackageLocks?: boolean;
+  deleteOutputBeforeEachRun?: boolean;
 }

@@ -22,10 +22,10 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross package dependencies](#cross-package-dependencies)
 - [Freshness tracking](#freshness-tracking)
-- [Watch mode](#watch-mode)
 - [Caching](#caching)
   - [GitHub Actions caching](#github-actions-caching)
-  - [Only status required](#only-status-required)
+- [Deleting output](#deleting-output)
+- [Watch mode](#watch-mode)
 - [Monorepos](#monorepos)
   - [npm workspaces](#npm-workspaces)
 - [NPM package locks](#npm-package-locks)
@@ -181,39 +181,6 @@ either script.
 > that haven't been fully configured yet. To allow a script to be freshness
 > checked that really has no input files, set `files` to an empty array (`files: []`).
 
-## Watch mode
-
-You can watch and automatically re-run any script that is configured for
-`wireit` with `npm run <script> -- watch`.
-
-> Note the `--` is needed so that the `watch` argument is passed to `wireit`,
-> instead of `npm`.
-
-In watch mode, whenever an input file to a script changes, then the script
-automatically re-runs. And if an input file of a dependency changes, then the
-dependency automatically runs too. This way, no matter how complex your build
-graph, you can freely jump around in your project, edit any file, and
-automatically start computing the result instantly.
-
-Wireit's watch mode is also better than running the built-in watch modes that
-many tools come with, because it prevents race conditions and redundant builds.
-For example, if you run `tsc --watch & rollup -c --watch`, then it's possible
-for `rollup` to be triggered _while `tsc` is only part-way done emitting its
-output_, requiring another build afterwards, or even causing an error due to
-consuming an incomplete build.
-
-### Interrupt
-
-By default, when an input file changes, the currently running build is allowed
-to complete before the next one starts
-
-Use the `--interrupt` flag to instead immediately cancel the currently running
-build and start the next one.
-
-```sh
-npm run build -- watch --interrupt
-```
-
 ## Caching
 
 If a script isn't currently fresh, but has _previously_ successfully run with
@@ -254,6 +221,55 @@ output, before it runs the command.
 > empty array (`output: []`). Obviously no output will be copied from the cache
 > in this case, but it will still allow the script to be skipped when a cache
 > hit is detected.
+
+## Deleting output
+
+By default, when you have specified the `output` of a script, then those files
+will be automatically deleted before a script executes or is restored from
+cache.
+
+This is helpful to ensure that each run of a script does not include stale
+outputs from the previous run. For example, if you compile `foo.ts` to `foo.js`
+with `tsc`, and then delete `foo.ts` file, then the next time you run `tsc`,
+the `foo.js` file would otherwise still exist in the output directory.
+
+To disable automatic output deletion, set
+`wireit.<script>.deleteOutputBeforeEachRun` to `false`. You should only disable
+automatic output deletion if you are certain that the script itself already
+takes care of removing stale output files from previous runs.
+
+## Watch mode
+
+You can watch and automatically re-run any script that is configured for
+`wireit` with `npm run <script> -- watch`.
+
+> Note the `--` is needed so that the `watch` argument is passed to `wireit`,
+> instead of `npm`.
+
+In watch mode, whenever an input file to a script changes, then the script
+automatically re-runs. And if an input file of a dependency changes, then the
+dependency automatically runs too. This way, no matter how complex your build
+graph, you can freely jump around in your project, edit any file, and
+automatically start computing the result instantly.
+
+Wireit's watch mode is also better than running the built-in watch modes that
+many tools come with, because it prevents race conditions and redundant builds.
+For example, if you run `tsc --watch & rollup -c --watch`, then it's possible
+for `rollup` to be triggered _while `tsc` is only part-way done emitting its
+output_, requiring another build afterwards, or even causing an error due to
+consuming an incomplete build.
+
+### Interrupt
+
+By default, when an input file changes, the currently running build is allowed
+to complete before the next one starts
+
+Use the `--interrupt` flag to instead immediately cancel the currently running
+build and start the next one.
+
+```sh
+npm run build -- watch --interrupt
+```
 
 ## Monorepos
 
