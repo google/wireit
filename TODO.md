@@ -1,6 +1,8 @@
 # MVP
 
-- Bug where things are reported "restored from cache" instead of "fresh"
+- Empty/clean output directories when defined.
+
+- Add test that we become fresh after restoring from cache.
 
 - GitHub Actions various bad implementation details
 
@@ -40,8 +42,6 @@
 
 - Nicer error output messages
 
-- Empty/clean output directories when defined.
-
 - Find places that could be more concurent, like writing caches
 
 - How to deal with symlinks in caching
@@ -60,10 +60,6 @@
   - Tests for missing script
   - Test that chokidar works with empty globs.
   - Run CI tests on macOS
-
-- Npm workspaces
-
-  - `npm run build -w foo -w bar` runs build script for foo, then bar
 
 # Next
 

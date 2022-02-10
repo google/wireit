@@ -210,7 +210,7 @@ export class ScriptRunner {
 
       const cacheKeyStale = newCacheKey !== existingFsCacheKey;
       if (!cacheKeyStale) {
-        console.log(`🔌 [${scriptName}] Already up to date`);
+        console.log(`🥬 [${scriptName}] Already fresh!`);
         done.resolve({cacheKey: newCacheKeyData});
         return done.promise;
       }
@@ -234,10 +234,10 @@ export class ScriptRunner {
         );
       }
       if (cachedOutput !== undefined) {
-        console.log(`🔌 [${scriptName}] Restoring from cache`);
+        console.log(`♻️ [${scriptName}] Restoring from cache`);
         await cachedOutput.apply();
       } else {
-        console.log(`🔌 [${scriptName}] Running command`);
+        console.log(`🏃 [${scriptName}] Running command`);
         // Delete the current state before we start running, because if there
         // was a previously successful run in a different state, and this run
         // fails, then the next time we run, we would otherwise incorrectly
@@ -256,7 +256,7 @@ export class ScriptRunner {
           // TODO(aomarks) Do we need to handle "close"? Is there any way a
           // "close" event can be fired, but not an "exit" or "error" event?
           child.on('error', () => {
-            console.log(`🔌 [${scriptName}] Failed to start`);
+            console.log(`❌ [${scriptName}] Failed to start`);
             reject(
               new KnownError(
                 'script-control-error',
@@ -266,7 +266,7 @@ export class ScriptRunner {
           });
           child.on('exit', (code, signal) => {
             if (signal !== null) {
-              console.log(`🔌 [${scriptName}] Exited with signal ${code}`);
+              console.log(`❌ [${scriptName}] Exited with signal ${code}`);
               reject(
                 new KnownError(
                   'script-cancelled',
@@ -274,7 +274,7 @@ export class ScriptRunner {
                 )
               );
             } else if (code !== 0) {
-              console.log(`🔌 [${scriptName}] Failed with code ${code}`);
+              console.log(`❌ [${scriptName}] Failed with code ${code}`);
               reject(
                 new KnownError(
                   'script-failed',
@@ -291,14 +291,14 @@ export class ScriptRunner {
           this._abort.then(() => 'abort'),
         ]);
         if (result === 'abort') {
-          console.log(`🔌 [${scriptName}] Killing`);
+          console.log(`💀 [${scriptName}] Killing`);
           process.kill(-child.pid!, 'SIGINT');
           await completed;
           throw new Error(
             `Unexpected internal error. Script ${scriptName} should have thrown.`
           );
         }
-        console.log(`🔌 [${scriptName}] Completed`);
+        console.log(`✅ [${scriptName}] Succeeded`);
         if (this._cache !== undefined && script.output !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutput(

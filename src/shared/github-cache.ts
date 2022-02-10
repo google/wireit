@@ -46,11 +46,11 @@ export class GitHubCache implements Cache {
     }
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
-    console.log(`🔌 [${scriptName}] Saving to GitHub cache`);
+    console.log(`🐱 [${scriptName}] Saving to GitHub cache`);
     // TODO(aomarks) How can we be sure that the GitHub globbing library matches
     // our one?
     await cache.saveCache(scriptOutputGlobs, key);
-    console.log(`🔌 [${scriptName}] Saved to GitHub cache`);
+    console.log(`🐱 [${scriptName}] Saved to GitHub cache`);
   }
 }
 
