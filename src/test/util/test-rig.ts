@@ -2,7 +2,7 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 import * as net from 'net';
 import * as fs from 'fs/promises';
-import {spawn} from 'child_process';
+import {spawn, type ChildProcess} from 'child_process';
 import {Deferred} from '../../shared/deferred.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +14,7 @@ export class TestRig {
   private readonly _socketsTempDir = path.join(this.tempDir, 'sockets');
   private readonly _filesTempDir = path.join(this.tempDir, 'files');
   private readonly _commands: Array<Command> = [];
+  private readonly _activeChildProcesses = new Set<ChildProcess>();
   private _nextCommandId = 0;
   private _done = false;
 
@@ -89,6 +90,7 @@ export class TestRig {
       detached: true,
       env,
     });
+    this._activeChildProcesses.add(child);
     let stdout = '';
     let stderr = '';
     const showOutput = process.env.SHOW_OUTPUT;
@@ -109,6 +111,7 @@ export class TestRig {
       (resolve) => {
         child.on('exit', (code) => {
           running = false;
+          this._activeChildProcesses.delete(child);
           // Code will be null when the process was killed via a signal. 130 is
           // the conventional return code used in this case.
           // TODO(aomarks) We should probably signal vs code explicitly.
@@ -124,6 +127,9 @@ export class TestRig {
     this._checkNotDone();
     this._done = true;
     await Promise.all(this._commands.map((command) => command.close()));
+    for (const process of this._activeChildProcesses) {
+      process.kill(9);
+    }
     return fs.rm(this.tempDir, {recursive: true});
   }
 
