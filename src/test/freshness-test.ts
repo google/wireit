@@ -342,7 +342,7 @@ test(
   })
 );
 
-test.only(
+test(
   'package-lock changes invalidate freshness keys',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
