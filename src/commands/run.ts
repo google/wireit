@@ -11,27 +11,23 @@ import {GitHubCache} from '../shared/github-cache.js';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import {Deferred} from '../shared/deferred.js';
+import mri from 'mri';
+import {ReservationPool} from '../shared/reservation-pool.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {Config, Script} from '../types/config.js';
 
-const parseArgs = (args: string[]): {scriptName: string} => {
-  let scriptName = process.env.npm_lifecycle_event;
-  for (const arg of args) {
-    if (arg.startsWith('--')) {
-      throw new KnownError('invalid-argument', `Unknown run flag ${arg}`);
-    } else {
-      scriptName = arg;
-    }
-  }
-  if (scriptName === undefined) {
-    throw new KnownError('invalid-argument', `No script to run specified`);
-  }
-  return {scriptName};
+const parseArgs = (args: string[]): {scriptName: string; parallel: number} => {
+  // TODO(aomarks) Add validation.
+  const parsed = mri(args);
+  return {
+    scriptName: parsed._[0] ?? process.env.npm_lifecycle_event,
+    parallel: parsed['parallel'] ?? Infinity,
+  };
 };
 
 export default async (args: string[], abort: Promise<void>) => {
-  const {scriptName} = parseArgs(args);
+  const {scriptName, parallel} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
   // in some cases. E.g. when we invoke wireit from one npm script, but we're
@@ -47,7 +43,7 @@ export default async (args: string[], abort: Promise<void>) => {
   const cache = process.env.GITHUB_CACHE
     ? new GitHubCache()
     : new FilesystemCache();
-  const runner = new ScriptRunner(abort, cache);
+  const runner = new ScriptRunner(abort, cache, parallel);
   await runner.run(packageJsonPath, scriptName, new Set());
 };
 
@@ -78,10 +74,12 @@ export class ScriptRunner {
   private readonly _scriptPromises = new Map<string, Promise<ScriptStatus>>();
   private readonly _abort: Promise<unknown>;
   private readonly _cache: Cache;
+  private readonly _parallelismLimiter: ReservationPool;
 
-  constructor(abort: Promise<unknown>, cache: Cache) {
+  constructor(abort: Promise<unknown>, cache: Cache, parallel: number) {
     this._abort = abort;
     this._cache = cache;
+    this._parallelismLimiter = new ReservationPool(parallel);
   }
 
   /**
@@ -270,6 +268,8 @@ export class ScriptRunner {
         // node_modules/.bin directory, matching the standard behavior of an NPM
         // script. This also gives access to other NPM-specific environment
         // variables that a user's script might need.
+        const releaseParallelismReservation =
+          await this._parallelismLimiter.reserve();
         const child = spawn('npx', ['-c', script.command], {
           cwd: pathlib.dirname(config.packageJsonPath),
           stdio: 'inherit',
@@ -308,7 +308,7 @@ export class ScriptRunner {
               resolve();
             }
           });
-        });
+        }).then(() => releaseParallelismReservation());
         const result = await Promise.race([
           completed,
           this._abort.then(() => 'abort'),

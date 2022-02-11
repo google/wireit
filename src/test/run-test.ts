@@ -530,4 +530,120 @@ test(
   })
 );
 
+test(
+  'run with --parallel=1',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    const cmd3 = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+          cmd2: 'wireit',
+          cmd3: 'wireit',
+        },
+        wireit: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+          },
+          cmd3: {
+            command: cmd3.command(),
+          },
+        },
+      },
+    });
+
+    const pool = rig.pool();
+    const process = rig.exec('npm run cmd1 -- --parallel=1');
+
+    const a = await pool.next();
+    assert.ok(a === cmd2 || a === cmd3);
+    await rig.sleep(50);
+    assert.equal(pool.counts, {running: 1, pending: 2, done: 0});
+
+    await a.exit(0);
+    const b = await pool.next();
+    assert.ok(b === cmd2 || b === cmd3);
+    assert.equal(pool.counts, {running: 1, pending: 1, done: 1});
+
+    await b.exit(0);
+    const c = await pool.next();
+    assert.ok(c === cmd1);
+    assert.equal(pool.counts, {running: 1, pending: 0, done: 2});
+
+    await c.exit(0);
+    const {code} = await process.done;
+    assert.equal(code, 0);
+    assert.equal(pool.counts, {running: 0, pending: 0, done: 3});
+  })
+);
+
+test(
+  'run with --parallel=2',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    const cmd3 = rig.newCommand();
+    const cmd4 = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+          cmd2: 'wireit',
+          cmd3: 'wireit',
+          cmd4: 'wireit',
+        },
+        wireit: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3', 'cmd4'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+          },
+          cmd3: {
+            command: cmd3.command(),
+          },
+          cmd4: {
+            command: cmd4.command(),
+          },
+        },
+      },
+    });
+
+    const pool = rig.pool();
+    const process = rig.exec('npm run cmd1 -- --parallel=2');
+
+    const a = await pool.next();
+    assert.ok(a === cmd2 || a === cmd3 || a === cmd4);
+    const b = await pool.next();
+    assert.ok(b === cmd2 || b === cmd3 || b === cmd4);
+    await rig.sleep(50);
+    assert.equal(pool.counts, {running: 2, pending: 2, done: 0});
+
+    await a.exit(0);
+    const c = await pool.next();
+    assert.ok(c === cmd2 || c === cmd3 || c === cmd4);
+    assert.equal(pool.counts, {running: 2, pending: 1, done: 1});
+
+    await b.exit(0);
+    assert.equal(pool.counts, {running: 1, pending: 1, done: 2});
+
+    await c.exit(0);
+    const d = await pool.next();
+    assert.ok(d === cmd1);
+    assert.equal(pool.counts, {running: 1, pending: 0, done: 3});
+
+    await d.exit(0);
+    const {code} = await process.done;
+    assert.equal(code, 0);
+    assert.equal(pool.counts, {running: 0, pending: 0, done: 4});
+  })
+);
+
 test.run();

@@ -150,10 +150,67 @@ export class TestRig {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Returns a promise that resolves to whichever command next starts up.
+   */
+  nextCmdStart(): Promise<Command> {
+    return Promise.race(
+      this._commands.map((command) =>
+        command.waitUntilStarted().then(() => command)
+      )
+    );
+  }
+
+  /**
+   * Create a {@link CommandPool} with all of the commands created on this rig
+   * so far.
+   */
+  pool(): CommandPool {
+    return new CommandPool(this._commands);
+  }
+
   private _checkNotDone() {
     if (this._done) {
       throw new Error('TestRig has already finished');
     }
+  }
+}
+
+/**
+ * A pool of commands which could start in any order, with metrics to help test
+ * how many are pending/running/done at any given time.
+ */
+class CommandPool {
+  private readonly _pending: Set<Command>;
+  private readonly _running = new Set<Command>();
+  private readonly _done = new Set<Command>();
+
+  constructor(commands: Command[]) {
+    this._pending = new Set(commands);
+    for (const cmd of commands) {
+      cmd.waitUntilStarted().then(() => {
+        this._pending.delete(cmd);
+        this._running.add(cmd);
+        cmd.exited.then(() => {
+          this._running.delete(cmd);
+          this._done.add(cmd);
+        });
+      });
+    }
+  }
+
+  next(): Promise<Command> {
+    return Promise.race(
+      [...this._pending].map((cmd) => cmd.waitUntilStarted().then(() => cmd))
+    );
+  }
+
+  get counts(): {pending: number; running: number; done: number} {
+    return {
+      pending: this._pending.size,
+      running: this._running.size,
+      done: this._done.size,
+    };
   }
 }
 
@@ -164,6 +221,7 @@ class Command {
   private _running = false;
   private _startedCount = 0;
   private _nextSignal = new Deferred<string>();
+  private _nextExit = new Deferred<void>();
 
   constructor(socketfile: string) {
     this._socketfile = socketfile;
@@ -197,6 +255,12 @@ class Command {
     connection.write(String(code));
     this._running = false;
     this._connection = new Deferred();
+    this._nextExit.resolve();
+    this._nextExit = new Deferred();
+  }
+
+  get exited(): Promise<void> {
+    return this._nextExit.promise;
   }
 
   async close(): Promise<void> {

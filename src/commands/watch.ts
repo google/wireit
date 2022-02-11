@@ -7,36 +7,26 @@ import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.
 import * as pathlib from 'path';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {Deferred} from '../shared/deferred.js';
+import mri from 'mri';
 
 const parseArgs = (
   args: string[]
-): {scriptName: string; interruptMode: boolean} => {
-  let scriptName = process.env.npm_lifecycle_event;
-  let interruptMode = false;
-  for (const arg of args) {
-    if (arg.startsWith('--')) {
-      if (arg === '--interrupt') {
-        interruptMode = true;
-      } else if (arg === '--interupt') {
-        throw new KnownError(
-          'invalid-argument',
-          `Unknown watch flag ${arg}. Did you mean --interrupt?`
-        );
-      } else {
-        throw new KnownError('invalid-argument', `Unknown watch flag ${arg}`);
-      }
-    } else {
-      scriptName = arg;
-    }
+): {scriptName: string; parallel: number; interruptMode: boolean} => {
+  // TODO(aomarks) Add validation.
+  if (args[0] === 'watch') {
+    // TODO(aomarks) So hacky.
+    args = args.slice(1);
   }
-  if (scriptName === undefined) {
-    throw new KnownError('invalid-argument', `No script to watch specified`);
-  }
-  return {scriptName, interruptMode};
+  const parsed = mri(args);
+  return {
+    scriptName: parsed._[0] ?? process.env.npm_lifecycle_event,
+    parallel: parsed['parallel'] ?? Infinity,
+    interruptMode: parsed['interrupt'] ?? false,
+  };
 };
 
 export default async (args: string[], abort: Promise<void>) => {
-  const {scriptName, interruptMode} = parseArgs(args);
+  const {scriptName, parallel, interruptMode} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
   // in some cases. E.g. when we invoke wireit from one npm script, but we're
@@ -115,7 +105,8 @@ export default async (args: string[], abort: Promise<void>) => {
   const runIgnoringScriptFailures = async () => {
     const runner = new ScriptRunner(
       Promise.race([abort, interrupt.promise]),
-      new FilesystemCache()
+      new FilesystemCache(),
+      parallel
     );
     try {
       await runner.run(packageJsonPath, scriptName, new Set());

@@ -2,7 +2,7 @@ import {KnownError} from './shared/known-error.js';
 
 const main = async () => {
   const args = process.argv.slice(2);
-  const cmd = args[0] ? args.shift() : 'run';
+  const cmd = args[0] && !args[0].startsWith('--') ? args.shift() : 'run';
 
   const abort = new Promise<void>((resolve) => {
     process.on('SIGINT', async () => {

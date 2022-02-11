@@ -97,6 +97,7 @@
   "dependencies": {
     "@actions/cache": "^1.0.8",
     "chokidar": "^3.5.2",
-    "fast-glob": "^3.2.7"
+    "fast-glob": "^3.2.7",
+    "mri": "^1.2.0"
   }
 }

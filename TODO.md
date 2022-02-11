@@ -1,10 +1,16 @@
 # MVP
 
+- Watch mode should reload configs when the configs change
+
 - Add test that we become fresh after restoring from cache.
 
 - GitHub Actions various bad implementation details
 
 - Can scripts start with "." or ":." etc.? How to escape.
+
+- Should --parallel default to num CPU cores?
+
+- Be careful with automatic deletion! It could easily delete way too much.
 
 - GitHub Actions salt to force cache bust
 
@@ -35,8 +41,6 @@
 - Watch mode doesn't need to hash the package locks, just get their filenames.
 
 - Handle "close" vs "exit" and "error" events when spawning.
-
-- Watch mode should reload configs when the configs change
 
 - Nicer error output messages
 
@@ -80,8 +84,6 @@
 - Test with a known good version so that we don't have to bootstrap.
 
 - Integrate crazy-max/ghaction-github-runtime solution for getting variables.
-
-- `--parallelism` or `--concurrency` flag
 
 - A keyboard shortcut like `R` to force a restart in watch mode, for when not
   using --interrupt.
@@ -139,7 +141,7 @@
   output a special string to its stdout, like in GitHub actions). Example can
   show writing a small script and using `|` to check the status.
 
-- Diagnose mode: run each step with no concurrency, and check for overlapping
+- Diagnose mode: run each step with no parallelism, and check for overlapping
   output files (two script that both write to the same file, or whose output
   globs includes another script's output)
 

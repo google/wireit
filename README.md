@@ -26,6 +26,7 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
   - [GitHub Actions caching](#github-actions-caching)
 - [Deleting output](#deleting-output)
 - [Watch mode](#watch-mode)
+- [Parallelism](#parallelism)
 - [Monorepos](#monorepos)
   - [npm workspaces](#npm-workspaces)
 - [NPM package locks](#npm-package-locks)
@@ -269,6 +270,17 @@ build and start the next one.
 
 ```sh
 npm run build -- watch --interrupt
+```
+
+### Parallelism
+
+By default, wireit runs with unbounded parallelism. To limit the number of
+scripts that can be running simultaneously, use the `--parallel` flag.
+
+For example, to allow only one script to run at a time:
+
+```sh
+npm run build -- --parallel=1
 ```
 
 ## Monorepos
