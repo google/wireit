@@ -2,7 +2,7 @@ import {KnownError} from '../shared/known-error.js';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {analyze} from '../shared/analyze.js';
 import chokidar from 'chokidar';
-import {ScriptRunner} from './run.js';
+import {ScriptRunner} from '../shared/script-runner.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import * as pathlib from 'path';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
