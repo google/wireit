@@ -480,4 +480,72 @@ test(
   })
 );
 
+// TODO(aomarks) Not implemented yet
+test.skip(
+  'wireit config should trigger watch change',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+
+    // Initially we have only one command.
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+        },
+        wireit: {
+          cmd1: {
+            command: cmd1.command(),
+          },
+        },
+      },
+    });
+
+    // 1st run completes successfully.
+    const process = rig.exec('npm run cmd1 -- watch');
+    await cmd1.waitUntilStarted();
+    await cmd1.exit(0);
+    assert.equal(cmd1.startedCount, 1);
+    assert.equal(cmd2.startedCount, 0);
+
+    // Now we update the wireit config to add another command.
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+          cmd2: 'wireit',
+        },
+        wireit: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+          },
+        },
+      },
+    });
+
+    // // TODO(oamarks) SHOULD NOT NEED THIS
+    // process.kill('SIGINT');
+    // await process.done;
+    // process = rig.exec('npm run cmd1 -- watch');
+    // // ---------------
+
+    // 2nd run completes successfully.
+    await cmd2.waitUntilStarted();
+    await cmd2.exit(0);
+    await cmd1.waitUntilStarted();
+    await cmd1.exit(0);
+    assert.equal(cmd1.startedCount, 2);
+    assert.equal(cmd2.startedCount, 1);
+
+    // Kill the parent process.
+    process.kill('SIGINT');
+    const {code} = await process.done;
+    assert.equal(code, 130);
+  })
+);
+
 test.run();
