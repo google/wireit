@@ -9,8 +9,15 @@
     "wireit": "bin/wireit.js"
   },
   "type": "module",
+  "files": [
+    "bin/wireit.js",
+    "lib/**/*.js",
+    "!lib/test/**",
+    "!lib/types/**"
+  ],
   "scripts": {
-    "prepare": "ln -s ../../bin/wireit.js node_modules/.bin/wireit",
+    "prepare": "ln -sf ../../bin/wireit.js node_modules/.bin/wireit",
+    "prepack": "npm run build",
     "build": "wireit",
     "ts": "wireit",
     "test": "wireit",
@@ -99,15 +106,15 @@
       ]
     }
   },
-  "devDependencies": {
-    "@types/node": "^17.0.15",
-    "typescript": "^4.5.4",
-    "uvu": "^0.5.2"
-  },
   "dependencies": {
     "@actions/cache": "^1.0.8",
     "chokidar": "^3.5.2",
     "fast-glob": "^3.2.7",
     "mri": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.15",
+    "typescript": "^4.5.4",
+    "uvu": "^0.5.2"
   }
 }

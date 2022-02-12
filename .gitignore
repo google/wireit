@@ -2,3 +2,4 @@
 /lib/
 /node_modules/
 /temp/
+*.tgz
