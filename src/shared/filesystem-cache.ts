@@ -41,6 +41,7 @@ export class FilesystemCache implements Cache {
     const packageRoot = pathlib.dirname(packageJsonPath);
     const entries = await fastglob(scriptOutputGlobs, {
       cwd: packageRoot,
+      dot: true,
     });
     const cacheDir = pathlib.resolve(
       packageRoot,

@@ -21,6 +21,7 @@ test(
     const cmd2 = rig.newCommand();
     const other1 = rig.newCommand();
     const excluded = rig.newCommand();
+    const dot = rig.newCommand();
     await rig.writeFiles({
       'package.json': {
         scripts: {
@@ -78,6 +79,18 @@ test(
           },
         },
       },
+      // npm workspace globs don't match workspaces that start with dots, so
+      // neither should we.
+      'packages/.dot/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: dot.command(),
+          },
+        },
+      },
     });
     const out = rig.exec('npm run cmd');
     await cmd1.waitUntilStarted();
@@ -92,6 +105,7 @@ test(
     assert.equal(cmd2.startedCount, 1);
     assert.equal(other1.startedCount, 1);
     assert.equal(excluded.startedCount, 0);
+    assert.equal(dot.startedCount, 0);
   })
 );
 

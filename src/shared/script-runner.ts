@@ -119,6 +119,7 @@ export class ScriptRunner {
     if (script.files?.length) {
       const entries = await fastglob(script.files, {
         cwd: pathlib.dirname(config.packageJsonPath),
+        dot: true,
       });
 
       // IMPORTANT: We must sort here, because it's important that the insertion
@@ -193,6 +194,7 @@ export class ScriptRunner {
           // Delete any existing output files.
           const existingOutputFiles = await fastglob(script.output, {
             cwd: pathlib.dirname(config.packageJsonPath),
+            dot: true,
           });
           if (existingOutputFiles.length > 0) {
             console.log(

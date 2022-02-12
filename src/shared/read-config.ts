@@ -66,6 +66,8 @@ export const readConfig = async (packageJsonPath: string): Promise<Config> => {
           cwd: pathlib.dirname(packageJsonPath),
           onlyDirectories: true,
           absolute: true,
+          // Workspace globs don't match .dotfiles by default.
+          dot: false,
         });
         for (const workspace of workspaces) {
           const workspaceConfig = await readConfig(

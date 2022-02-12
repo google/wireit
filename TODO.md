@@ -58,7 +58,6 @@
 
 ## Tests
 
-- Add test for dotfiles.
 - CI was showing success even on failure?
 - Add test that we become fresh after restoring from cache.
 - We have to sleep before closing down watch mode or else we get error. What's

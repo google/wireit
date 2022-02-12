@@ -741,4 +741,58 @@ test(
   })
 );
 
+test(
+  'dot files in files globs affect freshness',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['src/**'],
+          },
+        },
+      },
+      'src/.dotfile': 'v0',
+    });
+
+    // Run 1 succeeds.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Modify the dotfile.
+    await rig.writeFiles({
+      'src/.dotfile': 'v1',
+    });
+
+    // Run 2 is not fresh.
+    {
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+
+    // Run 3 is fresh.
+    {
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+  })
+);
+
 test.run();

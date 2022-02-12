@@ -491,8 +491,37 @@ test(
     });
     const out = rig.exec('npm run cmd');
     await cmd.waitUntilStarted();
-    assert.not(await rig.fileExists('output/foo/existing.abc'), 'v0');
+    assert.not(await rig.fileExists('output/foo/existing.abc'));
     assert.equal(await rig.readFile('output/foo/existing.xyz'), 'v0');
+    await cmd.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+  })
+);
+
+test(
+  'deletes dotfiles',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: [],
+            output: ['output/**'],
+          },
+        },
+      },
+      'output/.dotfile': 'v0',
+    });
+    assert.ok(await rig.fileExists('output/.dotfile'));
+    const out = rig.exec('npm run cmd');
+    await cmd.waitUntilStarted();
+    assert.not(await rig.fileExists('output/.dotfile'));
     await cmd.exit(0);
     const {code} = await out.done;
     assert.equal(code, 0);
