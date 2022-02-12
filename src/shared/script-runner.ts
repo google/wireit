@@ -93,6 +93,7 @@ export class ScriptRunner {
       for (const depScriptName of script.dependencies) {
         depScriptPromises.push(
           this.run(
+            // This is wrong! It's setting the wrong package json path.
             config.packageJsonPath,
             depScriptName,
             new Set(stack).add(scriptId)

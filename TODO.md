@@ -13,9 +13,17 @@
 - Output mode that prevents interleaved output (when concurrent scripts running,
   only one can have a lock on stdout/stderr at a time).
 - Ability to configure environment variables that are significant.
+- Add clean command
+- Add dry run mode
+
+## Bugs
+
+- Package json path is totally wrong!
 
 ## Open questions
 
+- How to deal with .tsbuildinfo files. Should they be inputs? Maybe we mark
+  deleteOutputBeforeEachRun:false?
 - Should we only parallelize contiguous blocks of wireit scripts when using
   $WORKSPACES?
 - Can scripts start with "." or ":." etc.? How to escape.
@@ -50,6 +58,7 @@
 
 ## Tests
 
+- Add test for dotfiles.
 - CI was showing success even on failure?
 - Add test that we become fresh after restoring from cache.
 - We have to sleep before closing down watch mode or else we get error. What's
