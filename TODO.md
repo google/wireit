@@ -3,7 +3,7 @@
 ## Features
 
 - Watch mode should reload configs when the configs change
-- Implement workspaces support, like $WORKSPACES and $WORKSPACE_DEPS
+- Implement $WORKSPACE_DEPS
 - Nicer error output messages
 - A keyboard shortcut like `R` to force a restart in watch mode, for when not
   using --interrupt.
@@ -33,6 +33,7 @@
 
 ## Refactoring
 
+- Handling of $WORKSPACES is incredibly inefficient.
 - Argument parsing is bad
 - GitHub Actions various bad implementation details
 - Save sha256 instead of entire JSON in state

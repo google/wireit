@@ -1,6 +1,7 @@
 export interface PackageJson {
   scripts?: {[scriptName: string]: string};
   wireit?: {[scriptName: string]: Script};
+  workspaces?: string[];
 }
 
 export interface Config {

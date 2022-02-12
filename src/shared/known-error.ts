@@ -20,4 +20,5 @@ export type ErrorCode =
   | /** An error spawning or communicating with a script. */ 'script-control-error'
   | /** A script could not be found in a package.json wireit config. */ 'script-not-found'
   | /** A script was configured in the "wireit" section, but not the "scripts" section. */ 'missing-npm-script'
-  | /** A script was configured in the "wireit" section, and it's in the "scripts" section, but the "scripts" command is not "wireit". */ 'misconfigured-npm-script';
+  | /** A script was configured in the "wireit" section, and it's in the "scripts" section, but the "scripts" command is not "wireit". */ 'misconfigured-npm-script'
+  | /** Something is wrong about a script's wireit configuration. */ 'misconfigured';

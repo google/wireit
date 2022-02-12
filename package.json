@@ -15,6 +15,7 @@
     "ts": "wireit",
     "test": "wireit",
     "test:runmode": "wireit",
+    "test:workspaces": "wireit",
     "test:freshness": "wireit",
     "test:watchmode": "wireit",
     "test:filesystem-caching": "wireit",
@@ -42,6 +43,7 @@
     "test": {
       "dependencies": [
         "test:runmode",
+        "test:workspaces",
         "test:freshness",
         "test:watchmode",
         "test:filesystem-caching",
@@ -50,6 +52,14 @@
     },
     "test:runmode": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
+      "files": [],
+      "output": [],
+      "dependencies": [
+        "ts"
+      ]
+    },
+    "test:workspaces": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"workspaces-test.js$\"",
       "files": [],
       "output": [],
       "dependencies": [

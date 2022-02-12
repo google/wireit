@@ -1,5 +1,7 @@
 import * as fs from 'fs/promises';
 import {KnownError} from './known-error.js';
+import fastglob from 'fast-glob';
+import * as pathlib from 'path';
 
 import type {PackageJson, Config} from '../types/config.js';
 
@@ -52,7 +54,40 @@ export const readConfig = async (packageJsonPath: string): Promise<Config> => {
     }
   }
 
+  // TODO(aomarks) This resolution logic is super inefficient.
   const scripts = packageJson.wireit ?? {};
+  for (const [scriptName, scriptConfig] of Object.entries(scripts)) {
+    const resolvedDependencies: string[] = [];
+    for (const dep of scriptConfig.dependencies ?? []) {
+      const workspacesMatch = dep.match(/^\$WORKSPACES(?::(.+))?$/);
+      if (workspacesMatch !== null) {
+        const script = workspacesMatch[1] ?? scriptName;
+        const workspaces = await fastglob(packageJson.workspaces ?? [], {
+          cwd: pathlib.dirname(packageJsonPath),
+          onlyDirectories: true,
+          absolute: true,
+        });
+        for (const workspace of workspaces) {
+          const workspaceConfig = await readConfig(
+            pathlib.join(workspace, 'package.json')
+          );
+          if (workspaceConfig.scripts?.[script] !== undefined) {
+            // TODO(aomarks) It seems silly to have to build a <path>:<script>
+            // syntax here. We should have a structured format.
+            resolvedDependencies.push(
+              './' +
+                pathlib.relative(pathlib.dirname(packageJsonPath), workspace) +
+                ':' +
+                script
+            );
+          }
+        }
+      } else {
+        resolvedDependencies.push(dep);
+      }
+    }
+    scriptConfig.dependencies = resolvedDependencies;
+  }
 
   // Vanilla scripts are scripts too. They just won't have any freshness,
   // caching, or watch support.
