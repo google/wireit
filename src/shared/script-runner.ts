@@ -224,7 +224,6 @@ export class ScriptRunner {
         console.log(`♻️ [${scriptName}] Restoring from cache`);
         await cachedOutput.apply();
       } else {
-        console.log(`🏃 [${scriptName}] Running command`);
         // Delete the current state before we start running, because if there
         // was a previously successful run in a different state, and this run
         // fails, then the next time we run, we would otherwise incorrectly
@@ -236,6 +235,7 @@ export class ScriptRunner {
         // variables that a user's script might need.
         const releaseParallelismReservation =
           await this._parallelismLimiter.reserve();
+        console.log(`🏃 [${scriptName}] Running command`);
         const child = spawn('npx', ['-c', script.command], {
           cwd: pathlib.dirname(config.packageJsonPath),
           stdio: 'inherit',
