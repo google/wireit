@@ -27,6 +27,7 @@
     "test:watchmode": "wireit",
     "test:filesystem-caching": "wireit",
     "test:github-caching": "wireit",
+    "test:util": "wireit",
     "clean": "rm -rf lib",
     "nuke": "rm -rf node_modules && npm ci",
     "upgrade": "rm -rf node_modules package-lock.json && npm i"
@@ -54,7 +55,8 @@
         "test:freshness",
         "test:watchmode",
         "test:filesystem-caching",
-        "test:github-caching"
+        "test:github-caching",
+        "test:test:util"
       ]
     },
     "test:runmode": {
@@ -99,6 +101,14 @@
     },
     "test:github-caching": {
       "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"github-caching-test.js$\"",
+      "files": [],
+      "output": [],
+      "dependencies": [
+        "ts"
+      ]
+    },
+    "test:util": {
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"util-test.js$\"",
       "files": [],
       "output": [],
       "dependencies": [

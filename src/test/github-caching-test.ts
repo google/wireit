@@ -216,4 +216,114 @@ test(
   })
 );
 
+test(
+  'cross-package output is cached when launched from root',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            dependencies: ['./pkg1:cmd', './pkg2:cmd'],
+          },
+        },
+      },
+      'pkg1/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd1.command(),
+            files: ['input.txt'],
+            output: ['out/**'],
+          },
+        },
+      },
+      'pkg2/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd2.command(),
+            files: ['input.txt'],
+            output: ['out/**'],
+          },
+        },
+      },
+    });
+
+    // Run with input v0.
+    {
+      await rig.writeFiles({
+        'pkg1/input.txt': '1v0',
+        'pkg2/input.txt': '2v0',
+      });
+      const out = rig.exec('GITHUB_CACHE=1 npm run cmd');
+      await cmd1.waitUntilStarted();
+      await cmd2.waitUntilStarted();
+      await rig.writeFiles({'pkg1/out/output.txt': '1v0'});
+      await rig.writeFiles({'pkg2/out/output.txt': '2v0'});
+      await cmd1.exit(0);
+      await cmd2.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 1);
+    }
+
+    // Run with input v1 to make scripts stale.
+    {
+      await rig.writeFiles({
+        'pkg1/input.txt': '1v1',
+        'pkg2/input.txt': '2v1',
+      });
+      const out = rig.exec('GITHUB_CACHE=1 npm run cmd');
+      await cmd1.waitUntilStarted();
+      await cmd2.waitUntilStarted();
+      await rig.writeFiles({'pkg1/out/output.txt': '1v1'});
+      await rig.writeFiles({'pkg2/out/output.txt': '2v1'});
+      await cmd1.exit(0);
+      await cmd2.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 2);
+    }
+
+    // Run with input v0 again. We should not need to run the command, because
+    // we already have the output of v0 cached.
+    {
+      await rig.writeFiles({
+        'pkg1/input.txt': '1v0',
+        'pkg2/input.txt': '2v0',
+      });
+      const out = rig.exec('GITHUB_CACHE=1 npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 2);
+      assert.equal(await rig.readFile('pkg1/out/output.txt'), '1v0');
+      assert.equal(await rig.readFile('pkg2/out/output.txt'), '2v0');
+    }
+
+    // Run with input v1 again. We should not need to run the command, because
+    // we already have the output of v1 cached.
+    {
+      await rig.writeFiles({
+        'pkg1/input.txt': '1v1',
+        'pkg2/input.txt': '2v1',
+      });
+      const out = rig.exec('GITHUB_CACHE=1 npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 2);
+      assert.equal(await rig.readFile('pkg1/out/output.txt'), '1v1');
+      assert.equal(await rig.readFile('pkg2/out/output.txt'), '2v1');
+    }
+  })
+);
+
 test.run();

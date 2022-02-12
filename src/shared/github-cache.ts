@@ -1,6 +1,7 @@
 import {createHash} from 'crypto';
 import * as cache from '@actions/cache';
 import * as pathlib from 'path';
+import {rewriteGlob} from './rewrite-glob.js';
 
 import type {Cache} from './cache.js';
 
@@ -18,6 +19,13 @@ export class GitHubCache implements Cache {
     // https://github.com/actions/toolkit/blob/15e23998268e31520e3d93cbd106bd3228dea77f/packages/cache/src/cache.ts#L32
     // key can't have commas or be > 512 characters.
 
+    // The GitHub caching library doesn't support passing a cwd, so we need to
+    // rewrite the globs to be absolute, because they are currently relative to
+    // the specific package.
+    scriptOutputGlobs = scriptOutputGlobs.map((glob) =>
+      rewriteGlob(glob, pathlib.dirname(packageJsonPath))
+    );
+
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     // TODO(aomarks) @actions/cache doesn't let us just test for a cache hit, so
@@ -31,6 +39,7 @@ export class GitHubCache implements Cache {
       throw err;
     }
     if (id !== undefined) {
+      console.log(`🐱 [${scriptName}] Restored from GitHub cache`);
       return new GitHubCachedOutput();
     }
   }
@@ -44,6 +53,12 @@ export class GitHubCache implements Cache {
     if (scriptOutputGlobs.length === 0) {
       scriptOutputGlobs = [fakeFilenameForScriptWithNoOutput(packageJsonPath)];
     }
+    // The GitHub caching library doesn't support passing a cwd, so we need to
+    // rewrite the globs to be absolute, because they are currently relative to
+    // the specific package.
+    scriptOutputGlobs = scriptOutputGlobs.map((glob) =>
+      rewriteGlob(glob, pathlib.dirname(packageJsonPath))
+    );
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     console.log(`🐱 [${scriptName}] Saving to GitHub cache`);
