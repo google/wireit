@@ -16,6 +16,8 @@
 
 ## Open questions
 
+- Should we only parallelize contiguous blocks of wireit scripts when using
+  $WORKSPACES?
 - Can scripts start with "." or ":." etc.? How to escape.
 - Be careful with automatic deletion! It could easily delete way too much.
 - Should --parallel default to num CPU cores?
