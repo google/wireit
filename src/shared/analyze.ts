@@ -1,6 +1,6 @@
 import {KnownError} from '../shared/known-error.js';
-import {readConfig} from '../shared/read-config.js';
-import {resolveScript} from '../shared/resolve-script.js';
+import {readRawConfig} from './read-raw-config.js';
+import {resolveDependency} from '../shared/resolve-script.js';
 import * as pathlib from 'path';
 
 export const analyze = async (
@@ -8,8 +8,8 @@ export const analyze = async (
   scriptName: string,
   globs: Map<string, string[]>
 ) => {
-  const config = await readConfig(packageJsonPath);
-  const script = config.scripts?.[scriptName];
+  const config = await readRawConfig(packageJsonPath);
+  const script = config.scripts[scriptName];
   if (script === undefined) {
     throw new KnownError(
       'script-not-found',
@@ -18,10 +18,15 @@ export const analyze = async (
   }
   const promises = [];
   for (const dep of script.dependencies ?? []) {
-    const resolved = resolveScript(packageJsonPath, dep);
-    promises.push(
-      analyze(resolved.packageJsonPath, resolved.scriptName, globs)
-    );
+    for (const resolved of await resolveDependency(
+      packageJsonPath,
+      dep,
+      scriptName
+    )) {
+      promises.push(
+        analyze(resolved.packageJsonPath, resolved.scriptName, globs)
+      );
+    }
   }
   await Promise.all(promises);
   const root = pathlib.dirname(packageJsonPath);

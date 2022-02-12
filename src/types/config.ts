@@ -1,19 +1,39 @@
+/**
+ * A raw package.json JSON object.
+ */
 export interface PackageJson {
   scripts?: {[scriptName: string]: string};
-  wireit?: {[scriptName: string]: Script};
+  wireit?: {[scriptName: string]: RawScript};
   workspaces?: string[];
 }
 
-export interface Config {
-  packageJsonPath: string;
-  scripts?: {[scriptName: string]: Script};
-}
-
-export interface Script {
+/**
+ * A wireit script config directly from the package.json.
+ */
+export interface RawScript {
   command?: string;
   dependencies?: string[];
   files?: string[];
   output?: string[];
   checkPackageLocks?: boolean;
   deleteOutputBeforeEachRun?: boolean;
+}
+
+/**
+ * A fully resolved reference to a script in a specific package.
+ */
+export interface ResolvedScriptReference {
+  /** Absolute path to the package. */
+  // TODO(aomarks) Change this to just package.
+  packageJsonPath: string;
+  /** A concrete script name (no ./ or $WORKSPACES etc.) */
+  scriptName: string;
+}
+
+/**
+ * A wireit package with its raw unresolved scripts.
+ */
+export interface RawPackageConfig {
+  packageJsonPath: string;
+  scripts: {[scriptName: string]: RawScript};
 }

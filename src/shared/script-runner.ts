@@ -1,9 +1,9 @@
 import {KnownError} from '../shared/known-error.js';
-import {readConfig} from '../shared/read-config.js';
+import {readRawConfig} from './read-raw-config.js';
 import {spawn} from 'child_process';
 import * as pathlib from 'path';
 import fastglob from 'fast-glob';
-import {resolveScript} from '../shared/resolve-script.js';
+import {resolveDependency} from '../shared/resolve-script.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
@@ -11,7 +11,7 @@ import {Deferred} from '../shared/deferred.js';
 import {ReservationPool} from '../shared/reservation-pool.js';
 
 import type {Cache} from '../shared/cache.js';
-import type {Config, Script} from '../types/config.js';
+import type {RawPackageConfig, RawScript} from '../types/config.js';
 
 interface ScriptStatus {
   cacheKey: CacheKey;
@@ -36,7 +36,7 @@ interface FileContentHash {
 }
 
 export class ScriptRunner {
-  private readonly _configs = new Map<string, Promise<Config>>();
+  private readonly _configs = new Map<string, Promise<RawPackageConfig>>();
   private readonly _scriptPromises = new Map<string, Promise<ScriptStatus>>();
   private readonly _abort: Promise<unknown>;
   private readonly _cache: Cache;
@@ -71,10 +71,7 @@ export class ScriptRunner {
     const done = new Deferred<ScriptStatus>();
     this._scriptPromises.set(scriptId, done.promise);
 
-    const {config, script} = await this._findConfigAndScript(
-      packageJsonPath,
-      scriptName
-    );
+    const script = await this._findScript(packageJsonPath, scriptName);
 
     const newCacheKeyData: CacheKey = {
       command: script.command!, // TODO(aomarks) This shouldn't be undefined.
@@ -85,40 +82,58 @@ export class ScriptRunner {
     };
 
     if (script.dependencies?.length) {
+      const resolvedDependencies = (
+        await Promise.all(
+          script.dependencies.map(
+            async (depSpecifier) =>
+              await resolveDependency(packageJsonPath, depSpecifier, scriptName)
+          )
+        )
+      ).flat();
+
       // IMPORTANT: We must sort here, because it's important that the insertion
       // order of dependency entries in our cache key is deterministic.
-      script.dependencies.sort((a, b) => a.localeCompare(b));
+      resolvedDependencies.sort((a, b) => {
+        if (a.packageJsonPath !== b.packageJsonPath) {
+          return a.packageJsonPath.localeCompare(b.packageJsonPath);
+        }
+        return a.scriptName.localeCompare(b.scriptName);
+      });
 
-      const depScriptPromises = [];
-      for (const depScriptName of script.dependencies) {
-        depScriptPromises.push(
-          this.run(
-            // This is wrong! It's setting the wrong package json path.
-            config.packageJsonPath,
-            depScriptName,
-            new Set(stack).add(scriptId)
-          )
-        );
-      }
       // Note we use Promise.allSettled() instead of Promise.all() here because
       // we want don't want our top-level script to throw until all sub-scripts
       // have had a chance to clean up in the case of a failure.
-      const results = await Promise.allSettled(depScriptPromises);
-      for (let i = 0; i < script.dependencies.length; i++) {
-        const depScriptName = script.dependencies[i];
-        const result = results[i];
+      const depResults = await Promise.allSettled(
+        resolvedDependencies.map((dep) =>
+          this.run(
+            dep.packageJsonPath,
+            dep.scriptName,
+            new Set(stack).add(scriptId)
+          )
+        )
+      );
+      for (let i = 0; i < depResults.length; i++) {
+        const result = depResults[i];
         if (result.status === 'rejected') {
           // TODO(aomarks) There could be multiple failures, but we'll only show
           // an arbitrary one.
           throw result.reason;
         }
-        newCacheKeyData.dependencies[depScriptName] = result.value.cacheKey;
+        const scriptReference = resolvedDependencies[i];
+        const cacheKeyName =
+          scriptReference.packageJsonPath === packageJsonPath
+            ? scriptReference.scriptName
+            : `${pathlib.relative(
+                pathlib.dirname(packageJsonPath),
+                scriptReference.packageJsonPath
+              )}:${scriptReference.scriptName}`;
+        newCacheKeyData.dependencies[cacheKeyName] = result.value.cacheKey;
       }
     }
 
     if (script.files?.length) {
       const entries = await fastglob(script.files, {
-        cwd: pathlib.dirname(config.packageJsonPath),
+        cwd: pathlib.dirname(packageJsonPath),
         dot: true,
       });
 
@@ -168,7 +183,7 @@ export class ScriptRunner {
       // safer to assume that the inputs could be anything, and hence always
       // might have changed.
       const existingFsCacheKey = await this._readCurrentState(
-        config.packageJsonPath,
+        packageJsonPath,
         scriptName
       );
 
@@ -191,7 +206,7 @@ export class ScriptRunner {
         if (script.deleteOutputBeforeEachRun ?? true) {
           // Delete any existing output files.
           const existingOutputFiles = await fastglob(script.output, {
-            cwd: pathlib.dirname(config.packageJsonPath),
+            cwd: pathlib.dirname(packageJsonPath),
             dot: true,
           });
           if (existingOutputFiles.length > 0) {
@@ -238,7 +253,7 @@ export class ScriptRunner {
           await this._parallelismLimiter.reserve();
         console.log(`🏃 [${scriptName}] Running command`);
         const child = spawn('npx', ['-c', script.command], {
-          cwd: pathlib.dirname(config.packageJsonPath),
+          cwd: pathlib.dirname(packageJsonPath),
           stdio: 'inherit',
           detached: true,
         });
@@ -302,39 +317,34 @@ export class ScriptRunner {
     }
 
     if (script.files !== undefined) {
-      await this._writeCurrentState(
-        config.packageJsonPath,
-        scriptName,
-        newCacheKey
-      );
+      await this._writeCurrentState(packageJsonPath, scriptName, newCacheKey);
     }
 
     done.resolve({cacheKey: newCacheKeyData});
     return done.promise;
   }
 
-  private async _findConfigAndScript(
+  private async _findScript(
     packageJsonPath: string,
     scriptName: string
-  ): Promise<{config: Config; script: Script}> {
-    const resolved = resolveScript(packageJsonPath, scriptName);
-    packageJsonPath = resolved.packageJsonPath;
-    scriptName = resolved.scriptName;
-    const config = await this._getConfig(packageJsonPath);
-    const script = config.scripts?.[scriptName];
+  ): Promise<RawScript> {
+    const rawConfig = await this._getRawConfig(packageJsonPath);
+    const script = rawConfig.scripts?.[scriptName];
     if (script === undefined) {
       throw new KnownError(
         'script-not-found',
         `Could not find script ${scriptName} in ${packageJsonPath}`
       );
     }
-    return {config, script};
+    return script;
   }
 
-  private async _getConfig(packageJsonPath: string): Promise<Config> {
+  private async _getRawConfig(
+    packageJsonPath: string
+  ): Promise<RawPackageConfig> {
     let promise = this._configs.get(packageJsonPath);
     if (promise === undefined) {
-      promise = readConfig(packageJsonPath);
+      promise = readRawConfig(packageJsonPath);
       this._configs.set(packageJsonPath, promise);
     }
     return promise;
