@@ -16,10 +16,6 @@
 - Add clean command
 - Add dry run mode
 
-## Bugs
-
-- Package json path is totally wrong!
-
 ## Open questions
 
 - How to deal with .tsbuildinfo files. Should they be inputs? Maybe we mark

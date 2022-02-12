@@ -75,6 +75,90 @@ test(
 );
 
 test(
+  'cross-package freshness',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    await rig.writeFiles({
+      'pkg1/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd1.command(),
+            dependencies: ['../pkg2:cmd'],
+            files: ['input.txt'],
+          },
+        },
+      },
+      'pkg2/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd2.command(),
+            files: ['input.txt'],
+          },
+        },
+      },
+      // Each package script has its own input file.
+      'pkg1/input.txt': 'v0',
+      'pkg2/input.txt': 'v0',
+    });
+
+    // Has to run the first time.
+    {
+      const process = rig.exec('npm run cmd', {cwd: 'pkg1'});
+      await cmd2.waitUntilStarted();
+      await cmd2.exit(0);
+      await cmd1.waitUntilStarted();
+      await cmd1.exit(0);
+      const {code} = await process.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 1);
+      assert.equal(cmd2.startedCount, 1);
+    }
+
+    // Still fresh.
+    {
+      const process = rig.exec('npm run cmd', {cwd: 'pkg1'});
+      const {code} = await process.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 1);
+      assert.equal(cmd2.startedCount, 1);
+    }
+
+    // Change the input for pkg2. Both should re-run.
+    {
+      await rig.writeFiles({'pkg2/input.txt': 'v1'});
+      const process = rig.exec('npm run cmd', {cwd: 'pkg1'});
+      await cmd2.waitUntilStarted();
+      await cmd2.exit(0);
+      await cmd1.waitUntilStarted();
+      await cmd1.exit(0);
+      const {code} = await process.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 2);
+      assert.equal(cmd2.startedCount, 2);
+    }
+
+    // Change the input for pkg1. Only pkg1 should re-run.
+    {
+      await rig.writeFiles({'pkg1/input.txt': 'v1'});
+      const process = rig.exec('npm run cmd', {cwd: 'pkg1'});
+      await cmd1.waitUntilStarted();
+      await cmd1.exit(0);
+      const {code} = await process.done;
+      assert.equal(code, 0);
+      assert.equal(cmd1.startedCount, 3);
+      assert.equal(cmd2.startedCount, 2);
+    }
+  })
+);
+
+test(
   '2 scripts: run, fresh, run, fresh',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();

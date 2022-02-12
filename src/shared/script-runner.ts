@@ -128,8 +128,6 @@ export class ScriptRunner {
 
       const fileHashPromises: Array<Promise<string>> = [];
       for (const entry of entries) {
-        // TODO(aomarks) A test case to confirm that we are reading from the
-        // right directory (it passed a test, but failed in reality).
         fileHashPromises.push(
           fs
             .readFile(
