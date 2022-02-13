@@ -1,5 +1,11 @@
 # MVP
 
+## Bugs
+
+- Bug where pending processes don't exit
+- Bug when running task after "cd" command. Something to do with npm environment
+  variable.
+
 ## Features
 
 - Watch mode should reload configs when the configs change
@@ -67,17 +73,6 @@
 - Run CI tests on macOS
 - Windows support and test in CI
 - Test with a known good version on CI so that we don't have to bootstrap.
-
-# After MVP
-
-- Potential bugs
-
-  - Bug where pending processes don't exit
-  - Bug when running task after "cd" command. Something to do with npm
-    environment variable.
-  - Bug where failure in github caching silently exits
-  - GitHub actions is reporting success, even though script failed with
-    exception!
 
 # Next
 

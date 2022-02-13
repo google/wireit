@@ -271,6 +271,67 @@ test(
   })
 );
 
+/**
+ *     cmd1 <-- run
+ *     /   \
+ *    /     \
+ *   v       v
+ *  cmd2   cmd3
+ *    \     /
+ *     \   /
+ *      v v
+ *      cmd4 <-- error
+ */
+test(
+  'diamond failure',
+  timeout(async ({rig}) => {
+    const cmd1 = rig.newCommand();
+    const cmd2 = rig.newCommand();
+    const cmd3 = rig.newCommand();
+    const cmd4 = rig.newCommand();
+
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd1: 'wireit',
+          cmd2: 'wireit',
+          cmd3: 'wireit',
+          cmd4: 'wireit',
+        },
+        wireit: {
+          cmd1: {
+            command: cmd1.command(),
+            dependencies: ['cmd2', 'cmd3'],
+          },
+          cmd2: {
+            command: cmd2.command(),
+            dependencies: ['cmd4'],
+          },
+          cmd3: {
+            command: cmd3.command(),
+            dependencies: ['cmd4'],
+          },
+          cmd4: {
+            command: cmd4.command(),
+          },
+        },
+      },
+    });
+
+    const out = rig.exec('npm run cmd1');
+
+    await cmd4.waitUntilStarted();
+    await cmd4.exit(1);
+
+    const {code} = await out.done;
+    assert.equal(code, 1);
+    assert.equal(cmd1.startedCount, 0);
+    assert.equal(cmd2.startedCount, 0);
+    assert.equal(cmd3.startedCount, 0);
+    assert.equal(cmd4.startedCount, 1);
+  })
+);
+
 test(
   'cross package',
   timeout(async ({rig}) => {

@@ -7,7 +7,6 @@ import {resolveDependency} from '../shared/resolve-script.js';
 import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
-import {Deferred} from '../shared/deferred.js';
 import {ReservationPool} from '../shared/reservation-pool.js';
 
 import type {Cache} from '../shared/cache.js';
@@ -64,13 +63,20 @@ export class ScriptRunner {
       );
     }
 
-    const existingPromise = this._scriptPromises.get(scriptId);
-    if (existingPromise !== undefined) {
-      return existingPromise;
+    let promise = this._scriptPromises.get(scriptId);
+    if (promise === undefined) {
+      promise = this._run(packageJsonPath, scriptName, stack);
+      this._scriptPromises.set(scriptId, promise);
     }
-    const done = new Deferred<ScriptStatus>();
-    this._scriptPromises.set(scriptId, done.promise);
+    return promise;
+  }
 
+  async _run(
+    packageJsonPath: string,
+    scriptName: string,
+    stack: Set<string>
+  ): Promise<ScriptStatus> {
+    const scriptId = JSON.stringify([packageJsonPath, scriptName]);
     const script = await this._findScript(packageJsonPath, scriptName);
 
     const newCacheKeyData: CacheKey = {
@@ -190,8 +196,7 @@ export class ScriptRunner {
       const cacheKeyStale = newCacheKey !== existingFsCacheKey;
       if (!cacheKeyStale) {
         console.log(`🥬 [${scriptName}] Already fresh!`);
-        done.resolve({cacheKey: newCacheKeyData});
-        return done.promise;
+        return {cacheKey: newCacheKeyData};
       }
     }
 
@@ -320,8 +325,7 @@ export class ScriptRunner {
       await this._writeCurrentState(packageJsonPath, scriptName, newCacheKey);
     }
 
-    done.resolve({cacheKey: newCacheKeyData});
-    return done.promise;
+    return {cacheKey: newCacheKeyData};
   }
 
   private async _findScript(
