@@ -56,7 +56,7 @@
         "test:watchmode",
         "test:filesystem-caching",
         "test:github-caching",
-        "test:test:util"
+        "test:util"
       ]
     },
     "test:runmode": {

@@ -1,7 +1,7 @@
 import {createHash} from 'crypto';
 import * as cache from '@actions/cache';
 import * as pathlib from 'path';
-import {rewriteGlob} from './rewrite-glob.js';
+import {expandGlobCurlyGroups, changeGlobDirectory} from './rewrite-glob.js';
 
 import type {Cache} from './cache.js';
 
@@ -15,17 +15,13 @@ export class GitHubCache implements Cache {
     if (scriptOutputGlobs.length === 0) {
       scriptOutputGlobs = [fakeFilenameForScriptWithNoOutput(packageJsonPath)];
     }
+    scriptOutputGlobs = normalizeGlobsForGitHubCaching(
+      scriptOutputGlobs,
+      packageJsonPath
+    );
     // TODO(aomarks)
     // https://github.com/actions/toolkit/blob/15e23998268e31520e3d93cbd106bd3228dea77f/packages/cache/src/cache.ts#L32
     // key can't have commas or be > 512 characters.
-
-    // The GitHub caching library doesn't support passing a cwd, so we need to
-    // rewrite the globs to be absolute, because they are currently relative to
-    // the specific package.
-    scriptOutputGlobs = scriptOutputGlobs.map((glob) =>
-      rewriteGlob(glob, pathlib.dirname(packageJsonPath))
-    );
-
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     // TODO(aomarks) @actions/cache doesn't let us just test for a cache hit, so
@@ -53,11 +49,9 @@ export class GitHubCache implements Cache {
     if (scriptOutputGlobs.length === 0) {
       scriptOutputGlobs = [fakeFilenameForScriptWithNoOutput(packageJsonPath)];
     }
-    // The GitHub caching library doesn't support passing a cwd, so we need to
-    // rewrite the globs to be absolute, because they are currently relative to
-    // the specific package.
-    scriptOutputGlobs = scriptOutputGlobs.map((glob) =>
-      rewriteGlob(glob, pathlib.dirname(packageJsonPath))
+    scriptOutputGlobs = normalizeGlobsForGitHubCaching(
+      scriptOutputGlobs,
+      packageJsonPath
     );
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
@@ -68,6 +62,26 @@ export class GitHubCache implements Cache {
     console.log(`🐱 [${scriptName}] Saved to GitHub cache`);
   }
 }
+
+/**
+ * Rewrite the given globs to be compatible with the GitHub caching library. It
+ * doesn't support `a.{x,y}` style curly groups, so we need to expand those. It
+ * also doesn't take a cwd, so we need to rewrite the globs to be absolute to
+ * the package directory from which they were defined.
+ */
+const normalizeGlobsForGitHubCaching = (
+  globs: string[],
+  packageJsonPath: string
+): string[] => {
+  const packageDir = pathlib.dirname(packageJsonPath);
+  const normalized = [];
+  for (const glob of globs) {
+    for (const expanded of expandGlobCurlyGroups(glob)) {
+      normalized.push(changeGlobDirectory(expanded, packageDir));
+    }
+  }
+  return normalized;
+};
 
 /**
  * @actions/cache throws if we don't provide at least one filepath. However, it
