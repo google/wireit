@@ -2,6 +2,8 @@
 
 ## Bugs
 
+- Should not restore from cache when no input files defined.
+- Symlinks
 - Bug where pending processes don't exit
 - Bug when running task after "cd" command. Something to do with npm environment
   variable.
@@ -24,6 +26,12 @@
 
 ## Open questions
 
+- The meaning of "/" prefix on file/output paths. It looks like NPM's "files"
+  array always interprets those as relative to the package. If that's the case,
+  we should too. But also think about relative paths outside the package (what
+  does npm files do in that case?).
+- Check that we stay within the package directory in caching. Should it be
+  possible to reach outside somehow?
 - How to deal with .tsbuildinfo files. Should they be inputs? Maybe we mark
   deleteOutputBeforeEachRun:false?
 - Should we only parallelize contiguous blocks of wireit scripts when using
@@ -34,8 +42,6 @@
 - Does the globbing behavior of chokidar and fast-glob match?
 - Are we handling "close" vs "exit" and "error" events correctly when spawning?
 - How to deal with symlinks in caching
-- Check that we stay within the package directory in caching. Should it be
-  possible to reach outside somehow?
 - GitHub Actions salt to force cache bust
 - What does watch mode do with undefined or empty files? Maybe it should default
   to all files in the package?
