@@ -42,6 +42,7 @@ export class FilesystemCache implements Cache {
     const entries = await fastglob(scriptOutputGlobs, {
       cwd: packageRoot,
       dot: true,
+      followSymbolicLinks: false,
     });
     const cacheDir = pathlib.resolve(
       packageRoot,
