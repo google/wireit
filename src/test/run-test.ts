@@ -39,7 +39,7 @@ test(
 );
 
 test(
-  'runs node binaries when invoked via npm script',
+  'can run node_modules binaries in starting directory',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -60,6 +60,74 @@ test(
     });
     await rig.chmod('node_modules/.bin/installed-binary', '755');
     const out = rig.exec('npm run cmd');
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+  })
+);
+
+test(
+  'can run node_modules binaries in parent directory',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'subdir/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: 'parent-binary',
+          },
+        },
+      },
+      'node_modules/.bin/parent-binary': [
+        '#!/usr/bin/env bash',
+        cmd.command(),
+      ].join('\n'),
+    });
+    await rig.chmod('node_modules/.bin/parent-binary', '755');
+    const out = rig.exec('npm run cmd', {cwd: 'subdir'});
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+  })
+);
+
+test(
+  'calls run node_modules binaries in sibling directory',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'subdir1/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            dependencies: ['../subdir2:cmd'],
+          },
+        },
+      },
+      'subdir2/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: 'sibling-binary',
+          },
+        },
+      },
+      'subdir2/node_modules/.bin/sibling-binary': [
+        '#!/usr/bin/env bash',
+        cmd.command(),
+      ].join('\n'),
+    });
+    await rig.chmod('subdir2/node_modules/.bin/sibling-binary', '755');
+    const out = rig.exec('npm run cmd', {cwd: 'subdir1'});
     await cmd.waitUntilStarted();
     await cmd.exit(0);
     const {code} = await out.done;
