@@ -50,6 +50,20 @@ export class TestRig {
     );
   }
 
+  async symlink(target: string, file: string): Promise<void> {
+    const absolute = path.resolve(this._filesTempDir, file);
+    try {
+      await fs.unlink(absolute);
+    } catch (err) {
+      if ((err as {code?: string}).code !== 'ENOENT') {
+        throw err;
+      }
+      await fs.mkdir(path.dirname(absolute), {recursive: true});
+    }
+    console.log('symlink', {target, absolute});
+    await fs.symlink(target, absolute);
+  }
+
   async rmFile(filename: string): Promise<void> {
     const absolute = path.resolve(this._filesTempDir, filename);
     return fs.rm(absolute, {force: true, recursive: true});

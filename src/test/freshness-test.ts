@@ -879,4 +879,66 @@ test(
   })
 );
 
+test.skip(
+  'symlinks are not followed but affect freshness',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['inputs/**'],
+          },
+        },
+      },
+      'inputs/file1': 'v0',
+      'inputs/file2': 'v0',
+    });
+    await rig.symlink('./file1', 'inputs/link-1');
+    await rig.symlink('../inputs', 'inputs/link-recursive');
+
+    // Run 1 succeeds.
+    {
+      console.log(0);
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Run 2 is fresh.
+    {
+      console.log(1);
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    // Symlink target changes
+    console.log(2);
+    await rig.symlink('../inputs/xxx', 'inputs/foo');
+
+    // Run 3 is not fresh.
+    {
+      const out = rig.exec('npm run cmd');
+      console.log(3);
+      await cmd.waitUntilStarted();
+      console.log(4);
+      await cmd.exit(0);
+      console.log(5);
+      const {code} = await out.done;
+      console.log(6);
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+  })
+);
+
 test.run();
