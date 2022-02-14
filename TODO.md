@@ -2,8 +2,10 @@
 
 ## Bugs
 
-- Should not restore from cache when no input files defined.
 - Symlinks
+- Should not restore from cache when no input files defined.
+- Recursive `npx` doesn't work. Do we use `bash` directly? Annoying to have to
+  reproduce npm's behavior here (i.e. different shells on different OS's).
 - Bug where pending processes don't exit
 - Bug when running task after "cd" command. Something to do with npm environment
   variable.
