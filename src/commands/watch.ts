@@ -123,25 +123,27 @@ export default async (args: string[], abort: Promise<void>) => {
   };
 
   // Always run initially.
-  await runIgnoringScriptFailures();
+  try {
+    await runIgnoringScriptFailures();
 
-  while (true) {
-    const action = await Promise.race([
-      notification.promise,
-      abort.then(() => 'abort'),
-    ]);
-    if (action === 'abort') {
-      break;
+    while (true) {
+      const action = await Promise.race([
+        notification.promise,
+        abort.then(() => 'abort'),
+      ]);
+      if (action === 'abort') {
+        break;
+      }
+      notification = new Deferred();
+      const now = (global as any).performance.now();
+      const elapsed = now - lastFileChangeMs;
+      if (elapsed >= debounce) {
+        await runIgnoringScriptFailures();
+      } else {
+        setTimeout(() => notification.resolve(), debounce - elapsed);
+      }
     }
-    notification = new Deferred();
-    const now = (global as any).performance.now();
-    const elapsed = now - lastFileChangeMs;
-    if (elapsed >= debounce) {
-      await runIgnoringScriptFailures();
-    } else {
-      setTimeout(() => notification.resolve(), debounce - elapsed);
-    }
+  } finally {
+    await Promise.all(watchers.map((watcher) => watcher.close()));
   }
-
-  await Promise.all(watchers.map((watcher) => watcher.close()));
 };
