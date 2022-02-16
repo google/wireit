@@ -10,6 +10,7 @@ import {createHash} from 'crypto';
 import {ReservationPool} from '../shared/reservation-pool.js';
 import {iterateParentDirs} from '../shared/iterate-parent-dirs.js';
 import {loggableName} from '../shared/loggable-name.js';
+import {Deferred} from '../shared/deferred.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {RawPackageConfig, RawScript} from '../types/config.js';
@@ -42,9 +43,17 @@ export class ScriptRunner {
   private readonly _abort: Promise<unknown>;
   private readonly _cache: Cache;
   private readonly _parallelismLimiter: ReservationPool;
+  private readonly _anyScriptFailed = new Deferred<void>();
 
-  constructor(abort: Promise<unknown>, cache: Cache, parallel: number) {
-    this._abort = abort;
+  constructor(
+    abort: Promise<unknown>,
+    cache: Cache,
+    parallel: number,
+    failFast = true
+  ) {
+    this._abort = failFast
+      ? Promise.race([this._anyScriptFailed.promise, abort])
+      : abort;
     this._cache = cache;
     this._parallelismLimiter = new ReservationPool(parallel);
   }
@@ -57,21 +66,26 @@ export class ScriptRunner {
     scriptName: string,
     stack: Set<string>
   ): Promise<ScriptStatus> {
-    const logName = loggableName(packageJsonPath, scriptName);
-    const scriptId = JSON.stringify([packageJsonPath, scriptName]);
-    if (stack.has(scriptId)) {
-      throw new KnownError(
-        'cycle',
-        `[${logName}] Cycle detected at script in ${packageJsonPath}`
-      );
-    }
+    try {
+      const logName = loggableName(packageJsonPath, scriptName);
+      const scriptId = JSON.stringify([packageJsonPath, scriptName]);
+      if (stack.has(scriptId)) {
+        throw new KnownError(
+          'cycle',
+          `[${logName}] Cycle detected at script in ${packageJsonPath}`
+        );
+      }
 
-    let promise = this._scriptPromises.get(scriptId);
-    if (promise === undefined) {
-      promise = this._run(packageJsonPath, scriptName, stack);
-      this._scriptPromises.set(scriptId, promise);
+      let promise = this._scriptPromises.get(scriptId);
+      if (promise === undefined) {
+        promise = this._run(packageJsonPath, scriptName, stack);
+        this._scriptPromises.set(scriptId, promise);
+      }
+      return await promise;
+    } catch (err) {
+      this._anyScriptFailed.resolve();
+      throw err;
     }
-    return promise;
   }
 
   async _run(
