@@ -123,7 +123,11 @@ export class ScriptRunner {
       for (let i = 0; i < depResults.length; i++) {
         const result = depResults[i];
         if (result.status === 'rejected') {
-          errors.push(result.reason);
+          if (result.reason instanceof AggregateError) {
+            errors.push(...result.reason.errors);
+          } else {
+            errors.push(result.reason);
+          }
         } else {
           const scriptReference = resolvedDependencies[i];
           const cacheKeyName =
