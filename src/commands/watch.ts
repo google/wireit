@@ -110,14 +110,15 @@ export default async (args: string[], abort: Promise<void>) => {
     );
     try {
       await runner.run(packageJsonPath, scriptName, new Set());
-    } catch (err) {
-      if (
-        !(
-          err instanceof KnownError &&
-          (err.code === 'script-failed' || err.code === 'script-cancelled')
-        )
-      ) {
-        throw err;
+      console.error(`✅ Watch iteration succeeded`);
+    } catch (error) {
+      console.error(`❌ Watch iteration failed`);
+      const errors = error instanceof AggregateError ? error.errors : [error];
+      for (const e of errors) {
+        console.error('❌' + (e as Error).message);
+        if (!(e instanceof KnownError)) {
+          console.error((e as Error).stack);
+        }
       }
     }
   };
