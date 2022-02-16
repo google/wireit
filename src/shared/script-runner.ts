@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import {ReservationPool} from '../shared/reservation-pool.js';
 import {iterateParentDirs} from '../shared/iterate-parent-dirs.js';
+import {loggableName} from '../shared/loggable-name.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {RawPackageConfig, RawScript} from '../types/config.js';
@@ -56,11 +57,12 @@ export class ScriptRunner {
     scriptName: string,
     stack: Set<string>
   ): Promise<ScriptStatus> {
+    const logName = loggableName(packageJsonPath, scriptName);
     const scriptId = JSON.stringify([packageJsonPath, scriptName]);
     if (stack.has(scriptId)) {
       throw new KnownError(
         'cycle',
-        `Cycle detected at script ${scriptName} in ${packageJsonPath}`
+        `[${logName}] Cycle detected at script in ${packageJsonPath}`
       );
     }
 
@@ -77,6 +79,7 @@ export class ScriptRunner {
     scriptName: string,
     stack: Set<string>
   ): Promise<ScriptStatus> {
+    const logName = loggableName(packageJsonPath, scriptName);
     const scriptId = JSON.stringify([packageJsonPath, scriptName]);
     const script = await this._findScript(packageJsonPath, scriptName);
 
@@ -204,7 +207,7 @@ export class ScriptRunner {
 
       const cacheKeyStale = newCacheKey !== existingFsCacheKey;
       if (!cacheKeyStale) {
-        console.log(`🥬 [${scriptName}] Already fresh!`);
+        console.log(`🥬 [${logName}] Already fresh!`);
         return {cacheKey: newCacheKeyData};
       }
     }
@@ -226,7 +229,7 @@ export class ScriptRunner {
           });
           if (existingOutputFiles.length > 0) {
             console.log(
-              `🗑️ [${scriptName}] Deleting ${existingOutputFiles.length} existing output file(s)`
+              `🗑️ [${logName}] Deleting ${existingOutputFiles.length} existing output file(s)`
             );
             await Promise.all([
               existingOutputFiles.map((file) =>
@@ -252,7 +255,7 @@ export class ScriptRunner {
         }
       }
       if (cachedOutput !== undefined) {
-        console.log(`♻️ [${scriptName}] Restoring from cache`);
+        console.log(`♻️ [${logName}] Restoring from cache`);
         await cachedOutput.apply();
       } else {
         // Delete the current state before we start running, because if there
@@ -266,7 +269,7 @@ export class ScriptRunner {
         // variables that a user's script might need.
         const releaseParallelismReservation =
           await this._parallelismLimiter.reserve();
-        console.log(`🏃 [${scriptName}] Running command`);
+        console.log(`🏃 [${logName}] Running command`);
 
         // We could spawn a "npx -c" or "npm exec -c" command to set up the PATH
         // automatically, but we instead invoke the shell command directly. This
@@ -301,7 +304,7 @@ export class ScriptRunner {
           // TODO(aomarks) Do we need to handle "close"? Is there any way a
           // "close" event can be fired, but not an "exit" or "error" event?
           child.on('error', () => {
-            console.log(`❌ [${scriptName}] Failed to start`);
+            console.log(`❌ [${logName}] Failed to start`);
             reject(
               new KnownError(
                 'script-control-error',
@@ -311,19 +314,19 @@ export class ScriptRunner {
           });
           child.on('exit', (code, signal) => {
             if (signal !== null) {
-              console.log(`❌ [${scriptName}] Exited with signal ${code}`);
+              console.log(`❌ [${logName}] Exited with signal ${signal}`);
               reject(
                 new KnownError(
                   'script-cancelled',
-                  `Command ${scriptName} exited with signal ${code}`
+                  `Command ${scriptName} exited with signal ${signal}`
                 )
               );
             } else if (code !== 0) {
-              console.log(`❌ [${scriptName}] Failed with code ${code}`);
+              console.log(`❌ [${logName}] Failed with code ${code}`);
               reject(
                 new KnownError(
                   'script-failed',
-                  `Command ${scriptName} failed with code ${code}`
+                  `[${logName}] Command failed with code ${code}`
                 )
               );
             } else {
@@ -336,14 +339,14 @@ export class ScriptRunner {
           this._abort.then(() => 'abort'),
         ]);
         if (result === 'abort') {
-          console.log(`💀 [${scriptName}] Killing`);
+          console.log(`💀 [${logName}] Killing`);
           process.kill(-child.pid!, 'SIGINT');
           await completed;
           throw new Error(
-            `Unexpected internal error. Script ${scriptName} should have thrown.`
+            `[${logName}] Unexpected internal error. Script ${scriptName} should have thrown.`
           );
         }
-        console.log(`✅ [${scriptName}] Succeeded`);
+        console.log(`✅ [${logName}] Succeeded`);
         if (this._cache !== undefined && script.output !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutput(
@@ -372,7 +375,10 @@ export class ScriptRunner {
     if (script === undefined) {
       throw new KnownError(
         'script-not-found',
-        `Could not find script ${scriptName} in ${packageJsonPath}`
+        `[${loggableName(
+          packageJsonPath,
+          scriptName
+        )}] Could not find script ${scriptName} in ${packageJsonPath}`
       );
     }
     return script;

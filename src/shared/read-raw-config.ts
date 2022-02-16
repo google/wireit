@@ -1,5 +1,6 @@
 import {KnownError} from './known-error.js';
 import {readPackageJson} from './read-package-json.js';
+import {loggableName} from '../shared/loggable-name.js';
 
 import type {RawPackageConfig} from '../types/config.js';
 
@@ -22,14 +23,20 @@ export const readRawConfig = async (
     if (npmScript === undefined) {
       throw new KnownError(
         'missing-npm-script',
-        `${scriptName} is configured in the "wireit" section ` +
+        `[${loggableName(
+          packageJsonPath,
+          scriptName
+        )}] ${scriptName} is configured in the "wireit" section ` +
           `of ${packageJsonPath}, but not the "scripts" section.`
       );
     }
     if (npmScript !== 'wireit') {
       throw new KnownError(
         'misconfigured-npm-script',
-        `${scriptName} is configured in the "wireit" section ` +
+        `[${loggableName(
+          packageJsonPath,
+          scriptName
+        )}] ${scriptName} is configured in the "wireit" section ` +
           `of ${packageJsonPath}, but the "scripts" command ` +
           `is "${npmScript}" instead of "wireit".`
       );

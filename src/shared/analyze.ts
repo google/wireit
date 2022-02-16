@@ -2,6 +2,7 @@ import {KnownError} from '../shared/known-error.js';
 import {readRawConfig} from './read-raw-config.js';
 import {resolveDependency} from '../shared/resolve-script.js';
 import * as pathlib from 'path';
+import {loggableName} from '../shared/loggable-name.js';
 
 export const analyze = async (
   packageJsonPath: string,
@@ -13,7 +14,10 @@ export const analyze = async (
   if (script === undefined) {
     throw new KnownError(
       'script-not-found',
-      `No such script ${scriptName} in ${packageJsonPath}`
+      `[${loggableName(
+        packageJsonPath,
+        scriptName
+      )}] No such script ${scriptName} in ${packageJsonPath}`
     );
   }
   const promises = [];

@@ -2,6 +2,7 @@ import {createHash} from 'crypto';
 import * as cache from '@actions/cache';
 import * as pathlib from 'path';
 import {expandGlobCurlyGroups, changeGlobDirectory} from './rewrite-glob.js';
+import {loggableName} from '../shared/loggable-name.js';
 
 import type {Cache} from './cache.js';
 
@@ -35,7 +36,12 @@ export class GitHubCache implements Cache {
       throw err;
     }
     if (id !== undefined) {
-      console.log(`🐱 [${scriptName}] Restored from GitHub cache`);
+      console.log(
+        `🐱 [${loggableName(
+          packageJsonPath,
+          scriptName
+        )}] Restored from GitHub cache`
+      );
       return new GitHubCachedOutput();
     }
   }
@@ -55,11 +61,15 @@ export class GitHubCache implements Cache {
     );
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
-    console.log(`🐱 [${scriptName}] Saving to GitHub cache`);
+    console.log(
+      `🐱 [${loggableName(packageJsonPath, scriptName)}] Saving to GitHub cache`
+    );
     // TODO(aomarks) How can we be sure that the GitHub globbing library matches
     // our one?
     await cache.saveCache(scriptOutputGlobs, key);
-    console.log(`🐱 [${scriptName}] Saved to GitHub cache`);
+    console.log(
+      `🐱 [${loggableName(packageJsonPath, scriptName)}] Saved to GitHub cache`
+    );
   }
 }
 
