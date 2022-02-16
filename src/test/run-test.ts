@@ -39,7 +39,7 @@ test(
 );
 
 test(
-  'can run node_modules binaries in starting directory',
+  'can run node_modules binary in starting directory',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -68,7 +68,7 @@ test(
 );
 
 test(
-  'can run node_modules binaries in parent directory',
+  'can run node_modules binary in parent directory',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -97,7 +97,7 @@ test(
 );
 
 test(
-  'calls run node_modules binaries in sibling directory',
+  'can run node_modules binary in sibling directory',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
     await rig.writeFiles({
@@ -128,6 +128,73 @@ test(
     });
     await rig.chmod('subdir2/node_modules/.bin/sibling-binary', '755');
     const out = rig.exec('npm run cmd', {cwd: 'subdir1'});
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+  })
+);
+
+test(
+  'can run node_modules binary in non-shared parent directory',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            dependencies: ['./subdir1/subdir2:cmd'],
+          },
+        },
+      },
+      'subdir1/subdir2/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: 'binary',
+          },
+        },
+      },
+      'subdir1/node_modules/.bin/binary': [
+        '#!/usr/bin/env bash',
+        cmd.command(),
+      ].join('\n'),
+    });
+    await rig.chmod('subdir1/node_modules/.bin/binary', '755');
+    const out = rig.exec('npm run cmd');
+    await cmd.waitUntilStarted();
+    await cmd.exit(0);
+    const {code} = await out.done;
+    assert.equal(code, 0);
+  })
+);
+
+test(
+  'can run script that uses npx',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: 'npx binary',
+          },
+        },
+      },
+      'node_modules/.bin/binary': ['#!/usr/bin/env bash', cmd.command()].join(
+        '\n'
+      ),
+    });
+    await rig.chmod('node_modules/.bin/binary', '755');
+    const out = rig.exec('npm run cmd');
     await cmd.waitUntilStarted();
     await cmd.exit(0);
     const {code} = await out.done;

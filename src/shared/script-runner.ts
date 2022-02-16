@@ -8,6 +8,7 @@ import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import {ReservationPool} from '../shared/reservation-pool.js';
+import {iterateParentDirs} from '../shared/iterate-parent-dirs.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {RawPackageConfig, RawScript} from '../types/config.js';
@@ -259,10 +260,35 @@ export class ScriptRunner {
         const releaseParallelismReservation =
           await this._parallelismLimiter.reserve();
         console.log(`🏃 [${scriptName}] Running command`);
-        const child = spawn('npx', ['-c', script.command], {
+
+        // We could spawn a "npx -c" or "npm exec -c" command to set up the PATH
+        // automatically, but we instead invoke the shell command directly. This
+        // is because:
+        //
+        // 1. There is an issue related recursive invocations of those commands.
+        //    Specifically, using either sets an "npm_config_call" environment
+        //    variable, which then takes precedence over any argv command passed
+        //    to an "npx" (but not "npm exec") command that could be invoked
+        //    recursively. This prevents the use of "npx" within scripts.
+        //    TODO(aomarks) File a bug on npx about this.
+        //
+        // 2. It's much faster to invoke the shell command directly, since that
+        //    bypasses an intermediate npm Node process.
+        const childPathEnv =
+          [...iterateParentDirs(pathlib.dirname(packageJsonPath))]
+            .map((dir) => pathlib.join(dir, 'node_modules', '.bin'))
+            .join(':') +
+          ':' +
+          process.env.PATH;
+        // TODO(aomarks) npm doesn't use sh on Windows.
+        const child = spawn('sh', ['-c', script.command], {
           cwd: pathlib.dirname(packageJsonPath),
           stdio: 'inherit',
           detached: true,
+          env: {
+            ...process.env,
+            PATH: childPathEnv,
+          },
         });
         const completed = new Promise<void>((resolve, reject) => {
           // TODO(aomarks) Do we need to handle "close"? Is there any way a
