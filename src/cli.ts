@@ -21,16 +21,10 @@ const main = async () => {
       console.error('❌ Valid commmands are: run, watch');
       process.exitCode = 1;
     }
-  } catch (e) {
+  } catch (error) {
     console.error(`❌ Command ${cmd} failed`);
-    if (e instanceof AggregateError) {
-      for (const sub of e.errors) {
-        console.error('❌' + (sub as Error).message);
-        if (!(sub instanceof KnownError)) {
-          console.error((sub as Error).stack);
-        }
-      }
-    } else {
+    const errors = error instanceof AggregateError ? error.errors : [error];
+    for (const e of errors) {
       console.error('❌' + (e as Error).message);
       if (!(e instanceof KnownError)) {
         console.error((e as Error).stack);
