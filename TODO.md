@@ -16,6 +16,8 @@
 - Ability to say that a script shouldn't block the next step, but still fail
   overall (tsc style).
 - Ability to pass args directly to commands. Must be included in cache key.
+  Might want to prevent concurrent runs of the same script with different
+  arguments.
 - Output mode that prevents interleaved output (when concurrent scripts running,
   only one can have a lock on stdout/stderr at a time).
 - Ability to configure environment variables that are significant.

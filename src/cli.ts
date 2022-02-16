@@ -23,9 +23,18 @@ const main = async () => {
     }
   } catch (e) {
     console.error(`❌ Command ${cmd} failed`);
-    console.error((e as Error).message);
-    if (!(e instanceof KnownError)) {
-      console.error((e as Error).stack);
+    if (e instanceof AggregateError) {
+      for (const sub of e.errors) {
+        console.error('❌' + (sub as Error).message);
+        if (!(sub instanceof KnownError)) {
+          console.error((sub as Error).stack);
+        }
+      }
+    } else {
+      console.error('❌' + (e as Error).message);
+      if (!(e instanceof KnownError)) {
+        console.error((e as Error).stack);
+      }
     }
     process.exitCode = 1;
   }

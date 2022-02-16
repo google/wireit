@@ -119,22 +119,25 @@ export class ScriptRunner {
           )
         )
       );
+      let errors = [];
       for (let i = 0; i < depResults.length; i++) {
         const result = depResults[i];
         if (result.status === 'rejected') {
-          // TODO(aomarks) There could be multiple failures, but we'll only show
-          // an arbitrary one.
-          throw result.reason;
+          errors.push(result.reason);
+        } else {
+          const scriptReference = resolvedDependencies[i];
+          const cacheKeyName =
+            scriptReference.packageJsonPath === packageJsonPath
+              ? scriptReference.scriptName
+              : `${pathlib.relative(
+                  pathlib.dirname(packageJsonPath),
+                  scriptReference.packageJsonPath
+                )}:${scriptReference.scriptName}`;
+          newCacheKeyData.dependencies[cacheKeyName] = result.value.cacheKey;
         }
-        const scriptReference = resolvedDependencies[i];
-        const cacheKeyName =
-          scriptReference.packageJsonPath === packageJsonPath
-            ? scriptReference.scriptName
-            : `${pathlib.relative(
-                pathlib.dirname(packageJsonPath),
-                scriptReference.packageJsonPath
-              )}:${scriptReference.scriptName}`;
-        newCacheKeyData.dependencies[cacheKeyName] = result.value.cacheKey;
+      }
+      if (errors.length > 0) {
+        throw new AggregateError(errors);
       }
     }
 
