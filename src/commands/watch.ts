@@ -11,7 +11,12 @@ import mri from 'mri';
 
 const parseArgs = (
   args: string[]
-): {scriptName: string; parallel: number; interruptMode: boolean} => {
+): {
+  scriptName: string;
+  parallel: number;
+  interruptMode: boolean;
+  failFast: boolean;
+} => {
   // TODO(aomarks) Add validation.
   if (args[0] === 'watch') {
     // TODO(aomarks) So hacky.
@@ -22,11 +27,12 @@ const parseArgs = (
     scriptName: parsed._[0] ?? process.env.npm_lifecycle_event,
     parallel: parsed['parallel'] ?? Infinity,
     interruptMode: parsed['interrupt'] ?? false,
+    failFast: parsed['fail-fast'] ?? false,
   };
 };
 
 export default async (args: string[], abort: Promise<void>) => {
-  const {scriptName, parallel, interruptMode} = parseArgs(args);
+  const {scriptName, parallel, interruptMode, failFast} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
   // in some cases. E.g. when we invoke wireit from one npm script, but we're
@@ -106,7 +112,8 @@ export default async (args: string[], abort: Promise<void>) => {
     const runner = new ScriptRunner(
       Promise.race([abort, interrupt.promise]),
       new FilesystemCache(),
-      parallel
+      parallel,
+      failFast
     );
     try {
       await runner.run(packageJsonPath, scriptName, new Set());

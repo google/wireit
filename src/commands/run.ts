@@ -5,17 +5,20 @@ import {GitHubCache} from '../shared/github-cache.js';
 import mri from 'mri';
 import {ScriptRunner} from '../shared/script-runner.js';
 
-const parseArgs = (args: string[]): {scriptName: string; parallel: number} => {
+const parseArgs = (
+  args: string[]
+): {scriptName: string; parallel: number; failFast: boolean} => {
   // TODO(aomarks) Add validation.
   const parsed = mri(args);
   return {
     scriptName: parsed._[0] ?? process.env.npm_lifecycle_event,
     parallel: parsed['parallel'] ?? Infinity,
+    failFast: parsed['fail-fast'] ?? false,
   };
 };
 
 export default async (args: string[], abort: Promise<void>) => {
-  const {scriptName, parallel} = parseArgs(args);
+  const {scriptName, parallel, failFast} = parseArgs(args);
 
   // We could check process.env.npm_package_json here, but it's actually wrong
   // in some cases. E.g. when we invoke wireit from one npm script, but we're
@@ -31,6 +34,6 @@ export default async (args: string[], abort: Promise<void>) => {
   const cache = process.env.GITHUB_CACHE
     ? new GitHubCache()
     : new FilesystemCache();
-  const runner = new ScriptRunner(abort, cache, parallel);
+  const runner = new ScriptRunner(abort, cache, parallel, failFast);
   await runner.run(packageJsonPath, scriptName, new Set());
 };

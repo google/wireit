@@ -49,7 +49,7 @@ export class ScriptRunner {
     abort: Promise<unknown>,
     cache: Cache,
     parallel: number,
-    failFast = true
+    failFast: boolean
   ) {
     this._abort = failFast
       ? Promise.race([this._anyScriptFailed.promise, abort])
