@@ -314,6 +314,7 @@ export class ScriptRunner {
             PATH: childPathEnv,
           },
         });
+        let killing = false;
         const completed = new Promise<void>((resolve, reject) => {
           // TODO(aomarks) Do we need to handle "close"? Is there any way a
           // "close" event can be fired, but not an "exit" or "error" event?
@@ -328,7 +329,9 @@ export class ScriptRunner {
           });
           child.on('exit', (code, signal) => {
             if (signal !== null) {
-              console.log(`❌ [${logName}] Exited with signal ${signal}`);
+              if (!killing) {
+                console.log(`❌ [${logName}] Exited with signal ${signal}`);
+              }
               reject(
                 new KnownError(
                   'script-cancelled',
@@ -354,6 +357,7 @@ export class ScriptRunner {
         ]);
         if (result === 'abort') {
           console.log(`💀 [${logName}] Killing`);
+          killing = true;
           process.kill(-child.pid!, 'SIGINT');
           await completed;
           throw new Error(
