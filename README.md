@@ -26,11 +26,12 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
   - [GitHub Actions caching](#github-actions-caching)
 - [Deleting output](#deleting-output)
 - [Watch mode](#watch-mode)
+  - [Interrupt](#interrupt)
+- [Failures](#failures)
 - [Parallelism](#parallelism)
 - [Monorepos](#monorepos)
   - [npm workspaces](#npm-workspaces)
 - [NPM package locks](#npm-package-locks)
-- [Comparison](#comparison)
 
 ## Install
 
@@ -272,7 +273,19 @@ build and start the next one.
 npm run build -- watch --interrupt
 ```
 
-### Parallelism
+## Failures
+
+By default, if a script fails, wireit allows any other pending scripts to finish before
+finally exiting with an error.
+
+To change this behavior and immediately kill any pending scripts as soon as one fails,
+use the `--fail-fast` flag:
+
+```sh
+npm run build -- --fail-fast
+```
+
+## Parallelism
 
 By default, wireit runs with unbounded parallelism. To limit the number of
 scripts that can be running simultaneously, use the `--parallel` flag.
