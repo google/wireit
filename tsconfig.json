@@ -13,7 +13,8 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo"
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts"],
   "exclude": []

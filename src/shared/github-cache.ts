@@ -1,5 +1,5 @@
 import {createHash} from 'crypto';
-import * as cache from '@actions/cache';
+import * as cache from './github-cache-patched.js';
 import * as pathlib from 'path';
 import {expandGlobCurlyGroups, changeGlobDirectory} from './rewrite-glob.js';
 import {loggableName} from '../shared/loggable-name.js';
@@ -30,20 +30,20 @@ export class GitHubCache implements Cache {
     // we apply immediately and the output object is a no-op. The underlying
     // library does. But what we really want is a separate manifest cache item
     // that we can apply to a virtual fielsystem.
-    let id;
+    let fn: (() => Promise<void>) | undefined;
     try {
-      id = await cache.restoreCache(scriptOutputGlobs, key);
+      fn = await cache.restoreCache(scriptOutputGlobs, key);
     } catch (err) {
       throw err;
     }
-    if (id !== undefined) {
+    if (fn !== undefined) {
       console.log(
         `🐱 [${loggableName(
           packageJsonPath,
           scriptName
         )}] Restored from GitHub cache`
       );
-      return new GitHubCachedOutput();
+      return new GitHubCachedOutput(fn);
     }
   }
 
@@ -118,5 +118,11 @@ const hashCacheKey = (key: string): string =>
   createHash('sha256').update(key).digest('hex');
 
 class GitHubCachedOutput {
-  async apply(): Promise<void> {}
+  private readonly _fn: () => Promise<void>;
+  constructor(fn: () => Promise<void>) {
+    this._fn = fn;
+  }
+  async apply(): Promise<void> {
+    return this._fn();
+  }
 }
