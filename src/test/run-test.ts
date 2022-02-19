@@ -871,4 +871,131 @@ test(
   })
 );
 
+test(
+  'incremental build',
+  timeout(async ({rig}) => {
+    const cmd = rig.newCommand();
+    await rig.writeFiles({
+      'package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmd.command(),
+            files: ['input.txt'],
+            output: ['output.txt'],
+            incrementalBuildFiles: ['incremental.txt'],
+          },
+        },
+      },
+      'input.txt': '0',
+    });
+
+    {
+      // Initial run. Script produces output and incremental files.
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      await rig.writeFiles({'output.txt': '0'});
+      await rig.writeFiles({'incremental.txt': '0'});
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    {
+      // Still fresh, do nothing.
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 1);
+    }
+
+    {
+      // Input file changes. The output and incremental build files should not
+      // get deleted, because wireit should know that it can delegate
+      // incremental build to the script itself.
+      await rig.writeFiles({'input.txt': '1'});
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      assert.equal(await rig.readFile('output.txt'), '0');
+      assert.equal(await rig.readFile('incremental.txt'), '0');
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+
+    {
+      // The incremental build file was deleted externally (e.g. by the user
+      // trying to clear incremental build state). However, since no input file
+      // changed, we're still fresh.
+      await rig.rmFile('incremental.txt');
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 2);
+    }
+
+    {
+      // Input file changes again. Since there's no incremental build file
+      // anymore, we delete the existing output, since the script itself may no
+      // longer understand how to clean up from its previous build.
+      await rig.writeFiles({'input.txt': '2'});
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      assert.not(await rig.fileExists('output.txt'));
+      assert.not(await rig.fileExists('incremental.txt'));
+      await rig.writeFiles({'output.txt': '2'});
+      await rig.writeFiles({'incremental.txt': '2'});
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 3);
+    }
+
+    {
+      // Input file reverts to its first state. We restore that initial output
+      // and the incremental build file, and don't need to run the script.
+      await rig.writeFiles({'input.txt': '0'});
+      const out = rig.exec('npm run cmd');
+      const {code} = await out.done;
+      assert.equal(await rig.readFile('output.txt'), '0');
+      assert.equal(await rig.readFile('incremental.txt'), '0');
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 3);
+    }
+
+    {
+      // Changing the incremental output file should invalidate the cache and do
+      // a clean build.
+      await rig.writeFiles({
+        'package.json': {
+          scripts: {
+            cmd: 'wireit',
+          },
+          wireit: {
+            cmd: {
+              command: cmd.command(),
+              files: ['input.txt'],
+              output: ['output.txt'],
+              incrementalBuildFiles: ['incremental.txt', 'incremental2.txt'],
+            },
+          },
+        },
+      });
+      const out = rig.exec('npm run cmd');
+      await cmd.waitUntilStarted();
+      // TODO(aomarks) We're not clearing this yet.
+      // assert.not(await rig.fileExists('output.txt'));
+      // assert.not(await rig.fileExists('incremental.txt'));
+      await cmd.exit(0);
+      const {code} = await out.done;
+      assert.equal(code, 0);
+      assert.equal(cmd.startedCount, 4);
+    }
+  })
+);
+
 test.run();

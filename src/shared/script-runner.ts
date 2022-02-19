@@ -30,6 +30,9 @@ interface CacheKey {
   // Must preserve the specified order, because the meaning of `!` depends on
   // which globs preceded it.
   outputGlobs: string[];
+  // Must preserve the specified order, because the meaning of `!` depends on
+  // which globs preceded it.
+  incrementalBuildFiles: string[];
 }
 
 // TODO(aomarks) What about permission bits?
@@ -103,6 +106,7 @@ export class ScriptRunner {
       dependencies: {},
       npmPackageLocks: {},
       outputGlobs: script.output ?? [],
+      incrementalBuildFiles: script.incrementalBuildFiles ?? [],
     };
 
     if (script.dependencies?.length) {
@@ -234,25 +238,6 @@ export class ScriptRunner {
       let cachedOutput;
 
       if (script.output !== undefined) {
-        if (script.deleteOutputBeforeEachRun ?? true) {
-          // Delete any existing output files.
-          const existingOutputFiles = await fastglob(script.output, {
-            cwd: pathlib.dirname(packageJsonPath),
-            dot: true,
-            followSymbolicLinks: false,
-          });
-          if (existingOutputFiles.length > 0) {
-            console.log(
-              `🗑️ [${logName}] Deleting ${existingOutputFiles.length} existing output file(s)`
-            );
-            await Promise.all([
-              existingOutputFiles.map((file) =>
-                fs.rm(file, {recursive: true, force: true})
-              ),
-            ]);
-          }
-        }
-
         if (this._cache !== undefined) {
           // Only cache if output files are defined. This requires the user to
           // explicitly tell us when there are no output files to enable
@@ -264,8 +249,65 @@ export class ScriptRunner {
             packageJsonPath,
             scriptName,
             newCacheKey,
-            script.output
+            [...script.output, ...(script.incrementalBuildFiles ?? [])]
           );
+        }
+
+        if (script.deleteOutputBeforeEachRun ?? true) {
+          let reallyDelete = true;
+          if (
+            !cachedOutput &&
+            script.incrementalBuildFiles &&
+            script.incrementalBuildFiles.length > 0
+          ) {
+            const incrementalBuildFiles = await fastglob(
+              script.incrementalBuildFiles,
+              {
+                cwd: pathlib.dirname(packageJsonPath),
+                dot: true,
+                followSymbolicLinks: false,
+              }
+            );
+            if (incrementalBuildFiles.length > 0) {
+              reallyDelete = false;
+              console.log(
+                `🔁 [${logName}] Allowing incremental build file to handle change`
+              );
+            }
+          }
+
+          if (reallyDelete) {
+            // Delete any existing output files.
+            const existingOutputFiles = new Set(
+              await fastglob(script.output, {
+                cwd: pathlib.dirname(packageJsonPath),
+                dot: true,
+                followSymbolicLinks: false,
+              })
+            );
+            if (
+              script.incrementalBuildFiles &&
+              script.incrementalBuildFiles.length > 0
+            ) {
+              for (const f of await fastglob(script.incrementalBuildFiles, {
+                cwd: pathlib.dirname(packageJsonPath),
+                dot: true,
+                followSymbolicLinks: false,
+              })) {
+                existingOutputFiles.add(f);
+              }
+            }
+            if (existingOutputFiles.size > 0) {
+              console.log(
+                `🗑️ [${logName}] Deleting ${existingOutputFiles.size} existing output file(s)`
+              );
+              await Promise.all([
+                [...existingOutputFiles].map((file) =>
+                  fs.rm(file, {recursive: true, force: true})
+                ),
+              ]);
+            }
+          }
         }
       }
       if (cachedOutput !== undefined) {
@@ -305,6 +347,7 @@ export class ScriptRunner {
           ':' +
           process.env.PATH;
         // TODO(aomarks) npm doesn't use sh on Windows.
+        const startMs = (globalThis as any).performance.now();
         const child = spawn('sh', ['-c', script.command], {
           cwd: pathlib.dirname(packageJsonPath),
           stdio: 'inherit',
@@ -364,14 +407,17 @@ export class ScriptRunner {
             `[${logName}] Unexpected internal error. Script ${scriptName} should have thrown.`
           );
         }
-        console.log(`✅ [${logName}] Succeeded`);
+        const elapsedMs = Math.round(
+          (globalThis as any).performance.now() - startMs
+        );
+        console.log(`✅ [${logName}] Succeeded in ${elapsedMs}ms`);
         if (this._cache !== undefined && script.output !== undefined) {
           // TODO(aomarks) Shouldn't need to block on this finishing.
           await this._cache.saveOutput(
             packageJsonPath,
             scriptName,
             newCacheKey,
-            script.output
+            [...script.output, ...(script.incrementalBuildFiles ?? [])]
           );
         }
       }

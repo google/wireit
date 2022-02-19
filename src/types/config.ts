@@ -17,6 +17,7 @@ export interface RawScript {
   output?: string[];
   checkPackageLocks?: boolean;
   deleteOutputBeforeEachRun?: boolean;
+  incrementalBuildFiles?: string[];
 }
 
 /**

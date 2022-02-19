@@ -20,6 +20,7 @@ export class GitHubCache implements Cache {
       scriptOutputGlobs,
       packageJsonPath
     );
+    console.log('GET', {scriptOutputGlobs});
     // TODO(aomarks)
     // https://github.com/actions/toolkit/blob/15e23998268e31520e3d93cbd106bd3228dea77f/packages/cache/src/cache.ts#L32
     // key can't have commas or be > 512 characters.
@@ -59,6 +60,7 @@ export class GitHubCache implements Cache {
       scriptOutputGlobs,
       packageJsonPath
     );
+    console.log('SAVE', {scriptOutputGlobs});
     // TODO(aomarks) Is packageJsonPath reliable?
     const key = `${packageJsonPath}:${scriptName}:${hashCacheKey(cacheKey)}`;
     console.log(

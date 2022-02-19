@@ -39,13 +39,16 @@
       ]
     },
     "ts": {
-      "command": "tsc",
+      "command": "tsc --build",
       "files": [
         "src/**/*.ts",
         "tsconfig.json"
       ],
       "output": [
         "lib/**/*"
+      ],
+      "incrementalBuildFiles": [
+        ".tsbuildinfo"
       ]
     },
     "test": {
@@ -60,7 +63,7 @@
       ]
     },
     "test:runmode": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"run-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
@@ -68,7 +71,7 @@
       ]
     },
     "test:workspaces": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"workspaces-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"workspaces-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
@@ -76,7 +79,7 @@
       ]
     },
     "test:freshness": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"freshness-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"freshness-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
@@ -84,7 +87,7 @@
       ]
     },
     "test:watchmode": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
@@ -92,7 +95,7 @@
       ]
     },
     "test:filesystem-caching": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"filesystem-caching-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"filesystem-caching-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
@@ -100,7 +103,7 @@
       ]
     },
     "test:github-caching": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"github-caching-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"github-caching-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
@@ -108,7 +111,7 @@
       ]
     },
     "test:util": {
-      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"util-test.js$\"",
+      "command": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"util-test.js$\" --bail",
       "files": [],
       "output": [],
       "dependencies": [
