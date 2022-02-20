@@ -67,12 +67,13 @@ export class ScriptRun {
    * memoization in the public method.
    */
   private async _resolve(): Promise<ScriptStatus> {
-    // Start hashing package locks in the background.
-    const packageLockHashesPromise = hashReachablePackageLocks(
-      this._packageDir
-    );
-
     const config = await this._config;
+
+    // Start hashing package locks in the background.
+    const packageLockHashesPromise =
+      config.checkPackageLocks ?? true
+        ? hashReachablePackageLocks(this._packageDir)
+        : Promise.resolve([]);
 
     // Only check for freshness if input files are defined. This requires the
     // user to explicitly tell us when there are no input files to enable
@@ -384,7 +385,8 @@ export class ScriptRun {
       ),
       npmPackageLocks: Object.fromEntries(
         npmPackageLocks.sort((a, b) => a[0].localeCompare(b[0]))
-      ), // Note globs are not sorted because "!" exclusion globs affect preceding
+      ),
+      // Note globs are not sorted because "!" exclusion globs affect preceding
       // globs, but not subsequent ones.
       //
       // TODO(aomarks) In theory we could be smarter here, and do a sort which
