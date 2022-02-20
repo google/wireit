@@ -35,5 +35,5 @@ export default async (args: string[], abort: Promise<void>) => {
     ? new GitHubCache()
     : new FilesystemCache();
   const runner = new ScriptRunner(abort, cache, parallel, failFast);
-  await runner.run(packageJsonPath, scriptName, new Set());
+  await runner.run({packageJsonPath, scriptName});
 };

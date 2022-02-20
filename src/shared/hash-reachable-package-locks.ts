@@ -9,7 +9,7 @@ import {createHash} from 'crypto';
  */
 export const hashReachablePackageLocks = async (
   root: string
-): Promise<Array<[string, string]>> => {
+): Promise<Array<[string, {sha256: string}]>> => {
   const promises = [];
   let cur = root;
   while (true) {
@@ -26,7 +26,7 @@ export const hashReachablePackageLocks = async (
           throw err;
         }
         const sha256 = createHash('sha256').update(content).digest('hex');
-        return [filename, sha256];
+        return [filename, {sha256}];
       })()
     );
     const parent = pathlib.dirname(cur);
@@ -37,6 +37,6 @@ export const hashReachablePackageLocks = async (
   }
   const entries = await Promise.all(promises);
   return entries.filter((entry) => entry !== undefined) as Array<
-    [string, string]
+    [string, {sha256: string}]
   >;
 };

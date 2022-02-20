@@ -8,27 +8,38 @@ import {KnownError} from '../shared/known-error.js';
 import {resolveDependency} from '../shared/resolve-script.js';
 import {loggableName} from '../shared/loggable-name.js';
 import {iterateParentDirs} from '../shared/iterate-parent-dirs.js';
+import {hashReachablePackageLocks} from '../shared/hash-reachable-package-locks.js';
 
+import type {ScriptRunner} from '../shared/script-runner.js';
+import type {CachedOutput} from '../shared/cache.js';
 import type {RawScript, ResolvedScriptReference} from '../types/config.js';
+import type {ScriptStatus, CacheKey} from '../types/cache.js';
 
 /**
  * A single, specific run of a scriprt.
  */
 export class ScriptRun {
-  private readonly _config: RawScript;
+  private readonly _ctx: ScriptRunner;
   private readonly _scriptName: string;
   private readonly _packageJsonPath: string;
   private readonly _packageDir: string;
   private readonly _logName: string;
-  private _resolvePromise?: Promise<void>;
-  private _killingIntentionally = false;
+  private _configPromise?: Promise<RawScript>;
+  private _resolvePromise?: Promise<ScriptStatus>;
 
-  constructor(id: ResolvedScriptReference, config: RawScript) {
+  private get _config(): Promise<RawScript> {
+    if (this._configPromise === undefined) {
+      this._configPromise = this._readConfig();
+    }
+    return this._configPromise;
+  }
+
+  constructor(ctx: ScriptRunner, id: ResolvedScriptReference) {
+    this._ctx = ctx;
     this._scriptName = id.scriptName;
     this._packageJsonPath = id.packageJsonPath;
     this._packageDir = pathlib.dirname(id.packageJsonPath);
     this._logName = loggableName(id.packageJsonPath, id.scriptName);
-    this._config = config;
   }
 
   /**
@@ -42,7 +53,7 @@ export class ScriptRun {
    * same promise. One instance of a ScriptRun will never execute the same
    * command more than once.
    */
-  async resolve(): Promise<void> {
+  async resolve(): Promise<ScriptStatus> {
     if (this._resolvePromise === undefined) {
       this._resolvePromise = this._resolve();
     }
@@ -50,14 +61,18 @@ export class ScriptRun {
   }
 
   /**
-   * The internal implementation of resolve().
+   * The actual implementation of resolve().
    *
    * This private method is separate from the public one because we handle
    * memoization in the public method.
    */
-  async _resolve(): Promise<void> {
-    // Start resolving dependencies in the background.
-    const dependenciesResolvedPromise = this._resolveDependencies();
+  private async _resolve(): Promise<ScriptStatus> {
+    // Start hashing package locks in the background.
+    const packageLockHashesPromise = hashReachablePackageLocks(
+      this._packageDir
+    );
+
+    const config = await this._config;
 
     // Only check for freshness if input files are defined. This requires the
     // user to explicitly tell us when there are no input files to enable
@@ -65,41 +80,135 @@ export class ScriptRun {
     // might not have gotten around to specifying the input files yet, so it's
     // safer to assume that the inputs could be anything, and hence always might
     // have changed.
-    if (this._config.files !== undefined) {
-      // Start reading the old cache key in the background.
-      const oldCacheKeyPromise = this._readOldCacheKey();
-      const dependencyCacheKeys = await dependenciesResolvedPromise;
-      // Wait until all dependencies have completed before we hash input files,
-      // because a dependency could be generating our input files.
-      const inputFileHashes = await this._hashInputFiles();
-      const newCacheKey = this._createCacheKey(
-        inputFileHashes,
-        dependencyCacheKeys
-      );
-      const oldCacheKey = await oldCacheKeyPromise;
-      const isFresh = newCacheKey === oldCacheKey;
+    const canBeFresh = config.files !== undefined;
+
+    // Start reading the old cache key in the background, if we'll need it.
+    const oldCacheKeyStrPromise = canBeFresh
+      ? this._readOldCacheKeyStr()
+      : undefined;
+
+    // IMPORTANT: We must wait until all dependencies have completed before we
+    // hash input files, because a dependency could be generating our input
+    // files.
+    const dependencyCacheKeys = await this._resolveDependencies();
+
+    const newCacheKeyObj = await this._createCacheKey(
+      await this._hashInputFiles(),
+      dependencyCacheKeys,
+      await packageLockHashesPromise
+    );
+    const newCacheKeyStr = JSON.stringify(newCacheKeyObj);
+
+    if (canBeFresh) {
+      const oldCacheKeyStr = await oldCacheKeyStrPromise;
+      const isFresh = newCacheKeyStr === oldCacheKeyStr;
       if (isFresh) {
         // TODO(aomarks) Emit a status code instead of logging directly, and
         // then implement a separate logger that understands success statuses
         // and errors.
         console.log(`🥬 [${this._logName}] Already fresh!`);
-        return;
+        return {cacheKey: newCacheKeyObj};
       }
     }
 
-    await dependenciesResolvedPromise;
-
-    if (!this._config.command) {
+    if (!config.command) {
       console.log(`✅ [${this._logName}] Succeeded (no command)`);
-      return;
+      return {cacheKey: newCacheKeyObj};
     }
 
-    const startMs = (globalThis as any).performance.now();
-    await this._executeCommand();
-    const elapsedMs = (globalThis as any).performance.now() - startMs;
+    // Only cache if output files are defined. This requires the user to
+    // explicitly tell us when there are no output files to enable caching. If
+    // it's undefined, the user might not have gotten around to specifying the
+    // output yet, so it's safer to assume that the output could be anything,
+    // and we wouldn't otherwise capture them correctly.
+    let cacheHitPromise: undefined | Promise<CachedOutput | undefined>;
+    if (config.output !== undefined && this._ctx.cache !== undefined) {
+      cacheHitPromise = this._ctx.cache.getOutput(
+        this._packageJsonPath,
+        this._scriptName,
+        newCacheKeyStr,
+        config.incrementalBuildFiles !== undefined
+          ? // TODO(aomarks) Explain why we include incremental build files here.
+            // TODO(aomarks) The file globs should not be grouped together, because
+            // "!" exclusions shouldn't apply across the two groups.
+            [...config.output, ...config.incrementalBuildFiles]
+          : config.output
+      );
+    }
+
+    // Delete the current state before we start running, because if there was a
+    // previously successful run in a different state, and this run fails, then
+    // the next time we run, we would otherwise incorrectly think that the
+    // script was still fresh with the previous state
+    await this._deleteFreshnessFile();
+
+    // Delete all existing output files.
+    // TODO(aomarks) Explain incremental build file handling.
+    if (
+      config.output !== undefined &&
+      config.deleteOutputBeforeEachRun &&
+      (!config.incrementalBuildFiles?.length ||
+        (await cacheHitPromise) !== undefined)
+    ) {
+      await Promise.all([
+        this._deleteGlobs(config.output),
+        config.incrementalBuildFiles?.length
+          ? this._deleteGlobs(config.incrementalBuildFiles)
+          : undefined,
+      ]);
+    }
+
+    const cacheHit = await cacheHitPromise;
+    if (cacheHit !== undefined) {
+      console.log(`♻️ [${this._logName}] Restoring from cache`);
+      await cacheHit.apply();
+      return {cacheKey: newCacheKeyObj};
+    }
+
+    const releaseParallelismReservation =
+      await this._ctx.parallelismLimiter.reserve();
+    let elapsedMs: number;
+    try {
+      const startMs = (globalThis as any).performance.now();
+      await this._executeCommand();
+      elapsedMs = (globalThis as any).performance.now() - startMs;
+    } finally {
+      releaseParallelismReservation();
+    }
+
+    if (canBeFresh) {
+      await this._writeFreshnessFile(newCacheKeyStr);
+    }
+
     console.log(
       `✅ [${this._logName}] Succeeded in ${Math.round(elapsedMs)}ms`
     );
+    return {cacheKey: newCacheKeyObj};
+  }
+
+  private async _deleteGlobs(globs: string[]): Promise<void> {
+    const files = await fastglob(globs, {
+      cwd: this._packageDir,
+      dot: true,
+      followSymbolicLinks: false,
+    });
+    await Promise.all(
+      files.map((file) => fs.rm(file, {recursive: true, force: true}))
+    );
+  }
+
+  private async _readConfig(): Promise<RawScript> {
+    const rawConfig = await this._ctx.getRawPackageConfig(
+      this._packageJsonPath
+    );
+    const script = rawConfig.scripts?.[this._scriptName];
+    if (script === undefined) {
+      throw new KnownError(
+        'script-not-found',
+        `[${this._logName}] Could not find script ${this._scriptName} in ${this._packageJsonPath}`
+      );
+    }
+    return script;
   }
 
   /**
@@ -109,14 +218,12 @@ export class ScriptRun {
    * dependencies. For example, "$WORKSPACES:build" could return 0 dependencies
    * if there are no workspaces, or >1 if there is more than one workspace.
    */
-  async *_canonicalizeDependencies(): AsyncIterable<ResolvedScriptReference> {
-    if (
-      this._config.dependencies === undefined ||
-      this._config.dependencies.length === 0
-    ) {
+  private async *_canonicalizeDependencies(): AsyncIterable<ResolvedScriptReference> {
+    const config = await this._config;
+    if (config.dependencies === undefined || config.dependencies.length === 0) {
       return;
     }
-    const promises = this._config.dependencies.map(async (specifier, idx) => {
+    const promises = config.dependencies.map(async (specifier, idx) => {
       const references = await resolveDependency(
         this._packageJsonPath,
         specifier,
@@ -137,30 +244,32 @@ export class ScriptRun {
     }
   }
 
-  async _resolveDependencies(): Promise<Array<[string, CacheKey]>> {
+  private async _resolveDependencies(): Promise<Array<[string, CacheKey]>> {
     const promises = [];
     const errors: unknown[] = [];
     const cacheKeys: Array<[string, CacheKey]> = [];
     for await (const dep of this._canonicalizeDependencies()) {
-      promises.push(async () => {
-        try {
-          const status = await this._resolveDependency(dep);
-          const cacheName =
-            dep.packageJsonPath === this._packageJsonPath
-              ? dep.scriptName
-              : `${pathlib.relative(
-                  this._packageDir,
-                  pathlib.dirname(dep.packageJsonPath)
-                )}:${dep.scriptName}`;
-          cacheKeys.push([cacheName, status.cacheKey]);
-        } catch (error) {
-          if (error instanceof AggregateError) {
-            errors.push(...error.errors);
-          } else {
-            errors.push(error);
+      promises.push(
+        (async () => {
+          try {
+            const status = await this._ctx.run(dep);
+            const cacheName =
+              dep.packageJsonPath === this._packageJsonPath
+                ? dep.scriptName
+                : `${pathlib.relative(
+                    this._packageDir,
+                    pathlib.dirname(dep.packageJsonPath)
+                  )}:${dep.scriptName}`;
+            cacheKeys.push([cacheName, status.cacheKey]);
+          } catch (error) {
+            if (error instanceof AggregateError) {
+              errors.push(...error.errors);
+            } else {
+              errors.push(error);
+            }
           }
-        }
-      });
+        })()
+      );
     }
     await Promise.all(promises);
     if (errors.length > 0) {
@@ -169,15 +278,7 @@ export class ScriptRun {
     return cacheKeys;
   }
 
-  async _resolveDependency(
-    dep: ResolvedScriptReference
-  ): Promise<ScriptStatus> {
-    // TODO(aomarks)
-    console.log(dep);
-    throw new Error('NOT IMPLEMENTED');
-  }
-
-  private async _readOldCacheKey(): Promise<string | undefined> {
+  private async _readOldCacheKeyStr(): Promise<string | undefined> {
     const stateFile = pathlib.resolve(
       this._packageDir,
       '.wireit',
@@ -195,11 +296,12 @@ export class ScriptRun {
   }
 
   private async _hashInputFiles(): Promise<Array<[string, {sha256: string}]>> {
+    const config = await this._config;
     const result: Array<[string, {sha256: string}]> = [];
-    if (this._config.files === undefined || this._config.files.length === 0) {
+    if (config.files === undefined || config.files.length === 0) {
       return result;
     }
-    const files = await fastglob(this._config.files, {
+    const files = await fastglob(config.files, {
       cwd: this._packageDir,
       dot: true,
       followSymbolicLinks: false,
@@ -221,37 +323,40 @@ export class ScriptRun {
     return result;
   }
 
-  private _createCacheKey(
+  private async _createCacheKey(
     inputFileHashes: Array<[string, {sha256: string}]>,
-    dependencyCacheKeys: Array<[string, CacheKey]>
-  ): string {
+    dependencyCacheKeys: Array<[string, CacheKey]>,
+    npmPackageLocks: Array<[string, {sha256: string}]>
+  ): Promise<CacheKey> {
+    const config = await this._config;
     // IMPORTANT: We must sort everything here, because this cache key must be
     // deterministic, and insertion order affects the JSON serialization.
     const data: CacheKey = {
-      command: this._config.command ?? '',
+      command: config.command ?? '',
       files: Object.fromEntries(
         inputFileHashes.sort((a, b) => a[0].localeCompare(b[0]))
       ),
       dependencies: Object.fromEntries(
         dependencyCacheKeys.sort((a, b) => a[0].localeCompare(b[0]))
       ),
-      // TODO(aomarks) npmPackageLocks
-      npmPackageLocks: {},
-      // Note globs are not sorted because "!" exclusion globs affect preceding
+      npmPackageLocks: Object.fromEntries(
+        npmPackageLocks.sort((a, b) => a[0].localeCompare(b[0]))
+      ), // Note globs are not sorted because "!" exclusion globs affect preceding
       // globs, but not subsequent ones.
       //
       // TODO(aomarks) In theory we could be smarter here, and do a sort which
       // is careful to only sort within each "!"-delimited block. This could
       // yield more cache hits when only trivial re-oredering is done to glob
       // lists.
-      outputGlobs: this._config.output ?? [],
-      incrementalBuildFiles: this._config.incrementalBuildFiles ?? [],
+      outputGlobs: config.output ?? [],
+      incrementalBuildFiles: config.incrementalBuildFiles ?? [],
     };
-    return JSON.stringify(data);
+    return data;
   }
 
   private async _executeCommand(): Promise<void> {
-    if (!this._config.command) {
+    const config = await this._config;
+    if (!config.command) {
       return;
     }
     // We could spawn a "npx -c" or "npm exec -c" command to set up the PATH
@@ -274,7 +379,7 @@ export class ScriptRun {
       ':' +
       process.env.PATH;
 
-    const child = spawn('sh', ['-c', this._config.command], {
+    const child = spawn('sh', ['-c', config.command], {
       cwd: this._packageDir,
       stdio: 'inherit',
       detached: true,
@@ -283,6 +388,7 @@ export class ScriptRun {
         PATH: childPathEnv,
       },
     });
+    let aborted = false;
     const completed = new Promise<void>((resolve, reject) => {
       // TODO(aomarks) Do we need to handle "close"? Is there any way a
       // "close" event can be fired, but not an "exit" or "error" event?
@@ -298,7 +404,7 @@ export class ScriptRun {
         if (signal !== null) {
           reject(
             new KnownError(
-              this._killingIntentionally
+              aborted
                 ? 'script-cancelled-intentionally'
                 : 'script-cancelled-unexpectedly',
               `Command ${this._scriptName} exited with signal ${signal}`
@@ -316,31 +422,38 @@ export class ScriptRun {
         }
       });
     });
-    await completed;
+    await Promise.race([
+      completed,
+      this._ctx.abort.then(() => (aborted = true)),
+    ]);
+    if (aborted) {
+      console.log(`💀 [${this._logName}] Killing`);
+      process.kill(-child.pid!, 'SIGINT');
+      await completed;
+      throw new Error(
+        `[${this._logName}] Unexpected internal error. ` +
+          `Script ${this._scriptName} should have thrown.`
+      );
+    }
   }
-}
 
-interface CacheKey {
-  command: string;
-  // Must be sorted by filename.
-  files: {[fileName: string]: FileContentHash};
-  // Must be sorted by script name.
-  dependencies: {[scriptName: string]: CacheKey};
-  // Must be sorted by script name.
-  npmPackageLocks: {[fileName: string]: FileContentHash};
-  // Must preserve the specified order, because the meaning of `!` depends on
-  // which globs preceded it.
-  outputGlobs: string[];
-  // Must preserve the specified order, because the meaning of `!` depends on
-  // which globs preceded it.
-  incrementalBuildFiles: string[];
-}
+  private async _deleteFreshnessFile(): Promise<void> {
+    await fs.rm(this._freshnessFilePath, {force: true});
+  }
 
-// TODO(aomarks) What about permission bits?
-interface FileContentHash {
-  sha256: string;
-}
+  private async _writeFreshnessFile(currentStateStr: string): Promise<void> {
+    await fs.mkdir(pathlib.dirname(this._freshnessFilePath), {
+      recursive: true,
+    });
+    await fs.writeFile(this._freshnessFilePath, currentStateStr, 'utf8');
+  }
 
-interface ScriptStatus {
-  cacheKey: CacheKey;
+  private get _freshnessFilePath(): string {
+    return pathlib.resolve(
+      this._packageDir,
+      '.wireit',
+      'state',
+      this._scriptName
+    );
+  }
 }

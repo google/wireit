@@ -25,7 +25,10 @@ const main = async () => {
     console.error(`❌ Command ${cmd} failed`);
     const errors = error instanceof AggregateError ? error.errors : [error];
     for (const e of errors) {
-      if (e instanceof KnownError && e.code === 'script-cancelled') {
+      if (
+        e instanceof KnownError &&
+        e.code === 'script-cancelled-intentionally'
+      ) {
         // No need to print this.
         continue;
       }

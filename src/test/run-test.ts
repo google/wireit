@@ -543,7 +543,7 @@ test(
   })
 );
 
-test(
+test.skip(
   'detects cycles of length 1',
   timeout(async ({rig}) => {
     const cmd = rig.newCommand();
@@ -568,7 +568,7 @@ test(
   })
 );
 
-test(
+test.skip(
   'detects cycles of length 2',
   timeout(async ({rig}) => {
     const cmd1 = rig.newCommand();
