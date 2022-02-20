@@ -223,7 +223,9 @@ export class ScriptRun {
     if (config.dependencies === undefined || config.dependencies.length === 0) {
       return;
     }
-    const promises = config.dependencies.map(async (specifier, idx) => {
+    const promises: Array<
+      Promise<{idx: number; references: ResolvedScriptReference[]}> | undefined
+    > = config.dependencies.map(async (specifier, idx) => {
       const references = await resolveDependency(
         this._packageJsonPath,
         specifier,
@@ -237,10 +239,18 @@ export class ScriptRun {
     // dependencies take a variable amount of time, because some are already
     // canonicalized, while others require reading package.json files from other
     // packages.
-    while (promises.length > 0) {
-      const {references, idx} = await Promise.race(promises);
-      promises.splice(idx, 1);
-      yield* references;
+    while (true) {
+      // TODO(aomarks) This is dumb.
+      const filtered = promises.filter((promise) => promise !== undefined);
+      if (filtered.length === 0) {
+        break;
+      }
+      const x = await Promise.race(filtered);
+      if (x !== undefined) {
+        const {references, idx} = x;
+        yield* references;
+        promises[idx] = undefined;
+      }
     }
   }
 
