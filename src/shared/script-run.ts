@@ -143,20 +143,7 @@ export class ScriptRun {
     await this._deleteFreshnessFile();
 
     // Delete all existing output files.
-    // TODO(aomarks) Explain incremental build file handling.
-    if (
-      config.output !== undefined &&
-      config.deleteOutputBeforeEachRun &&
-      (!config.incrementalBuildFiles?.length ||
-        (await cacheHitPromise) !== undefined)
-    ) {
-      await Promise.all([
-        this._deleteGlobs(config.output),
-        config.incrementalBuildFiles?.length
-          ? this._deleteGlobs(config.incrementalBuildFiles)
-          : undefined,
-      ]);
-    }
+    await this._maybeDeleteFiles(cacheHitPromise);
 
     const cacheHit = await cacheHitPromise;
     if (cacheHit !== undefined) {
@@ -176,8 +163,19 @@ export class ScriptRun {
       releaseParallelismReservation();
     }
 
+    // TODO(aomarks) We don't actually need to wait for the next two writes to
+    // finish before allowing dependent scripts to start.
     if (canBeFresh) {
       await this._writeFreshnessFile(newCacheKeyStr);
+    }
+
+    if (config.output !== undefined && this._ctx.cache !== undefined) {
+      await this._ctx.cache.saveOutput(
+        this._packageJsonPath,
+        this._scriptName,
+        newCacheKeyStr,
+        [...config.output, ...(config.incrementalBuildFiles ?? [])]
+      );
     }
 
     console.log(
@@ -186,12 +184,47 @@ export class ScriptRun {
     return {cacheKey: newCacheKeyObj};
   }
 
-  private async _deleteGlobs(globs: string[]): Promise<void> {
-    const files = await fastglob(globs, {
+  private async _maybeDeleteFiles(
+    cacheHitPromise: Promise<CachedOutput | undefined> | undefined
+  ) {
+    // TODO(aomarks) Explain incremental build file handling.
+    const config = await this._config;
+    // TODO(aomarks) Set defaults when reading config instead.
+    const deleteOutputBeforeEachRun = config.deleteOutputBeforeEachRun ?? true;
+    if (!deleteOutputBeforeEachRun) {
+      return [];
+    }
+    const incremental = await this._globs(config.incrementalBuildFiles ?? []);
+    if (incremental.length > 0) {
+      const cacheHit = await cacheHitPromise;
+      if (cacheHit === undefined) {
+        return [];
+      }
+    }
+    const output = config.output ?? [];
+    if (output.length > 0) {
+      const files = await this._globs(output);
+      if (files.length > 0) {
+        await this._deleteFiles(files);
+      }
+    }
+    if (incremental.length > 0) {
+      const files = await this._globs(incremental);
+      if (files.length > 0) {
+        await this._deleteFiles(files);
+      }
+    }
+  }
+
+  private async _globs(globs: string[]): Promise<string[]> {
+    return await fastglob(globs, {
       cwd: this._packageDir,
       dot: true,
       followSymbolicLinks: false,
     });
+  }
+
+  private async _deleteFiles(files: string[]): Promise<void> {
     await Promise.all(
       files.map((file) => fs.rm(file, {recursive: true, force: true}))
     );
