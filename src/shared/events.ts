@@ -56,6 +56,7 @@ export interface CacheHit extends SuccessBase {
  */
 export interface ExitZero extends SuccessBase {
   reason: 'exit-zero';
+  elapsedMs: number;
 }
 
 // -------------------------------

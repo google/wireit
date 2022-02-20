@@ -20,6 +20,7 @@ import type {ScriptStatus, CacheKey} from '../types/cache.js';
  */
 export class ScriptRun {
   private readonly _ctx: ScriptRunner;
+  private readonly _ref: ResolvedScriptReference;
   private readonly _scriptName: string;
   private readonly _packageJsonPath: string;
   private readonly _packageDir: string;
@@ -34,12 +35,13 @@ export class ScriptRun {
     return this._configPromise;
   }
 
-  constructor(ctx: ScriptRunner, id: ResolvedScriptReference) {
+  constructor(ctx: ScriptRunner, ref: ResolvedScriptReference) {
     this._ctx = ctx;
-    this._scriptName = id.scriptName;
-    this._packageJsonPath = id.packageJsonPath;
-    this._packageDir = pathlib.dirname(id.packageJsonPath);
-    this._logName = loggableName(id.packageJsonPath, id.scriptName);
+    this._ref = ref;
+    this._scriptName = ref.scriptName;
+    this._packageJsonPath = ref.packageJsonPath;
+    this._packageDir = pathlib.dirname(ref.packageJsonPath);
+    this._logName = loggableName(ref.packageJsonPath, ref.scriptName);
   }
 
   /**
@@ -107,13 +109,21 @@ export class ScriptRun {
         // TODO(aomarks) Emit a status code instead of logging directly, and
         // then implement a separate logger that understands success statuses
         // and errors.
-        console.log(`🥬 [${this._logName}] Already fresh!`);
+        this._ctx.emitEvent({
+          script: this._ref,
+          type: 'success',
+          reason: 'fresh',
+        });
         return {cacheKey: newCacheKeyObj};
       }
     }
 
     if (!config.command) {
-      console.log(`✅ [${this._logName}] Succeeded (no command)`);
+      this._ctx.emitEvent({
+        script: this._ref,
+        type: 'success',
+        reason: 'no-command',
+      });
       return {cacheKey: newCacheKeyObj};
     }
 
@@ -148,13 +158,34 @@ export class ScriptRun {
 
     const cacheHit = await cacheHitPromise;
     if (cacheHit !== undefined) {
-      console.log(`♻️ [${this._logName}] Restoring from cache`);
       await cacheHit.apply();
+      this._ctx.emitEvent({
+        script: this._ref,
+        type: 'success',
+        reason: 'cache-hit',
+      });
       return {cacheKey: newCacheKeyObj};
     }
 
+    let pending = true;
+    setTimeout(() => {
+      // TODO(aomarks) This might fire after we're already done, that's not
+      // right.
+      //
+      // If there is no contention, the promise returned by reserve() will
+      // resolve in the next microtask. So if we are still waiting after a
+      // macrotask, then there is contention.
+      if (pending) {
+        this._ctx.emitEvent({
+          script: this._ref,
+          type: 'parallel-contention',
+        });
+      }
+    });
     const releaseParallelismReservation =
       await this._ctx.parallelismLimiter.reserve();
+    pending = false;
+
     let elapsedMs: number;
     try {
       const startMs = (globalThis as any).performance.now();
@@ -179,9 +210,12 @@ export class ScriptRun {
       );
     }
 
-    console.log(
-      `✅ [${this._logName}] Succeeded in ${Math.round(elapsedMs)}ms`
-    );
+    this._ctx.emitEvent({
+      script: this._ref,
+      type: 'success',
+      reason: 'exit-zero',
+      elapsedMs,
+    });
     return {cacheKey: newCacheKeyObj};
   }
 
@@ -203,18 +237,26 @@ export class ScriptRun {
       }
     }
     const output = config.output ?? [];
+    let numDeleted = 0;
     if (output.length > 0) {
       const files = await this._globs(output);
       if (files.length > 0) {
         await this._deleteFiles(files);
+        numDeleted += files.length;
       }
     }
     if (incremental.length > 0) {
       const files = await this._globs(incremental);
       if (files.length > 0) {
         await this._deleteFiles(files);
+        numDeleted += files.length;
       }
     }
+    this._ctx.emitEvent({
+      script: this._ref,
+      type: 'output-deleted',
+      numDeleted,
+    });
   }
 
   private async _globs(globs: string[]): Promise<string[]> {
@@ -404,6 +446,11 @@ export class ScriptRun {
     if (!config.command) {
       return;
     }
+    this._ctx.emitEvent({
+      script: this._ref,
+      type: 'spawn',
+      command: config.command,
+    });
     // We could spawn a "npx -c" or "npm exec -c" command to set up the PATH
     // automatically, but we instead invoke the shell command directly. This is
     // because:
@@ -426,7 +473,6 @@ export class ScriptRun {
 
     const child = spawn('sh', ['-c', config.command], {
       cwd: this._packageDir,
-      stdio: 'inherit',
       detached: true,
       env: {
         ...process.env,
@@ -437,7 +483,13 @@ export class ScriptRun {
     const completed = new Promise<void>((resolve, reject) => {
       // TODO(aomarks) Do we need to handle "close"? Is there any way a
       // "close" event can be fired, but not an "exit" or "error" event?
-      child.on('error', () => {
+      child.on('error', (error) => {
+        this._ctx.emitEvent({
+          script: this._ref,
+          type: 'failure',
+          reason: 'start-error',
+          message: error.message,
+        });
         reject(
           new KnownError(
             'script-control-error',
@@ -447,6 +499,13 @@ export class ScriptRun {
       });
       child.on('exit', (code, signal) => {
         if (signal !== null) {
+          this._ctx.emitEvent({
+            script: this._ref,
+            type: 'failure',
+            reason: 'interrupt',
+            signal,
+            intentional: aborted,
+          });
           reject(
             new KnownError(
               aborted
@@ -456,6 +515,12 @@ export class ScriptRun {
             )
           );
         } else if (code !== 0) {
+          this._ctx.emitEvent({
+            script: this._ref,
+            type: 'failure',
+            reason: 'exit-non-zero',
+            code: code ?? -1,
+          });
           reject(
             new KnownError(
               'script-failed',
@@ -467,13 +532,31 @@ export class ScriptRun {
         }
       });
     });
+    child.stdout.on('data', (data: string | Buffer) => {
+      this._ctx.emitEvent({
+        script: this._ref,
+        type: 'output',
+        stream: 'stdout',
+        data,
+      });
+    });
+    // TODO(aomarks) Ensure the streams close.
+    child.stderr.on('data', (data: string | Buffer) => {
+      this._ctx.emitEvent({
+        script: this._ref,
+        type: 'output',
+        stream: 'stderr',
+        data,
+      });
+    });
     await Promise.race([
       completed,
       this._ctx.abort.then(() => (aborted = true)),
     ]);
     if (aborted) {
-      console.log(`💀 [${this._logName}] Killing`);
-      process.kill(-child.pid!, 'SIGINT');
+      const signal = 'SIGINT';
+      this._ctx.emitEvent({script: this._ref, type: 'killing', signal});
+      process.kill(-child.pid!, signal);
       await completed;
       throw new Error(
         `[${this._logName}] Unexpected internal error. ` +

@@ -2,6 +2,7 @@ import {ReservationPool} from '../shared/reservation-pool.js';
 import {readRawConfig} from './read-raw-config.js';
 import {Deferred} from '../shared/deferred.js';
 import {ScriptRun} from './script-run.js';
+import {DefaultLogger} from './default-logger.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {
@@ -9,6 +10,7 @@ import type {
   RawPackageConfig,
 } from '../types/config.js';
 import type {ScriptStatus} from '../types/cache.js';
+import type {Event} from './events.js';
 
 /**
  * State which is shared across all scripts.
@@ -23,6 +25,7 @@ export class ScriptRunner {
     Promise<RawPackageConfig>
   >();
   private readonly _anyScriptFailed = new Deferred<void>();
+  private readonly _logger = new DefaultLogger();
 
   constructor(
     abort: Promise<unknown>,
@@ -53,6 +56,10 @@ export class ScriptRunner {
       this._runCache.set(key, promise);
     }
     return promise;
+  }
+
+  emitEvent(event: Event): void {
+    this._logger.log(event);
   }
 
   async getRawPackageConfig(

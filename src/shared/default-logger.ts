@@ -1,10 +1,14 @@
 import {Event} from './events.js';
+import {loggableName} from './loggable-name.js';
 import {unreachable} from './unreachable.js';
 
 export class DefaultLogger {
   log(event: Event) {
     const type = event.type;
-    const name = event.script.packageJsonPath + ':' + event.script.scriptName;
+    const name = loggableName(
+      event.script.packageJsonPath,
+      event.script.scriptName
+    );
     const prefix = `[${name}]`;
     switch (type) {
       default: {
