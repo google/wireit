@@ -25,6 +25,7 @@ Wireit upgrades your npm scripts to make them smarter and more efficient.
 - [Caching](#caching)
   - [GitHub Actions caching](#github-actions-caching)
 - [Deleting output](#deleting-output)
+  - [Incremental build files](#incremental-build-files)
 - [Watch mode](#watch-mode)
   - [Interrupt](#interrupt)
 - [Failures](#failures)
@@ -226,19 +227,31 @@ output, before it runs the command.
 
 ## Deleting output
 
-By default, when you have specified the `output` of a script, then those files
-will be automatically deleted before a script executes or is restored from
+By default, when you have specified the `output` of a script, then all matching
+files will be automatically deleted before a script executes or is restored from
 cache.
 
-This is helpful to ensure that each run of a script does not include stale
-outputs from the previous run. For example, if you compile `foo.ts` to `foo.js`
-with `tsc`, and then delete `foo.ts` file, then the next time you run `tsc`,
-the `foo.js` file would otherwise still exist in the output directory.
+### Incremental build files
 
-To disable automatic output deletion, set
-`wireit.<script>.deleteOutputBeforeEachRun` to `false`. You should only disable
-automatic output deletion if you are certain that the script itself already
-takes care of removing stale output files from previous runs.
+The `incrementalBuildFiles` option is designed for special situations where the
+script itself is able to perform incremental compilation, including deleting
+previous output files that should no longer exist.
+
+For example, TypeScript's [incremental
+compilation](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-4.html#faster-subsequent-builds-with-the---incremental-flag)
+mode saves a `.tsbuildinfo` file after each compile, which contains data that
+allows the next compile to skip work that has already been done.
+
+Files like this don't fit into the normal `files` / `output` dichotomy, because
+they serve as both input and output, and are also optional in that they don't
+affect the functional output.
+
+Listing a file in the `incrementalBuildFiles` list has the following effects:
+
+1. When a change has occured and there is no cache hit, then wireit will _not_
+   automatically delete existing `output` files before running the command.
+
+2. Files listed in `incrementalBuildFiles` _will_ be included in the cache.
 
 ## Watch mode
 
