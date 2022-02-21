@@ -14,6 +14,7 @@ import type {ScriptRunner} from '../shared/script-runner.js';
 import type {CachedOutput} from '../shared/cache.js';
 import type {RawScript, ResolvedScriptReference} from '../types/config.js';
 import type {ScriptStatus, CacheKey} from '../types/cache.js';
+import {Event} from './events.js';
 
 /**
  * A single, specific run of a scriprt.
@@ -109,7 +110,7 @@ export class ScriptRun {
         // TODO(aomarks) Emit a status code instead of logging directly, and
         // then implement a separate logger that understands success statuses
         // and errors.
-        this._ctx.emitEvent({
+        this._log({
           script: this._ref,
           type: 'success',
           reason: 'fresh',
@@ -119,7 +120,7 @@ export class ScriptRun {
     }
 
     if (!config.command) {
-      this._ctx.emitEvent({
+      this._log({
         script: this._ref,
         type: 'success',
         reason: 'no-command',
@@ -159,7 +160,7 @@ export class ScriptRun {
     const cacheHit = await cacheHitPromise;
     if (cacheHit !== undefined) {
       await cacheHit.apply();
-      this._ctx.emitEvent({
+      this._log({
         script: this._ref,
         type: 'success',
         reason: 'cache-hit',
@@ -176,7 +177,7 @@ export class ScriptRun {
       // resolve in the next microtask. So if we are still waiting after a
       // macrotask, then there is contention.
       if (pending) {
-        this._ctx.emitEvent({
+        this._log({
           script: this._ref,
           type: 'parallel-contention',
         });
@@ -210,13 +211,17 @@ export class ScriptRun {
       );
     }
 
-    this._ctx.emitEvent({
+    this._log({
       script: this._ref,
       type: 'success',
       reason: 'exit-zero',
       elapsedMs,
     });
     return {cacheKey: newCacheKeyObj};
+  }
+
+  private _log(event: Event): void {
+    this._ctx.logger?.log(event);
   }
 
   private async _maybeDeleteFiles(
@@ -252,7 +257,7 @@ export class ScriptRun {
         numDeleted += files.length;
       }
     }
-    this._ctx.emitEvent({
+    this._log({
       script: this._ref,
       type: 'output-deleted',
       numDeleted,
@@ -446,7 +451,7 @@ export class ScriptRun {
     if (!config.command) {
       return;
     }
-    this._ctx.emitEvent({
+    this._log({
       script: this._ref,
       type: 'spawn',
       command: config.command,
@@ -484,7 +489,7 @@ export class ScriptRun {
       // TODO(aomarks) Do we need to handle "close"? Is there any way a
       // "close" event can be fired, but not an "exit" or "error" event?
       child.on('error', (error) => {
-        this._ctx.emitEvent({
+        this._log({
           script: this._ref,
           type: 'failure',
           reason: 'start-error',
@@ -499,7 +504,7 @@ export class ScriptRun {
       });
       child.on('exit', (code, signal) => {
         if (signal !== null) {
-          this._ctx.emitEvent({
+          this._log({
             script: this._ref,
             type: 'failure',
             reason: 'interrupt',
@@ -515,7 +520,7 @@ export class ScriptRun {
             )
           );
         } else if (code !== 0) {
-          this._ctx.emitEvent({
+          this._log({
             script: this._ref,
             type: 'failure',
             reason: 'exit-non-zero',
@@ -533,7 +538,7 @@ export class ScriptRun {
       });
     });
     child.stdout.on('data', (data: string | Buffer) => {
-      this._ctx.emitEvent({
+      this._log({
         script: this._ref,
         type: 'output',
         stream: 'stdout',
@@ -542,7 +547,7 @@ export class ScriptRun {
     });
     // TODO(aomarks) Ensure the streams close.
     child.stderr.on('data', (data: string | Buffer) => {
-      this._ctx.emitEvent({
+      this._log({
         script: this._ref,
         type: 'output',
         stream: 'stderr',
@@ -555,7 +560,7 @@ export class ScriptRun {
     ]);
     if (aborted) {
       const signal = 'SIGINT';
-      this._ctx.emitEvent({script: this._ref, type: 'killing', signal});
+      this._log({script: this._ref, type: 'killing', signal});
       process.kill(-child.pid!, signal);
       await completed;
       throw new Error(

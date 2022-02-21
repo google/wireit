@@ -2,7 +2,6 @@ import {ReservationPool} from '../shared/reservation-pool.js';
 import {readRawConfig} from './read-raw-config.js';
 import {Deferred} from '../shared/deferred.js';
 import {ScriptRun} from './script-run.js';
-import {DefaultLogger} from './default-logger.js';
 
 import type {Cache} from '../shared/cache.js';
 import type {
@@ -10,7 +9,7 @@ import type {
   RawPackageConfig,
 } from '../types/config.js';
 import type {ScriptStatus} from '../types/cache.js';
-import type {Event} from './events.js';
+import {Logger} from './logger.js';
 
 /**
  * State which is shared across all scripts.
@@ -19,25 +18,27 @@ export class ScriptRunner {
   readonly abort: Promise<unknown>;
   readonly parallelismLimiter: ReservationPool;
   readonly cache?: Cache;
+  readonly logger?: Logger;
   private readonly _runCache = new Map<string, Promise<ScriptStatus>>();
   private readonly _packageConfigCache = new Map<
     string,
     Promise<RawPackageConfig>
   >();
   private readonly _anyScriptFailed = new Deferred<void>();
-  private readonly _logger = new DefaultLogger();
 
   constructor(
     abort: Promise<unknown>,
     cache: Cache | undefined,
     parallel: number,
-    failFast: boolean
+    failFast: boolean,
+    logger: Logger | undefined
   ) {
     this.abort = failFast
       ? Promise.race([this._anyScriptFailed.promise, abort])
       : abort;
     this.cache = cache;
     this.parallelismLimiter = new ReservationPool(parallel);
+    this.logger = logger;
   }
 
   async run(ref: ResolvedScriptReference): Promise<ScriptStatus> {
@@ -56,10 +57,6 @@ export class ScriptRunner {
       this._runCache.set(key, promise);
     }
     return promise;
-  }
-
-  emitEvent(event: Event): void {
-    this._logger.log(event);
   }
 
   async getRawPackageConfig(

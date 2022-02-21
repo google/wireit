@@ -8,6 +8,7 @@ import * as pathlib from 'path';
 import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {Deferred} from '../shared/deferred.js';
 import mri from 'mri';
+import {DefaultLogger} from '../shared/default-logger.js';
 
 const parseArgs = (
   args: string[]
@@ -108,12 +109,15 @@ export default async (args: string[], abort: Promise<void>) => {
     });
   }
 
+  const logger = new DefaultLogger();
+
   const runIgnoringScriptFailures = async () => {
     const runner = new ScriptRunner(
       Promise.race([abort, interrupt.promise]),
       new FilesystemCache(),
       parallel,
-      failFast
+      failFast,
+      logger
     );
     try {
       await runner.run({packageJsonPath, scriptName});

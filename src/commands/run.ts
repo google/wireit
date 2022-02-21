@@ -4,6 +4,7 @@ import {FilesystemCache} from '../shared/filesystem-cache.js';
 import {GitHubCache} from '../shared/github-cache.js';
 import mri from 'mri';
 import {ScriptRunner} from '../shared/script-runner.js';
+import {DefaultLogger} from '../shared/default-logger.js';
 
 const parseArgs = (
   args: string[]
@@ -34,6 +35,7 @@ export default async (args: string[], abort: Promise<void>) => {
   const cache = process.env.GITHUB_CACHE
     ? new GitHubCache()
     : new FilesystemCache();
-  const runner = new ScriptRunner(abort, cache, parallel, failFast);
+  const logger = new DefaultLogger();
+  const runner = new ScriptRunner(abort, cache, parallel, failFast, logger);
   await runner.run({packageJsonPath, scriptName});
 };

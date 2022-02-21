@@ -1,8 +1,9 @@
 import {Event} from './events.js';
 import {loggableName} from './loggable-name.js';
+import {Logger} from './logger.js';
 import {unreachable} from './unreachable.js';
 
-export class DefaultLogger {
+export class DefaultLogger implements Logger {
   log(event: Event) {
     const type = event.type;
     const name = loggableName(
