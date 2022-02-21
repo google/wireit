@@ -66,6 +66,10 @@ export class DefaultLogger implements Logger {
             }
             break;
           }
+          case 'cycle': {
+            console.log(`❌ ${prefix} Detected cycle`);
+            break;
+          }
         }
         break;
       }

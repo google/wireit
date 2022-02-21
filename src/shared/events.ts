@@ -63,7 +63,7 @@ export interface ExitZero extends SuccessBase {
 // Failure events
 // -------------------------------
 
-type Failure = StartError | ExitNonZero | Interrupt;
+type Failure = StartError | ExitNonZero | Interrupt | Cycle;
 
 interface FailureBase extends ScriptEventBase {
   type: 'failure';
@@ -97,6 +97,13 @@ export interface Interrupt extends FailureBase {
    * was unexpected.
    */
   intentional: boolean;
+}
+
+/**
+ * A script could not run because it has a cycle in its dependency graph.
+ */
+export interface Cycle extends FailureBase {
+  reason: 'cycle';
 }
 
 // -------------------------------

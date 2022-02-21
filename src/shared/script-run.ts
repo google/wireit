@@ -22,6 +22,7 @@ import {Event} from './events.js';
 export class ScriptRun {
   private readonly _ctx: ScriptRunner;
   private readonly _ref: ResolvedScriptReference;
+  private readonly _ancestry: ReadonlyArray<ResolvedScriptReference>;
   private readonly _scriptName: string;
   private readonly _packageJsonPath: string;
   private readonly _packageDir: string;
@@ -36,9 +37,14 @@ export class ScriptRun {
     return this._configPromise;
   }
 
-  constructor(ctx: ScriptRunner, ref: ResolvedScriptReference) {
+  constructor(
+    ctx: ScriptRunner,
+    ref: ResolvedScriptReference,
+    ancestry: ReadonlyArray<ResolvedScriptReference>
+  ) {
     this._ctx = ctx;
     this._ref = ref;
+    this._ancestry = ancestry;
     this._scriptName = ref.scriptName;
     this._packageJsonPath = ref.packageJsonPath;
     this._packageDir = pathlib.dirname(ref.packageJsonPath);
@@ -339,11 +345,12 @@ export class ScriptRun {
     const promises = [];
     const errors: unknown[] = [];
     const cacheKeys: Array<[string, CacheKey]> = [];
+    const extendedAncestry = [...this._ancestry, this._ref];
     for await (const dep of this._canonicalizeDependencies()) {
       promises.push(
         (async () => {
           try {
-            const status = await this._ctx.run(dep);
+            const status = await this._ctx.run(dep, extendedAncestry);
             const cacheName =
               dep.packageJsonPath === this._packageJsonPath
                 ? dep.scriptName

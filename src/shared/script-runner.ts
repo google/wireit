@@ -10,6 +10,7 @@ import type {
 } from '../types/config.js';
 import type {ScriptStatus} from '../types/cache.js';
 import {Logger} from './logger.js';
+import {KnownError} from './known-error.js';
 
 /**
  * State which is shared across all scripts.
@@ -41,12 +42,16 @@ export class ScriptRunner {
     this.logger = logger;
   }
 
-  async run(ref: ResolvedScriptReference): Promise<ScriptStatus> {
+  async run(
+    ref: ResolvedScriptReference,
+    ancestry: ReadonlyArray<ResolvedScriptReference> = []
+  ): Promise<ScriptStatus> {
+    this._checkForCycles(ref, ancestry);
     const key = JSON.stringify([ref.packageJsonPath, ref.scriptName]);
     let promise = this._runCache.get(key);
     if (promise === undefined) {
       promise = (async () => {
-        const run = new ScriptRun(this, ref);
+        const run = new ScriptRun(this, ref, ancestry);
         try {
           return await run.resolve();
         } catch (err) {
@@ -57,6 +62,26 @@ export class ScriptRunner {
       this._runCache.set(key, promise);
     }
     return promise;
+  }
+
+  private _checkForCycles(
+    ref: ResolvedScriptReference,
+    ancestry: ReadonlyArray<ResolvedScriptReference>
+  ): void {
+    for (const ancestor of ancestry) {
+      if (
+        ancestor.packageJsonPath === ref.packageJsonPath &&
+        ancestor.scriptName === ref.scriptName
+      ) {
+        this.logger?.log({script: ref, type: 'failure', reason: 'cycle'});
+        throw new KnownError(
+          'cycle',
+          `Cycle detected: ${[...ancestry, ref]
+            .map((ref) => `${ref.packageJsonPath}:${ref.scriptName}`)
+            .join(' -> ')}`
+        );
+      }
+    }
   }
 
   async getRawPackageConfig(
