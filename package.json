@@ -2,8 +2,9 @@
   "name": "wireit",
   "private": true,
   "version": "0.0.1",
-  "description": "A build system",
-  "license": "MIT",
+  "description": "A lightweight NPM script runner for incremental builds",
+  "license": "BSD-3-Clause",
+  "author": "Google LLC",
   "main": "bin/wireit.js",
   "bin": {
     "wireit": "bin/wireit.js"

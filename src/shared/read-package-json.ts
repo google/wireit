@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import * as fs from 'fs/promises';
 
 import type {PackageJson} from '../types/config.js';

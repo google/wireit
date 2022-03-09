@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import {createHash} from 'crypto';
 import * as cache from './github-cache-patched.js';
 import * as pathlib from 'path';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import type * as uvu from 'uvu';
 
 const DEFAULT_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 30000);

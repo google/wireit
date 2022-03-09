@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 // An error we expect and don't print a stack trace for.
 export class KnownError extends Error {
   private readonly _code: ErrorCode;

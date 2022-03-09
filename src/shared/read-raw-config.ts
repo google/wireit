@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import {KnownError} from './known-error.js';
 import {readPackageJson} from './read-package-json.js';
 import {loggableName} from '../shared/loggable-name.js';

@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import {ReservationPool} from '../shared/reservation-pool.js';
 import {readRawConfig} from './read-raw-config.js';
 import {Deferred} from '../shared/deferred.js';

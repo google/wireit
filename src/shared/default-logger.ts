@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import {Event} from './events.js';
 import {loggableName} from './loggable-name.js';
 import {Logger} from './logger.js';

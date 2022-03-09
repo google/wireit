@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 export class Deferred<T> {
   readonly promise: Promise<T>;
   resolve!: (value: T) => void;

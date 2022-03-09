@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import {KnownError} from '../shared/known-error.js';
 import {findNearestPackageJson} from '../shared/nearest-package-json.js';
 import {FilesystemCache} from '../shared/filesystem-cache.js';

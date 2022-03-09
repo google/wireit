@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import fastglob from 'fast-glob';
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';

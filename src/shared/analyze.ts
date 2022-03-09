@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 import {KnownError} from '../shared/known-error.js';
 import {readRawConfig} from './read-raw-config.js';
 import {resolveDependency} from '../shared/resolve-script.js';
