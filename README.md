@@ -16,3 +16,7 @@
 ```sh
 npm i -D wireit
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md)

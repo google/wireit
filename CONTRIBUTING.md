@@ -27,3 +27,18 @@ information on using pull requests.
 
 This project follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+## Getting started
+
+```sh
+git clone https://github.com/google/wireit.git
+cd wireit
+npm ci
+npm run build
+```
+
+## Running tests
+
+```sh
+npm test
+```

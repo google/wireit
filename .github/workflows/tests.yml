@@ -6,9 +6,12 @@ jobs:
   tests:
     strategy:
       matrix:
-        node: [16]
         os: [ubuntu-20.04, windows-2022, macos-11]
+        # See https://nodejs.org/en/about/releases/ for latest LTS information.
+        node: [16] # Active LTS
         include:
+          # Also test Maintenance LTS, but just one OS should give us sufficient
+          # coverage.
           - node: 14
             os: ubuntu-20.04
 

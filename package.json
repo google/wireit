@@ -11,7 +11,7 @@
   },
   "type": "module",
   "bin": {
-    "wireit": "bin/wireit.js"
+    "wireit": "lib/cli.js"
   },
   "files": [
     "bin/wireit.js",
@@ -41,16 +41,5 @@
   "prettier": {
     "singleQuote": true,
     "bracketSpacing": false
-  },
-  "eslintConfig": {
-    "root": true,
-    "parser": "@typescript-eslint/parser",
-    "plugins": [
-      "@typescript-eslint"
-    ],
-    "extends": [
-      "eslint:recommended",
-      "plugin:@typescript-eslint/recommended"
-    ]
   }
 }
