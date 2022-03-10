@@ -42,3 +42,9 @@ npm run build
 ```sh
 npm test
 ```
+
+### Testing environment variables:
+
+- `TEST_TIMEOUT`: Default millisecond timeout for test cases.
+- `SHOW_TEST_OUTPUT`: Set to show all `stdout` and `stderr` from spawned wireit
+  invocations in test cases.
