@@ -72,8 +72,7 @@ export class WireitTestRig {
   }
 
   private _resolve(filename: string): string {
-    const resolved = pathlib.resolve(this._temp, filename);
-    return resolved;
+    return pathlib.resolve(this._temp, filename);
   }
 
   /**
