@@ -11,7 +11,7 @@
   },
   "type": "module",
   "bin": {
-    "wireit": "lib/cli.js"
+    "wireit": "bin/wireit.js"
   },
   "files": [
     "bin/wireit.js",
