@@ -20,7 +20,7 @@ const isWindows = process.platform === 'win32';
  */
 export class WireitTestRig {
   private _done = false;
-  private readonly _temp = pathlib.join(
+  private readonly _temp = pathlib.resolve(
     repoRoot,
     'temp',
     String(Math.random())
