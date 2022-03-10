@@ -37,4 +37,33 @@ test(
   })
 );
 
+test(
+  'rig commands exit as requested',
+  timeout(async ({rig}) => {
+    // Test 2 different simultaneous commands, one with two simultaneous
+    // invocations.
+    const cmd1 = await rig.newCommand();
+    const cmd2 = await rig.newCommand();
+
+    const res1a = rig.exec(cmd1.command);
+    const inv1a = await cmd1.nextInvocation();
+    const res1b = rig.exec(cmd1.command);
+    const inv1b = await cmd1.nextInvocation();
+    const res2a = rig.exec(cmd2.command);
+    const inv2a = await cmd2.nextInvocation();
+
+    inv1a.exit(42);
+    inv1b.exit(43);
+    inv2a.exit(44);
+
+    const done1a = await res1a.exit;
+    const done1b = await res1b.exit;
+    const done2a = await res2a.exit;
+
+    assert.equal(done1a.code, 42);
+    assert.equal(done1b.code, 43);
+    assert.equal(done2a.code, 44);
+  })
+);
+
 test.run();

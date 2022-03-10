@@ -9,6 +9,7 @@ import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
 import {spawn, type ChildProcess} from 'child_process';
 import cmdShim from 'cmd-shim';
+import {WireitTestRigCommand} from './test-rig-command.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -19,19 +20,30 @@ const isWindows = process.platform === 'win32';
  * A test rig for managing a temporary filesystem and executing Wireit.
  */
 export class WireitTestRig {
-  private _done = false;
+  private _state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
   private readonly _temp = pathlib.resolve(
     repoRoot,
     'temp',
     String(Math.random())
   );
   private readonly _activeChildProcesses = new Set<ChildProcess>();
+  private readonly _commands: Array<WireitTestRigCommand> = [];
+
+  private _assertState(expected: 'uninitialized' | 'running' | 'done') {
+    if (this._state !== expected) {
+      throw new Error(
+        `Expected state to be ${expected} but was ${this._state}`
+      );
+    }
+  }
 
   /**
    * Initialize the temporary filesystem, and set up the wireit binary to be
    * runnable as though it had been installed there through npm.
    */
   async setup() {
+    this._assertState('uninitialized');
+    this._state = 'running';
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
       this._temp,
@@ -54,18 +66,15 @@ export class WireitTestRig {
    * Delete the temporary filesystem and perform other cleanup.
    */
   async cleanup(): Promise<void> {
-    this._checkNotDone();
-    this._done = true;
+    this._assertState('running');
+    this._state = 'done';
     for (const process of this._activeChildProcesses) {
       process.kill(9);
     }
-    await fs.rm(this._temp, {recursive: true});
-  }
-
-  private _checkNotDone() {
-    if (this._done) {
-      throw new Error('WireitTestRig has already finished');
-    }
+    await Promise.all([
+      fs.rm(this._temp, {recursive: true}),
+      ...this._commands.map((command) => command.close()),
+    ]);
   }
 
   private _resolve(filename: string): string {
@@ -79,7 +88,7 @@ export class WireitTestRig {
    * UTF-8 text. Otherwise it is JSON encoded.
    */
   async write(files: {[filename: string]: unknown}) {
-    this._checkNotDone();
+    this._assertState('running');
     await Promise.all(
       Object.entries(files).map(async ([relative, data]) => {
         const absolute = pathlib.resolve(this._temp, relative);
@@ -95,6 +104,7 @@ export class WireitTestRig {
    * Read a file from the temporary filesystem.
    */
   async read(filename: string): Promise<string> {
+    this._assertState('running');
     return fs.readFile(this._resolve(filename), 'utf8');
   }
 
@@ -102,6 +112,7 @@ export class WireitTestRig {
    * Check whether a file exists in the temporary filesystem.
    */
   async exists(filename: string): Promise<boolean> {
+    this._assertState('running');
     try {
       await fs.access(this._resolve(filename));
       return true;
@@ -117,6 +128,7 @@ export class WireitTestRig {
    * Delete a file or directory in the temporary filesystem.
    */
   async delete(filename: string): Promise<void> {
+    this._assertState('running');
     await fs.rm(this._resolve(filename), {force: true, recursive: true});
   }
 
@@ -124,6 +136,7 @@ export class WireitTestRig {
    * Create a symlink in the temporary filesystem.
    */
   async symlink(target: string, filename: string): Promise<void> {
+    this._assertState('running');
     const absolute = this._resolve(filename);
     try {
       await fs.unlink(absolute);
@@ -140,7 +153,7 @@ export class WireitTestRig {
    * Evaluate the given shell command in the temporary filesystem.
    */
   exec(command: string, opts?: {cwd?: string}): ExecResult {
-    this._checkNotDone();
+    this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
     const child = spawn(command, {
       cwd,
@@ -172,6 +185,38 @@ export class WireitTestRig {
       });
     });
     return {exit};
+  }
+
+  /**
+   * Create a new test command.
+   */
+  async newCommand(): Promise<WireitTestRigCommand> {
+    this._assertState('running');
+    // On Windows, Node IPC is implemented with named pipes, which must be
+    // prefixed by "\\?\pipe\". On Linux/macOS it's a unix domain socket, which
+    // can be any filepath. See https://nodejs.org/api/net.html#ipc-support for
+    // more details.
+    let ipcPath: string;
+    if (isWindows) {
+      ipcPath = pathlib.join(
+        '\\\\?\\pipe',
+        this._temp,
+        Math.random().toString()
+      );
+    } else {
+      ipcPath = pathlib.resolve(
+        this._temp,
+        '__sockets',
+        Math.random().toString()
+      );
+      // The socket file will be created on the net.createServer call, but the
+      // parent directory must exist.
+      await fs.mkdir(pathlib.dirname(ipcPath), {recursive: true});
+    }
+    const command = new WireitTestRigCommand(ipcPath);
+    this._commands.push(command);
+    await command.listen();
+    return command;
   }
 }
 
