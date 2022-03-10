@@ -12,7 +12,7 @@ import cmdShim from 'cmd-shim';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
-const tempRoot = pathlib.resolve(__dirname, '..', '..', '..', 'temp');
+const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 const isWindows = process.platform === 'win32';
 
 /**
@@ -20,7 +20,11 @@ const isWindows = process.platform === 'win32';
  */
 export class WireitTestRig {
   private _done = false;
-  private readonly _temp = pathlib.join(tempRoot, String(Math.random()));
+  private readonly _temp = pathlib.join(
+    repoRoot,
+    'temp',
+    String(Math.random())
+  );
   private readonly _activeChildProcesses = new Set<ChildProcess>();
 
   /**
@@ -28,14 +32,7 @@ export class WireitTestRig {
    * runnable as though it had been installed there through npm.
    */
   async setup() {
-    const absWireitBinaryPath = pathlib.resolve(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      'bin',
-      'wireit.js'
-    );
+    const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
       this._temp,
       'node_modules',
