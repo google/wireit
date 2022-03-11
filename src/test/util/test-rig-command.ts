@@ -98,6 +98,7 @@ export class WireitTestRigCommand {
    * A child connected to our socketfile.
    */
   private readonly _onConnection = (socket: net.Socket) => {
+    this._assertState('listening');
     this._newConnections.push(socket);
     this._newConnectionNotification.resolve();
     this._newConnectionNotification = new Deferred();
