@@ -10,9 +10,9 @@ jobs:
         # See https://nodejs.org/en/about/releases/ for latest LTS information.
         node: [16] # Active LTS
         include:
-          # Also test Maintenance LTS, but just one OS should give us sufficient
+          # Also test latest, but just one OS should give us sufficient
           # coverage.
-          - node: 14
+          - node: 17
             os: ubuntu-20.04
 
     timeout-minutes: 15
