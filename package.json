@@ -31,7 +31,7 @@
   "devDependencies": {
     "@types/node": "^17.0.21",
     "@typescript-eslint/eslint-plugin": "^5.15.0",
-    "@typescript-eslint/parser": "^5.14.0",
+    "@typescript-eslint/parser": "^5.15.0",
     "cmd-shim": "^4.1.0",
     "eslint": "^8.11.0",
     "prettier": "^2.5.1",
