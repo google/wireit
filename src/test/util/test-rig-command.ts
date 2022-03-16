@@ -6,8 +6,13 @@
 
 import * as net from 'net';
 import * as pathlib from 'path';
-import {Deferred} from '../../util/deferred.js';
 import {fileURLToPath} from 'url';
+
+import {Deferred} from '../../util/deferred.js';
+import {
+  type Message,
+  MESSAGE_END_MARKER,
+} from './test-rig-command-interface.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -128,8 +133,27 @@ export class WireitTestRigCommandInvocation {
    * Tell this invocation to exit with the given code.
    */
   exit(code: number): void {
-    this._assertState('connected');
+    this._sendMessage({type: 'exit', code});
     this._state = 'closed';
-    this._socket.write(String(code));
+  }
+
+  /**
+   * Tell this invocation to write the given string to its stdout stream.
+   */
+  stdout(str: string): void {
+    this._sendMessage({type: 'stdout', str});
+  }
+
+  /**
+   * Tell this invocation to write the given string to its stderr stream.
+   */
+  stderr(str: string): void {
+    this._sendMessage({type: 'stderr', str});
+  }
+
+  private _sendMessage(message: Message): void {
+    this._assertState('connected');
+    this._socket.write(JSON.stringify(message));
+    this._socket.write(MESSAGE_END_MARKER);
   }
 }

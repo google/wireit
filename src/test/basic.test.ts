@@ -38,31 +38,45 @@ test(
 );
 
 test(
-  'rig commands exit as requested',
+  'rig commands exit and emit stdout/stderr as requested',
   timeout(async ({rig}) => {
     // Test 2 different simultaneous commands, one with two simultaneous
     // invocations.
     const cmd1 = await rig.newCommand();
     const cmd2 = await rig.newCommand();
 
-    const res1a = rig.exec(cmd1.command);
+    const exec1a = rig.exec(cmd1.command);
     const inv1a = await cmd1.nextInvocation();
-    const res1b = rig.exec(cmd1.command);
+    const exec1b = rig.exec(cmd1.command);
     const inv1b = await cmd1.nextInvocation();
-    const res2a = rig.exec(cmd2.command);
+    const exec2a = rig.exec(cmd2.command);
     const inv2a = await cmd2.nextInvocation();
+
+    inv1a.stdout('1a stdout');
+    inv1a.stderr('1a stderr');
+    inv1b.stdout('1b stdout');
+    inv1b.stderr('1b stderr');
+    inv2a.stdout('2a stdout');
+    inv2a.stderr('2a stderr');
 
     inv1a.exit(42);
     inv1b.exit(43);
     inv2a.exit(44);
 
-    const done1a = await res1a.exit;
-    const done1b = await res1b.exit;
-    const done2a = await res2a.exit;
+    const res1a = await exec1a.exit;
+    const res1b = await exec1b.exit;
+    const res2a = await exec2a.exit;
 
-    assert.equal(done1a.code, 42);
-    assert.equal(done1b.code, 43);
-    assert.equal(done2a.code, 44);
+    assert.match(res1a.stdout, '1a stdout');
+    assert.match(res1a.stderr, '1a stderr');
+    assert.match(res1b.stdout, '1b stdout');
+    assert.match(res1b.stderr, '1b stderr');
+    assert.match(res2a.stdout, '2a stdout');
+    assert.match(res2a.stderr, '2a stderr');
+
+    assert.equal(res1a.code, 42);
+    assert.equal(res1b.code, 43);
+    assert.equal(res2a.code, 44);
   })
 );
 
