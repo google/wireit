@@ -30,6 +30,7 @@ export class WireitTestRigCommand {
   private readonly _ipcPath: string;
   private readonly _server: net.Server;
   private _state: 'uninitialized' | 'listening' | 'closed' = 'uninitialized';
+  private _numConnections = 0;
   private _newConnections: Array<net.Socket> = [];
   private _newConnectionNotification = new Deferred<void>();
 
@@ -85,6 +86,13 @@ export class WireitTestRigCommand {
   }
 
   /**
+   * How many invocations of this command were made.
+   */
+  get numInvocations(): number {
+    return this._numConnections;
+  }
+
+  /**
    * Wait for the next invocation of this command. Note that the same command
    * can be invoked multiple times simultaneously.
    */
@@ -104,6 +112,7 @@ export class WireitTestRigCommand {
    */
   private readonly _onConnection = (socket: net.Socket) => {
     this._assertState('listening');
+    this._numConnections++;
     this._newConnections.push(socket);
     this._newConnectionNotification.resolve();
     this._newConnectionNotification = new Deferred();

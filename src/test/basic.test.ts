@@ -77,6 +77,9 @@ test(
     assert.equal(res1a.code, 42);
     assert.equal(res1b.code, 43);
     assert.equal(res2a.code, 44);
+
+    assert.equal(cmd1.numInvocations, 2);
+    assert.equal(cmd2.numInvocations, 1);
   })
 );
 
