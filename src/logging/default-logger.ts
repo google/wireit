@@ -55,7 +55,9 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'exit-non-zero': {
-            console.error(`❌${prefix} Failed with code ${event.status}`);
+            console.error(
+              `❌${prefix} Failed with exit status ${event.status}`
+            );
             break;
           }
         }

@@ -9,7 +9,7 @@ import type {Failure} from './event.js';
 /**
  * A known Wireit error.
  *
- * All errors that Wireit it can anticipate should be an instance of this class.
+ * All errors that Wireit can anticipate should be an instance of this class.
  * Any other exception that is raised to the top-level should be considered a
  * bug.
  */

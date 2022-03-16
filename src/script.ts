@@ -44,5 +44,5 @@ export interface Script extends ScriptReferenceWithParents {
    */
   command?: string;
   /** Scripts that must run before this one. */
-  dependencies: Array<Script>;
+  dependencies: Script[];
 }

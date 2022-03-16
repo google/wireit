@@ -83,7 +83,7 @@ export interface Stdout extends OutputBase {
 }
 
 /**
- * A script's spawned process emitted a chunk of data to standard Failure.
+ * A script's spawned process emitted a chunk of data to standard error.
  */
 export interface Stderr extends OutputBase {
   stream: 'stderr';
