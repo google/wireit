@@ -6,8 +6,13 @@
 
 import * as net from 'net';
 import * as pathlib from 'path';
-import {Deferred} from '../../util/deferred.js';
 import {fileURLToPath} from 'url';
+
+import {Deferred} from '../../util/deferred.js';
+import {
+  type Message,
+  MESSAGE_END_MARKER,
+} from './test-rig-command-interface.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -25,6 +30,7 @@ export class WireitTestRigCommand {
   private readonly _ipcPath: string;
   private readonly _server: net.Server;
   private _state: 'uninitialized' | 'listening' | 'closed' = 'uninitialized';
+  private _numConnections = 0;
   private _newConnections: Array<net.Socket> = [];
   private _newConnectionNotification = new Deferred<void>();
 
@@ -80,6 +86,13 @@ export class WireitTestRigCommand {
   }
 
   /**
+   * How many invocations of this command were made.
+   */
+  get numInvocations(): number {
+    return this._numConnections;
+  }
+
+  /**
    * Wait for the next invocation of this command. Note that the same command
    * can be invoked multiple times simultaneously.
    */
@@ -99,6 +112,7 @@ export class WireitTestRigCommand {
    */
   private readonly _onConnection = (socket: net.Socket) => {
     this._assertState('listening');
+    this._numConnections++;
     this._newConnections.push(socket);
     this._newConnectionNotification.resolve();
     this._newConnectionNotification = new Deferred();
@@ -128,8 +142,27 @@ export class WireitTestRigCommandInvocation {
    * Tell this invocation to exit with the given code.
    */
   exit(code: number): void {
-    this._assertState('connected');
+    this._sendMessage({type: 'exit', code});
     this._state = 'closed';
-    this._socket.write(String(code));
+  }
+
+  /**
+   * Tell this invocation to write the given string to its stdout stream.
+   */
+  stdout(str: string): void {
+    this._sendMessage({type: 'stdout', str});
+  }
+
+  /**
+   * Tell this invocation to write the given string to its stderr stream.
+   */
+  stderr(str: string): void {
+    this._sendMessage({type: 'stderr', str});
+  }
+
+  private _sendMessage(message: Message): void {
+    this._assertState('connected');
+    this._socket.write(JSON.stringify(message));
+    this._socket.write(MESSAGE_END_MARKER);
   }
 }
