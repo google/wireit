@@ -12,6 +12,7 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
+    "useUnknownInCatchVariables": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo"
   },
