@@ -9,7 +9,7 @@
  */
 export interface PackageReference {
   /** Absolute path to an npm package directory. */
-  package: string;
+  packageDir: string;
 }
 
 /**
@@ -17,32 +17,23 @@ export interface PackageReference {
  */
 export interface ScriptReference extends PackageReference {
   /** A concrete script name (no ./ or $WORKSPACES etc.) */
-  script: string;
+  name: string;
 }
 
 /**
- * The name and package location of a script, along with its parents.
+ * The name and location of a script, along with its full configuration.
  */
-export interface ScriptReferenceWithParents extends ScriptReference {
-  /**
-   * The script(s) in the dependency graph that are inbound to this one. Helpful
-   * for understanding the path(s) taken to reach a script.
-   */
-  parents: Script[];
-}
-
-/**
- * The name and location of a script, along with its parents, and its full
- * configuration.
- */
-export interface Script extends ScriptReferenceWithParents {
+export interface ScriptConfig extends ScriptReference {
   /**
    * The shell command to execute.
    *
    * An undefined command is valid as a way to give name to a group of other
    * scripts (specified as dependencies).
    */
-  command?: string;
-  /** Scripts that must run before this one. */
-  dependencies: Script[];
+  command: string | undefined;
+
+  /**
+   * Scripts that must run before this one.
+   */
+  dependencies: ScriptConfig[];
 }

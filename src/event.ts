@@ -5,9 +5,9 @@
  */
 
 import type {
-  Script,
+  ScriptConfig,
+  ScriptReference,
   PackageReference,
-  ScriptReferenceWithParents,
 } from './script.js';
 
 /**
@@ -35,7 +35,7 @@ interface SuccessBase<T extends PackageReference> extends EventBase<T> {
 /**
  * A script finished with exit code 0.
  */
-export interface ExitZero extends SuccessBase<Script> {
+export interface ExitZero extends SuccessBase<ScriptConfig> {
   reason: 'exit-zero';
 }
 
@@ -52,7 +52,7 @@ interface ErrorBase<T extends PackageReference> extends EventBase<T> {
 /**
  * A script finished with an exit status that was not 0.
  */
-export interface ExitNonZero extends ErrorBase<Script> {
+export interface ExitNonZero extends ErrorBase<ScriptConfig> {
   reason: 'exit-non-zero';
   status: number;
 }
@@ -60,7 +60,7 @@ export interface ExitNonZero extends ErrorBase<Script> {
 /**
  * The specified script does not exist in a package.json.
  */
-export interface ScriptNotFound extends ErrorBase<ScriptReferenceWithParents> {
+export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
 }
 
@@ -70,7 +70,7 @@ export interface ScriptNotFound extends ErrorBase<ScriptReferenceWithParents> {
 
 type Output = Stdout | Stderr;
 
-interface OutputBase extends EventBase<Script> {
+interface OutputBase extends EventBase<ScriptConfig> {
   type: 'output';
   data: Buffer | string;
 }
@@ -95,7 +95,7 @@ export interface Stderr extends OutputBase {
 
 type Info = ScriptRunning;
 
-interface InfoBase extends EventBase<Script> {
+interface InfoBase extends EventBase<ScriptConfig> {
   type: 'info';
 }
 

@@ -18,7 +18,7 @@ export class DefaultLogger implements Logger {
     // TODO(aomarks) Also include a relative package path in the log prefix when
     // cross-package dependencies are supported.
     const prefix =
-      event.script.script !== undefined ? ` [${event.script.script}]` : '';
+      event.script.name !== undefined ? ` [${event.script.name}]` : '';
     switch (type) {
       default: {
         throw new Error(`Unknown event type: ${unreachable(type) as string}`);
@@ -50,7 +50,7 @@ export class DefaultLogger implements Logger {
           }
           case 'script-not-found': {
             console.error(
-              `❌${prefix} No script named "${event.script.script}" was found in ${event.script.package}`
+              `❌${prefix} No script named "${event.script.name}" was found in ${event.script.packageDir}`
             );
             break;
           }
