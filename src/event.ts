@@ -26,7 +26,7 @@ interface EventBase<T extends PackageReference> {
 // Success events
 // -------------------------------
 
-type Success = ExitZero;
+type Success = ExitZero | NoCommand;
 
 interface SuccessBase<T extends PackageReference> extends EventBase<T> {
   type: 'success';
@@ -39,12 +39,21 @@ export interface ExitZero extends SuccessBase<ScriptConfig> {
   reason: 'exit-zero';
 }
 
+/**
+ * A script completed because it had no command and its dependencies completed.
+ */
+export interface NoCommand extends SuccessBase<ScriptConfig> {
+  reason: 'no-command';
+}
+
 // -------------------------------
 // Failure events
 // -------------------------------
 
 export type Failure =
   | ExitNonZero
+  | ExitSignal
+  | SpawnError
   | LaunchedIncorrectly
   | MissingPackageJson
   | InvalidPackageJson
@@ -64,6 +73,22 @@ interface ErrorBase<T extends PackageReference> extends EventBase<T> {
 export interface ExitNonZero extends ErrorBase<ScriptConfig> {
   reason: 'exit-non-zero';
   status: number;
+}
+
+/**
+ * A script exited because of a signal it received.
+ */
+export interface ExitSignal extends ErrorBase<ScriptConfig> {
+  reason: 'signal';
+  signal: NodeJS.Signals;
+}
+
+/**
+ * An error occured trying to spawn a script's command.
+ */
+export interface SpawnError extends ErrorBase<ScriptReference> {
+  reason: 'spawn-error';
+  message: string;
 }
 
 /**
