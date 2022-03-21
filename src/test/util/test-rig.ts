@@ -158,6 +158,16 @@ export class WireitTestRig {
     const child = spawn(command, {
       cwd,
       shell: true,
+      // Remove any environment variables that start with "npm_", because those
+      // will have been set by the "npm test" or similar command that launched
+      // this test itself, and we want a more pristine simulation of running
+      // wireit directly when we're testing.
+      //
+      // In particular, this lets us test for the case where wireit was not
+      // launched through npm at all.
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
+      ),
     });
     this._activeChildProcesses.add(child);
     let stdout = '';
