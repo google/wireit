@@ -21,64 +21,325 @@ test.after.each(async (ctx) => {
 });
 
 test(
-  'wireit binary executes through npm successfully',
-  timeout(async ({rig}) => {
-    await rig.write({
-      'package.json': {
-        scripts: {
-          cmd: 'wireit',
-        },
-      },
-    });
-    const result = rig.exec('npm run cmd');
-    const done = await result.exit;
-    assert.equal(done.code, 0);
-  })
-);
-
-test(
   'rig commands exit and emit stdout/stderr as requested',
   timeout(async ({rig}) => {
     // Test 2 different simultaneous commands, one with two simultaneous
     // invocations.
-    const cmd1 = await rig.newCommand();
-    const cmd2 = await rig.newCommand();
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
 
-    const exec1a = rig.exec(cmd1.command);
-    const inv1a = await cmd1.nextInvocation();
-    const exec1b = rig.exec(cmd1.command);
-    const inv1b = await cmd1.nextInvocation();
-    const exec2a = rig.exec(cmd2.command);
-    const inv2a = await cmd2.nextInvocation();
+    const execA1 = rig.exec(cmdA.command);
+    const invA1 = await cmdA.nextInvocation();
+    const execA2 = rig.exec(cmdA.command);
+    const invA2 = await cmdA.nextInvocation();
+    const execB1 = rig.exec(cmdB.command);
+    const invB1 = await cmdB.nextInvocation();
 
-    inv1a.stdout('1a stdout');
-    inv1a.stderr('1a stderr');
-    inv1b.stdout('1b stdout');
-    inv1b.stderr('1b stderr');
-    inv2a.stdout('2a stdout');
-    inv2a.stderr('2a stderr');
+    invA1.stdout('a1 stdout');
+    invA1.stderr('a1 stderr');
+    invA2.stdout('a2 stdout');
+    invA2.stderr('a2 stderr');
+    invB1.stdout('b1 stdout');
+    invB1.stderr('b1 stderr');
 
-    inv1a.exit(42);
-    inv1b.exit(43);
-    inv2a.exit(44);
+    invA1.exit(42);
+    invA2.exit(43);
+    invB1.exit(44);
 
-    const res1a = await exec1a.exit;
-    const res1b = await exec1b.exit;
-    const res2a = await exec2a.exit;
+    const resA1 = await execA1.exit;
+    const resA2 = await execA2.exit;
+    const resB1 = await execB1.exit;
 
-    assert.match(res1a.stdout, '1a stdout');
-    assert.match(res1a.stderr, '1a stderr');
-    assert.match(res1b.stdout, '1b stdout');
-    assert.match(res1b.stderr, '1b stderr');
-    assert.match(res2a.stdout, '2a stdout');
-    assert.match(res2a.stderr, '2a stderr');
+    assert.match(resA1.stdout, 'a1 stdout');
+    assert.match(resA1.stderr, 'a1 stderr');
+    assert.match(resA2.stdout, 'a2 stdout');
+    assert.match(resA2.stderr, 'a2 stderr');
+    assert.match(resB1.stdout, 'b1 stdout');
+    assert.match(resB1.stderr, 'b1 stderr');
 
-    assert.equal(res1a.code, 42);
-    assert.equal(res1b.code, 43);
-    assert.equal(res2a.code, 44);
+    assert.equal(resA1.code, 42);
+    assert.equal(resA2.code, 43);
+    assert.equal(resB1.code, 44);
+  })
+);
 
-    assert.equal(cmd1.numInvocations, 2);
-    assert.equal(cmd2.numInvocations, 1);
+test(
+  'runs one script that succeeds',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a');
+
+    const invA = await cmdA.nextInvocation();
+    invA.stdout('a stdout');
+    invA.stderr('a stderr');
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, 'a stdout');
+    assert.match(res.stderr, 'a stderr');
+  })
+);
+
+test(
+  'runs one script that fails',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a');
+
+    const invA = await cmdA.nextInvocation();
+    invA.stdout('a stdout');
+    invA.stderr('a stderr');
+    invA.exit(1);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 1);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, 'a stdout');
+    assert.match(res.stderr, 'a stderr');
+  })
+);
+
+test(
+  'dependency chain in one package that succeeds',
+  timeout(async ({rig}) => {
+    // a --> b --> c
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            dependencies: ['c'],
+          },
+          c: {
+            command: cmdC.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a');
+
+    const invC = await cmdC.nextInvocation();
+    invC.stdout('c stdout');
+    invC.stderr('c stderr');
+    invC.exit(0);
+
+    const invB = await cmdB.nextInvocation();
+    invB.stdout('b stdout');
+    invB.stderr('b stderr');
+    invB.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.stdout('a stdout');
+    invA.stderr('a stderr');
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+    assert.equal(cmdC.numInvocations, 1);
+    assert.match(res.stdout, /c stdout.*b stdout.*a stdout/s);
+    assert.match(res.stderr, /c stderr.*b stderr.*a stderr/s);
+  })
+);
+
+test(
+  'dependency chain with vanilla npm script at the end',
+  timeout(async ({rig}) => {
+    // a --> b --> c
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          // wireit scripts can depend on non-wireit scripts.
+          c: cmdC.command,
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            dependencies: ['c'],
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a');
+
+    const invC = await cmdC.nextInvocation();
+    invC.stdout('c stdout');
+    invC.stderr('c stderr');
+    invC.exit(0);
+
+    const invB = await cmdB.nextInvocation();
+    invB.stdout('b stdout');
+    invB.stderr('b stderr');
+    invB.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.stdout('a stdout');
+    invA.stderr('a stderr');
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+    assert.equal(cmdC.numInvocations, 1);
+    assert.match(res.stdout, /c stdout.*b stdout.*a stdout/s);
+    assert.match(res.stderr, /c stderr.*b stderr.*a stderr/s);
+  })
+);
+
+test(
+  'dependency chain in one package that fails in the middle',
+  timeout(async ({rig}) => {
+    // a --> b* --> c
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            dependencies: ['c'],
+          },
+          c: {
+            command: cmdC.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a');
+
+    const invC = await cmdC.nextInvocation();
+    invC.exit(0);
+
+    const invB = await cmdB.nextInvocation();
+    invB.exit(42);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 1);
+    assert.equal(cmdA.numInvocations, 0);
+    assert.equal(cmdB.numInvocations, 1);
+    assert.equal(cmdC.numInvocations, 1);
+  })
+);
+
+test(
+  'dependency diamond in one package that succeeds',
+  timeout(async ({rig}) => {
+    //     a
+    //    / \
+    //   v   v
+    //   b   c
+    //    \ /
+    //     v
+    //     d
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    const cmdD = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+          d: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b', 'c'],
+          },
+          b: {
+            command: cmdB.command,
+            dependencies: ['d'],
+          },
+          c: {
+            command: cmdC.command,
+            dependencies: ['d'],
+          },
+          d: {
+            command: cmdD.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a');
+
+    const invD = await cmdD.nextInvocation();
+    invD.exit(0);
+
+    const invB = await cmdB.nextInvocation();
+    const invC = await cmdC.nextInvocation();
+    invB.exit(0);
+    invC.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+    assert.equal(cmdC.numInvocations, 1);
+    assert.equal(cmdD.numInvocations, 1);
   })
 );
 
