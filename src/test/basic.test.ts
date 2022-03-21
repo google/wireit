@@ -33,7 +33,6 @@ test(
     const result = rig.exec('npm run cmd');
     const done = await result.exit;
     assert.equal(done.code, 0);
-    assert.match(done.stdout, 'Hello World!');
   })
 );
 

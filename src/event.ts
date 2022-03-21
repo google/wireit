@@ -43,7 +43,11 @@ export interface ExitZero extends SuccessBase<ScriptConfig> {
 // Failure events
 // -------------------------------
 
-export type Failure = ExitNonZero | ScriptNotFound;
+export type Failure =
+  | ExitNonZero
+  | LaunchedIncorrectly
+  | MissingPackageJson
+  | ScriptNotFound;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -55,6 +59,21 @@ interface ErrorBase<T extends PackageReference> extends EventBase<T> {
 export interface ExitNonZero extends ErrorBase<ScriptConfig> {
   reason: 'exit-non-zero';
   status: number;
+}
+
+/**
+ * Wireit was launched incorrectly (e.g. directly or via "npx", instead of via
+ * "npm run").
+ */
+export interface LaunchedIncorrectly extends ErrorBase<PackageReference> {
+  reason: 'launched-incorrectly';
+}
+
+/**
+ * The package.json file could not be found.
+ */
+export interface MissingPackageJson extends ErrorBase<ScriptReference> {
+  reason: 'missing-package-json';
 }
 
 /**

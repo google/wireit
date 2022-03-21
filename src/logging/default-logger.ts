@@ -17,8 +17,7 @@ export class DefaultLogger implements Logger {
     const type = event.type;
     // TODO(aomarks) Also include a relative package path in the log prefix when
     // cross-package dependencies are supported.
-    const prefix =
-      event.script.name !== undefined ? ` [${event.script.name}]` : '';
+    const prefix = 'name' in event.script ? ` [${event.script.name}]` : '';
     switch (type) {
       default: {
         throw new Error(`Unknown event type: ${unreachable(type) as string}`);
@@ -47,6 +46,16 @@ export class DefaultLogger implements Logger {
             throw new Error(
               `Unknown failure reason: ${unreachable(reason) as string}`
             );
+          }
+          case 'launched-incorrectly': {
+            console.error(`❌${prefix} wireit must be launched with "npm run"`);
+            break;
+          }
+          case 'missing-package-json': {
+            console.error(
+              `❌${prefix} No package.json was found in ${event.script.packageDir}`
+            );
+            break;
           }
           case 'script-not-found': {
             console.error(
