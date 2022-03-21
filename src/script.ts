@@ -34,6 +34,9 @@ export interface ScriptConfig extends ScriptReference {
 
   /**
    * Scripts that must run before this one.
+   *
+   * Note that the {@link Analyzer} always returns dependencies sorted by
+   * package directory, then script name.
    */
   dependencies: ScriptConfig[];
 }

@@ -47,7 +47,10 @@ export type Failure =
   | ExitNonZero
   | LaunchedIncorrectly
   | MissingPackageJson
-  | ScriptNotFound;
+  | InvalidPackageJson
+  | ScriptNotFound
+  | ScriptNotWireit
+  | Cycle;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -77,10 +80,42 @@ export interface MissingPackageJson extends ErrorBase<ScriptReference> {
 }
 
 /**
+ * A package.json file was invalid.
+ */
+export interface InvalidPackageJson extends ErrorBase<ScriptReference> {
+  reason: 'invalid-package-json';
+}
+
+/**
  * The specified script does not exist in a package.json.
  */
 export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
+}
+
+/**
+ * The specified script's command is not "wireit".
+ */
+export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
+  reason: 'script-not-wireit';
+}
+
+/**
+ * The dependency graph has a cycle in it.
+ */
+export interface Cycle extends ErrorBase<ScriptReference> {
+  reason: 'cycle';
+
+  /**
+   * The number of edges in the cycle (e.g. "A -> B -> A" is 2).
+   */
+  length: number;
+
+  /**
+   * The walk that was taken that resulted in the cycle being detected, starting
+   * from the root script.
+   */
+  trail: ScriptReference[];
 }
 
 // -------------------------------
