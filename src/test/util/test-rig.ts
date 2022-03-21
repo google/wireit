@@ -20,12 +20,8 @@ const isWindows = process.platform === 'win32';
  * A test rig for managing a temporary filesystem and executing Wireit.
  */
 export class WireitTestRig {
+  readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
   private _state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
-  private readonly _temp = pathlib.resolve(
-    repoRoot,
-    'temp',
-    String(Math.random())
-  );
   private readonly _activeChildProcesses = new Set<ChildProcess>();
   private readonly _commands: Array<WireitTestRigCommand> = [];
 
@@ -46,7 +42,7 @@ export class WireitTestRig {
     this._state = 'running';
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
-      this._temp,
+      this.temp,
       'node_modules',
       '.bin',
       'wireit'
@@ -72,13 +68,13 @@ export class WireitTestRig {
       process.kill(9);
     }
     await Promise.all([
-      fs.rm(this._temp, {recursive: true}),
+      fs.rm(this.temp, {recursive: true}),
       ...this._commands.map((command) => command.close()),
     ]);
   }
 
   private _resolve(filename: string): string {
-    return pathlib.resolve(this._temp, filename);
+    return pathlib.resolve(this.temp, filename);
   }
 
   /**
@@ -91,7 +87,7 @@ export class WireitTestRig {
     this._assertState('running');
     await Promise.all(
       Object.entries(files).map(async ([relative, data]) => {
-        const absolute = pathlib.resolve(this._temp, relative);
+        const absolute = pathlib.resolve(this.temp, relative);
         await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
         const str =
           typeof data === 'string' ? data : JSON.stringify(data, null, 2);
@@ -210,12 +206,12 @@ export class WireitTestRig {
     if (isWindows) {
       ipcPath = pathlib.join(
         '\\\\?\\pipe',
-        this._temp,
+        this.temp,
         Math.random().toString()
       );
     } else {
       ipcPath = pathlib.resolve(
-        this._temp,
+        this.temp,
         '__sockets',
         Math.random().toString()
       );
