@@ -343,4 +343,102 @@ test(
   })
 );
 
+test(
+  'cross-package dependency',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['../bar:b'],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: cmdB.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+
+    const invB = await cmdB.nextInvocation();
+    invB.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+  })
+);
+
+test(
+  'cross-package dependency that validly cycles back to the first package',
+  timeout(async ({rig}) => {
+    // Cycles between packages are fine, as long as there aren't cycles in the
+    // script graph.
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['../bar:b'],
+          },
+          c: {
+            command: cmdC.command,
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: cmdB.command,
+            dependencies: ['../foo:c'],
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+
+    const invC = await cmdC.nextInvocation();
+    invC.exit(0);
+
+    const invB = await cmdB.nextInvocation();
+    invB.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+    assert.equal(cmdC.numInvocations, 1);
+  })
+);
+
 test.run();
