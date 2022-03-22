@@ -21,6 +21,130 @@ test.after.each(async (ctx) => {
 });
 
 test(
+  'wireit section is not an object',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: [],
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: wireit is not an object`.trim()
+    );
+  })
+);
+
+test(
+  'wireit config is not an object',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: [],
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: wireit[a] is not an object`.trim()
+    );
+  })
+);
+
+test(
+  'dependencies is not an array',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: {},
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: dependencies is not an array`.trim()
+    );
+  })
+);
+
+test(
+  'dependency is not a string',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: [[]],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: dependencies[0] is not a string`.trim()
+    );
+  })
+);
+
+test(
+  'command is not a string',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: [],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: command is not a string`.trim()
+    );
+  })
+);
+
+test(
   'missing dependency',
   timeout(async ({rig}) => {
     await rig.write({
@@ -42,6 +166,33 @@ test(
       done.stderr.trim(),
       `
 ❌ [missing] No script named "missing" was found in ${rig.temp}`.trim()
+    );
+  })
+);
+
+test(
+  'duplicate dependency',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'true',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b', 'b'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] The dependency "b" was declared multiple times`.trim()
     );
   })
 );
@@ -331,7 +482,7 @@ test(
 );
 
 test(
-  'cycle with multiple trails (with different dependency order and duplicates)',
+  'cycle with multiple trails (with different dependency order)',
   timeout(async ({rig}) => {
     //    +------+
     //   /        \
@@ -351,8 +502,9 @@ test(
         },
         wireit: {
           a: {
-            // Order doesn't matter. Neither do duplicates.
-            dependencies: ['c', 'c', 'b', 'b'],
+            // The order declared shouldn't affect the path we take to detect
+            // the cycle.
+            dependencies: ['c', 'b'],
           },
           b: {
             dependencies: ['c'],

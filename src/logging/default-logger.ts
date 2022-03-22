@@ -75,9 +75,19 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
+          case 'invalid-config': {
+            console.error(`❌${prefix} Invalid config: ${event.message}`);
+            break;
+          }
           case 'exit-non-zero': {
             console.error(
               `❌${prefix} Failed with exit status ${event.status}`
+            );
+            break;
+          }
+          case 'duplicate-dependency': {
+            console.error(
+              `❌${prefix} The dependency "${event.dependency.name}" was declared multiple times`
             );
             break;
           }

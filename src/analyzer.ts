@@ -130,8 +130,19 @@ export class Analyzer {
       }
     }
 
+    if (
+      packageJson.wireit !== undefined &&
+      !isJsonObjectLiteral(packageJson.wireit)
+    ) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config',
+        script: placeholder,
+        message: 'wireit is not an object',
+      });
+    }
+
     const scriptCommand = packageJson.scripts?.[placeholder.name];
-    const wireitConfig = packageJson.wireit?.[placeholder.name];
     if (scriptCommand === undefined) {
       throw new WireitError({
         type: 'failure',
@@ -139,6 +150,17 @@ export class Analyzer {
         script: placeholder,
       });
     }
+
+    const wireitConfig = packageJson.wireit?.[placeholder.name];
+    if (wireitConfig !== undefined && !isJsonObjectLiteral(wireitConfig)) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config',
+        script: placeholder,
+        message: `wireit[${placeholder.name}] is not an object`,
+      });
+    }
+
     if (wireitConfig !== undefined && scriptCommand !== 'wireit') {
       throw new WireitError({
         type: 'failure',
@@ -149,15 +171,42 @@ export class Analyzer {
 
     const dependencies: Array<PlaceholderConfig> = [];
     if (wireitConfig?.dependencies !== undefined) {
+      if (!Array.isArray(wireitConfig.dependencies)) {
+        throw new WireitError({
+          type: 'failure',
+          reason: 'invalid-config',
+          script: placeholder,
+          message: 'dependencies is not an array',
+        });
+      }
+      // Error if the same dependency is declared multiple times. Duplicate
+      // dependencies aren't necessarily a serious problem (since we already
+      // prevent double-analysis here, and double-analysis in the Executor), but
+      // they may indicate that the user has made a mistake (e.g. maybe they
+      // meant a different dependency).
       const uniqueDependencies = new Set<string>();
-      for (const unresolved of wireitConfig.dependencies) {
+      for (let i = 0; i < wireitConfig.dependencies.length; i++) {
+        const unresolved = wireitConfig.dependencies[i];
+        if (typeof unresolved !== 'string') {
+          throw new WireitError({
+            type: 'failure',
+            reason: 'invalid-config',
+            script: placeholder,
+            message: `dependencies[${i}] is not a string`,
+          });
+        }
         for (const resolved of this._resolveDependency(
           unresolved,
           placeholder
         )) {
           const uniqueKey = configReferenceToString(resolved);
           if (uniqueDependencies.has(uniqueKey)) {
-            continue;
+            throw new WireitError({
+              type: 'failure',
+              reason: 'duplicate-dependency',
+              script: placeholder,
+              dependency: resolved,
+            });
           }
           uniqueDependencies.add(uniqueKey);
           dependencies.push(this._getPlaceholder(resolved));
@@ -165,12 +214,29 @@ export class Analyzer {
       }
     }
 
+    let command: string | undefined;
+    if (wireitConfig === undefined) {
+      command = scriptCommand;
+    } else {
+      if (
+        wireitConfig.command !== undefined &&
+        typeof wireitConfig.command !== 'string'
+      ) {
+        throw new WireitError({
+          type: 'failure',
+          reason: 'invalid-config',
+          script: placeholder,
+          message: `command is not a string`,
+        });
+      }
+      command = wireitConfig.command;
+    }
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.
     const remainingConfig: Omit<ScriptConfig, keyof ScriptReference> = {
-      command:
-        wireitConfig !== undefined ? wireitConfig.command : scriptCommand,
+      command,
       dependencies: dependencies as Array<ScriptConfig>,
     };
     Object.assign(placeholder, remainingConfig);
@@ -262,9 +328,16 @@ const stringToConfigReference = (
 };
 
 /**
- * Brand used to make the strings returned by {@link configReferenceToString}
- * more type-safe.
+ * Brand that ensures {@link stringToConfigReference} only takes strings that
+ * were returned by {@link configReferenceToString}.
  */
 type ScriptReferenceStringBrand = string & {
   __ScriptReferenceStringBrand__: never;
 };
+
+/**
+ * Assuming the given value was parsed from JSON, return whether it was an
+ * object literal ({...}).
+ */
+const isJsonObjectLiteral = (value: unknown) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);

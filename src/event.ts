@@ -50,6 +50,8 @@ export type Failure =
   | InvalidPackageJson
   | ScriptNotFound
   | ScriptNotWireit
+  | InvalidConfig
+  | DuplicateDependency
   | Cycle;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
@@ -98,6 +100,25 @@ export interface ScriptNotFound extends ErrorBase<ScriptReference> {
  */
 export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
   reason: 'script-not-wireit';
+}
+
+/**
+ * Something is syntactically wrong with the wireit config.
+ */
+export interface InvalidConfig extends ErrorBase<ScriptReference> {
+  reason: 'invalid-config';
+  message: string;
+}
+
+/**
+ * A script lists the same dependency multiple times.
+ */
+export interface DuplicateDependency extends ErrorBase<ScriptReference> {
+  reason: 'duplicate-dependency';
+  /**
+   * The dependency that is duplicated.
+   */
+  dependency: ScriptReference;
 }
 
 /**
