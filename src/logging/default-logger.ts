@@ -75,7 +75,7 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
-          case 'invalid-config': {
+          case 'invalid-config-syntax': {
             console.error(`❌${prefix} Invalid config: ${event.message}`);
             break;
           }

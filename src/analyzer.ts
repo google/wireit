@@ -136,7 +136,7 @@ export class Analyzer {
     ) {
       throw new WireitError({
         type: 'failure',
-        reason: 'invalid-config',
+        reason: 'invalid-config-syntax',
         script: placeholder,
         message: 'wireit is not an object',
       });
@@ -155,7 +155,7 @@ export class Analyzer {
     if (wireitConfig !== undefined && !isJsonObjectLiteral(wireitConfig)) {
       throw new WireitError({
         type: 'failure',
-        reason: 'invalid-config',
+        reason: 'invalid-config-syntax',
         script: placeholder,
         message: `wireit[${placeholder.name}] is not an object`,
       });
@@ -174,7 +174,7 @@ export class Analyzer {
       if (!Array.isArray(wireitConfig.dependencies)) {
         throw new WireitError({
           type: 'failure',
-          reason: 'invalid-config',
+          reason: 'invalid-config-syntax',
           script: placeholder,
           message: 'dependencies is not an array',
         });
@@ -190,7 +190,7 @@ export class Analyzer {
         if (typeof unresolved !== 'string') {
           throw new WireitError({
             type: 'failure',
-            reason: 'invalid-config',
+            reason: 'invalid-config-syntax',
             script: placeholder,
             message: `dependencies[${i}] is not a string`,
           });
@@ -224,7 +224,7 @@ export class Analyzer {
       ) {
         throw new WireitError({
           type: 'failure',
-          reason: 'invalid-config',
+          reason: 'invalid-config-syntax',
           script: placeholder,
           message: `command is not a string`,
         });

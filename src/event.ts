@@ -50,7 +50,7 @@ export type Failure =
   | InvalidPackageJson
   | ScriptNotFound
   | ScriptNotWireit
-  | InvalidConfig
+  | InvalidConfigSyntax
   | DuplicateDependency
   | Cycle;
 
@@ -105,8 +105,8 @@ export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
 /**
  * Something is syntactically wrong with the wireit config.
  */
-export interface InvalidConfig extends ErrorBase<ScriptReference> {
-  reason: 'invalid-config';
+export interface InvalidConfigSyntax extends ErrorBase<ScriptReference> {
+  reason: 'invalid-config-syntax';
   message: string;
 }
 
