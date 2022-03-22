@@ -78,3 +78,29 @@ export const stringToScriptReference = (
 export type ScriptReferenceString = string & {
   __ScriptReferenceStringBrand__: never;
 };
+
+/**
+ * All meaningful input state of a script. Used for determining if a script is
+ * fresh, and as the key for storing cached output.
+ */
+export interface CacheKey {
+  command: string | undefined;
+  // Must be sorted.
+  files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
+  // Must be sorted.
+  dependencies: {[dependency: ScriptReferenceString]: CacheKey};
+}
+
+/**
+ * String serialization of a {@link CacheKey}.
+ */
+export type CacheKeyString = string & {
+  __CacheKeyStringBrand__: never;
+};
+
+/**
+ * SHA256 hash hexadecimal digest of a file's content.
+ */
+export type Sha256HexDigest = string & {
+  __Sha256HexDigest__: never;
+};
