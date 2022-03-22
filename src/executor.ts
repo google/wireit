@@ -10,6 +10,7 @@ import {configReferenceToString} from './script.js';
 
 import type {ScriptConfig} from './script.js';
 import type {Logger} from './logging/logger.js';
+import {shuffle} from './util/shuffle.js';
 
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
@@ -33,9 +34,20 @@ export class Executor {
   }
 
   private async _execute(script: ScriptConfig): Promise<void> {
-    // Handle all dependencies first. Note that we use Promise.allSettled
-    // instead of Promise.all so that we can collect all errors, instead of just
-    // the first one.
+    await this._executeDependencies(script);
+    await this._executeCommandIfNeeded(script);
+    // TODO(aomarks) Implement freshness checking.
+    // TODO(aomarks) Implement output deletion.
+    // TODO(aomarks) Implement caching.
+  }
+
+  private async _executeDependencies(script: ScriptConfig): Promise<void> {
+    // Randomize the order we execute dependencies to make it less likely for a
+    // user to inadvertently depend on any specific order, which could indicate
+    // a missing edge in the dependency graph.
+    shuffle(script.dependencies);
+    // Note we use Promise.allSettled instead of Promise.all so that we can
+    // collect all errors, instead of just the first one.
     const dependencyResults = await Promise.allSettled(
       script.dependencies.map((dependency) => this.execute(dependency))
     );
@@ -54,13 +66,11 @@ export class Executor {
     if (errors.length > 0) {
       throw errors.length === 1 ? errors[0] : new AggregateError(errors);
     }
+  }
 
-    // TODO(aomarks) Implement freshness checking.
-    // TODO(aomarks) Implement output deletion.
-    // TODO(aomarks) Implement caching.
-
+  private async _executeCommandIfNeeded(script: ScriptConfig): Promise<void> {
     // It's valid to not have a command defined, since thats a useful way to
-    // name a group of commands. In this case, we can return early.
+    // alias a group of dependency scripts. In this case, we can return early.
     if (!script.command) {
       this._logger.log({
         script,

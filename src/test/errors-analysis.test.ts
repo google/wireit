@@ -229,6 +229,52 @@ test(
 );
 
 test(
+  'script is wireit but has no wireit config',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {},
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: script has no wireit config`.trim()
+    );
+  })
+);
+
+test(
+  'script has no command and no dependencies',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {},
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: script has no command and no dependencies`.trim()
+    );
+  })
+);
+
+test(
   'cycle of length 1',
   timeout(async ({rig}) => {
     //  a
@@ -408,7 +454,9 @@ test(
           d: {
             dependencies: ['e', 'b'],
           },
-          e: {},
+          e: {
+            command: 'true',
+          },
         },
       },
     });

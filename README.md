@@ -103,8 +103,8 @@ first.
 
 The scripts you depend on don't need to be configured for Wireit, they can be
 vanilla `npm` scripts. This lets you only use Wireit for some of your scripts,
-or to upgrade incrementallys. Scripts that haven't been configured for Wireit
-are always safe to use as dependencies; they just won't be fully optimized.
+or to upgrade incrementally. Scripts that haven't been configured for Wireit are
+always safe to use as dependencies; they just won't be fully optimized.
 
 ## Requirements
 

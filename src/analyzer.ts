@@ -174,6 +174,15 @@ export class Analyzer {
       });
     }
 
+    if (wireitConfig === undefined && scriptCommand === 'wireit') {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        message: `script has no wireit config`,
+      });
+    }
+
     const dependencies: Array<PlaceholderConfig> = [];
     if (wireitConfig?.dependencies !== undefined) {
       if (!Array.isArray(wireitConfig.dependencies)) {
@@ -235,6 +244,15 @@ export class Analyzer {
         });
       }
       command = wireitConfig.command;
+    }
+
+    if (command === undefined && dependencies.length === 0) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        message: `script has no command and no dependencies`,
+      });
     }
 
     // It's important to in-place update the placeholder object, instead of
