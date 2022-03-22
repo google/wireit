@@ -6,6 +6,7 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
+import * as pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 
@@ -270,6 +271,172 @@ test(
       done.stderr.trim(),
       `
 ❌ [a] Invalid config: script has no command and no dependencies`.trim()
+    );
+  })
+);
+
+test(
+  "cross-package dependency doesn't have a colon",
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../foo'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: Cross-package dependency must use syntax "<relative-path>:<script-name>", but there was no ":" character in "../foo".
+`.trim()
+    );
+  })
+);
+
+test(
+  "cross-package dependency doesn't have a script name",
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../foo:'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: Cross-package dependency must use syntax "<relative-path>:<script-name>", but there was no script name in "../foo:".
+`.trim()
+    );
+  })
+);
+
+test(
+  'cross-package dependency resolves to the same package (".")',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['.:b'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: Cross-package dependency ".:b" resolved to the same package.
+`.trim()
+    );
+  })
+);
+
+test(
+  'cross-package dependency resolves to the same package (up and back)',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../foo:b'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: Cross-package dependency "../foo:b" resolved to the same package.
+`.trim()
+    );
+  })
+);
+
+test(
+  'cross-package dependency leads to directory without package.json',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../bar:b'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [../bar:b] No package.json was found in ${pathlib.resolve(rig.temp, 'bar')}
+`.trim()
+    );
+  })
+);
+
+test(
+  'cross-package dependency leads to package.json with invalid JSON',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../bar:b'],
+          },
+        },
+      },
+      'bar/package.json': 'THIS IS NOT VALID JSON',
+    });
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [../bar:b] Invalid JSON in package.json file in ${pathlib.resolve(
+        rig.temp,
+        'bar'
+      )}
+`.trim()
     );
   })
 );
@@ -583,9 +750,48 @@ test(
   })
 );
 
-// TODO(aomarks) Test.skip missing-package-json and invalid-package-json errors, but
-// we can't do that until we support cross-package dependencies, since if either
-// of those problems affected the entrypoint package, then "npm run" would fail
-// before wireit even got a chance to start.
+test(
+  'cycle across packages',
+  timeout(async ({rig}) => {
+    //  foo:a --> bar:b
+    //    ^         |
+    //    |         |
+    //    +---------+
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../bar:b'],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            dependencies: ['../foo:a'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const {code, stderr} = await result.exit;
+    assert.equal(code, 1);
+    assert.equal(
+      stderr.trim(),
+      `
+❌ [a] Cycle detected
+.-> a
+|   ../bar:b
+\`-- a
+`.trim()
+    );
+  })
+);
 
 test.run();
