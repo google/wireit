@@ -17,8 +17,7 @@ export class DefaultLogger implements Logger {
     const type = event.type;
     // TODO(aomarks) Also include a relative package path in the log prefix when
     // cross-package dependencies are supported.
-    const prefix =
-      event.script.script !== undefined ? ` [${event.script.script}]` : '';
+    const prefix = 'name' in event.script ? ` [${event.script.name}]` : '';
     switch (type) {
       default: {
         throw new Error(`Unknown event type: ${unreachable(type) as string}`);
@@ -48,16 +47,74 @@ export class DefaultLogger implements Logger {
               `Unknown failure reason: ${unreachable(reason) as string}`
             );
           }
+          case 'launched-incorrectly': {
+            console.error(`❌${prefix} wireit must be launched with "npm run"`);
+            break;
+          }
+          case 'missing-package-json': {
+            console.error(
+              `❌${prefix} No package.json was found in ${event.script.packageDir}`
+            );
+            break;
+          }
+          case 'invalid-package-json': {
+            console.error(
+              `❌${prefix} Invalid JSON in package.json file in ${event.script.packageDir}`
+            );
+            break;
+          }
           case 'script-not-found': {
             console.error(
-              `❌${prefix} No script named "${event.script.script}" was found in ${event.script.package}`
+              `❌${prefix} No script named "${event.script.name}" was found in ${event.script.packageDir}`
             );
+            break;
+          }
+          case 'script-not-wireit': {
+            console.error(
+              `❌${prefix} Script is not configured to call "wireit"`
+            );
+            break;
+          }
+          case 'invalid-config-syntax': {
+            console.error(`❌${prefix} Invalid config: ${event.message}`);
             break;
           }
           case 'exit-non-zero': {
             console.error(
               `❌${prefix} Failed with exit status ${event.status}`
             );
+            break;
+          }
+          case 'duplicate-dependency': {
+            console.error(
+              `❌${prefix} The dependency "${event.dependency.name}" was declared multiple times`
+            );
+            break;
+          }
+          case 'cycle': {
+            console.error(`❌${prefix} Cycle detected`);
+            // Display the trail of scripts and indicate where the loop is, like
+            // this:
+            //
+            //     a
+            // .-> b
+            // |   c
+            // `-- b
+            const cycleEnd = event.trail.length - 1;
+            const cycleStart = cycleEnd - event.length;
+            for (let i = 0; i < event.trail.length; i++) {
+              if (i < cycleStart) {
+                process.stderr.write('    ');
+              } else if (i === cycleStart) {
+                process.stderr.write(`.-> `);
+              } else if (i !== cycleEnd) {
+                process.stderr.write('|   ');
+              } else {
+                process.stderr.write('`-- ');
+              }
+              process.stderr.write(event.trail[i].name);
+              process.stderr.write('\n');
+            }
             break;
           }
         }

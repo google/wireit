@@ -5,9 +5,9 @@
  */
 
 import type {
-  Script,
+  ScriptConfig,
+  ScriptReference,
   PackageReference,
-  ScriptReferenceWithParents,
 } from './script.js';
 
 /**
@@ -35,7 +35,7 @@ interface SuccessBase<T extends PackageReference> extends EventBase<T> {
 /**
  * A script finished with exit code 0.
  */
-export interface ExitZero extends SuccessBase<Script> {
+export interface ExitZero extends SuccessBase<ScriptConfig> {
   reason: 'exit-zero';
 }
 
@@ -43,7 +43,16 @@ export interface ExitZero extends SuccessBase<Script> {
 // Failure events
 // -------------------------------
 
-export type Failure = ExitNonZero | ScriptNotFound;
+export type Failure =
+  | ExitNonZero
+  | LaunchedIncorrectly
+  | MissingPackageJson
+  | InvalidPackageJson
+  | ScriptNotFound
+  | ScriptNotWireit
+  | InvalidConfigSyntax
+  | DuplicateDependency
+  | Cycle;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -52,16 +61,82 @@ interface ErrorBase<T extends PackageReference> extends EventBase<T> {
 /**
  * A script finished with an exit status that was not 0.
  */
-export interface ExitNonZero extends ErrorBase<Script> {
+export interface ExitNonZero extends ErrorBase<ScriptConfig> {
   reason: 'exit-non-zero';
   status: number;
 }
 
 /**
+ * Wireit was launched incorrectly (e.g. directly or via "npx", instead of via
+ * "npm run").
+ */
+export interface LaunchedIncorrectly extends ErrorBase<PackageReference> {
+  reason: 'launched-incorrectly';
+}
+
+/**
+ * The package.json file could not be found.
+ */
+export interface MissingPackageJson extends ErrorBase<ScriptReference> {
+  reason: 'missing-package-json';
+}
+
+/**
+ * A package.json file was invalid.
+ */
+export interface InvalidPackageJson extends ErrorBase<ScriptReference> {
+  reason: 'invalid-package-json';
+}
+
+/**
  * The specified script does not exist in a package.json.
  */
-export interface ScriptNotFound extends ErrorBase<ScriptReferenceWithParents> {
+export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
+}
+
+/**
+ * The specified script's command is not "wireit".
+ */
+export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
+  reason: 'script-not-wireit';
+}
+
+/**
+ * Something is syntactically wrong with the wireit config.
+ */
+export interface InvalidConfigSyntax extends ErrorBase<ScriptReference> {
+  reason: 'invalid-config-syntax';
+  message: string;
+}
+
+/**
+ * A script lists the same dependency multiple times.
+ */
+export interface DuplicateDependency extends ErrorBase<ScriptReference> {
+  reason: 'duplicate-dependency';
+  /**
+   * The dependency that is duplicated.
+   */
+  dependency: ScriptReference;
+}
+
+/**
+ * The dependency graph has a cycle in it.
+ */
+export interface Cycle extends ErrorBase<ScriptReference> {
+  reason: 'cycle';
+
+  /**
+   * The number of edges in the cycle (e.g. "A -> B -> A" is 2).
+   */
+  length: number;
+
+  /**
+   * The walk that was taken that resulted in the cycle being detected, starting
+   * from the root script.
+   */
+  trail: ScriptReference[];
 }
 
 // -------------------------------
@@ -70,7 +145,7 @@ export interface ScriptNotFound extends ErrorBase<ScriptReferenceWithParents> {
 
 type Output = Stdout | Stderr;
 
-interface OutputBase extends EventBase<Script> {
+interface OutputBase extends EventBase<ScriptConfig> {
   type: 'output';
   data: Buffer | string;
 }
@@ -95,7 +170,7 @@ export interface Stderr extends OutputBase {
 
 type Info = ScriptRunning;
 
-interface InfoBase extends EventBase<Script> {
+interface InfoBase extends EventBase<ScriptConfig> {
   type: 'info';
 }
 
