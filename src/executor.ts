@@ -7,10 +7,10 @@
 import {spawn} from 'child_process';
 import {WireitError} from './error.js';
 import {configReferenceToString} from './script.js';
+import {shuffle} from './util/shuffle.js';
 
 import type {ScriptConfig} from './script.js';
 import type {Logger} from './logging/logger.js';
-import {shuffle} from './util/shuffle.js';
 
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
