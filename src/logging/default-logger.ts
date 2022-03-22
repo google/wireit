@@ -34,10 +34,13 @@ export class DefaultLogger implements Logger {
     const packageDir = script.packageDir;
     const scriptName = 'name' in script ? script.name : undefined;
     if (packageDir !== this._rootPackageDir) {
-      const relativePackageDir = pathlib.relative(
-        this._rootPackageDir,
-        script.packageDir
-      );
+      const relativePackageDir = pathlib
+        .relative(this._rootPackageDir, script.packageDir)
+        // Normalize to posix-style forward-slashes as the path separator, even
+        // on Windows which usually uses back-slashes. This way labels match the
+        // syntax used in the package.json dependency specifiers (which are
+        // already posix style).
+        .replace(pathlib.sep, pathlib.posix.sep);
       if (scriptName !== undefined) {
         return `${relativePackageDir}:${scriptName}`;
       } else {
