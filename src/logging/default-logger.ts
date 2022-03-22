@@ -35,6 +35,10 @@ export class DefaultLogger implements Logger {
             console.log(`✅${prefix} Executed successfully`);
             break;
           }
+          case 'no-command': {
+            console.log(`✅${prefix} No command to execute`);
+            break;
+          }
         }
         break;
       }
@@ -89,6 +93,14 @@ export class DefaultLogger implements Logger {
             console.error(
               `❌${prefix} The dependency "${event.dependency.name}" was declared multiple times`
             );
+            break;
+          }
+          case 'signal': {
+            console.error(`❌${prefix} Failed with signal ${event.signal}`);
+            break;
+          }
+          case 'spawn-error': {
+            console.error(`❌${prefix} Process spawn error: ${event.message}`);
             break;
           }
           case 'cycle': {

@@ -7,8 +7,11 @@
 import {WireitError} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
+import {Executor} from './executor.js';
 
-const run = async () => {
+import type {Logger} from './logging/logger.js';
+
+const run = async (logger: Logger) => {
   // These "npm_" prefixed environment variables are set by npm. We require that
   // wireit always be launched via an npm script, so if any are missing we
   // assume it was run directly instead of via npm.
@@ -30,13 +33,17 @@ const run = async () => {
     });
   }
 
+  const script = {packageDir, name};
   const analyzer = new Analyzer();
-  await analyzer.analyze({packageDir, name});
+  const analyzed = await analyzer.analyze(script);
+
+  const executor = new Executor(logger);
+  await executor.execute(analyzed);
 };
 
 const logger = new DefaultLogger();
 try {
-  await run();
+  await run(logger);
 } catch (error) {
   const errors = error instanceof AggregateError ? error.errors : [error];
   for (const e of errors) {

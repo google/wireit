@@ -35,8 +35,37 @@ export interface ScriptConfig extends ScriptReference {
   /**
    * Scripts that must run before this one.
    *
-   * Note that the {@link Analyzer} always returns dependencies sorted by
-   * package directory, then script name.
+   * Note that the {@link Analyzer} returns dependencies sorted by package
+   * directory + script name, but the {@link Executor} then randomizes the order
+   * during execution.
    */
   dependencies: ScriptConfig[];
 }
+
+/**
+ * Convert a {@link ScriptReference} to a string that can be used as a key in a
+ * Set, Map, etc.
+ */
+export const configReferenceToString = ({
+  packageDir,
+  name,
+}: ScriptReference): ScriptReferenceString =>
+  JSON.stringify([packageDir, name]) as ScriptReferenceString;
+
+/**
+ * Inverse of {@link configReferenceToString}.
+ */
+export const stringToConfigReference = (
+  str: ScriptReferenceString
+): ScriptReference => {
+  const [packageDir, name] = JSON.parse(str) as [string, string];
+  return {packageDir, name};
+};
+
+/**
+ * Brand that ensures {@link stringToConfigReference} only takes strings that
+ * were returned by {@link configReferenceToString}.
+ */
+export type ScriptReferenceString = string & {
+  __ScriptReferenceStringBrand__: never;
+};

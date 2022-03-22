@@ -6,9 +6,14 @@
 
 import {WireitError} from './error.js';
 import {CachingPackageJsonReader} from './util/package-json-reader.js';
+import {configReferenceToString, stringToConfigReference} from './script.js';
 
 import type {CachingPackageJsonReaderError} from './util/package-json-reader.js';
-import type {ScriptConfig, ScriptReference} from './script.js';
+import type {
+  ScriptConfig,
+  ScriptReference,
+  ScriptReferenceString,
+} from './script.js';
 
 /**
  * A {@link ScriptConfig} where all fields are optional apart from `packageDir`
@@ -23,7 +28,7 @@ type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
 export class Analyzer {
   private readonly _packageJsonReader = new CachingPackageJsonReader();
   private readonly _placeholders = new Map<
-    ScriptReferenceStringBrand,
+    ScriptReferenceString,
     PlaceholderConfig
   >();
   private readonly _placeholderUpgradePromises: Array<Promise<void>> = [];
@@ -169,6 +174,15 @@ export class Analyzer {
       });
     }
 
+    if (wireitConfig === undefined && scriptCommand === 'wireit') {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        message: `script has no wireit config`,
+      });
+    }
+
     const dependencies: Array<PlaceholderConfig> = [];
     if (wireitConfig?.dependencies !== undefined) {
       if (!Array.isArray(wireitConfig.dependencies)) {
@@ -232,6 +246,15 @@ export class Analyzer {
       command = wireitConfig.command;
     }
 
+    if (command === undefined && dependencies.length === 0) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        message: `script has no command and no dependencies`,
+      });
+    }
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.
@@ -244,7 +267,7 @@ export class Analyzer {
 
   private _checkForCyclesAndSortDependencies(
     config: ScriptConfig,
-    trail: Set<ScriptReferenceStringBrand>
+    trail: Set<ScriptReferenceString>
   ) {
     const trailKey = configReferenceToString(config);
     if (trail.has(trailKey)) {
@@ -306,34 +329,6 @@ export class Analyzer {
     return [{packageDir: context.packageDir, name: dependency}];
   }
 }
-
-/**
- * Convert a {@link ScriptReference} to a string that can be used as a key in a
- * Set, Map, etc.
- */
-const configReferenceToString = ({
-  packageDir,
-  name,
-}: ScriptReference): ScriptReferenceStringBrand =>
-  JSON.stringify([packageDir, name]) as ScriptReferenceStringBrand;
-
-/**
- * Inverse of {@link configReferenceToString}.
- */
-const stringToConfigReference = (
-  str: ScriptReferenceStringBrand
-): ScriptReference => {
-  const [packageDir, name] = JSON.parse(str) as [string, string];
-  return {packageDir, name};
-};
-
-/**
- * Brand that ensures {@link stringToConfigReference} only takes strings that
- * were returned by {@link configReferenceToString}.
- */
-type ScriptReferenceStringBrand = string & {
-  __ScriptReferenceStringBrand__: never;
-};
 
 /**
  * Assuming the given value was parsed from JSON, return whether it was an
