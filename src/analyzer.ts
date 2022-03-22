@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import * as pathlib from 'path';
 import {WireitError} from './error.js';
 import {CachingPackageJsonReader} from './util/package-json-reader.js';
 import {configReferenceToString, stringToConfigReference} from './script.js';
@@ -324,9 +325,65 @@ export class Analyzer {
     dependency: string,
     context: ScriptReference
   ): Array<ScriptReference> {
-    // TODO(aomarks) Implement cross-package dependencies.
     // TODO(aomarks) Implement $WORKSPACES syntax.
+    if (dependency.startsWith('.')) {
+      // TODO(aomarks) It is technically valid for an npm script to start with a
+      // ".". We should support that edge case with backslash escaping.
+      return [this._resolveCrossPackageDependency(dependency, context)];
+    }
     return [{packageDir: context.packageDir, name: dependency}];
+  }
+
+  /**
+   * Resolve a cross-package dependency (e.g. "../other-package:build").
+   * Cross-package dependencies always start with a ".".
+   */
+  private _resolveCrossPackageDependency(
+    dependency: string,
+    context: ScriptReference
+  ) {
+    // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
+    // path. We should support that edge case with backslash escaping.
+    const firstColonIdx = dependency.indexOf(':');
+    if (firstColonIdx === -1) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: context,
+        message:
+          `Cross-package dependency must use syntax ` +
+          `"<relative-path>:<script-name>", ` +
+          `but there was no ":" character in "${dependency}".`,
+      });
+    }
+    const scriptName = dependency.slice(firstColonIdx + 1);
+    if (!scriptName) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: context,
+        message:
+          `Cross-package dependency must use syntax ` +
+          `"<relative-path>:<script-name>", ` +
+          `but there was no script name in "${dependency}".`,
+      });
+    }
+    const relativePackageDir = dependency.slice(0, firstColonIdx);
+    const absolutePackageDir = pathlib.resolve(
+      context.packageDir,
+      relativePackageDir
+    );
+    if (absolutePackageDir === context.packageDir) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: context,
+        message:
+          `Cross-package dependency "${dependency}" ` +
+          `resolved to the same package.`,
+      });
+    }
+    return {packageDir: absolutePackageDir, name: scriptName};
   }
 }
 
