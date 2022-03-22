@@ -95,6 +95,43 @@ test(
 );
 
 test(
+  'runs one script that succeeds from a package sub-directory',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+      // This file is here just to create "subdir".
+      'subdir/foo.txt': '',
+    });
+
+    // Just like normal npm, when we run "npm run" from a directory that doesn't
+    // have a package.json, we should find the nearest package.json up the
+    // filesystem hierarchy.
+    const exec = rig.exec('npm run a', {cwd: 'subdir'});
+
+    const invA = await cmdA.nextInvocation();
+    invA.stdout('a stdout');
+    invA.stderr('a stderr');
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, 'a stdout');
+    assert.match(res.stderr, 'a stderr');
+  })
+);
+
+test(
   'runs one script that fails',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
