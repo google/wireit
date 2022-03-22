@@ -6,7 +6,7 @@
 
 import {spawn} from 'child_process';
 import {WireitError} from './error.js';
-import {configReferenceToString} from './script.js';
+import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 
 import type {ScriptConfig} from './script.js';
@@ -24,7 +24,7 @@ export class Executor {
   }
 
   async execute(script: ScriptConfig): Promise<void> {
-    const cacheKey = configReferenceToString(script);
+    const cacheKey = scriptReferenceToString(script);
     let promise = this._cache.get(cacheKey);
     if (promise === undefined) {
       promise = this._execute(script);

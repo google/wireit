@@ -7,7 +7,7 @@
 import * as pathlib from 'path';
 import {WireitError} from './error.js';
 import {CachingPackageJsonReader} from './util/package-json-reader.js';
-import {configReferenceToString, stringToConfigReference} from './script.js';
+import {scriptReferenceToString, stringToScriptReference} from './script.js';
 
 import type {CachingPackageJsonReaderError} from './util/package-json-reader.js';
 import type {
@@ -94,7 +94,7 @@ export class Analyzer {
    * given script reference.
    */
   private _getPlaceholder(reference: ScriptReference): PlaceholderConfig {
-    const cacheKey = configReferenceToString(reference);
+    const cacheKey = scriptReferenceToString(reference);
     let placeholder = this._placeholders.get(cacheKey);
     if (placeholder === undefined) {
       placeholder = {...reference};
@@ -214,7 +214,7 @@ export class Analyzer {
           unresolved,
           placeholder
         )) {
-          const uniqueKey = configReferenceToString(resolved);
+          const uniqueKey = scriptReferenceToString(resolved);
           if (uniqueDependencies.has(uniqueKey)) {
             throw new WireitError({
               type: 'failure',
@@ -292,7 +292,7 @@ export class Analyzer {
     config: ScriptConfig,
     trail: Set<ScriptReferenceString>
   ) {
-    const trailKey = configReferenceToString(config);
+    const trailKey = scriptReferenceToString(config);
     if (trail.has(trailKey)) {
       // Found a cycle.
       const trailArray = [];
@@ -301,7 +301,7 @@ export class Analyzer {
       // order matches insertion order.
       let i = 0;
       for (const visited of trail) {
-        trailArray.push(stringToConfigReference(visited));
+        trailArray.push(stringToScriptReference(visited));
         if (visited === trailKey) {
           cycleStart = i;
         }

@@ -55,16 +55,16 @@ export interface ScriptConfig extends ScriptReference {
  * Convert a {@link ScriptReference} to a string that can be used as a key in a
  * Set, Map, etc.
  */
-export const configReferenceToString = ({
+export const scriptReferenceToString = ({
   packageDir,
   name,
 }: ScriptReference): ScriptReferenceString =>
   JSON.stringify([packageDir, name]) as ScriptReferenceString;
 
 /**
- * Inverse of {@link configReferenceToString}.
+ * Inverse of {@link scriptReferenceToString}.
  */
-export const stringToConfigReference = (
+export const stringToScriptReference = (
   str: ScriptReferenceString
 ): ScriptReference => {
   const [packageDir, name] = JSON.parse(str) as [string, string];
@@ -72,8 +72,8 @@ export const stringToConfigReference = (
 };
 
 /**
- * Brand that ensures {@link stringToConfigReference} only takes strings that
- * were returned by {@link configReferenceToString}.
+ * Brand that ensures {@link stringToScriptReference} only takes strings that
+ * were returned by {@link scriptReferenceToString}.
  */
 export type ScriptReferenceString = string & {
   __ScriptReferenceStringBrand__: never;
