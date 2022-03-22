@@ -4,20 +4,55 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import * as pathlib from 'path';
 import {unreachable} from '../util/unreachable.js';
 
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
+import type {PackageReference, ScriptReference} from '../script.js';
 
 /**
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
+  private readonly _rootPackageDir: string;
+
+  /**
+   * @param rootPackage The npm package directory that the root script being
+   * executed belongs to.
+   */
+  constructor(rootPackage: string) {
+    this._rootPackageDir = rootPackage;
+  }
+
+  /**
+   * Make a concise label for a script, or for just a package if we don't know
+   * the script name. If the package is different to the root package, it is
+   * disambiguated with a relative path.
+   */
+  private _label(script: PackageReference | ScriptReference) {
+    const packageDir = script.packageDir;
+    const scriptName = 'name' in script ? script.name : undefined;
+    if (packageDir !== this._rootPackageDir) {
+      const relativePackageDir = pathlib.relative(
+        this._rootPackageDir,
+        script.packageDir
+      );
+      if (scriptName !== undefined) {
+        return `${relativePackageDir}:${scriptName}`;
+      } else {
+        return relativePackageDir;
+      }
+    } else if (scriptName !== undefined) {
+      return scriptName;
+    }
+    return '';
+  }
+
   log(event: Event) {
     const type = event.type;
-    // TODO(aomarks) Also include a relative package path in the log prefix when
-    // cross-package dependencies are supported.
-    const prefix = 'name' in event.script ? ` [${event.script.name}]` : '';
+    const label = this._label(event.script);
+    const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
         throw new Error(`Unknown event type: ${unreachable(type) as string}`);
@@ -124,7 +159,7 @@ export class DefaultLogger implements Logger {
               } else {
                 process.stderr.write('`-- ');
               }
-              process.stderr.write(event.trail[i].name);
+              process.stderr.write(this._label(event.trail[i]));
               process.stderr.write('\n');
             }
             break;

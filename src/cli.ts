@@ -11,6 +11,8 @@ import {Executor} from './executor.js';
 
 import type {Logger} from './logging/logger.js';
 
+const packageDir = process.env.npm_config_local_prefix;
+
 const run = async (logger: Logger) => {
   // These "npm_" prefixed environment variables are set by npm. We require that
   // wireit always be launched via an npm script, so if any are missing we
@@ -19,7 +21,6 @@ const run = async (logger: Logger) => {
   // We need to handle "npx wireit" as a special case, because it sets
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be either
   // "npm-cli.js" or "npx-cli.js", so we use that to detect this case.
-  const packageDir = process.env.npm_config_local_prefix;
   const name = process.env.npm_lifecycle_event;
   if (
     !packageDir ||
@@ -41,7 +42,7 @@ const run = async (logger: Logger) => {
   await executor.execute(analyzed);
 };
 
-const logger = new DefaultLogger();
+const logger = new DefaultLogger(packageDir ?? process.cwd());
 try {
   await run(logger);
 } catch (error) {
