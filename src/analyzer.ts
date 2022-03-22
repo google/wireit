@@ -256,12 +256,34 @@ export class Analyzer {
       });
     }
 
+    if (wireitConfig?.files !== undefined) {
+      if (!Array.isArray(wireitConfig.files)) {
+        throw new WireitError({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: placeholder,
+          message: `files is not an array`,
+        });
+      }
+      for (let i = 0; i < wireitConfig.files.length; i++) {
+        if (typeof wireitConfig.files[i] !== 'string') {
+          throw new WireitError({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            message: `files[${i}] is not a string`,
+          });
+        }
+      }
+    }
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.
     const remainingConfig: Omit<ScriptConfig, keyof ScriptReference> = {
       command,
       dependencies: dependencies as Array<ScriptConfig>,
+      files: wireitConfig?.files,
     };
     Object.assign(placeholder, remainingConfig);
   }

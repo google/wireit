@@ -40,6 +40,15 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: ScriptConfig[];
+
+  /**
+   * Input file globs for this script.
+   *
+   * If undefined, the input files are unknown (meaning the script cannot safely
+   * be cached). If defined but empty, there are no input files (meaning the
+   * script can safely be cached).
+   */
+  files: string[] | undefined;
 }
 
 /**
