@@ -5,7 +5,7 @@
  */
 
 /**
- * Randomize the order of an array.
+ * Randomize the order of an array in-place.
  */
 export const shuffle = (array: Array<unknown>): void => {
   // https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
