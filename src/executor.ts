@@ -4,26 +4,46 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import * as fastGlob from 'fast-glob';
+import * as pathlib from 'path';
+import {createHash} from 'crypto';
+import {createReadStream} from 'fs';
 import {spawn} from 'child_process';
 import {WireitError} from './error.js';
 import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 
-import type {ScriptConfig} from './script.js';
+import type {
+  ScriptConfig,
+  ScriptReference,
+  ScriptReferenceString,
+  CacheKey,
+  Sha256HexDigest,
+} from './script.js';
 import type {Logger} from './logging/logger.js';
+
+/**
+ * Unique symbol to represent a script that isn't safe to be cached, because its
+ * input files, or the input files of one of its transitive dependencies, are
+ * undefined.
+ */
+const UNCACHEABLE = Symbol();
 
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  private readonly _cache = new Map<string, Promise<void>>();
+  private readonly _cache = new Map<
+    string,
+    Promise<CacheKey | typeof UNCACHEABLE>
+  >();
   private readonly _logger: Logger;
 
   constructor(logger: Logger) {
     this._logger = logger;
   }
 
-  async execute(script: ScriptConfig): Promise<void> {
+  async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
     const cacheKey = scriptReferenceToString(script);
     let promise = this._cache.get(cacheKey);
     if (promise === undefined) {
@@ -33,15 +53,24 @@ export class Executor {
     return promise;
   }
 
-  private async _execute(script: ScriptConfig): Promise<void> {
-    await this._executeDependencies(script);
+  private async _execute(
+    script: ScriptConfig
+  ): Promise<CacheKey | typeof UNCACHEABLE> {
+    const dependencyCacheKeys = await this._executeDependencies(script);
+    // Note we must wait for dependencies to finish before generating the cache
+    // key, because a dependency could create or modify an input file to this
+    // script, which would affect the key.
+    const cacheKey = this._getCacheKey(script, dependencyCacheKeys);
     await this._executeCommandIfNeeded(script);
     // TODO(aomarks) Implement freshness checking.
     // TODO(aomarks) Implement output deletion.
     // TODO(aomarks) Implement caching.
+    return cacheKey;
   }
 
-  private async _executeDependencies(script: ScriptConfig): Promise<void> {
+  private async _executeDependencies(
+    script: ScriptConfig
+  ): Promise<Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>> {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
@@ -52,7 +81,9 @@ export class Executor {
       script.dependencies.map((dependency) => this.execute(dependency))
     );
     const errors: unknown[] = [];
-    for (const result of dependencyResults) {
+    const results: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]> = [];
+    for (let i = 0; i < dependencyResults.length; i++) {
+      const result = dependencyResults[i];
       if (result.status === 'rejected') {
         const error: unknown = result.reason;
         if (error instanceof AggregateError) {
@@ -61,11 +92,14 @@ export class Executor {
         } else {
           errors.push(error);
         }
+      } else {
+        results.push([script.dependencies[i], result.value]);
       }
     }
     if (errors.length > 0) {
       throw errors.length === 1 ? errors[0] : new AggregateError(errors);
     }
+    return results;
   }
 
   private async _executeCommandIfNeeded(script: ScriptConfig): Promise<void> {
@@ -162,5 +196,82 @@ export class Executor {
     });
 
     await completed;
+  }
+
+  /**
+   * Generate the cache key for this script based on its current input files,
+   * and the cache keys of its dependencies.
+   *
+   * Returns undefined if this script, or any of this script's transitive
+   * dependencies, have undefined input files.
+   */
+  private async _getCacheKey(
+    script: ScriptConfig,
+    dependencyCacheKeys: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
+  ): Promise<CacheKey | typeof UNCACHEABLE> {
+    if (script.files === undefined && script.command !== undefined) {
+      // If files are undefined, then it's never safe for us to be cached,
+      // because we don't know what the inputs are, so we can't know if the
+      // output of this script could change.
+      //
+      // However, if the command is also undefined, then it actually _is_ safe
+      // to be cached, because the script isn't itself going to do anything
+      // anyway. In that case, the cache keys will be purely the cache keys of
+      // the dependencies.
+      return UNCACHEABLE;
+    }
+
+    const filteredDependencyCacheKeys: Array<
+      [ScriptReferenceString, CacheKey]
+    > = [];
+    for (const [dep, depCacheKey] of dependencyCacheKeys) {
+      if (depCacheKey === UNCACHEABLE) {
+        // If one of our dependencies is uncacheable, then we're uncacheable
+        // too, because that dependency could have an effect on our output.
+        return UNCACHEABLE;
+      }
+      filteredDependencyCacheKeys.push([
+        scriptReferenceToString(dep),
+        depCacheKey,
+      ]);
+    }
+
+    let fileHashes: Array<[string, Sha256HexDigest]>;
+    if (script.files !== undefined && script.files.length > 0) {
+      const files = await fastGlob(script.files, {
+        cwd: script.packageDir,
+        dot: true,
+        onlyFiles: true,
+      });
+      // TODO(aomarks) Instead of reading and hashing every input file on every
+      // build, use inode/mtime/ctime/size metadata (which is much faster to
+      // read) as a heuristic to detect files that have likely changed, and
+      // otherwise re-use cached hashes that we store in e.g.
+      // ".wireit/<script>/hashes".
+      fileHashes = await Promise.all(
+        files.map(async (file): Promise<[string, Sha256HexDigest]> => {
+          const absolutePath = pathlib.resolve(script.packageDir, file);
+          const hash = createHash('sha256');
+          for await (const chunk of createReadStream(absolutePath)) {
+            hash.update(chunk as Buffer);
+          }
+          return [file, hash.digest('hex') as Sha256HexDigest];
+        })
+      );
+    } else {
+      fileHashes = [];
+    }
+
+    return {
+      command: script.command,
+      files: Object.fromEntries(
+        fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
+      ),
+      dependencies: Object.fromEntries(
+        filteredDependencyCacheKeys.sort(([aRef], [bRef]) =>
+          aRef.localeCompare(bRef)
+        )
+      ),
+    };
   }
 }
