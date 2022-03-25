@@ -41,5 +41,8 @@
   "prettier": {
     "singleQuote": true,
     "bracketSpacing": false
+  },
+  "dependencies": {
+    "fast-glob": "^3.2.11"
   }
 }
