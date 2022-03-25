@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import * as fastGlob from 'fast-glob';
+import fastGlob from 'fast-glob';
 import * as pathlib from 'path';
+import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import {createReadStream} from 'fs';
 import {spawn} from 'child_process';
@@ -18,6 +19,7 @@ import type {
   ScriptReference,
   ScriptReferenceString,
   CacheKey,
+  CacheKeyString,
   Sha256HexDigest,
 } from './script.js';
 import type {Logger} from './logging/logger.js';
@@ -60,11 +62,36 @@ export class Executor {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const cacheKey = this._getCacheKey(script, dependencyCacheKeys);
-    await this._executeCommandIfNeeded(script);
-    // TODO(aomarks) Implement freshness checking.
+    const cacheKey = await this._getCacheKey(script, dependencyCacheKeys);
+    let cacheKeyStr: CacheKeyString | typeof UNCACHEABLE;
+    if (cacheKey !== UNCACHEABLE) {
+      cacheKeyStr = JSON.stringify(cacheKey) as CacheKeyString;
+      const previousCacheKeyStr = await this._readStateFile(script);
+      if (
+        previousCacheKeyStr !== undefined &&
+        cacheKeyStr === previousCacheKeyStr
+      ) {
+        return cacheKey;
+      }
+    } else {
+      cacheKeyStr = UNCACHEABLE;
+    }
+
+    // It's important that we delete any previous state file before running the
+    // command, because if the command fails we won't update the state file,
+    // even though the command might have produced some output.
+    await this._deleteStateFile(script);
+
     // TODO(aomarks) Implement output deletion.
     // TODO(aomarks) Implement caching.
+    await this._executeCommandIfNeeded(script);
+
+    if (cacheKeyStr !== UNCACHEABLE) {
+      // TODO(aomarks) We don't technically need to wait for this to finish to
+      // return, we only need to wait in the top-level call to execute. The same
+      // will go for saving output to the cache.
+      await this._writeStateFile(script, cacheKeyStr);
+    }
     return cacheKey;
   }
 
@@ -273,5 +300,68 @@ export class Executor {
         )
       ),
     };
+  }
+
+  /**
+   * Get the directory name where Wireit data can be saved for a script.
+   */
+  private _getScriptDataDir(script: ScriptReference): string {
+    return pathlib.join(
+      script.packageDir,
+      '.wireit',
+      // Script names can contain any character, so they aren't safe to use
+      // directly in a filepath, becuase certain characters aren't allowed on
+      // certain filesystems (e.g. ":" is forbidden on Windows). Hex-encode
+      // instead so that we only get safe ASCII characters.
+      //
+      // Reference:
+      // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
+      Buffer.from(script.name).toString('hex')
+    );
+  }
+
+  /**
+   * Read a script's ".wireit/<hex-script-name>/state" file.
+   */
+  private async _readStateFile(
+    script: ScriptReference
+  ): Promise<CacheKeyString | undefined> {
+    const stateFilepath = pathlib.join(this._getScriptDataDir(script), 'state');
+    try {
+      return (await fs.readFile(stateFilepath, 'utf8')) as CacheKeyString;
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Write a script's ".wireit/<hex-script-name>/state" file.
+   */
+  private async _writeStateFile(
+    script: ScriptReference,
+    cacheKeyStr: CacheKeyString
+  ): Promise<void> {
+    const dataDir = this._getScriptDataDir(script);
+    await fs.mkdir(dataDir, {recursive: true});
+    const stateFilepath = pathlib.join(dataDir, 'state');
+    await fs.writeFile(stateFilepath, cacheKeyStr, 'utf8');
+  }
+
+  /**
+   * Delete a script's ".wireit/<hex-script-name>/state" file.
+   */
+  private async _deleteStateFile(script: ScriptReference): Promise<void> {
+    const stateFilepath = pathlib.join(this._getScriptDataDir(script), 'state');
+    try {
+      await fs.unlink(stateFilepath);
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
   }
 }
