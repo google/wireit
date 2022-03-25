@@ -535,7 +535,7 @@ test(
     // This test confirms that we are serializing the previous state in a way
     // that doesn't try to put forbidden characters in filenames (as would be
     // the case if we used the script name directly).
-    const name = '🔥<>:"/\\|?*';
+    const name = '🔥<>:/\\|?*';
 
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -555,7 +555,7 @@ test(
 
     // Initially stale, so command is invoked.
     {
-      const exec = rig.exec(`npm run '${name}'`);
+      const exec = rig.exec(`npm run "${name}"`);
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
@@ -570,7 +570,7 @@ test(
         pathlib.join(
           '.wireit',
           // Buffer.from(name).toString('hex')
-          'f09f94a53c3e3a222f5c7c3f2a',
+          'f09f94a53c3e3a2f5c7c3f2a',
           'state'
         )
       )
@@ -578,7 +578,7 @@ test(
 
     // No input file changed, so script is fresh, and command is not invoked.
     {
-      const exec = rig.exec(`npm run '${name}'`);
+      const exec = rig.exec(`npm run "${name}"`);
       const res = await exec.exit;
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
