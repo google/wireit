@@ -430,6 +430,75 @@ test(
 );
 
 test(
+  'two commands which reference the same input file',
+  timeout(async ({rig}) => {
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b', 'c'],
+          },
+          b: {
+            command: cmdB.command,
+            files: ['input.txt'],
+          },
+          c: {
+            command: cmdC.command,
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    // Initially stale, so commands run.
+    {
+      const exec = rig.exec('npm run a');
+      const invB = await cmdB.nextInvocation();
+      const invC = await cmdC.nextInvocation();
+      invB.exit(0);
+      invC.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdB.numInvocations, 1);
+      assert.equal(cmdC.numInvocations, 1);
+    }
+
+    // Nothing changed, so nothing runs.
+    {
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdB.numInvocations, 1);
+      assert.equal(cmdC.numInvocations, 1);
+    }
+
+    // Input file changed. Since it is an input to both B and C, they both run.
+    {
+      await rig.write({
+        'input.txt': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const invB = await cmdB.nextInvocation();
+      const invC = await cmdC.nextInvocation();
+      invB.exit(0);
+      invC.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdB.numInvocations, 2);
+      assert.equal(cmdC.numInvocations, 2);
+    }
+  })
+);
+
+test(
   'glob recursive stars (**) match input files',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();

@@ -67,9 +67,9 @@ export class WireitTestRigCommand {
     this._assertState('listening');
     this._state = 'closed';
     // The server won't close until all connections are destroyed.
-    this._allConnections.map((connection) => {
+    for (const connection of this._allConnections) {
       connection.destroy();
-    });
+    }
     return new Promise((resolve, reject) => {
       this._server.close((error: Error | undefined) => {
         if (error !== undefined) {

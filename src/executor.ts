@@ -229,8 +229,8 @@ export class Executor {
    * Generate the cache key for this script based on its current input files,
    * and the cache keys of its dependencies.
    *
-   * Returns undefined if this script, or any of this script's transitive
-   * dependencies, have undefined input files.
+   * Returns the sentinel value {@link UNCACHEABLE} if this script, or any of
+   * this script's transitive dependencies, have undefined input files.
    */
   private async _getCacheKey(
     script: ScriptConfig,
@@ -264,7 +264,7 @@ export class Executor {
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
-    if (script.files !== undefined && script.files.length > 0) {
+    if (script.files?.length) {
       const files = await fastGlob(script.files, {
         cwd: script.packageDir,
         dot: true,
@@ -310,7 +310,7 @@ export class Executor {
       script.packageDir,
       '.wireit',
       // Script names can contain any character, so they aren't safe to use
-      // directly in a filepath, becuase certain characters aren't allowed on
+      // directly in a filepath, because certain characters aren't allowed on
       // certain filesystems (e.g. ":" is forbidden on Windows). Hex-encode
       // instead so that we only get safe ASCII characters.
       //
