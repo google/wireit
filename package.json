@@ -43,6 +43,7 @@
     "bracketSpacing": false
   },
   "dependencies": {
+    "chokidar": "^3.5.3",
     "fast-glob": "^3.2.11"
   }
 }
