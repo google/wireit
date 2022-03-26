@@ -114,7 +114,7 @@ always safe to use as dependencies; they just won't be fully optimized.
 ### Cross-package dependencies
 
 Dependencies can refer to scripts in other npm packages by using a relative path
-with the syntax "<relative-path>:<script-name>". All cross-package dependencies
+with the syntax `<relative-path>:<script-name>`. All cross-package dependencies
 should start with a `"."`. Cross-package dependencies work well for npm
 workspaces, as well as in other kinds of monorepos.
 
