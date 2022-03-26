@@ -223,6 +223,12 @@ export class Executor {
     });
 
     await completed;
+
+    this._logger.log({
+      script,
+      type: 'success',
+      reason: 'exit-zero',
+    });
   }
 
   /**
