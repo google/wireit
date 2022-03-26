@@ -40,22 +40,31 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: ScriptConfig[];
+
+  /**
+   * Input file globs for this script.
+   *
+   * If undefined, the input files are unknown (meaning the script cannot safely
+   * be cached). If defined but empty, there are no input files (meaning the
+   * script can safely be cached).
+   */
+  files: string[] | undefined;
 }
 
 /**
  * Convert a {@link ScriptReference} to a string that can be used as a key in a
  * Set, Map, etc.
  */
-export const configReferenceToString = ({
+export const scriptReferenceToString = ({
   packageDir,
   name,
 }: ScriptReference): ScriptReferenceString =>
   JSON.stringify([packageDir, name]) as ScriptReferenceString;
 
 /**
- * Inverse of {@link configReferenceToString}.
+ * Inverse of {@link scriptReferenceToString}.
  */
-export const stringToConfigReference = (
+export const stringToScriptReference = (
   str: ScriptReferenceString
 ): ScriptReference => {
   const [packageDir, name] = JSON.parse(str) as [string, string];
@@ -63,9 +72,35 @@ export const stringToConfigReference = (
 };
 
 /**
- * Brand that ensures {@link stringToConfigReference} only takes strings that
- * were returned by {@link configReferenceToString}.
+ * Brand that ensures {@link stringToScriptReference} only takes strings that
+ * were returned by {@link scriptReferenceToString}.
  */
 export type ScriptReferenceString = string & {
   __ScriptReferenceStringBrand__: never;
+};
+
+/**
+ * All meaningful input state of a script. Used for determining if a script is
+ * fresh, and as the key for storing cached output.
+ */
+export interface CacheKey {
+  command: string | undefined;
+  // Must be sorted.
+  files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
+  // Must be sorted.
+  dependencies: {[dependency: ScriptReferenceString]: CacheKey};
+}
+
+/**
+ * String serialization of a {@link CacheKey}.
+ */
+export type CacheKeyString = string & {
+  __CacheKeyStringBrand__: never;
+};
+
+/**
+ * SHA256 hash hexadecimal digest of a file's content.
+ */
+export type Sha256HexDigest = string & {
+  __Sha256HexDigest__: never;
 };

@@ -30,7 +30,7 @@ export class WireitTestRigCommand {
   private readonly _ipcPath: string;
   private readonly _server: net.Server;
   private _state: 'uninitialized' | 'listening' | 'closed' = 'uninitialized';
-  private _numConnections = 0;
+  private _allConnections: Array<net.Socket> = [];
   private _newConnections: Array<net.Socket> = [];
   private _newConnectionNotification = new Deferred<void>();
 
@@ -66,6 +66,10 @@ export class WireitTestRigCommand {
   async close(): Promise<void> {
     this._assertState('listening');
     this._state = 'closed';
+    // The server won't close until all connections are destroyed.
+    for (const connection of this._allConnections) {
+      connection.destroy();
+    }
     return new Promise((resolve, reject) => {
       this._server.close((error: Error | undefined) => {
         if (error !== undefined) {
@@ -89,7 +93,7 @@ export class WireitTestRigCommand {
    * How many invocations of this command were made.
    */
   get numInvocations(): number {
-    return this._numConnections;
+    return this._allConnections.length;
   }
 
   /**
@@ -112,7 +116,7 @@ export class WireitTestRigCommand {
    */
   private readonly _onConnection = (socket: net.Socket) => {
     this._assertState('listening');
-    this._numConnections++;
+    this._allConnections.push(socket);
     this._newConnections.push(socket);
     this._newConnectionNotification.resolve();
     this._newConnectionNotification = new Deferred();

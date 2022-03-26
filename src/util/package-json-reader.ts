@@ -18,6 +18,7 @@ export interface PackageJson {
     [scriptName: string]: {
       command?: string;
       dependencies?: string[];
+      files?: string[];
     };
   };
 }
