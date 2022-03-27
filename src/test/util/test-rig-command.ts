@@ -128,10 +128,14 @@ export class WireitTestRigCommand {
  */
 export class WireitTestRigCommandInvocation {
   private readonly _socket: net.Socket;
+  private readonly _socketClosed = new Deferred<void>();
   private _state: 'connected' | 'closed' = 'connected';
 
   constructor(socket: net.Socket) {
     this._socket = socket;
+    this._socket.on('close', () => {
+      this._socketClosed.resolve();
+    });
   }
 
   private _assertState(expected: 'connected' | 'closed') {
@@ -148,6 +152,14 @@ export class WireitTestRigCommandInvocation {
   exit(code: number): void {
     this._sendMessage({type: 'exit', code});
     this._state = 'closed';
+  }
+
+  /**
+   * Promise that resolves when this invocation's socket has exited, indicating
+   * that the process has exited (or is just about to exit).
+   */
+  get closed(): Promise<void> {
+    return this._socketClosed.promise;
   }
 
   /**
