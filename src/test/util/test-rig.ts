@@ -66,7 +66,7 @@ export class WireitTestRig {
     this._assertState('running');
     this._state = 'done';
     for (const child of this._activeChildProcesses) {
-      child.kill('SIGKILL');
+      child.terminate();
     }
     await Promise.all([
       fs.rm(this.temp, {recursive: true}),
@@ -216,10 +216,20 @@ class ExecResult {
       env: Object.fromEntries(
         Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
       ),
-      // Required for process.kill to work.
-      // TODO(aomarks) Investigate why this is necessary and child.kill()
-      // doesn't work.
-      detached: true,
+      // Set "detached" on Linux and macOS so that we create a new process
+      // group, instead of inheriting the parent process group. We need a new
+      // process group so that we can use a "kill(-pid)" command to kill all of
+      // the processes in the process group, instead of just the top one. Our
+      // process is not the top one because it is a child of "sh", and "sh" does
+      // not forward signals to child processes, so a regular "kill(pid)" would
+      // do nothing. The process is a child of "sh" because we are using the
+      // "shell" option.
+      //
+      // On Windows this works completely differently, and we instead terminate
+      // child processes with "taskkill". If we set "detached" on Windows, it
+      // has the side effect of causing all child processes to open in new
+      // terminal windows.
+      detached: !isWindows,
     });
 
     this._child.stdout.on('data', this._onStdout);
@@ -257,10 +267,31 @@ class ExecResult {
   }
 
   /**
-   * Send a signal to this child process.
+   * Terminate the child process.
    */
-  kill(signal: NodeJS.Signals): void {
-    this._child.kill(signal);
+  terminate(): void {
+    if (!this.running) {
+      throw new Error(
+        "Can't terminate child process because it is not running"
+      );
+    }
+    if (this._child.pid === undefined) {
+      throw new Error("Can't terminate child process because it has no pid");
+    }
+    if (isWindows) {
+      // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
+      // the behavior of SIGKILL (and ignores the signal you pass in), but it
+      // seems to leave streams and file handles open. The taskkill command does
+      // a much better job at cleanly killing the process:
+      // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
+      spawn('taskkill', ['/pid', this._child.pid.toString(), '/t', '/f']);
+    } else {
+      // We used "detached" when we spawned, so our child is the leader of its
+      // own process group. Passing the negative of the child's pid kills all
+      // processes in the group (without the negative only the leader "sh"
+      // process would be killed).
+      process.kill(-this._child.pid, 'SIGINT');
+    }
   }
 
   private readonly _onStdout = (chunk: string | Buffer) => {
