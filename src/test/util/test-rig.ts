@@ -198,6 +198,7 @@ export type {ExecResult};
 class ExecResult {
   private readonly _child: ChildProcessWithoutNullStreams;
   private readonly _exited = new Deferred<ExitResult>();
+  private _running = true;
   private _stdout = '';
   private _stderr = '';
 
@@ -225,6 +226,7 @@ class ExecResult {
     this._child.stderr.on('data', this._onStderr);
 
     this._child.on('close', (code, signal) => {
+      this._running = false;
       this._exited.resolve({
         code,
         signal,
@@ -236,6 +238,14 @@ class ExecResult {
     this._child.on('error', (error: Error) => {
       this._exited.reject(error);
     });
+  }
+
+  /**
+   * Promise that resolves when this child process exits with information about
+   * the execution.
+   */
+  get running(): boolean {
+    return this._running;
   }
 
   /**
