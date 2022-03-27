@@ -7,9 +7,10 @@
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
-import {spawn, type ChildProcess} from 'child_process';
+import {spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import cmdShim from 'cmd-shim';
 import {WireitTestRigCommand} from './test-rig-command.js';
+import {Deferred} from '../../util/deferred.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -22,7 +23,7 @@ const isWindows = process.platform === 'win32';
 export class WireitTestRig {
   readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
   private _state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
-  private readonly _activeChildProcesses = new Set<ChildProcess>();
+  private readonly _activeChildProcesses = new Set<ExecResult>();
   private readonly _commands: Array<WireitTestRigCommand> = [];
 
   private _assertState(expected: 'uninitialized' | 'running' | 'done') {
@@ -64,8 +65,8 @@ export class WireitTestRig {
   async cleanup(): Promise<void> {
     this._assertState('running');
     this._state = 'done';
-    for (const process of this._activeChildProcesses) {
-      process.kill(9);
+    for (const child of this._activeChildProcesses) {
+      child.kill('SIGKILL');
     }
     await Promise.all([
       fs.rm(this.temp, {recursive: true}),
@@ -151,46 +152,9 @@ export class WireitTestRig {
   exec(command: string, opts?: {cwd?: string}): ExecResult {
     this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
-    const child = spawn(command, {
-      cwd,
-      shell: true,
-      // Remove any environment variables that start with "npm_", because those
-      // will have been set by the "npm test" or similar command that launched
-      // this test itself, and we want a more pristine simulation of running
-      // wireit directly when we're testing.
-      //
-      // In particular, this lets us test for the case where wireit was not
-      // launched through npm at all.
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
-      ),
-    });
-    this._activeChildProcesses.add(child);
-    let stdout = '';
-    let stderr = '';
-    const showOutput = process.env.SHOW_TEST_OUTPUT;
-    child.stdout.on('data', (chunk: string | Buffer) => {
-      stdout += chunk;
-      if (showOutput) {
-        process.stdout.write(chunk);
-      }
-    });
-    child.stderr.on('data', (chunk: string | Buffer) => {
-      stderr += chunk;
-      if (showOutput) {
-        process.stderr.write(chunk);
-      }
-    });
-    const exit = new Promise<Awaited<ExecResult['exit']>>((resolve, reject) => {
-      child.on('close', (code, signal) => {
-        this._activeChildProcesses.delete(child);
-        resolve({stdout, stderr, code, signal});
-      });
-      child.on('error', (error: Error) => {
-        reject(error);
-      });
-    });
-    return {exit};
+    const result = new ExecResult(command, cwd);
+    result.exit.finally(() => this._activeChildProcesses.delete(result));
+    return result;
   }
 
   /**
@@ -226,17 +190,92 @@ export class WireitTestRig {
   }
 }
 
+export type {ExecResult};
+
 /**
- * The result of running WireitTestRig.exec.
+ * The object returned by {@link WireitTestRig.exec}.
  */
-export interface ExecResult {
-  /** Promise that resolves when the child process has exited. */
-  exit: Promise<{
-    stdout: string;
-    stderr: string;
-    /** The exit code, or null if the child process exited with a signal. */
-    code: number | null;
-    /** The exit signal, or null if the child process did not exit with a signal. */
-    signal: NodeJS.Signals | null;
-  }>;
+class ExecResult {
+  private readonly _child: ChildProcessWithoutNullStreams;
+  private readonly _exited = new Deferred<ExitResult>();
+  private _stdout = '';
+  private _stderr = '';
+
+  constructor(command: string, cwd: string) {
+    this._child = spawn(command, {
+      cwd,
+      shell: true,
+      // Remove any environment variables that start with "npm_", because those
+      // will have been set by the "npm test" or similar command that launched
+      // this test itself, and we want a more pristine simulation of running
+      // wireit directly when we're testing.
+      //
+      // In particular, this lets us test for the case where wireit was not
+      // launched through npm at all.
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
+      ),
+      // Required for process.kill to work.
+      // TODO(aomarks) Investigate why this is necessary and child.kill()
+      // doesn't work.
+      detached: true,
+    });
+
+    this._child.stdout.on('data', this._onStdout);
+    this._child.stderr.on('data', this._onStderr);
+
+    this._child.on('close', (code, signal) => {
+      this._exited.resolve({
+        code,
+        signal,
+        stdout: this._stdout,
+        stderr: this._stderr,
+      });
+    });
+
+    this._child.on('error', (error: Error) => {
+      this._exited.reject(error);
+    });
+  }
+
+  /**
+   * Promise that resolves when this child process exits with information about
+   * the execution.
+   */
+  get exit(): Promise<ExitResult> {
+    return this._exited.promise;
+  }
+
+  /**
+   * Send a signal to this child process.
+   */
+  kill(signal: NodeJS.Signals): void {
+    this._child.kill(signal);
+  }
+
+  private readonly _onStdout = (chunk: string | Buffer) => {
+    this._stdout += chunk;
+    if (process.env.SHOW_TEST_OUTPUT) {
+      process.stdout.write(chunk);
+    }
+  };
+
+  private readonly _onStderr = (chunk: string | Buffer) => {
+    this._stderr += chunk;
+    if (process.env.SHOW_TEST_OUTPUT) {
+      process.stdout.write(chunk);
+    }
+  };
+}
+
+/**
+ * The result of {@link ExecResult.exit}.
+ */
+export interface ExitResult {
+  stdout: string;
+  stderr: string;
+  /** The exit code, or null if the child process exited with a signal. */
+  code: number | null;
+  /** The exit signal, or null if the child process did not exit with a signal. */
+  signal: NodeJS.Signals | null;
 }
