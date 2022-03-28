@@ -251,8 +251,7 @@ class ExecResult {
   }
 
   /**
-   * Promise that resolves when this child process exits with information about
-   * the execution.
+   * Whether this child process is still running.
    */
   get running(): boolean {
     return this._running;

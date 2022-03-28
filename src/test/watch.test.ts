@@ -442,4 +442,108 @@ test(
   })
 );
 
+test(
+  'watchers understand negations',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['*.txt', '!excluded.txt'],
+          },
+        },
+      },
+      'included.txt': 'v0',
+      'excluded.txt': 'v0',
+    });
+
+    const exec = rig.exec('npm run a watch');
+
+    // Initial run.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Changing an excluded file should not trigger a run.
+    {
+      await rig.write({
+        'excluded.txt': 'v1',
+      });
+      // Wait a while to ensure the command doesn't run.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // TODO(aomarks) This would fail if the command runs, but it wouldn't fail
+      // if the executor ran. The watcher could be triggering the executor too
+      // often, but the executor would be smart enough not to actually execute
+      // the command. To confirm that the executor is not running too often, we
+      // will need to test for some logged output.
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Changing an included file should trigger a run.
+    {
+      await rig.write({
+        'included.txt': 'v1',
+      });
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await inv.closed;
+    }
+
+    exec.terminate();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
+test(
+  '.dotfiles are watched',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['*.txt'],
+          },
+        },
+      },
+      '.dotfile.txt': 'v0',
+    });
+
+    const exec = rig.exec('npm run a watch');
+
+    // Initial run.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Changing input file should trigger another run.
+    {
+      await rig.write({
+        '.dotfile.txt': 'v1',
+      });
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await inv.closed;
+    }
+
+    exec.terminate();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
 test.run();

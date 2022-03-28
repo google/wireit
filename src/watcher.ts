@@ -26,11 +26,29 @@ import type {
  *
  * Also watches all related package.json files and reloads script configuration
  * when they change.
+ *
+ * State diagram:
+ *
+ *                ┌──────────────────────────────────┐
+ *                |  ┌──────────────┐                |
+ *                ▼  ▼              |                |
+ * ┌──────┐    ┌───────┐      ┌───────────┐      ┌───────┐
+ * | init |───►| stale | ───► | executing | ───► | fresh |
+ * └──────┘    └───────┘      └───────────┘      └───────┘
+ *                 │                │                │
+ *                 |                ▼                |
+ *                 |           ┌─────────┐           |
+ *                 └─────────► | aborted | ◄─────────┘
+ *                             └─────────┘
  */
 export class Watcher {
   private readonly _script: ScriptReference;
   private readonly _logger: Logger;
   private readonly _watchers: Array<chokidar.FSWatcher> = [];
+  private readonly _abort: AbortController;
+
+  /** Whether watch() has ever been called on this instance. */
+  private _initialized = false;
 
   /** Whether an executor is currently running. */
   private _executing = false;
@@ -39,24 +57,30 @@ export class Watcher {
   private _stale = true;
 
   /** Whether the watcher has been aborted. */
-  private _aborted = false;
+  private get _aborted() {
+    return this._abort.signal.aborted;
+  }
 
   /** Notification that some state has changed. */
   private _update = new Deferred<void>();
 
-  constructor(script: ScriptReference, logger: Logger, abort: Promise<void>) {
+  constructor(script: ScriptReference, logger: Logger, abort: AbortController) {
     this._script = script;
     this._logger = logger;
+    this._abort = abort;
 
-    // The abort promise never throws.
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    abort.then(() => {
-      // TODO(aomarks) Aborting should also cause the analyzer and executors to
-      // stop if they are running. Currently we only stop after the current
-      // build entirely finishes.
-      this._aborted = true;
-      this._update.resolve();
-    });
+    if (!this._aborted) {
+      abort.signal.addEventListener(
+        'abort',
+        () => {
+          // TODO(aomarks) Aborting should also cause the analyzer and executors to
+          // stop if they are running. Currently we only stop after the current
+          // build entirely finishes.
+          this._update.resolve();
+        },
+        {once: true}
+      );
+    }
   }
 
   /**
@@ -64,9 +88,15 @@ export class Watcher {
    * the configured script changes.
    *
    * @returns When the configured abort promise resolves.
-   * @throws If an unexpected error occurs during analysis or execution.
+   * @throws If an unexpected error occurs during analysis or execution, or if
+   * `watch()` is called more than once per instance of `Watcher`.
    */
   async watch(): Promise<void> {
+    if (this._initialized) {
+      throw new Error('watch() can only be called once per Watcher instance');
+    }
+    this._initialized = true;
+
     try {
       while (!this._aborted) {
         if (this._stale && !this._executing) {
@@ -99,8 +129,8 @@ export class Watcher {
     // to track the package.json files that we encountered, and watch them.
     const analysis = await analyzer.analyze(this._script);
     await this._clearWatchers();
-    for (const watchGroup of this._getWatchPathGroups(analysis)) {
-      this._watchPaths(watchGroup);
+    for (const {patterns, cwd} of this._getWatchPathGroups(analysis)) {
+      this._watchPatterns(patterns, cwd);
     }
 
     try {
@@ -141,10 +171,10 @@ export class Watcher {
   }
 
   /**
-   * Start watching the given absolute filesystem paths.
+   * Start watching some glob patterns.
    */
-  private _watchPaths(paths: string[]): void {
-    const watcher = chokidar.watch(paths);
+  private _watchPatterns(patterns: string[], cwd: string): void {
+    const watcher = chokidar.watch(patterns, {cwd});
     this._watchers.push(watcher);
     watcher.on('change', this._fileChanged);
   }
@@ -170,9 +200,11 @@ export class Watcher {
    * Walk through a script config and return a list of absolute filesystem paths
    * that we should watch for changes.
    */
-  private _getWatchPathGroups(script: ScriptConfig): Array<string[]> {
+  private _getWatchPathGroups(
+    script: ScriptConfig
+  ): Array<{patterns: string[]; cwd: string}> {
     const packageJsons = new Set<string>();
-    const groups: Array<string[]> = [];
+    const groups: Array<{patterns: string[]; cwd: string}> = [];
     const visited = new Set<ScriptReferenceString>();
 
     const visit = (script: ScriptConfig) => {
@@ -183,9 +215,13 @@ export class Watcher {
       visited.add(key);
       packageJsons.add(pathlib.join(script.packageDir, 'package.json'));
       if (script.files !== undefined) {
-        groups.push(
-          script.files.map((file) => pathlib.join(script.packageDir, file))
-        );
+        // TODO(aomarks) We could optimize to create fewer watchers, but we have
+        // to be careful to deal with "!"-prefixed negation entries, because
+        // those negations only apply to the previous entries **in that specific
+        // "files" array**. A simple solution could be that if a "files" array
+        // has any "!"-prefixed entry, then it gets its own watcher, otherwise
+        // we can group watchers by packageDir.
+        groups.push({patterns: script.files, cwd: script.packageDir});
       }
       for (const dependency of script.dependencies) {
         visit(dependency);
@@ -193,7 +229,12 @@ export class Watcher {
     };
 
     visit(script);
-    groups.push([...packageJsons]);
+    groups.push({
+      // The package.json group is already resolved to absolute paths, so cwd is
+      // arbitrary.
+      cwd: process.cwd(),
+      patterns: [...packageJsons],
+    });
     return groups;
   }
 }

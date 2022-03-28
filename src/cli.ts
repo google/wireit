@@ -35,10 +35,9 @@ const run = async () => {
 
   const script = {packageDir, name};
 
-  const abort = new Promise<void>((resolve) => {
-    process.on('SIGINT', () => {
-      resolve();
-    });
+  const abort = new AbortController();
+  process.on('SIGINT', () => {
+    abort.abort();
   });
 
   if (process.argv[2] === 'watch') {
