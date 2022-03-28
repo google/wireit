@@ -20,6 +20,7 @@
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
 - [Incremental build](#incremental-build)
+- [Watch mode](#watch-mode)
 - [Glob patterns](#glob-patterns)
 - [Requirements](#requirements)
 - [Contributing](#contributing)
@@ -181,6 +182,24 @@ Notes:
   - The `command` must not have changed.
   - The `files` of all transitive dependencies must not have changed.
   - All transitive dependencies must have `files` defined (can be empty).
+
+## Watch mode
+
+In _watch_ mode, Wireit monitors all `files` of a script, and of its transitive
+dependencies, and when there is a change, it re-runs only the affected scripts.
+To enable watch mode, add the `watch` argument:
+
+```sh
+npm run <script> watch
+```
+
+The benefit of Wireit's watch mode over built-in watch modes are:
+
+- Wireit watches the entire dependency graph, so a single watch command replaces
+  many built-in ones.
+- It prevents problems that can occur when running many separate watch commands
+  simultaneously, such as build steps being triggered before all preceding steps
+  have finished.
 
 ## Glob patterns
 
