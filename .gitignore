@@ -1,4 +1,5 @@
 /.tsbuildinfo
+/.wireit
 /*.tgz
 !/known-good.tgz
 /lib
