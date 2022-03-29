@@ -46,9 +46,8 @@ export class Watcher {
    * Execute the script, and continue executing it every time a file related to
    * the configured script changes.
    *
-   * @returns When the configured abort promise resolves.
-   * @throws If an unexpected error occurs during analysis or execution, or if
-   * `watch()` is called more than once per instance of `Watcher`.
+   * @returns When the abort promise resolves.
+   * @throws If an unexpected error occurs during analysis or execution.
    */
   static watch(
     script: ScriptReference,
