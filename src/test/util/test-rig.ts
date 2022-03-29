@@ -7,9 +7,10 @@
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
-import {spawn, type ChildProcess} from 'child_process';
+import {spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import cmdShim from 'cmd-shim';
 import {WireitTestRigCommand} from './test-rig-command.js';
+import {Deferred} from '../../util/deferred.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -22,7 +23,7 @@ const isWindows = process.platform === 'win32';
 export class WireitTestRig {
   readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
   private _state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
-  private readonly _activeChildProcesses = new Set<ChildProcess>();
+  private readonly _activeChildProcesses = new Set<ExecResult>();
   private readonly _commands: Array<WireitTestRigCommand> = [];
 
   private _assertState(expected: 'uninitialized' | 'running' | 'done') {
@@ -64,8 +65,8 @@ export class WireitTestRig {
   async cleanup(): Promise<void> {
     this._assertState('running');
     this._state = 'done';
-    for (const process of this._activeChildProcesses) {
-      process.kill(9);
+    for (const child of this._activeChildProcesses) {
+      child.terminate();
     }
     await Promise.all([
       fs.rm(this.temp, {recursive: true}),
@@ -151,46 +152,9 @@ export class WireitTestRig {
   exec(command: string, opts?: {cwd?: string}): ExecResult {
     this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
-    const child = spawn(command, {
-      cwd,
-      shell: true,
-      // Remove any environment variables that start with "npm_", because those
-      // will have been set by the "npm test" or similar command that launched
-      // this test itself, and we want a more pristine simulation of running
-      // wireit directly when we're testing.
-      //
-      // In particular, this lets us test for the case where wireit was not
-      // launched through npm at all.
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
-      ),
-    });
-    this._activeChildProcesses.add(child);
-    let stdout = '';
-    let stderr = '';
-    const showOutput = process.env.SHOW_TEST_OUTPUT;
-    child.stdout.on('data', (chunk: string | Buffer) => {
-      stdout += chunk;
-      if (showOutput) {
-        process.stdout.write(chunk);
-      }
-    });
-    child.stderr.on('data', (chunk: string | Buffer) => {
-      stderr += chunk;
-      if (showOutput) {
-        process.stderr.write(chunk);
-      }
-    });
-    const exit = new Promise<Awaited<ExecResult['exit']>>((resolve, reject) => {
-      child.on('close', (code, signal) => {
-        this._activeChildProcesses.delete(child);
-        resolve({stdout, stderr, code, signal});
-      });
-      child.on('error', (error: Error) => {
-        reject(error);
-      });
-    });
-    return {exit};
+    const result = new ExecResult(command, cwd);
+    result.exit.finally(() => this._activeChildProcesses.delete(result));
+    return result;
   }
 
   /**
@@ -226,17 +190,132 @@ export class WireitTestRig {
   }
 }
 
+export type {ExecResult};
+
 /**
- * The result of running WireitTestRig.exec.
+ * The object returned by {@link WireitTestRig.exec}.
  */
-export interface ExecResult {
-  /** Promise that resolves when the child process has exited. */
-  exit: Promise<{
-    stdout: string;
-    stderr: string;
-    /** The exit code, or null if the child process exited with a signal. */
-    code: number | null;
-    /** The exit signal, or null if the child process did not exit with a signal. */
-    signal: NodeJS.Signals | null;
-  }>;
+class ExecResult {
+  private readonly _child: ChildProcessWithoutNullStreams;
+  private readonly _exited = new Deferred<ExitResult>();
+  private _running = true;
+  private _stdout = '';
+  private _stderr = '';
+
+  constructor(command: string, cwd: string) {
+    this._child = spawn(command, {
+      cwd,
+      shell: true,
+      // Remove any environment variables that start with "npm_", because those
+      // will have been set by the "npm test" or similar command that launched
+      // this test itself, and we want a more pristine simulation of running
+      // wireit directly when we're testing.
+      //
+      // In particular, this lets us test for the case where wireit was not
+      // launched through npm at all.
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
+      ),
+      // Set "detached" on Linux and macOS so that we create a new process
+      // group, instead of inheriting the parent process group. We need a new
+      // process group so that we can use a "kill(-pid)" command to kill all of
+      // the processes in the process group, instead of just the top one. Our
+      // process is not the top one because it is a child of "sh", and "sh" does
+      // not forward signals to child processes, so a regular "kill(pid)" would
+      // do nothing. The process is a child of "sh" because we are using the
+      // "shell" option.
+      //
+      // On Windows this works completely differently, and we instead terminate
+      // child processes with "taskkill". If we set "detached" on Windows, it
+      // has the side effect of causing all child processes to open in new
+      // terminal windows.
+      detached: !isWindows,
+    });
+
+    this._child.stdout.on('data', this._onStdout);
+    this._child.stderr.on('data', this._onStderr);
+
+    this._child.on('close', (code, signal) => {
+      this._running = false;
+      this._exited.resolve({
+        code,
+        signal,
+        stdout: this._stdout,
+        stderr: this._stderr,
+      });
+    });
+
+    this._child.on('error', (error: Error) => {
+      this._exited.reject(error);
+    });
+  }
+
+  /**
+   * Whether this child process is still running.
+   */
+  get running(): boolean {
+    return this._running;
+  }
+
+  /**
+   * Promise that resolves when this child process exits with information about
+   * the execution.
+   */
+  get exit(): Promise<ExitResult> {
+    return this._exited.promise;
+  }
+
+  /**
+   * Terminate the child process.
+   */
+  terminate(): void {
+    if (!this.running) {
+      throw new Error(
+        "Can't terminate child process because it is not running"
+      );
+    }
+    if (this._child.pid === undefined) {
+      throw new Error("Can't terminate child process because it has no pid");
+    }
+    if (isWindows) {
+      // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
+      // the behavior of SIGKILL (and ignores the signal you pass in), but it
+      // seems to leave streams and file handles open. The taskkill command does
+      // a much better job at cleanly killing the process:
+      // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
+      spawn('taskkill', ['/pid', this._child.pid.toString(), '/t', '/f']);
+    } else {
+      // We used "detached" when we spawned, so our child is the leader of its
+      // own process group. Passing the negative of the child's pid kills all
+      // processes in the group (without the negative only the leader "sh"
+      // process would be killed).
+      process.kill(-this._child.pid, 'SIGINT');
+    }
+  }
+
+  private readonly _onStdout = (chunk: string | Buffer) => {
+    this._stdout += chunk;
+    if (process.env.SHOW_TEST_OUTPUT) {
+      process.stdout.write(chunk);
+    }
+  };
+
+  private readonly _onStderr = (chunk: string | Buffer) => {
+    this._stderr += chunk;
+    if (process.env.SHOW_TEST_OUTPUT) {
+      process.stdout.write(chunk);
+    }
+  };
+}
+
+/**
+ * The result of {@link ExecResult.exit}.
+ */
+export interface ExitResult {
+  stdout: string;
+  stderr: string;
+  /** The exit code, or null if the child process exited with a signal. */
+  code: number | null;
+  /** The exit signal, or null if the child process did not exit with a signal. */
+  signal: NodeJS.Signals | null;
 }
