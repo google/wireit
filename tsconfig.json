@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2021",
+    "target": "es2022",
     "module": "es2022",
     "moduleResolution": "node",
+    "useDefineForClassFields": true,
     "lib": ["es2021"],
     "rootDir": "src",
     "outDir": "lib",
