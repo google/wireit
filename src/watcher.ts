@@ -29,26 +29,39 @@ import type {
  *
  * State diagram:
  *
- *                ┌──────────────────────────────────┐
- *                |  ┌──────────────┐                |
- *                ▼  ▼              |                |
- * ┌──────┐    ┌───────┐      ┌───────────┐      ┌───────┐
- * | init |───►| stale | ───► | executing | ───► | fresh |
- * └──────┘    └───────┘      └───────────┘      └───────┘
- *                 │                │                │
- *                 |                ▼                |
- *                 |           ┌─────────┐           |
- *                 └─────────► | aborted | ◄─────────┘
- *                             └─────────┘
+ *              ┌──────────────────────────────────┐
+ *              |  ┌──────────────┐                |
+ *              ▼  ▼              |                |
+ *           ┌───────┐      ┌───────────┐      ┌───────┐
+ * START ───►| stale | ───► | executing | ───► | fresh |
+ *           └───────┘      └───────────┘      └───────┘
+ *               │                │                │
+ *               |                ▼                |
+ *               |           ┌─────────┐           |
+ *               └─────────► | aborted | ◄─────────┘
+ *                           └─────────┘
  */
 export class Watcher {
+  /**
+   * Execute the script, and continue executing it every time a file related to
+   * the configured script changes.
+   *
+   * @returns When the configured abort promise resolves.
+   * @throws If an unexpected error occurs during analysis or execution, or if
+   * `watch()` is called more than once per instance of `Watcher`.
+   */
+  static watch(
+    script: ScriptReference,
+    logger: Logger,
+    abort: AbortController
+  ): Promise<void> {
+    return new Watcher(script, logger, abort).#watch();
+  }
+
   readonly #script: ScriptReference;
   readonly #logger: Logger;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
   readonly #abort: AbortController;
-
-  /** Whether watch() has ever been called on this instance. */
-  #initialized = false;
 
   /** Whether an executor is currently running. */
   #executing = false;
@@ -64,7 +77,11 @@ export class Watcher {
   /** Notification that some state has changed. */
   #update = new Deferred<void>();
 
-  constructor(script: ScriptReference, logger: Logger, abort: AbortController) {
+  private constructor(
+    script: ScriptReference,
+    logger: Logger,
+    abort: AbortController
+  ) {
     this.#script = script;
     this.#logger = logger;
     this.#abort = abort;
@@ -84,19 +101,9 @@ export class Watcher {
   }
 
   /**
-   * Execute the script, and continue executing it every time a file related to
-   * the configured script changes.
-   *
-   * @returns When the configured abort promise resolves.
-   * @throws If an unexpected error occurs during analysis or execution, or if
-   * `watch()` is called more than once per instance of `Watcher`.
+   * The main watch loop.
    */
-  async watch(): Promise<void> {
-    if (this.#initialized) {
-      throw new Error('watch() can only be called once per Watcher instance');
-    }
-    this.#initialized = true;
-
+  async #watch(): Promise<void> {
     try {
       while (!this.#aborted) {
         if (this.#stale && !this.#executing) {
