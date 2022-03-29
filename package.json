@@ -22,11 +22,28 @@
     "node": ">=16.0.0"
   },
   "scripts": {
-    "build": "tsc --build",
+    "build": "wireit",
     "lint": "eslint .",
     "format": "prettier . -w",
     "format:check": "prettier . -c",
-    "test": "uvu lib/test \"\\.test\\.js$\""
+    "test": "wireit",
+    "update-known-good": "rm -f wireit-*.tgz && npm pack && mv wireit-*.tgz known-good.tgz && npm i -D known-good.tgz"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc --build",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ]
+    },
+    "test": {
+      "command": "uvu lib/test \"\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": []
+    }
   },
   "devDependencies": {
     "@types/node": "^17.0.23",
@@ -36,7 +53,8 @@
     "eslint": "^8.12.0",
     "prettier": "^2.6.1",
     "typescript": "^4.6.3",
-    "uvu": "^0.5.3"
+    "uvu": "^0.5.3",
+    "wireit": "file:known-good.tgz"
   },
   "prettier": {
     "singleQuote": true,
