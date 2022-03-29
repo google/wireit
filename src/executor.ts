@@ -35,38 +35,33 @@ const UNCACHEABLE = Symbol();
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  private readonly _cache = new Map<
-    string,
-    Promise<CacheKey | typeof UNCACHEABLE>
-  >();
-  private readonly _logger: Logger;
+  readonly #cache = new Map<string, Promise<CacheKey | typeof UNCACHEABLE>>();
+  readonly #logger: Logger;
 
   constructor(logger: Logger) {
-    this._logger = logger;
+    this.#logger = logger;
   }
 
   async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
     const cacheKey = scriptReferenceToString(script);
-    let promise = this._cache.get(cacheKey);
+    let promise = this.#cache.get(cacheKey);
     if (promise === undefined) {
-      promise = this._execute(script);
-      this._cache.set(cacheKey, promise);
+      promise = this.#execute(script);
+      this.#cache.set(cacheKey, promise);
     }
     return promise;
   }
 
-  private async _execute(
-    script: ScriptConfig
-  ): Promise<CacheKey | typeof UNCACHEABLE> {
-    const dependencyCacheKeys = await this._executeDependencies(script);
+  async #execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
+    const dependencyCacheKeys = await this.#executeDependencies(script);
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const cacheKey = await this._getCacheKey(script, dependencyCacheKeys);
+    const cacheKey = await this.#getCacheKey(script, dependencyCacheKeys);
     let cacheKeyStr: CacheKeyString | typeof UNCACHEABLE;
     if (cacheKey !== UNCACHEABLE) {
       cacheKeyStr = JSON.stringify(cacheKey) as CacheKeyString;
-      const previousCacheKeyStr = await this._readStateFile(script);
+      const previousCacheKeyStr = await this.#readStateFile(script);
       if (
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
@@ -80,22 +75,22 @@ export class Executor {
     // It's important that we delete any previous state file before running the
     // command, because if the command fails we won't update the state file,
     // even though the command might have produced some output.
-    await this._deleteStateFile(script);
+    await this.#deleteStateFile(script);
 
     // TODO(aomarks) Implement output deletion.
     // TODO(aomarks) Implement caching.
-    await this._executeCommandIfNeeded(script);
+    await this.#executeCommandIfNeeded(script);
 
     if (cacheKeyStr !== UNCACHEABLE) {
       // TODO(aomarks) We don't technically need to wait for this to finish to
       // return, we only need to wait in the top-level call to execute. The same
       // will go for saving output to the cache.
-      await this._writeStateFile(script, cacheKeyStr);
+      await this.#writeStateFile(script, cacheKeyStr);
     }
     return cacheKey;
   }
 
-  private async _executeDependencies(
+  async #executeDependencies(
     script: ScriptConfig
   ): Promise<Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>> {
     // Randomize the order we execute dependencies to make it less likely for a
@@ -129,11 +124,11 @@ export class Executor {
     return results;
   }
 
-  private async _executeCommandIfNeeded(script: ScriptConfig): Promise<void> {
+  async #executeCommandIfNeeded(script: ScriptConfig): Promise<void> {
     // It's valid to not have a command defined, since thats a useful way to
     // alias a group of dependency scripts. In this case, we can return early.
     if (!script.command) {
-      this._logger.log({
+      this.#logger.log({
         script,
         type: 'success',
         reason: 'no-command',
@@ -141,7 +136,7 @@ export class Executor {
       return;
     }
 
-    this._logger.log({
+    this.#logger.log({
       script,
       type: 'info',
       detail: 'running',
@@ -164,7 +159,7 @@ export class Executor {
     });
 
     child.stdout.on('data', (data: string | Buffer) => {
-      this._logger.log({
+      this.#logger.log({
         script,
         type: 'output',
         stream: 'stdout',
@@ -173,7 +168,7 @@ export class Executor {
     });
 
     child.stderr.on('data', (data: string | Buffer) => {
-      this._logger.log({
+      this.#logger.log({
         script,
         type: 'output',
         stream: 'stderr',
@@ -224,7 +219,7 @@ export class Executor {
 
     await completed;
 
-    this._logger.log({
+    this.#logger.log({
       script,
       type: 'success',
       reason: 'exit-zero',
@@ -238,7 +233,7 @@ export class Executor {
    * Returns the sentinel value {@link UNCACHEABLE} if this script, or any of
    * this script's transitive dependencies, have undefined input files.
    */
-  private async _getCacheKey(
+  async #getCacheKey(
     script: ScriptConfig,
     dependencyCacheKeys: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
   ): Promise<CacheKey | typeof UNCACHEABLE> {
@@ -311,7 +306,7 @@ export class Executor {
   /**
    * Get the directory name where Wireit data can be saved for a script.
    */
-  private _getScriptDataDir(script: ScriptReference): string {
+  #getScriptDataDir(script: ScriptReference): string {
     return pathlib.join(
       script.packageDir,
       '.wireit',
@@ -329,10 +324,10 @@ export class Executor {
   /**
    * Read a script's ".wireit/<hex-script-name>/state" file.
    */
-  private async _readStateFile(
+  async #readStateFile(
     script: ScriptReference
   ): Promise<CacheKeyString | undefined> {
-    const stateFilepath = pathlib.join(this._getScriptDataDir(script), 'state');
+    const stateFilepath = pathlib.join(this.#getScriptDataDir(script), 'state');
     try {
       return (await fs.readFile(stateFilepath, 'utf8')) as CacheKeyString;
     } catch (error) {
@@ -346,11 +341,11 @@ export class Executor {
   /**
    * Write a script's ".wireit/<hex-script-name>/state" file.
    */
-  private async _writeStateFile(
+  async #writeStateFile(
     script: ScriptReference,
     cacheKeyStr: CacheKeyString
   ): Promise<void> {
-    const dataDir = this._getScriptDataDir(script);
+    const dataDir = this.#getScriptDataDir(script);
     await fs.mkdir(dataDir, {recursive: true});
     const stateFilepath = pathlib.join(dataDir, 'state');
     await fs.writeFile(stateFilepath, cacheKeyStr, 'utf8');
@@ -359,8 +354,8 @@ export class Executor {
   /**
    * Delete a script's ".wireit/<hex-script-name>/state" file.
    */
-  private async _deleteStateFile(script: ScriptReference): Promise<void> {
-    const stateFilepath = pathlib.join(this._getScriptDataDir(script), 'state');
+  async #deleteStateFile(script: ScriptReference): Promise<void> {
+    const stateFilepath = pathlib.join(this.#getScriptDataDir(script), 'state');
     try {
       await fs.unlink(stateFilepath);
     } catch (error) {

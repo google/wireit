@@ -42,41 +42,41 @@ import type {
  *                             └─────────┘
  */
 export class Watcher {
-  private readonly _script: ScriptReference;
-  private readonly _logger: Logger;
-  private readonly _watchers: Array<chokidar.FSWatcher> = [];
-  private readonly _abort: AbortController;
+  readonly #script: ScriptReference;
+  readonly #logger: Logger;
+  readonly #watchers: Array<chokidar.FSWatcher> = [];
+  readonly #abort: AbortController;
 
   /** Whether watch() has ever been called on this instance. */
-  private _initialized = false;
+  #initialized = false;
 
   /** Whether an executor is currently running. */
-  private _executing = false;
+  #executing = false;
 
   /** Whether a file has changed since the last time we executed. */
-  private _stale = true;
+  #stale = true;
 
   /** Whether the watcher has been aborted. */
-  private get _aborted() {
-    return this._abort.signal.aborted;
+  get #aborted() {
+    return this.#abort.signal.aborted;
   }
 
   /** Notification that some state has changed. */
-  private _update = new Deferred<void>();
+  #update = new Deferred<void>();
 
   constructor(script: ScriptReference, logger: Logger, abort: AbortController) {
-    this._script = script;
-    this._logger = logger;
-    this._abort = abort;
+    this.#script = script;
+    this.#logger = logger;
+    this.#abort = abort;
 
-    if (!this._aborted) {
+    if (!this.#aborted) {
       abort.signal.addEventListener(
         'abort',
         () => {
           // TODO(aomarks) Aborting should also cause the analyzer and executors to
           // stop if they are running. Currently we only stop after the current
           // build entirely finishes.
-          this._update.resolve();
+          this.#update.resolve();
         },
         {once: true}
       );
@@ -92,34 +92,34 @@ export class Watcher {
    * `watch()` is called more than once per instance of `Watcher`.
    */
   async watch(): Promise<void> {
-    if (this._initialized) {
+    if (this.#initialized) {
       throw new Error('watch() can only be called once per Watcher instance');
     }
-    this._initialized = true;
+    this.#initialized = true;
 
     try {
-      while (!this._aborted) {
-        if (this._stale && !this._executing) {
-          await this._analyzeAndExecute();
+      while (!this.#aborted) {
+        if (this.#stale && !this.#executing) {
+          await this.#analyzeAndExecute();
         }
-        await this._update.promise;
-        this._update = new Deferred();
+        await this.#update.promise;
+        this.#update = new Deferred();
       }
     } finally {
       // It's important to close all chokidar watchers, because they will
       // prevent the Node program from ever exiting as long as they are active.
-      await this._clearWatchers();
+      await this.#clearWatchers();
     }
   }
 
   /**
    * Perform an analysis and execution.
    */
-  private async _analyzeAndExecute(): Promise<void> {
+  async #analyzeAndExecute(): Promise<void> {
     // Reset _stale before execution, not after, because a file could change
     // during execution, and we must not clobber that.
-    this._stale = false;
-    this._executing = true;
+    this.#stale = false;
+    this.#executing = true;
 
     // TODO(aomarks) We only need to reset watchers and re-analyze if a
     // package.json file changed.
@@ -127,20 +127,20 @@ export class Watcher {
 
     // TODO(aomarks) Add support for recovering from analysis errors. We'll need
     // to track the package.json files that we encountered, and watch them.
-    const analysis = await analyzer.analyze(this._script);
-    await this._clearWatchers();
-    for (const {patterns, cwd} of this._getWatchPathGroups(analysis)) {
-      this._watchPatterns(patterns, cwd);
+    const analysis = await analyzer.analyze(this.#script);
+    await this.#clearWatchers();
+    for (const {patterns, cwd} of this.#getWatchPathGroups(analysis)) {
+      this.#watchPatterns(patterns, cwd);
     }
 
     try {
-      const executor = new Executor(this._logger);
+      const executor = new Executor(this.#logger);
       await executor.execute(analysis);
     } catch (error) {
-      this._triageErrors(error);
+      this.#triageErrors(error);
     }
-    this._executing = false;
-    this._update.resolve();
+    this.#executing = false;
+    this.#update.resolve();
   }
 
   /**
@@ -152,12 +152,12 @@ export class Watcher {
    * Other errors throw, aborting the watch process, because they indicate a bug
    * in Wireit, so we can no longer trust the state of the program.
    */
-  private _triageErrors(error: unknown): void {
+  #triageErrors(error: unknown): void {
     const errors = error instanceof AggregateError ? error.errors : [error];
     const unexpected = [];
     for (const error of errors) {
       if (error instanceof WireitError) {
-        this._logger.log(error.event);
+        this.#logger.log(error.event);
       } else {
         unexpected.push(error);
       }
@@ -173,26 +173,26 @@ export class Watcher {
   /**
    * Start watching some glob patterns.
    */
-  private _watchPatterns(patterns: string[], cwd: string): void {
+  #watchPatterns(patterns: string[], cwd: string): void {
     const watcher = chokidar.watch(patterns, {cwd});
-    this._watchers.push(watcher);
-    watcher.on('change', this._fileChanged);
+    this.#watchers.push(watcher);
+    watcher.on('change', this.#fileChanged);
   }
 
   /**
    * One of the paths we are watching has changed.
    */
-  private readonly _fileChanged = (): void => {
+  readonly #fileChanged = (): void => {
     // TODO(aomarks) Cache package JSONS, globs, and hashes.
-    this._stale = true;
-    this._update.resolve();
+    this.#stale = true;
+    this.#update.resolve();
   };
 
   /**
    * Shut down all active file watchers and clear the list.
    */
-  private async _clearWatchers(): Promise<void> {
-    const watchers = this._watchers.splice(0, this._watchers.length);
+  async #clearWatchers(): Promise<void> {
+    const watchers = this.#watchers.splice(0, this.#watchers.length);
     await Promise.all(watchers.map((watcher) => watcher.close()));
   }
 
@@ -200,7 +200,7 @@ export class Watcher {
    * Walk through a script config and return a list of absolute filesystem paths
    * that we should watch for changes.
    */
-  private _getWatchPathGroups(
+  #getWatchPathGroups(
     script: ScriptConfig
   ): Array<{patterns: string[]; cwd: string}> {
     const packageJsons = new Set<string>();

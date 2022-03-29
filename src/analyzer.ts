@@ -27,12 +27,9 @@ type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
  * dependencies, producing a build graph that is ready to be executed.
  */
 export class Analyzer {
-  private readonly _packageJsonReader = new CachingPackageJsonReader();
-  private readonly _placeholders = new Map<
-    ScriptReferenceString,
-    PlaceholderConfig
-  >();
-  private readonly _placeholderUpgradePromises: Array<Promise<void>> = [];
+  readonly #packageJsonReader = new CachingPackageJsonReader();
+  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderConfig>();
+  readonly #placeholderUpgradePromises: Array<Promise<void>> = [];
 
   /**
    * Load the Wireit configuration from the `package.json` corresponding to the
@@ -64,14 +61,14 @@ export class Analyzer {
     // dependencies (which would lead to a promise cycle if there was a cycle in
     // the configuration), we wait for all placeholders to upgrade to full
     // configs asynchronously.
-    const rootPlaceholder = this._getPlaceholder(root);
+    const rootPlaceholder = this.#getPlaceholder(root);
 
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
     const errors = [];
-    while (this._placeholderUpgradePromises.length > 0) {
+    while (this.#placeholderUpgradePromises.length > 0) {
       try {
-        await this._placeholderUpgradePromises.shift();
+        await this.#placeholderUpgradePromises.shift();
       } catch (error) {
         errors.push(error);
       }
@@ -85,7 +82,7 @@ export class Analyzer {
     // We can safely assume all placeholders have now been upgraded to full
     // configs.
     const rootConfig = rootPlaceholder as ScriptConfig;
-    this._checkForCyclesAndSortDependencies(rootConfig, new Set());
+    this.#checkForCyclesAndSortDependencies(rootConfig, new Set());
     return rootConfig;
   }
 
@@ -93,14 +90,14 @@ export class Analyzer {
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */
-  private _getPlaceholder(reference: ScriptReference): PlaceholderConfig {
+  #getPlaceholder(reference: ScriptReference): PlaceholderConfig {
     const cacheKey = scriptReferenceToString(reference);
-    let placeholder = this._placeholders.get(cacheKey);
+    let placeholder = this.#placeholders.get(cacheKey);
     if (placeholder === undefined) {
       placeholder = {...reference};
-      this._placeholders.set(cacheKey, placeholder);
-      this._placeholderUpgradePromises.push(
-        this._upgradePlaceholder(placeholder)
+      this.#placeholders.set(cacheKey, placeholder);
+      this.#placeholderUpgradePromises.push(
+        this.#upgradePlaceholder(placeholder)
       );
     }
     return placeholder;
@@ -113,12 +110,10 @@ export class Analyzer {
    * Note this method does not block on the script's dependencies being
    * upgraded; dependencies are upgraded asynchronously.
    */
-  private async _upgradePlaceholder(
-    placeholder: PlaceholderConfig
-  ): Promise<void> {
+  async #upgradePlaceholder(placeholder: PlaceholderConfig): Promise<void> {
     let packageJson;
     try {
-      packageJson = await this._packageJsonReader.read(placeholder.packageDir);
+      packageJson = await this.#packageJsonReader.read(placeholder.packageDir);
     } catch (error) {
       const reason = (error as CachingPackageJsonReaderError).reason;
       if (
@@ -210,7 +205,7 @@ export class Analyzer {
             message: `dependencies[${i}] is not a string`,
           });
         }
-        for (const resolved of this._resolveDependency(
+        for (const resolved of this.#resolveDependency(
           unresolved,
           placeholder
         )) {
@@ -224,7 +219,7 @@ export class Analyzer {
             });
           }
           uniqueDependencies.add(uniqueKey);
-          dependencies.push(this._getPlaceholder(resolved));
+          dependencies.push(this.#getPlaceholder(resolved));
         }
       }
     }
@@ -288,7 +283,7 @@ export class Analyzer {
     Object.assign(placeholder, remainingConfig);
   }
 
-  private _checkForCyclesAndSortDependencies(
+  #checkForCyclesAndSortDependencies(
     config: ScriptConfig,
     trail: Set<ScriptReferenceString>
   ) {
@@ -330,7 +325,7 @@ export class Analyzer {
       });
       trail.add(trailKey);
       for (const dependency of config.dependencies) {
-        this._checkForCyclesAndSortDependencies(dependency, trail);
+        this.#checkForCyclesAndSortDependencies(dependency, trail);
       }
       trail.delete(trailKey);
     }
@@ -343,7 +338,7 @@ export class Analyzer {
    *
    * Note this can return 0, 1, or >1 script references.
    */
-  private _resolveDependency(
+  #resolveDependency(
     dependency: string,
     context: ScriptReference
   ): Array<ScriptReference> {
@@ -351,7 +346,7 @@ export class Analyzer {
     if (dependency.startsWith('.')) {
       // TODO(aomarks) It is technically valid for an npm script to start with a
       // ".". We should support that edge case with backslash escaping.
-      return [this._resolveCrossPackageDependency(dependency, context)];
+      return [this.#resolveCrossPackageDependency(dependency, context)];
     }
     return [{packageDir: context.packageDir, name: dependency}];
   }
@@ -360,10 +355,7 @@ export class Analyzer {
    * Resolve a cross-package dependency (e.g. "../other-package:build").
    * Cross-package dependencies always start with a ".".
    */
-  private _resolveCrossPackageDependency(
-    dependency: string,
-    context: ScriptReference
-  ) {
+  #resolveCrossPackageDependency(dependency: string, context: ScriptReference) {
     // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
     // path. We should support that edge case with backslash escaping.
     const firstColonIdx = dependency.indexOf(':');

@@ -27,10 +27,10 @@ export interface PackageJson {
  * Reads package.json files and caches them.
  */
 export class CachingPackageJsonReader {
-  private readonly _cache = new Map<string, PackageJson>();
+  readonly #cache = new Map<string, PackageJson>();
 
   async read(packageDir: string): Promise<PackageJson> {
-    let packageJson = this._cache.get(packageDir);
+    let packageJson = this.#cache.get(packageDir);
     if (packageJson === undefined) {
       const packageJsonPath = pathlib.resolve(packageDir, 'package.json');
       let packageJsonStr: string;
@@ -47,7 +47,7 @@ export class CachingPackageJsonReader {
       } catch (error) {
         throw new CachingPackageJsonReaderError('invalid-package-json');
       }
-      this._cache.set(packageDir, packageJson);
+      this.#cache.set(packageDir, packageJson);
     }
     return packageJson;
   }

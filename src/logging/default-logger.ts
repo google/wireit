@@ -15,14 +15,14 @@ import type {PackageReference, ScriptReference} from '../script.js';
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
-  private readonly _rootPackageDir: string;
+  readonly #rootPackageDir: string;
 
   /**
    * @param rootPackage The npm package directory that the root script being
    * executed belongs to.
    */
   constructor(rootPackage: string) {
-    this._rootPackageDir = rootPackage;
+    this.#rootPackageDir = rootPackage;
   }
 
   /**
@@ -30,12 +30,12 @@ export class DefaultLogger implements Logger {
    * the script name. If the package is different to the root package, it is
    * disambiguated with a relative path.
    */
-  private _label(script: PackageReference | ScriptReference) {
+  #label(script: PackageReference | ScriptReference) {
     const packageDir = script.packageDir;
     const scriptName = 'name' in script ? script.name : undefined;
-    if (packageDir !== this._rootPackageDir) {
+    if (packageDir !== this.#rootPackageDir) {
       const relativePackageDir = pathlib
-        .relative(this._rootPackageDir, script.packageDir)
+        .relative(this.#rootPackageDir, script.packageDir)
         // Normalize to posix-style forward-slashes as the path separator, even
         // on Windows which usually uses back-slashes. This way labels match the
         // syntax used in the package.json dependency specifiers (which are
@@ -54,7 +54,7 @@ export class DefaultLogger implements Logger {
 
   log(event: Event) {
     const type = event.type;
-    const label = this._label(event.script);
+    const label = this.#label(event.script);
     const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
@@ -162,7 +162,7 @@ export class DefaultLogger implements Logger {
               } else {
                 process.stderr.write('`-- ');
               }
-              process.stderr.write(this._label(event.trail[i]));
+              process.stderr.write(this.#label(event.trail[i]));
               process.stderr.write('\n');
             }
             break;
