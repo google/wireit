@@ -41,6 +41,7 @@ const run = async () => {
   });
 
   if (process.argv[2] === 'watch') {
+    // Only import the extra modules needed for watch mode if we need them.
     const {Watcher} = await import('./watcher.js');
     const watcher = new Watcher(script, logger, abort);
     await watcher.watch();

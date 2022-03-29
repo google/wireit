@@ -185,9 +185,9 @@ Notes:
 
 ## Watch mode
 
-In _watch_ mode, Wireit monitors all `files` of a script, and of its transitive
-dependencies, and when there is a change, it re-runs only the affected scripts.
-To enable watch mode, add the `watch` argument:
+In _watch_ mode, Wireit monitors all `files` of a script, and all `files` of its
+transitive dependencies, and when there is a change, it re-runs only the
+affected scripts. To enable watch mode, add the `watch` argument:
 
 ```sh
 npm run <script> watch
