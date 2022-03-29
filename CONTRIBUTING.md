@@ -48,3 +48,20 @@ npm test
 - `TEST_TIMEOUT`: Default millisecond timeout for test cases.
 - `SHOW_TEST_OUTPUT`: Set to show all `stdout` and `stderr` from spawned wireit
   invocations in test cases.
+
+## Known good tarball
+
+Wireit is self-hosting: it is built and tested with itself. However, we don't
+want to build and test with the exact same code we are editing during
+development, becuase if we break something, we might be unable to build or test
+at all, or we might build or test incorrectly (e.g. we might think tests passed
+when actually the tests didn't even run).
+
+For this reason, we instead check a _known good_ build of Wireit into the
+`known-good.tgz` tarball in this Git repo, and install it as a `devDependency`
+for running the `wireit` package's own scripts. To update the known good
+tarball, run:
+
+```sh
+npm run update-known-good
+```
