@@ -26,7 +26,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run build
       - run: npm test
 
   lint-and-format:
