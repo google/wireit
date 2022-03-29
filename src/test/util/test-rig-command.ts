@@ -27,22 +27,22 @@ const childModulePath = pathlib.resolve(__dirname, 'test-rig-command-child.js');
  * {@link WireitTestRig.command} method.
  */
 export class WireitTestRigCommand {
-  private readonly _ipcPath: string;
-  private readonly _server: net.Server;
-  private _state: 'uninitialized' | 'listening' | 'closed' = 'uninitialized';
-  private _allConnections: Array<net.Socket> = [];
-  private _newConnections: Array<net.Socket> = [];
-  private _newConnectionNotification = new Deferred<void>();
+  readonly #ipcPath: string;
+  readonly #server: net.Server;
+  #state: 'uninitialized' | 'listening' | 'closed' = 'uninitialized';
+  #allConnections: Array<net.Socket> = [];
+  #newConnections: Array<net.Socket> = [];
+  #newConnectionNotification = new Deferred<void>();
 
   constructor(socketfile: string) {
-    this._ipcPath = socketfile;
-    this._server = net.createServer(this._onConnection);
+    this.#ipcPath = socketfile;
+    this.#server = net.createServer(this.#onConnection);
   }
 
-  private _assertState(expected: 'uninitialized' | 'listening' | 'closed') {
-    if (this._state !== expected) {
+  #assertState(expected: 'uninitialized' | 'listening' | 'closed') {
+    if (this.#state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this._state}`
+        `Expected state to be ${expected} but was ${this.#state}`
       );
     }
   }
@@ -51,12 +51,12 @@ export class WireitTestRigCommand {
    * Start listening for connections on the configured socketfile.
    */
   async listen(): Promise<void> {
-    this._assertState('uninitialized');
-    this._state = 'listening';
+    this.#assertState('uninitialized');
+    this.#state = 'listening';
     return new Promise((resolve, reject) => {
-      this._server.listen(this._ipcPath);
-      this._server.on('listening', () => resolve());
-      this._server.on('error', (error: Error) => reject(error));
+      this.#server.listen(this.#ipcPath);
+      this.#server.on('listening', () => resolve());
+      this.#server.on('error', (error: Error) => reject(error));
     });
   }
 
@@ -64,14 +64,14 @@ export class WireitTestRigCommand {
    * Stop listening for connections.
    */
   async close(): Promise<void> {
-    this._assertState('listening');
-    this._state = 'closed';
+    this.#assertState('listening');
+    this.#state = 'closed';
     // The server won't close until all connections are destroyed.
-    for (const connection of this._allConnections) {
+    for (const connection of this.#allConnections) {
       connection.destroy();
     }
     return new Promise((resolve, reject) => {
-      this._server.close((error: Error | undefined) => {
+      this.#server.close((error: Error | undefined) => {
         if (error !== undefined) {
           reject(error);
         } else {
@@ -86,14 +86,14 @@ export class WireitTestRigCommand {
    * configured to connect to this command's socketfile.
    */
   get command(): string {
-    return `node ${childModulePath} ${this._ipcPath}`;
+    return `node ${childModulePath} ${this.#ipcPath}`;
   }
 
   /**
    * How many invocations of this command were made.
    */
   get numInvocations(): number {
-    return this._allConnections.length;
+    return this.#allConnections.length;
   }
 
   /**
@@ -101,25 +101,25 @@ export class WireitTestRigCommand {
    * can be invoked multiple times simultaneously.
    */
   async nextInvocation(): Promise<WireitTestRigCommandInvocation> {
-    this._assertState('listening');
+    this.#assertState('listening');
     while (true) {
-      const socket = this._newConnections.shift();
+      const socket = this.#newConnections.shift();
       if (socket !== undefined) {
         return new WireitTestRigCommandInvocation(socket);
       }
-      await this._newConnectionNotification.promise;
+      await this.#newConnectionNotification.promise;
     }
   }
 
   /**
    * A child connected to our socketfile.
    */
-  private readonly _onConnection = (socket: net.Socket) => {
-    this._assertState('listening');
-    this._allConnections.push(socket);
-    this._newConnections.push(socket);
-    this._newConnectionNotification.resolve();
-    this._newConnectionNotification = new Deferred();
+  readonly #onConnection = (socket: net.Socket) => {
+    this.#assertState('listening');
+    this.#allConnections.push(socket);
+    this.#newConnections.push(socket);
+    this.#newConnectionNotification.resolve();
+    this.#newConnectionNotification = new Deferred();
   };
 }
 
@@ -127,21 +127,21 @@ export class WireitTestRigCommand {
  * One invocation of a {@link WireitTestRigCommand}.
  */
 export class WireitTestRigCommandInvocation {
-  private readonly _socket: net.Socket;
-  private readonly _socketClosed = new Deferred<void>();
-  private _state: 'connected' | 'closed' = 'connected';
+  readonly #socket: net.Socket;
+  readonly #socketClosed = new Deferred<void>();
+  #state: 'connected' | 'closed' = 'connected';
 
   constructor(socket: net.Socket) {
-    this._socket = socket;
-    this._socket.on('close', () => {
-      this._socketClosed.resolve();
+    this.#socket = socket;
+    this.#socket.on('close', () => {
+      this.#socketClosed.resolve();
     });
   }
 
-  private _assertState(expected: 'connected' | 'closed') {
-    if (this._state !== expected) {
+  #assertState(expected: 'connected' | 'closed') {
+    if (this.#state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this._state}`
+        `Expected state to be ${expected} but was ${this.#state}`
       );
     }
   }
@@ -150,8 +150,8 @@ export class WireitTestRigCommandInvocation {
    * Tell this invocation to exit with the given code.
    */
   exit(code: number): void {
-    this._sendMessage({type: 'exit', code});
-    this._state = 'closed';
+    this.#sendMessage({type: 'exit', code});
+    this.#state = 'closed';
   }
 
   /**
@@ -159,26 +159,26 @@ export class WireitTestRigCommandInvocation {
    * that the process has exited (or is just about to exit).
    */
   get closed(): Promise<void> {
-    return this._socketClosed.promise;
+    return this.#socketClosed.promise;
   }
 
   /**
    * Tell this invocation to write the given string to its stdout stream.
    */
   stdout(str: string): void {
-    this._sendMessage({type: 'stdout', str});
+    this.#sendMessage({type: 'stdout', str});
   }
 
   /**
    * Tell this invocation to write the given string to its stderr stream.
    */
   stderr(str: string): void {
-    this._sendMessage({type: 'stderr', str});
+    this.#sendMessage({type: 'stderr', str});
   }
 
-  private _sendMessage(message: Message): void {
-    this._assertState('connected');
-    this._socket.write(JSON.stringify(message));
-    this._socket.write(MESSAGE_END_MARKER);
+  #sendMessage(message: Message): void {
+    this.#assertState('connected');
+    this.#socket.write(JSON.stringify(message));
+    this.#socket.write(MESSAGE_END_MARKER);
   }
 }
