@@ -70,7 +70,7 @@ test(
     // child process.
     await inv.closed;
 
-    // Wait a while to check that the Wireit process remainins running, waiting
+    // Wait a while to check that the Wireit process remains running, waiting
     // for file changes or a signal.
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.ok(exec.running);
