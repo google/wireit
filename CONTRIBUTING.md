@@ -41,6 +41,7 @@ npm run build
 
 ```sh
 npm test
+npm test watch
 ```
 
 ### Testing environment variables:
