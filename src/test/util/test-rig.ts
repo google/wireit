@@ -67,6 +67,7 @@ export class WireitTestRig {
     this.#state = 'done';
     for (const child of this.#activeChildProcesses) {
       child.terminate();
+      await child.exit;
     }
     await Promise.all([
       fs.rm(this.temp, {recursive: true}),
@@ -92,7 +93,7 @@ export class WireitTestRig {
         await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
         const str =
           typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-        return fs.writeFile(absolute, str, 'utf8');
+        await fs.writeFile(absolute, str, 'utf8');
       })
     );
   }
@@ -158,10 +159,18 @@ export class WireitTestRig {
   /**
    * Evaluate the given shell command in the temporary filesystem.
    */
-  exec(command: string, opts?: {cwd?: string}): ExecResult {
+  exec(
+    command: string,
+    opts?: {cwd?: string; env?: Record<string, string>}
+  ): ExecResult {
     this.#assertState('running');
     const cwd = this.#resolve(opts?.cwd ?? '.');
-    const result = new ExecResult(command, cwd);
+    const env = opts?.env ?? {};
+    const result = new ExecResult(command, cwd, {
+      WIREIT_PARALLEL: '10',
+      ...env,
+    });
+    this.#activeChildProcesses.add(result);
     result.exit.finally(() => this.#activeChildProcesses.delete(result));
     return result;
   }
@@ -211,7 +220,14 @@ class ExecResult {
   #stdout = '';
   #stderr = '';
 
-  constructor(command: string, cwd: string) {
+  constructor(
+    command: string,
+    cwd: string,
+    // We hard code the parallelism here because by default we infer a value
+    // based on the number of cores we find on the machine, but we want tests
+    // to behave as consistently as possible across machines.
+    env: Record<string, string>
+  ) {
     this.#child = spawn(command, {
       cwd,
       shell: true,
@@ -222,9 +238,14 @@ class ExecResult {
       //
       // In particular, this lets us test for the case where wireit was not
       // launched through npm at all.
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(([name]) => !name.startsWith('npm_'))
-      ),
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([name]) => !name.startsWith('npm_')
+          )
+        ),
+        ...env,
+      },
       // Set "detached" on Linux and macOS so that we create a new process
       // group, instead of inheriting the parent process group. We need a new
       // process group so that we can use a "kill(-pid)" command to kill all of

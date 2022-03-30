@@ -125,6 +125,10 @@ export class DefaultLogger implements Logger {
             console.error(`❌${prefix} Invalid config: ${event.message}`);
             break;
           }
+          case 'invalid-usage': {
+            console.error(`❌${prefix} Invalid usage: ${event.message}`);
+            break;
+          }
           case 'exit-non-zero': {
             console.error(
               `❌${prefix} Failed with exit status ${event.status}`

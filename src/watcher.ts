@@ -11,6 +11,7 @@ import {Executor} from './executor.js';
 import {Deferred} from './util/deferred.js';
 import {scriptReferenceToString} from './script.js';
 import {WireitError} from './error.js';
+import {WorkerPool} from './util/worker-pool.js';
 
 import type {Logger} from './logging/logger.js';
 import type {
@@ -52,13 +53,15 @@ export class Watcher {
   static watch(
     script: ScriptReference,
     logger: Logger,
+    workerPool: WorkerPool,
     abort: AbortController
   ): Promise<void> {
-    return new Watcher(script, logger, abort).#watch();
+    return new Watcher(script, logger, workerPool, abort).#watch();
   }
 
   readonly #script: ScriptReference;
   readonly #logger: Logger;
+  readonly #workerPool: WorkerPool;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
   readonly #abort: AbortController;
 
@@ -79,10 +82,12 @@ export class Watcher {
   private constructor(
     script: ScriptReference,
     logger: Logger,
+    workerPool: WorkerPool,
     abort: AbortController
   ) {
     this.#script = script;
     this.#logger = logger;
+    this.#workerPool = workerPool;
     this.#abort = abort;
 
     if (!this.#aborted) {
@@ -140,7 +145,7 @@ export class Watcher {
     }
 
     try {
-      const executor = new Executor(this.#logger);
+      const executor = new Executor(this.#logger, this.#workerPool);
       await executor.execute(analysis);
     } catch (error) {
       this.#triageErrors(error);
