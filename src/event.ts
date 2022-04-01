@@ -26,7 +26,7 @@ interface EventBase<T extends PackageReference> {
 // Success events
 // -------------------------------
 
-type Success = ExitZero | NoCommand;
+type Success = ExitZero | NoCommand | Fresh;
 
 interface SuccessBase<T extends PackageReference> extends EventBase<T> {
   type: 'success';
@@ -44,6 +44,13 @@ export interface ExitZero extends SuccessBase<ScriptConfig> {
  */
 export interface NoCommand extends SuccessBase<ScriptConfig> {
   reason: 'no-command';
+}
+
+/**
+ * A script was already fresh so it didn't need to execute.
+ */
+export interface Fresh extends SuccessBase<ScriptConfig> {
+  reason: 'fresh';
 }
 
 // -------------------------------

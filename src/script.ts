@@ -49,6 +49,17 @@ export interface ScriptConfig extends ScriptReference {
    * script can safely be cached).
    */
   files: string[] | undefined;
+
+  /**
+   * Output file globs for this script.
+   */
+  output: string[] | undefined;
+
+  /**
+   * Whether all files matching the output glob patterns should be deleted
+   * before the script executes.
+   */
+  clean: boolean;
 }
 
 /**
@@ -85,8 +96,32 @@ export type ScriptReferenceString = string & {
  */
 export interface CacheKey {
   command: string | undefined;
+
+  /**
+   * The "clean" setting from the Wireit config.
+   *
+   * This is included in the cache key because switching from "false" to "true"
+   * could produce different output, so a re-run should be triggered even if
+   * nothing else changed.
+   */
+  clean: boolean;
+
   // Must be sorted.
   files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
+
+  /**
+   * The "output" glob patterns from the Wireit config.
+   *
+   * This is included in the cache key because changing the output patterns
+   * could produce different output when "clean" is true, and because it affects
+   * which files get included in a cache entry.
+   *
+   * Note the undefined vs empty-array distinction is not meaningful here,
+   * because both cases cause no files to be deleted, and the undefined case is
+   * never cached anyway.
+   */
+  output: string[];
+
   // Must be sorted.
   dependencies: {[dependency: ScriptReferenceString]: CacheKey};
 }

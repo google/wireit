@@ -27,22 +27,27 @@
     "format": "prettier . -w",
     "format:check": "prettier . -c",
     "test": "wireit",
-    "update-known-good": "rm -f wireit-*.tgz && npm pack && mv wireit-*.tgz known-good.tgz && npm i -D known-good.tgz"
+    "update-known-good": "npm run build && rm -f wireit-*.tgz && npm pack && mv wireit-*.tgz known-good.tgz && npm i -D known-good.tgz"
   },
   "wireit": {
     "build": {
-      "command": "tsc --build",
+      "command": "tsc --build --pretty",
       "files": [
         "src/**/*.ts",
         "tsconfig.json"
-      ]
+      ],
+      "output": [
+        "lib/**"
+      ],
+      "clean": false
     },
     "test": {
       "command": "uvu lib/test \"\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
-      "files": []
+      "files": [],
+      "output": []
     }
   },
   "devDependencies": {

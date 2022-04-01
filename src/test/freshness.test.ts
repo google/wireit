@@ -254,7 +254,7 @@ test(
     }
 
     // No input files changed, so no commands are invoked. It doesn't matter
-    // that B has undefined input files, becuase it has an undefined command
+    // that B has undefined input files, because it has an undefined command
     // too.
     {
       const exec = rig.exec('npm run a');
@@ -296,6 +296,46 @@ test(
 
     // No input file changed, so script is fresh, and command is not invoked.
     {
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+  })
+);
+
+test(
+  'empty directory is not included in cache key',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input/**'],
+          },
+        },
+      },
+    });
+
+    // Initially stale, so command is invoked.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Empty directory created, but that doesn't count as an input file, so
+    // script is still fresh.
+    {
+      await rig.mkdir('input/subdir');
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
       assert.equal(res.code, 0);
@@ -962,6 +1002,119 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA1.numInvocations, 1);
       assert.equal(cmdA2.numInvocations, 1);
+    }
+  })
+);
+
+test(
+  'changing output glob patterns makes script stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['a.txt'],
+            output: ['foo'],
+          },
+        },
+      },
+      'a.txt': 'v0',
+    });
+
+    // Initially stale.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change the output setting.
+    {
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['a.txt'],
+              output: ['bar'],
+            },
+          },
+        },
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'changing clean setting makes script stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['a.txt'],
+          },
+        },
+      },
+      'a.txt': 'v0',
+    });
+
+    // Initially stale.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change the clean setting.
+    {
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['a.txt'],
+              clean: false,
+            },
+          },
+        },
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
     }
   })
 );

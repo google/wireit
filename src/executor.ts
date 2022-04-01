@@ -31,6 +31,8 @@ import type {Logger} from './logging/logger.js';
  */
 const UNCACHEABLE = Symbol();
 
+const IS_WINDOWS = process.platform === 'win32';
+
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
@@ -66,6 +68,11 @@ export class Executor {
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
       ) {
+        this.#logger.log({
+          script,
+          type: 'success',
+          reason: 'fresh',
+        });
         return cacheKey;
       }
     } else {
@@ -77,7 +84,10 @@ export class Executor {
     // even though the command might have produced some output.
     await this.#deleteStateFile(script);
 
-    // TODO(aomarks) Implement output deletion.
+    if (script.clean) {
+      await this.#cleanOutput(script);
+    }
+
     // TODO(aomarks) Implement caching.
     await this.#executeCommandIfNeeded(script);
 
@@ -266,10 +276,13 @@ export class Executor {
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
     if (script.files?.length) {
-      const files = await fastGlob(script.files, {
-        cwd: script.packageDir,
-        dot: true,
+      const files = await this.#glob(script, script.files, {
+        // TODO(aomarks) It is possible for a script to produce different output
+        // when an empty directory is added. Consider whether we should actually
+        // include directories here. Directories will need to have some special
+        // handling in the cache key, since they have no content to hash.
         onlyFiles: true,
+        absolute: false,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
       // build, use inode/mtime/ctime/size metadata (which is much faster to
@@ -292,9 +305,11 @@ export class Executor {
 
     return {
       command: script.command,
+      clean: script.clean,
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
       ),
+      output: script.output ?? [],
       dependencies: Object.fromEntries(
         filteredDependencyCacheKeys.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
@@ -364,5 +379,73 @@ export class Executor {
       }
       throw error;
     }
+  }
+
+  /**
+   * Delete all files matched by the given script's "output" glob patterns.
+   */
+  async #cleanOutput(script: ScriptConfig): Promise<void> {
+    if (script.output === undefined) {
+      return;
+    }
+    const absFiles = await this.#glob(script, script.output, {
+      onlyFiles: false,
+      absolute: true,
+    });
+    if (absFiles.length === 0) {
+      return;
+    }
+    const insidePackagePrefix = script.packageDir + pathlib.sep;
+    for (const absFile of absFiles) {
+      // TODO(aomarks) It would be better to do this in the Analyzer by looking
+      // at the output glob patterns, so that we catch errors earlier and can
+      // provide a more useful message, but we need to be certain that we are
+      // parsing glob patterns correctly (e.g. negations and other syntax make
+      // it slightly tricky to detect).
+      if (!absFile.startsWith(insidePackagePrefix)) {
+        throw new WireitError({
+          script,
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          message: `refusing to delete output file outside of package: ${absFile}`,
+        });
+      }
+    }
+    await Promise.all(
+      absFiles.map(async (absFile) => {
+        try {
+          await fs.rm(absFile, {recursive: true});
+        } catch (error) {
+          if ((error as {code?: string}).code !== 'ENOENT') {
+            throw error;
+          }
+        }
+      })
+    );
+  }
+
+  /**
+   * Match the given glob patterns against the filesystem, interpreting paths
+   * relative to the given script's package directory.
+   */
+  async #glob(
+    script: ScriptConfig,
+    patterns: string[],
+    {onlyFiles, absolute}: {onlyFiles: boolean; absolute: boolean}
+  ): Promise<string[]> {
+    const files = await fastGlob(patterns, {
+      cwd: script.packageDir,
+      dot: true,
+      onlyFiles,
+      absolute,
+    });
+    if (IS_WINDOWS) {
+      // fast-glob returns paths with forward-slash as the delimiter, even on
+      // Windows. Normalize so that they are always valid filesystem paths.
+      for (let i = 0; i < files.length; i++) {
+        files[i] = pathlib.normalize(files[i]);
+      }
+    }
+    return files;
   }
 }

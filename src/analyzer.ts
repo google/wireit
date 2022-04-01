@@ -272,6 +272,39 @@ export class Analyzer {
       }
     }
 
+    if (wireitConfig?.output !== undefined) {
+      if (!Array.isArray(wireitConfig.output)) {
+        throw new WireitError({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: placeholder,
+          message: `output is not an array`,
+        });
+      }
+      for (let i = 0; i < wireitConfig.output.length; i++) {
+        if (typeof wireitConfig.output[i] !== 'string') {
+          throw new WireitError({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            message: `output[${i}] is not a string`,
+          });
+        }
+      }
+    }
+
+    if (
+      wireitConfig?.clean !== undefined &&
+      typeof wireitConfig.clean !== 'boolean'
+    ) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        message: `clean is not a boolean`,
+      });
+    }
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.
@@ -279,6 +312,8 @@ export class Analyzer {
       command,
       dependencies: dependencies as Array<ScriptConfig>,
       files: wireitConfig?.files,
+      output: wireitConfig?.output,
+      clean: wireitConfig?.clean ?? true,
     };
     Object.assign(placeholder, remainingConfig);
   }
