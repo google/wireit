@@ -96,6 +96,16 @@ export type ScriptReferenceString = string & {
  */
 export interface CacheKey {
   command: string | undefined;
+
+  /**
+   * The "delete" setting from the Wireit config.
+   *
+   * This is included in the cache key because switching from "false" to "true"
+   * could produce different output, so a re-run should be triggered even if
+   * nothing else changed.
+   */
+  delete: boolean;
+
   // Must be sorted.
   files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
   // Must be sorted.

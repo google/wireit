@@ -302,6 +302,7 @@ export class Executor {
 
     return {
       command: script.command,
+      delete: script.delete,
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
       ),

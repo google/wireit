@@ -1007,6 +1007,62 @@ test(
 );
 
 test(
+  'changing delete setting makes script stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['a.txt'],
+          },
+        },
+      },
+      'a.txt': 'v0',
+    });
+
+    // Initially stale.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change the delete setting.
+    {
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['a.txt'],
+              delete: false,
+            },
+          },
+        },
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
   'cache key is independent of file ordering',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
