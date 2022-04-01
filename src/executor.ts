@@ -31,6 +31,8 @@ import type {Logger} from './logging/logger.js';
  */
 const UNCACHEABLE = Symbol();
 
+const IS_WINDOWS = process.platform === 'win32';
+
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
@@ -431,11 +433,19 @@ export class Executor {
     patterns: string[],
     {onlyFiles, absolute}: {onlyFiles: boolean; absolute: boolean}
   ): Promise<string[]> {
-    return fastGlob(patterns, {
+    const files = await fastGlob(patterns, {
       cwd: script.packageDir,
       dot: true,
       onlyFiles,
       absolute,
     });
+    if (IS_WINDOWS) {
+      // fast-glob returns paths with forward-slash as the delimiter, even on
+      // Windows. Normalize so that they are always valid filesystem paths.
+      for (let i = 0; i < files.length; i++) {
+        files[i] = pathlib.normalize(files[i]);
+      }
+    }
+    return files;
   }
 }
