@@ -53,10 +53,13 @@ test(
       output: 'foo',
     });
 
+    // Output should exist before we run the script.
+    assert.ok(await rig.exists('output'));
+
+    // Output should be deleted between running the script and executing the
+    // command.
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
-
-    // Output should be deleted by the time the command is executed.
     assert.not(await rig.exists('output'));
 
     inv.exit(0);
@@ -86,10 +89,13 @@ test(
       output: 'foo',
     });
 
+    // Output should exist before we run the script.
+    assert.ok(await rig.exists('output'));
+
+    // Output should be deleted between running the script and executing the
+    // command.
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
-
-    // Output should be deleted by the time the command is executed.
     assert.not(await rig.exists('output'));
 
     inv.exit(0);
