@@ -35,14 +35,19 @@
       "files": [
         "src/**/*.ts",
         "tsconfig.json"
-      ]
+      ],
+      "output": [
+        "lib/**"
+      ],
+      "delete": false
     },
     "test": {
       "command": "uvu lib/test \"\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
-      "files": []
+      "files": [],
+      "output": []
     }
   },
   "devDependencies": {
