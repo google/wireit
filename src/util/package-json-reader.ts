@@ -21,6 +21,7 @@ export interface PackageJson {
       files?: string[];
       output?: string[];
       clean?: boolean;
+      packageLocks?: string[];
     };
   };
 }

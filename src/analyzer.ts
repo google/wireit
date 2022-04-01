@@ -305,6 +305,50 @@ export class Analyzer {
       });
     }
 
+    if (wireitConfig?.packageLocks !== undefined) {
+      if (!Array.isArray(wireitConfig.packageLocks)) {
+        throw new WireitError({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: placeholder,
+          message: `packageLocks is not an array`,
+        });
+      }
+      for (let i = 0; i < wireitConfig.packageLocks.length; i++) {
+        if (typeof wireitConfig.packageLocks[i] !== 'string') {
+          throw new WireitError({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            message: `packageLocks[${i}] is not a string`,
+          });
+        }
+      }
+    }
+
+    if (
+      // There's no reason to check package locks when "files" is undefined,
+      // because scripts will always run in that case anyway.
+      wireitConfig?.files !== undefined &&
+      // An explicitly empty "packageLocks" array disables package lock checking
+      // entirely.
+      wireitConfig?.packageLocks?.length !== 0
+    ) {
+      const lockfileNames = wireitConfig.packageLocks ?? ['package-lock.json'];
+      // Generate "package-lock.json", "../package-lock.json",
+      // "../../package-lock.json" etc. all the way up to the root of the
+      // filesystem, because that's how Node package resolution works.
+      const depth = placeholder.packageDir.split(pathlib.sep).length;
+      for (let i = 0; i < depth; i++) {
+        // Glob patterns are specified with forward-slash delimiters, even on
+        // Windows.
+        const prefix = Array(i + 1).join('../');
+        for (const lockfileName of lockfileNames) {
+          wireitConfig.files.push(prefix + lockfileName);
+        }
+      }
+    }
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.
