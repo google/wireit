@@ -266,9 +266,11 @@ export class Executor {
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
     if (script.files?.length) {
-      const files = await fastGlob(script.files, {
-        cwd: script.packageDir,
-        dot: true,
+      const files = await this.#glob(script, script.files, {
+        // TODO(aomarks) It is possible for a script to produce different output
+        // when an empty directory is added. Consider whether we should actually
+        // include directories here. Directories will need to have some special
+        // handling in the cache key, since they have no content to hash.
         onlyFiles: true,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
@@ -364,5 +366,21 @@ export class Executor {
       }
       throw error;
     }
+  }
+
+  /**
+   * Match the given glob patterns against the filesystem, interpreting paths
+   * relative to the given script's package directory.
+   */
+  async #glob(
+    script: ScriptConfig,
+    patterns: string[],
+    {onlyFiles}: {onlyFiles: boolean}
+  ): Promise<string[]> {
+    return fastGlob(patterns, {
+      cwd: script.packageDir,
+      dot: true,
+      onlyFiles,
+    });
   }
 }

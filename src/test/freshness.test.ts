@@ -305,6 +305,46 @@ test(
 );
 
 test(
+  'empty directory is not included in cache key',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input/**'],
+          },
+        },
+      },
+    });
+
+    // Initially stale, so command is invoked.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Empty directory created, but that doesn't count as an input file, so
+    // script is still fresh.
+    {
+      await rig.mkdir('input/subdir');
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+  })
+);
+
+test(
   'cross-package freshness is tracked',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();

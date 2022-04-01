@@ -122,6 +122,15 @@ export class WireitTestRig {
   }
 
   /**
+   * Create an empty directory in the temporary filesystem, including all parent
+   * directories.
+   */
+  async mkdir(dirname: string): Promise<void> {
+    this.#assertState('running');
+    await fs.mkdir(this.#resolve(dirname), {recursive: true});
+  }
+
+  /**
    * Delete a file or directory in the temporary filesystem.
    */
   async delete(filename: string): Promise<void> {
