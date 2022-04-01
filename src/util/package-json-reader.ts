@@ -19,6 +19,8 @@ export interface PackageJson {
       command?: string;
       dependencies?: string[];
       files?: string[];
+      output?: string[];
+      delete?: boolean;
     };
   };
 }

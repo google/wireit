@@ -49,6 +49,17 @@ export interface ScriptConfig extends ScriptReference {
    * script can safely be cached).
    */
   files: string[] | undefined;
+
+  /**
+   * Output file globs for this script.
+   */
+  output: string[] | undefined;
+
+  /**
+   * Whether all files matching the output glob patterns should be deleted
+   * before the script executes.
+   */
+  delete: boolean;
 }
 
 /**
