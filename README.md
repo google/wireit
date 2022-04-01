@@ -22,6 +22,7 @@
 - [Incremental build](#incremental-build)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
+- [Package locks](#package-locks)
 - [Glob patterns](#glob-patterns)
 - [Requirements](#requirements)
 - [Contributing](#contributing)
@@ -237,6 +238,44 @@ The benefit of Wireit's watch mode over built-in watch modes are:
 - It prevents problems that can occur when running many separate watch commands
   simultaneously, such as build steps being triggered before all preceding steps
   have finished.
+
+## Package locks
+
+By default, Wireit automatically treats
+[`package-lock.json`](https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json)
+files in all parent directories as input files. This is useful because
+installing or upgrading your dependencies can affect the behavior of your
+scripts, so it's important to re-run them whenever your dependencies change.
+
+If you are using an alternative package manager instead of npm, then your
+package lock files might be named something else. Some examples are:
+
+- Yarn: [`yarn.lock`](https://yarnpkg.com/configuration/yarnrc#lockfileFilename) (configurable)
+- pnpm: [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles)
+
+To change the name of the package lock files Wireit should look for, specify it
+in the `wireit.<script>.packageLocks` array. You can specify filenames filenames
+here, if needed.
+
+```json
+{
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": ["src/**/*.ts", "tsconfig.json"],
+      "output": ["lib/**"],
+      "packageLocks": ["yarn.lock"]
+    }
+  }
+}
+```
+
+If you're sure that a script isn't affected by dependencies at all, you can turn
+off this behavior entirely to improve your cache hit rate by setting
+`wireit.<script>.packageLocks` to `[]`.
 
 ## Glob patterns
 
