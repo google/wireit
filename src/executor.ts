@@ -77,7 +77,10 @@ export class Executor {
     // even though the command might have produced some output.
     await this.#deleteStateFile(script);
 
-    // TODO(aomarks) Implement output deletion.
+    if (script.delete) {
+      await this.#deleteOutput(script);
+    }
+
     // TODO(aomarks) Implement caching.
     await this.#executeCommandIfNeeded(script);
 
@@ -366,6 +369,27 @@ export class Executor {
       }
       throw error;
     }
+  }
+
+  /**
+   * Delete all files matched by the given script's "output" glob patterns.
+   */
+  async #deleteOutput(script: ScriptConfig): Promise<void> {
+    if (script.output === undefined) {
+      return;
+    }
+    const files = await this.#glob(script, script.output, {onlyFiles: false});
+    await Promise.all(
+      files.map(async (file) => {
+        try {
+          await fs.rm(pathlib.join(script.packageDir, file), {recursive: true});
+        } catch (error) {
+          if ((error as {code?: string}).code !== 'ENOENT') {
+            throw error;
+          }
+        }
+      })
+    );
   }
 
   /**
