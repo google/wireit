@@ -20,6 +20,7 @@
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
 - [Incremental build](#incremental-build)
+- [Deleting output](#deleting-output)
 - [Watch mode](#watch-mode)
 - [Glob patterns](#glob-patterns)
 - [Requirements](#requirements)
@@ -182,6 +183,41 @@ Notes:
   - The `command` must not have changed.
   - The `files` of all transitive dependencies must not have changed.
   - All transitive dependencies must have `files` defined (can be empty).
+
+## Deleting output
+
+Wireit can automatically delete output from previous runs before executing a
+script. This is helpful for ensuring that every build is free from outdated
+files created in previous runs from source files that have since been deleted.
+
+To enable output deletion, configure the output files for each script by
+specifying [glob patterns](#glob-patterns) in the `wireit.<script>.output` list:
+
+```json
+{
+  "scripts": {
+    "build": "wireit",
+    "bundle": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "tsc",
+      "files": ["src/**/*.ts", "tsconfig.json"],
+      "output": ["lib/**"]
+    },
+    "bundle": {
+      "command": "rollup -c",
+      "dependencies": ["build"],
+      "files": ["rollup.config.json"],
+      "output": ["dist/bundle.js"]
+    }
+  }
+}
+```
+
+To disable this behavior, set `<script>.delete` to `false`. You should only
+disable this behavior if you are certain that the script itself already takes
+care of removing stale output files from previous runs.
 
 ## Watch mode
 
