@@ -31,7 +31,7 @@
   },
   "wireit": {
     "build": {
-      "command": "tsc --build",
+      "command": "tsc --build --pretty",
       "files": [
         "src/**/*.ts",
         "tsconfig.json"
@@ -39,7 +39,7 @@
       "output": [
         "lib/**"
       ],
-      "delete": false
+      "clean": false
     },
     "test": {
       "command": "uvu lib/test \"\\.test\\.js$\"",

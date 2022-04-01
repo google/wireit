@@ -254,7 +254,7 @@ test(
     }
 
     // No input files changed, so no commands are invoked. It doesn't matter
-    // that B has undefined input files, becuase it has an undefined command
+    // that B has undefined input files, because it has an undefined command
     // too.
     {
       const exec = rig.exec('npm run a');
@@ -1007,7 +1007,64 @@ test(
 );
 
 test(
-  'changing delete setting makes script stale',
+  'changing output glob patterns makes script stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['a.txt'],
+            output: ['foo'],
+          },
+        },
+      },
+      'a.txt': 'v0',
+    });
+
+    // Initially stale.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change the output setting.
+    {
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['a.txt'],
+              output: ['bar'],
+            },
+          },
+        },
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'changing clean setting makes script stale',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
 
@@ -1036,7 +1093,7 @@ test(
       assert.equal(cmdA.numInvocations, 1);
     }
 
-    // Change the delete setting.
+    // Change the clean setting.
     {
       await rig.write({
         'package.json': {
@@ -1047,7 +1104,7 @@ test(
             a: {
               command: cmdA.command,
               files: ['a.txt'],
-              delete: false,
+              clean: false,
             },
           },
         },

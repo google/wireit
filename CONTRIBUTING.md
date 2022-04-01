@@ -54,7 +54,7 @@ npm test watch
 
 Wireit is self-hosting: it is built and tested with itself. However, we don't
 want to build and test with the exact same code we are editing during
-development, becuase if we break something, we might be unable to build or test
+development, because if we break something, we might be unable to build or test
 at all, or we might build or test incorrectly (e.g. we might think tests passed
 when actually the tests didn't even run).
 

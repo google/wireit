@@ -82,8 +82,8 @@ export class Executor {
     // even though the command might have produced some output.
     await this.#deleteStateFile(script);
 
-    if (script.delete) {
-      await this.#deleteOutput(script);
+    if (script.clean) {
+      await this.#cleanOutput(script);
     }
 
     // TODO(aomarks) Implement caching.
@@ -280,6 +280,7 @@ export class Executor {
         // include directories here. Directories will need to have some special
         // handling in the cache key, since they have no content to hash.
         onlyFiles: true,
+        absolute: false,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
       // build, use inode/mtime/ctime/size metadata (which is much faster to
@@ -302,10 +303,11 @@ export class Executor {
 
     return {
       command: script.command,
-      delete: script.delete,
+      clean: script.clean,
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
       ),
+      output: script.output ?? [],
       dependencies: Object.fromEntries(
         filteredDependencyCacheKeys.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
@@ -380,15 +382,37 @@ export class Executor {
   /**
    * Delete all files matched by the given script's "output" glob patterns.
    */
-  async #deleteOutput(script: ScriptConfig): Promise<void> {
+  async #cleanOutput(script: ScriptConfig): Promise<void> {
     if (script.output === undefined) {
       return;
     }
-    const files = await this.#glob(script, script.output, {onlyFiles: false});
+    const absFiles = await this.#glob(script, script.output, {
+      onlyFiles: false,
+      absolute: true,
+    });
+    if (absFiles.length === 0) {
+      return;
+    }
+    const insidePackagePrefix = script.packageDir + pathlib.sep;
+    for (const absFile of absFiles) {
+      // TODO(aomarks) It would be better to do this in the Analyzer by looking
+      // at the output glob patterns, so that we catch errors earlier and can
+      // provide a more useful message, but we need to be certain that we are
+      // parsing glob patterns correctly (e.g. negations and other syntax make
+      // it slightly tricky to detect).
+      if (!absFile.startsWith(insidePackagePrefix)) {
+        throw new WireitError({
+          script,
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          message: `refusing to delete output file outside of package: ${absFile}`,
+        });
+      }
+    }
     await Promise.all(
-      files.map(async (file) => {
+      absFiles.map(async (absFile) => {
         try {
-          await fs.rm(pathlib.join(script.packageDir, file), {recursive: true});
+          await fs.rm(absFile, {recursive: true});
         } catch (error) {
           if ((error as {code?: string}).code !== 'ENOENT') {
             throw error;
@@ -405,12 +429,13 @@ export class Executor {
   async #glob(
     script: ScriptConfig,
     patterns: string[],
-    {onlyFiles}: {onlyFiles: boolean}
+    {onlyFiles, absolute}: {onlyFiles: boolean; absolute: boolean}
   ): Promise<string[]> {
     return fastGlob(patterns, {
       cwd: script.packageDir,
       dot: true,
       onlyFiles,
+      absolute,
     });
   }
 }

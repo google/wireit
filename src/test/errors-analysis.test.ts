@@ -268,7 +268,7 @@ test(
 );
 
 test(
-  'delete is not a boolean',
+  'clean is not a boolean',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {
@@ -278,7 +278,7 @@ test(
         wireit: {
           a: {
             command: 'true',
-            delete: 0,
+            clean: 0,
           },
         },
       },
@@ -289,7 +289,7 @@ test(
     assert.equal(
       done.stderr.trim(),
       `
-❌ [a] Invalid config: delete is not a boolean`.trim()
+❌ [a] Invalid config: clean is not a boolean`.trim()
     );
   })
 );

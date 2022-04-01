@@ -294,14 +294,14 @@ export class Analyzer {
     }
 
     if (
-      wireitConfig?.delete !== undefined &&
-      typeof wireitConfig.delete !== 'boolean'
+      wireitConfig?.clean !== undefined &&
+      typeof wireitConfig.clean !== 'boolean'
     ) {
       throw new WireitError({
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: placeholder,
-        message: `delete is not a boolean`,
+        message: `clean is not a boolean`,
       });
     }
 
@@ -313,7 +313,7 @@ export class Analyzer {
       dependencies: dependencies as Array<ScriptConfig>,
       files: wireitConfig?.files,
       output: wireitConfig?.output,
-      delete: wireitConfig?.delete ?? true,
+      clean: wireitConfig?.clean ?? true,
     };
     Object.assign(placeholder, remainingConfig);
   }
