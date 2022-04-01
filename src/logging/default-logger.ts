@@ -77,6 +77,10 @@ export class DefaultLogger implements Logger {
             console.log(`✅${prefix} No command to execute`);
             break;
           }
+          case 'fresh': {
+            console.log(`✅${prefix} Already fresh`);
+            break;
+          }
         }
         break;
       }

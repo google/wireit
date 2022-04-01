@@ -66,6 +66,11 @@ export class Executor {
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
       ) {
+        this.#logger.log({
+          script,
+          type: 'success',
+          reason: 'fresh',
+        });
         return cacheKey;
       }
     } else {
