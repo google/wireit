@@ -131,16 +131,8 @@ export class Analyzer {
       }
     }
 
-    if (
-      packageJson.wireit !== undefined &&
-      !isJsonObjectLiteral(packageJson.wireit)
-    ) {
-      throw new WireitError({
-        type: 'failure',
-        reason: 'invalid-config-syntax',
-        script: placeholder,
-        message: 'wireit is not an object',
-      });
+    if (packageJson.wireit !== undefined) {
+      assertJsonObject(placeholder, packageJson.wireit, 'wireit');
     }
 
     const scriptCommand = packageJson.scripts?.[placeholder.name];
@@ -153,13 +145,12 @@ export class Analyzer {
     }
 
     const wireitConfig = packageJson.wireit?.[placeholder.name];
-    if (wireitConfig !== undefined && !isJsonObjectLiteral(wireitConfig)) {
-      throw new WireitError({
-        type: 'failure',
-        reason: 'invalid-config-syntax',
-        script: placeholder,
-        message: `wireit[${placeholder.name}] is not an object`,
-      });
+    if (wireitConfig !== undefined) {
+      assertJsonObject(
+        placeholder,
+        wireitConfig,
+        `wireit[${placeholder.name}]`
+      );
     }
 
     if (wireitConfig !== undefined && scriptCommand !== 'wireit') {
@@ -181,14 +172,7 @@ export class Analyzer {
 
     const dependencies: Array<PlaceholderConfig> = [];
     if (wireitConfig?.dependencies !== undefined) {
-      if (!Array.isArray(wireitConfig.dependencies)) {
-        throw new WireitError({
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: placeholder,
-          message: 'dependencies is not an array',
-        });
-      }
+      assertArray(placeholder, wireitConfig.dependencies, 'dependencies');
       // Error if the same dependency is declared multiple times. Duplicate
       // dependencies aren't necessarily a serious problem (since we already
       // prevent double-analysis here, and double-analysis in the Executor), but
@@ -197,14 +181,7 @@ export class Analyzer {
       const uniqueDependencies = new Set<string>();
       for (let i = 0; i < wireitConfig.dependencies.length; i++) {
         const unresolved = wireitConfig.dependencies[i];
-        if (typeof unresolved !== 'string') {
-          throw new WireitError({
-            type: 'failure',
-            reason: 'invalid-config-syntax',
-            script: placeholder,
-            message: `dependencies[${i}] is not a string`,
-          });
-        }
+        assertString(placeholder, unresolved, `dependencies[${i}]`);
         for (const resolved of this.#resolveDependency(
           unresolved,
           placeholder
@@ -228,16 +205,8 @@ export class Analyzer {
     if (wireitConfig === undefined) {
       command = scriptCommand;
     } else {
-      if (
-        wireitConfig.command !== undefined &&
-        typeof wireitConfig.command !== 'string'
-      ) {
-        throw new WireitError({
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: placeholder,
-          message: `command is not a string`,
-        });
+      if (wireitConfig.command !== undefined) {
+        assertString(placeholder, wireitConfig.command, 'command');
       }
       command = wireitConfig.command;
     }
@@ -252,57 +221,60 @@ export class Analyzer {
     }
 
     if (wireitConfig?.files !== undefined) {
-      if (!Array.isArray(wireitConfig.files)) {
-        throw new WireitError({
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: placeholder,
-          message: `files is not an array`,
-        });
-      }
+      assertArray(placeholder, wireitConfig.files, 'files');
       for (let i = 0; i < wireitConfig.files.length; i++) {
-        if (typeof wireitConfig.files[i] !== 'string') {
-          throw new WireitError({
-            type: 'failure',
-            reason: 'invalid-config-syntax',
-            script: placeholder,
-            message: `files[${i}] is not a string`,
-          });
-        }
+        assertString(placeholder, wireitConfig.files[i], `files[${i}]`);
       }
     }
 
     if (wireitConfig?.output !== undefined) {
-      if (!Array.isArray(wireitConfig.output)) {
-        throw new WireitError({
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: placeholder,
-          message: `output is not an array`,
-        });
-      }
+      assertArray(placeholder, wireitConfig.output, 'output');
       for (let i = 0; i < wireitConfig.output.length; i++) {
-        if (typeof wireitConfig.output[i] !== 'string') {
+        assertString(placeholder, wireitConfig.output[i], `output[${i}]`);
+      }
+    }
+
+    if (wireitConfig?.clean !== undefined) {
+      assertBoolean(placeholder, wireitConfig.clean, 'clean');
+    }
+
+    if (wireitConfig?.packageLocks !== undefined) {
+      assertArray(placeholder, wireitConfig.packageLocks, 'packageLocks');
+      for (let i = 0; i < wireitConfig.packageLocks.length; i++) {
+        const filename = wireitConfig.packageLocks[i];
+        assertString(placeholder, filename, `packageLocks[${i}]`);
+        if (filename !== pathlib.basename(filename)) {
           throw new WireitError({
             type: 'failure',
             reason: 'invalid-config-syntax',
             script: placeholder,
-            message: `output[${i}] is not a string`,
+            message: `packageLocks[${i}] must be a filename, not a path`,
           });
         }
       }
     }
 
     if (
-      wireitConfig?.clean !== undefined &&
-      typeof wireitConfig.clean !== 'boolean'
+      // There's no reason to check package locks when "files" is undefined,
+      // because scripts will always run in that case anyway.
+      wireitConfig?.files !== undefined &&
+      // An explicitly empty "packageLocks" array disables package lock checking
+      // entirely.
+      wireitConfig?.packageLocks?.length !== 0
     ) {
-      throw new WireitError({
-        type: 'failure',
-        reason: 'invalid-config-syntax',
-        script: placeholder,
-        message: `clean is not a boolean`,
-      });
+      const lockfileNames = wireitConfig.packageLocks ?? ['package-lock.json'];
+      // Generate "package-lock.json", "../package-lock.json",
+      // "../../package-lock.json" etc. all the way up to the root of the
+      // filesystem, because that's how Node package resolution works.
+      const depth = placeholder.packageDir.split(pathlib.sep).length;
+      for (let i = 0; i < depth; i++) {
+        // Glob patterns are specified with forward-slash delimiters, even on
+        // Windows.
+        const prefix = Array(i + 1).join('../');
+        for (const lockfileName of lockfileNames) {
+          wireitConfig.files.push(prefix + lockfileName);
+        }
+      }
     }
 
     // It's important to in-place update the placeholder object, instead of
@@ -437,8 +409,70 @@ export class Analyzer {
 }
 
 /**
- * Assuming the given value was parsed from JSON, return whether it was an
- * object literal ({...}).
+ * Throw an error if the given value is not a string.
  */
-const isJsonObjectLiteral = (value: unknown) =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+const assertString = (
+  script: ScriptReference,
+  value: unknown,
+  name: string
+) => {
+  if (typeof value !== 'string') {
+    throw new WireitError({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script,
+      message: `${name} is not a string`,
+    });
+  }
+};
+
+/**
+ * Throw an error if the given value is not a boolean.
+ */
+const assertBoolean = (
+  script: ScriptReference,
+  value: unknown,
+  name: string
+) => {
+  if (typeof value !== 'boolean') {
+    throw new WireitError({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script,
+      message: `${name} is not a boolean`,
+    });
+  }
+};
+
+/**
+ * Throw an error if the given value is not an Array.
+ */
+const assertArray = (script: ScriptReference, value: unknown, name: string) => {
+  if (!Array.isArray(value)) {
+    throw new WireitError({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script,
+      message: `${name} is not an array`,
+    });
+  }
+};
+
+/**
+ * Throw an error if it was an object literal ({...}), assuming it was parsed
+ * from JSON.
+ */
+const assertJsonObject = (
+  script: ScriptReference,
+  value: unknown,
+  name: string
+) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new WireitError({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script,
+      message: `${name} is not an object`,
+    });
+  }
+};

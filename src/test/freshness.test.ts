@@ -1277,4 +1277,236 @@ test(
   })
 );
 
+test(
+  'changing package-lock.json invalidates by default',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            // Note we must define files, or else we would never be fresh
+            // anyway.
+            files: [],
+          },
+        },
+      },
+      'foo/package-lock.json': 'v0',
+    });
+
+    // Initial run.
+    {
+      const exec = rig.exec('npm run a', {cwd: 'foo'});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Nothing changed. Expect no run.
+    {
+      const exec = rig.exec('npm run a', {cwd: 'foo'});
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change current package's package-lock.json. Expect another run.
+    {
+      await rig.write({'foo/package-lock.json': 'v1'});
+      const exec = rig.exec('npm run a', {cwd: 'foo'});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+
+    // Create a package-lock.json in the parent. Expect another run.
+    {
+      await rig.write({'package-lock.json': 'v0'});
+      const exec = rig.exec('npm run a', {cwd: 'foo'});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 3);
+    }
+  })
+);
+
+test(
+  'changing package-lock.json does not invalidate when packageLocks is empty',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            // Note we must define files, or else we would never be fresh
+            // anyway.
+            files: [],
+            packageLocks: [],
+          },
+        },
+      },
+      'package-lock.json': 'v0',
+    });
+
+    // Initial run.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Nothing changed. Expect no run.
+    {
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change current package's package-lock.json. Expect no run.
+    {
+      await rig.write({'package-lock.json': 'v1'});
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+  })
+);
+
+test(
+  'changing yarn.lock invalidates when set in packageLocks',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            // Note we must define files, or else we would never be fresh
+            // anyway.
+            files: [],
+            packageLocks: ['yarn.lock'],
+          },
+        },
+      },
+      'yarn.lock': 'v0',
+    });
+
+    // Initial run.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Nothing changed. Expect no run.
+    {
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change current package's yarn.lock. Expect another run.
+    {
+      await rig.write({'yarn.lock': 'v1'});
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'packageLocks can have multiple files',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            // Note we must define files, or else we would never be fresh
+            // anyway.
+            files: [],
+            packageLocks: ['lock1', 'lock2'],
+          },
+        },
+      },
+      lock1: 'v0',
+      lock2: 'v0',
+    });
+
+    // Initial run.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Nothing changed. Expect no run.
+    {
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change lock1. Expect another run.
+    {
+      await rig.write({lock1: 'v1'});
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+
+    // Change lock2. Expect another run.
+    {
+      await rig.write({lock2: 'v1'});
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 3);
+    }
+  })
+);
+
 test.run();

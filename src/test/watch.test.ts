@@ -126,6 +126,49 @@ test(
 );
 
 test(
+  'runs again when new input file created',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input*.txt'],
+          },
+        },
+      },
+      'input1.txt': 'v0',
+    });
+
+    const exec = rig.exec('npm run a watch');
+
+    // Initial run.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+    }
+
+    // Adding another input file should cause another run.
+    {
+      await rig.write({
+        'input2.txt': 'v0',
+      });
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await inv.closed;
+    }
+
+    exec.terminate();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
+test(
   'runs again when input file changes in the middle of execution',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -543,6 +586,56 @@ test(
     exec.terminate();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
+test(
+  'package-lock.json files are watched',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: [],
+          },
+        },
+      },
+      'foo/package-lock.json': 'v0',
+      // No parent dir package-lock.json initially.
+    });
+
+    const exec = rig.exec('npm run a watch', {cwd: 'foo'});
+
+    // Initial run.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change foo's package-lock.json file. Expect another run.
+    {
+      await rig.write({'foo/package-lock.json': 'v1'});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+    }
+
+    // Create parent's package-lock.json file. Expect another run.
+    {
+      await rig.write({'package-lock.json': 'v0'});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await inv.closed;
+    }
+
+    exec.terminate();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 3);
   })
 );
 

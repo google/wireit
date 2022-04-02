@@ -180,15 +180,23 @@ export class Watcher {
    * Start watching some glob patterns.
    */
   #watchPatterns(patterns: string[], cwd: string): void {
-    const watcher = chokidar.watch(patterns, {cwd});
+    const watcher = chokidar.watch(patterns, {
+      cwd,
+      // Ignore the initial "add" events emitted when chokidar first discovers
+      // each file. We already do an initial run, so these events are just noise
+      // that may trigger an unnecessary second run.
+      // https://github.com/paulmillr/chokidar#path-filtering
+      ignoreInitial: true,
+    });
     this.#watchers.push(watcher);
-    watcher.on('change', this.#fileChanged);
+    watcher.on('add', this.#fileAddedOrChanged);
+    watcher.on('change', this.#fileAddedOrChanged);
   }
 
   /**
-   * One of the paths we are watching has changed.
+   * One of the paths we are watching has been created or modified.
    */
-  readonly #fileChanged = (): void => {
+  readonly #fileAddedOrChanged = (): void => {
     // TODO(aomarks) Cache package JSONS, globs, and hashes.
     this.#stale = true;
     this.#update.resolve();
