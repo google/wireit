@@ -254,7 +254,7 @@ package lock files might be named something else. Some examples are:
 - pnpm: [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles)
 
 To change the name of the package lock files Wireit should look for, specify it
-in the `wireit.<script>.packageLocks` array. You can specify filenames filenames
+in the `wireit.<script>.packageLocks` array. You can specify multiple filenames
 here, if needed.
 
 ```json
