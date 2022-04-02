@@ -243,9 +243,10 @@ The benefit of Wireit's watch mode over built-in watch modes are:
 
 By default, Wireit automatically treats
 [`package-lock.json`](https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json)
-files in all parent directories as input files. This is useful because
-installing or upgrading your dependencies can affect the behavior of your
-scripts, so it's important to re-run them whenever your dependencies change.
+files in the package directory, plus all parent directories, as input files.
+This is useful because installing or upgrading your dependencies can affect the
+behavior of your scripts, so it's important to re-run them whenever your
+dependencies change.
 
 If you are using an alternative package manager instead of npm, then your
 package lock files might be named something else. Some examples are:
@@ -254,8 +255,9 @@ package lock files might be named something else. Some examples are:
 - pnpm: [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles)
 
 To change the name of the package lock files Wireit should look for, specify it
-in the `wireit.<script>.packageLocks` array. You can specify multiple filenames
-here, if needed.
+in the `wireit.<script>.packageLocks` array. Wireit will look for the given
+filenames in the script's directory, as well as in all of its parent
+directories. You can specify multiple filenames here, if needed.
 
 ```json
 {
