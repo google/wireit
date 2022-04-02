@@ -8,7 +8,7 @@ import fastGlob from 'fast-glob';
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
-import {createReadStream} from 'fs';
+import {createReadStream, createWriteStream} from 'fs';
 import {spawn} from 'child_process';
 import {WireitError} from './error.js';
 import {scriptReferenceToString} from './script.js';
@@ -23,6 +23,7 @@ import type {
   Sha256HexDigest,
 } from './script.js';
 import type {Logger} from './logging/logger.js';
+import type {WriteStream} from 'fs';
 
 /**
  * Unique symbol to represent a script that isn't safe to be cached, because its
@@ -95,6 +96,10 @@ class ScriptExecution {
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
       ) {
+        await Promise.all([
+          this.#replayStdoutIfPresent(),
+          this.#replayStderrIfPresent(),
+        ]);
         this.#logger.log({
           script: this.#script,
           type: 'success',
@@ -106,10 +111,10 @@ class ScriptExecution {
       cacheKeyStr = UNCACHEABLE;
     }
 
-    // It's important that we delete any previous state file before running the
+    // It's important that we delete any previous state before running the
     // command, because if the command fails we won't update the state file,
     // even though the command might have produced some output.
-    await this.#deleteStateFile();
+    await this.#prepareDataDir();
 
     if (this.#script.clean) {
       await this.#cleanOutput();
@@ -197,6 +202,11 @@ class ScriptExecution {
       shell: true,
     });
 
+    // Only create the stdout/stderr replay files if we encounter anything on
+    // this streams.
+    let stdoutReplay: WriteStream | undefined;
+    let stderrReplay: WriteStream | undefined;
+
     child.stdout.on('data', (data: string | Buffer) => {
       this.#logger.log({
         script: this.#script,
@@ -204,6 +214,10 @@ class ScriptExecution {
         stream: 'stdout',
         data,
       });
+      if (stdoutReplay === undefined) {
+        stdoutReplay = createWriteStream(this.#stdoutReplayPath);
+      }
+      stdoutReplay.write(data);
     });
 
     child.stderr.on('data', (data: string | Buffer) => {
@@ -213,6 +227,10 @@ class ScriptExecution {
         stream: 'stderr',
         data,
       });
+      if (stderrReplay === undefined) {
+        stderrReplay = createWriteStream(this.#stderrReplayPath);
+      }
+      stderrReplay.write(data);
     });
 
     const completed = new Promise<void>((resolve, reject) => {
@@ -256,7 +274,16 @@ class ScriptExecution {
       });
     });
 
-    await completed;
+    try {
+      await completed;
+    } finally {
+      if (stdoutReplay !== undefined) {
+        await closeWriteStream(stdoutReplay);
+      }
+      if (stderrReplay !== undefined) {
+        await closeWriteStream(stderrReplay);
+      }
+    }
 
     this.#logger.log({
       script: this.#script,
@@ -373,6 +400,20 @@ class ScriptExecution {
   }
 
   /**
+   * Get the path where the stdout replay is saved for this script.
+   */
+  get #stdoutReplayPath(): string {
+    return pathlib.join(this.#dataDir, 'stdout');
+  }
+
+  /**
+   * Get the path where the stderr replay is saved for this script.
+   */
+  get #stderrReplayPath(): string {
+    return pathlib.join(this.#dataDir, 'stderr');
+  }
+
+  /**
    * Read this script's ".wireit/<hex-script-name>/state" file.
    */
   async #readStateFile(): Promise<CacheKeyString | undefined> {
@@ -395,10 +436,16 @@ class ScriptExecution {
   }
 
   /**
-   * Delete this script's ".wireit/<hex-script-name>/state" file.
+   * Delete all state for this script from the previous run, and ensure the data
+   * directory is created.
    */
-  async #deleteStateFile(): Promise<void> {
-    await fs.rm(this.#statePath, {force: true});
+  async #prepareDataDir(): Promise<void> {
+    await Promise.all([
+      fs.rm(this.#statePath, {force: true}),
+      fs.rm(this.#stdoutReplayPath, {force: true}),
+      fs.rm(this.#stderrReplayPath, {force: true}),
+      fs.mkdir(this.#dataDir, {recursive: true}),
+    ]);
   }
 
   /**
@@ -467,4 +514,64 @@ class ScriptExecution {
     }
     return files;
   }
+
+  /**
+   * Write this script's stdout replay to stdout if it exists, otherwise do
+   * nothing.
+   */
+  async #replayStdoutIfPresent(): Promise<void> {
+    try {
+      for await (const chunk of createReadStream(this.#stdoutReplayPath)) {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stdout',
+          data: chunk as Buffer,
+        });
+      }
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        // There is no saved replay.
+        return;
+      }
+    }
+  }
+
+  /**
+   * Write this script's stderr replay to stderr if it exists, otherwise do
+   * nothing.
+   */
+  async #replayStderrIfPresent(): Promise<void> {
+    try {
+      for await (const chunk of createReadStream(this.#stderrReplayPath)) {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stderr',
+          data: chunk as Buffer,
+        });
+      }
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        // There is no saved replay.
+        return;
+      }
+    }
+  }
 }
+
+/**
+ * Close the given write stream and resolve or reject the returned promise when
+ * completed or failed.
+ */
+const closeWriteStream = (stream: WriteStream): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    stream.close((error) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+};
