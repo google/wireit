@@ -241,11 +241,16 @@ export class Analyzer {
     if (wireitConfig?.packageLocks !== undefined) {
       assertArray(placeholder, wireitConfig.packageLocks, 'packageLocks');
       for (let i = 0; i < wireitConfig.packageLocks.length; i++) {
-        assertString(
-          placeholder,
-          wireitConfig.packageLocks[i],
-          `packageLocks[${i}]`
-        );
+        const filename = wireitConfig.packageLocks[i];
+        assertString(placeholder, filename, `packageLocks[${i}]`);
+        if (filename !== pathlib.basename(filename)) {
+          throw new WireitError({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            message: `packageLocks[${i}] must be a filename, not a path`,
+          });
+        }
       }
     }
 
