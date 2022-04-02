@@ -190,6 +190,7 @@ export class Watcher {
     });
     this.#watchers.push(watcher);
     watcher.on('add', this.#fileAddedOrChanged);
+    watcher.on('unlink', this.#fileAddedOrChanged);
     watcher.on('change', this.#fileAddedOrChanged);
   }
 
