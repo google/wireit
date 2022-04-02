@@ -366,12 +366,18 @@ class ScriptExecution {
   }
 
   /**
+   * Get the path where the current cache key is saved for this script.
+   */
+  get #statePath(): string {
+    return pathlib.join(this.#dataDir, 'state');
+  }
+
+  /**
    * Read this script's ".wireit/<hex-script-name>/state" file.
    */
   async #readStateFile(): Promise<CacheKeyString | undefined> {
-    const stateFilepath = pathlib.join(this.#dataDir, 'state');
     try {
-      return (await fs.readFile(stateFilepath, 'utf8')) as CacheKeyString;
+      return (await fs.readFile(this.#statePath, 'utf8')) as CacheKeyString;
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
         return undefined;
@@ -384,25 +390,15 @@ class ScriptExecution {
    * Write this script's ".wireit/<hex-script-name>/state" file.
    */
   async #writeStateFile(cacheKeyStr: CacheKeyString): Promise<void> {
-    const dataDir = this.#dataDir;
-    await fs.mkdir(dataDir, {recursive: true});
-    const stateFilepath = pathlib.join(dataDir, 'state');
-    await fs.writeFile(stateFilepath, cacheKeyStr, 'utf8');
+    await fs.mkdir(this.#dataDir, {recursive: true});
+    await fs.writeFile(this.#statePath, cacheKeyStr, 'utf8');
   }
 
   /**
    * Delete this script's ".wireit/<hex-script-name>/state" file.
    */
   async #deleteStateFile(): Promise<void> {
-    const stateFilepath = pathlib.join(this.#dataDir, 'state');
-    try {
-      await fs.unlink(stateFilepath);
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        return undefined;
-      }
-      throw error;
-    }
+    await fs.rm(this.#statePath, {force: true});
   }
 
   /**
