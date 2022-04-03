@@ -128,23 +128,51 @@ class ScriptExecution {
     }
 
     // It's important that we delete any previous state before running the
-    // command, because if the command fails we won't update the state file,
-    // even though the command might have produced some output.
+    // command or restoring from cache, because if either fails mid-flight, we
+    // don't want to think that the previous state is still valid.
     await this.#prepareDataDir();
 
-    if (this.#script.clean) {
+    const cacheHit =
+      cacheKeyStr !== UNCACHEABLE
+        ? await this.#cache?.get(this.#script, cacheKeyStr)
+        : undefined;
+
+    // The "clean" setting controls whether we delete output before execution.
+    //
+    // However, if we are restoring from cache, we should always delete existing
+    // output, regardless of the "clean" setting. The purpose of the "clean"
+    // setting is to allow tools that are smart about cleaning up their own
+    // previous output to work more efficiently, but that only applies when the
+    // tool is able to observe each incremental change to the input files. When
+    // we restore from cache, we are directly replacing the output files, and
+    // not invoking the tool at all, so there is no way for the tool to do any
+    // cleanup.
+    if (this.#script.clean || cacheHit !== undefined) {
       await this.#cleanOutput();
     }
 
-    // TODO(aomarks) Implement caching.
-    await this.#executeCommandIfNeeded();
+    if (cacheHit !== undefined) {
+      await cacheHit.apply();
+      // We include stdout and stderr replay files when we save to the cache, so
+      // if there were any, they will now be in place.
+      await Promise.all([
+        this.#replayStdoutIfPresent(),
+        this.#replayStderrIfPresent(),
+      ]);
+    } else {
+      await this.#executeCommandIfNeeded();
+    }
 
     if (cacheKeyStr !== UNCACHEABLE) {
-      // TODO(aomarks) We don't technically need to wait for this to finish to
+      // TODO(aomarks) We don't technically need to wait for these to finish to
       // return, we only need to wait in the top-level call to execute. The same
       // will go for saving output to the cache.
       await this.#writeStateFile(cacheKeyStr);
+      if (cacheHit === undefined) {
+        await this.#saveToCacheIfPossible(cacheKeyStr);
+      }
     }
+
     return cacheKey;
   }
 
@@ -306,6 +334,50 @@ class ScriptExecution {
       type: 'success',
       reason: 'exit-zero',
     });
+  }
+
+  /**
+   * Save the current output files to the configured cache if possible.
+   */
+  async #saveToCacheIfPossible(
+    cacheKeyStr: CacheKeyString | typeof UNCACHEABLE
+  ): Promise<void> {
+    if (
+      cacheKeyStr === UNCACHEABLE ||
+      this.#cache === undefined ||
+      this.#script.output === undefined
+    ) {
+      return;
+    }
+    await this.#cache.set(
+      this.#script,
+      cacheKeyStr,
+      await this.#glob(
+        [
+          ...this.#script.output,
+          // Also include the "stdout" and "stderr" replay files at their
+          // standard location within the ".wireit" directory for this script so
+          // that we can replay them after restoring.
+          //
+          // Convert to relative paths because we want to pass relative paths to
+          // Cache.set, but fast-glob doesn't automatically relativize to the
+          // cwd when passing an absolute path.
+          //
+          // Convert Windows-style paths to POSIX-style paths if we are on
+          // Windows, because fast-glob only understands POSIX-style paths.
+          posixifyPathIfOnWindows(
+            pathlib.relative(this.#script.packageDir, this.#stdoutReplayPath)
+          ),
+          posixifyPathIfOnWindows(
+            pathlib.relative(this.#script.packageDir, this.#stderrReplayPath)
+          ),
+        ],
+        {
+          onlyFiles: false,
+          absolute: false,
+        }
+      )
+    );
   }
 
   /**
@@ -580,3 +652,10 @@ const closeWriteStream = (stream: WriteStream): Promise<void> => {
     });
   });
 };
+
+/**
+ * If we are on Windows, convert back slashes to forward slashes (e.g. "foo\bar"
+ * -> "foo/bar").
+ */
+const posixifyPathIfOnWindows = (path: string) =>
+  IS_WINDOWS ? path.replaceAll(pathlib.win32.sep, pathlib.posix.sep) : path;
