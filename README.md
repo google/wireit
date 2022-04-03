@@ -27,6 +27,7 @@
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
 - [Incremental build](#incremental-build)
+- [Caching](#caching)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
 - [Package locks](#package-locks)
@@ -197,15 +198,14 @@ Notes:
   - The `files` of all transitive dependencies must not have changed.
   - All transitive dependencies must have `files` defined (can be empty).
 
-## Cleaning output
+## Caching
 
-Wireit can automatically delete output files from previous runs before executing
-a script. This is helpful for ensuring that every build is clean and free from
-outdated files created in previous runs from source files that have since been
-removed.
+If a script has previously succeeded with the same configuration and input
+files, then Wireit can copy the output from a cache, instead of running the
+command.
 
-To enable output cleaning, configure the output files for each script by
-specifying [glob patterns](#glob-patterns) in the `wireit.<script>.output` list:
+To enable caching, configure the output files for each script by specifying
+[glob patterns](#glob-patterns) in the `wireit.<script>.output` list:
 
 ```json
 {
@@ -228,6 +228,29 @@ specifying [glob patterns](#glob-patterns) in the `wireit.<script>.output` list:
   }
 }
 ```
+
+Notes:
+
+- In order to be cached, both a `files` array _and_ an `output` array must be
+  defined. See [incremental build](#incremental-build) for details about the
+  `files` array.
+
+- If a script doesn't have a `output` list defined at all, then it will never be
+  cached, because Wireit doesn't know which files to save to the cache. To tell
+  Wireit it is safe to store a cache entry even when there are no output files,
+  set `output` to an empty array (`array: []`). An empty `output` array is
+  especially useful for tests.
+
+## Cleaning output
+
+Wireit can automatically delete output files from previous runs before executing
+a script. This is helpful for ensuring that every build is clean and free from
+outdated files created in previous runs from source files that have since been
+removed.
+
+To enable output cleaning, configure the output files for each script by
+specifying the `wireit.<script>.output` array (see [caching](#caching) for
+example).
 
 To disable this behavior, set `<script>.clean` to `false`. You should only
 disable cleaning if you are certain that the script itself already takes care of
