@@ -38,7 +38,10 @@ const IS_WINDOWS = process.platform === 'win32';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #cache = new Map<string, Promise<CacheKey | typeof UNCACHEABLE>>();
+  readonly #executions = new Map<
+    string,
+    Promise<CacheKey | typeof UNCACHEABLE>
+  >();
   readonly #logger: Logger;
 
   constructor(logger: Logger) {
@@ -47,10 +50,10 @@ export class Executor {
 
   async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
     const cacheKey = scriptReferenceToString(script);
-    let promise = this.#cache.get(cacheKey);
+    let promise = this.#executions.get(cacheKey);
     if (promise === undefined) {
       promise = ScriptExecution.execute(script, this, this.#logger);
-      this.#cache.set(cacheKey, promise);
+      this.#executions.set(cacheKey, promise);
     }
     return promise;
   }
