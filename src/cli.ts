@@ -8,6 +8,7 @@ import {WireitError} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
+import {LocalCache} from './caching/local-cache.js';
 
 const packageDir = process.env.npm_config_local_prefix;
 const logger = new DefaultLogger(packageDir ?? process.cwd());
@@ -40,14 +41,16 @@ const run = async () => {
     abort.abort();
   });
 
+  const cache = new LocalCache();
+
   if (process.argv[2] === 'watch') {
     // Only import the extra modules needed for watch mode if we need them.
     const {Watcher} = await import('./watcher.js');
-    await Watcher.watch(script, logger, abort);
+    await Watcher.watch(script, logger, abort, cache);
   } else {
     const analyzer = new Analyzer();
     const analyzed = await analyzer.analyze(script);
-    const executor = new Executor(logger);
+    const executor = new Executor(logger, cache);
     await executor.execute(analyzed);
   }
 };

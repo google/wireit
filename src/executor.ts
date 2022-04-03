@@ -25,6 +25,7 @@ import type {
 } from './script.js';
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
+import type {Cache} from './caching/cache.js';
 
 /**
  * Unique symbol to represent a script that isn't safe to be cached, because its
@@ -44,16 +45,23 @@ export class Executor {
     Promise<CacheKey | typeof UNCACHEABLE>
   >();
   readonly #logger: Logger;
+  readonly #cache: Cache | undefined;
 
-  constructor(logger: Logger) {
+  constructor(logger: Logger, cache: Cache | undefined) {
     this.#logger = logger;
+    this.#cache = cache;
   }
 
   async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
     const cacheKey = scriptReferenceToString(script);
     let promise = this.#executions.get(cacheKey);
     if (promise === undefined) {
-      promise = ScriptExecution.execute(script, this, this.#logger);
+      promise = ScriptExecution.execute(
+        script,
+        this,
+        this.#logger,
+        this.#cache
+      );
       this.#executions.set(cacheKey, promise);
     }
     return promise;
@@ -67,23 +75,27 @@ class ScriptExecution {
   static execute(
     script: ScriptConfig,
     executor: Executor,
-    logger: Logger
+    logger: Logger,
+    cache: Cache | undefined
   ): Promise<CacheKey | typeof UNCACHEABLE> {
-    return new ScriptExecution(script, executor, logger).#execute();
+    return new ScriptExecution(script, executor, logger, cache).#execute();
   }
 
   readonly #script: ScriptConfig;
   readonly #logger: Logger;
   readonly #executor: Executor;
+  readonly #cache: Cache | undefined;
 
   private constructor(
     script: ScriptConfig,
     executor: Executor,
-    logger: Logger
+    logger: Logger,
+    cache: Cache | undefined
   ) {
     this.#script = script;
     this.#executor = executor;
     this.#logger = logger;
+    this.#cache = cache;
   }
 
   async #execute(): Promise<CacheKey | typeof UNCACHEABLE> {

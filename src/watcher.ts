@@ -18,6 +18,7 @@ import type {
   ScriptReference,
   ScriptReferenceString,
 } from './script.js';
+import type {Cache} from './caching/cache.js';
 
 /**
  * Watches a script for changes in its input files, and in the input files of
@@ -52,15 +53,17 @@ export class Watcher {
   static watch(
     script: ScriptReference,
     logger: Logger,
-    abort: AbortController
+    abort: AbortController,
+    cache: Cache
   ): Promise<void> {
-    return new Watcher(script, logger, abort).#watch();
+    return new Watcher(script, logger, abort, cache).#watch();
   }
 
   readonly #script: ScriptReference;
   readonly #logger: Logger;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
   readonly #abort: AbortController;
+  readonly #cache: Cache | undefined;
 
   /** Whether an executor is currently running. */
   #executing = false;
@@ -79,11 +82,13 @@ export class Watcher {
   private constructor(
     script: ScriptReference,
     logger: Logger,
-    abort: AbortController
+    abort: AbortController,
+    cache: Cache | undefined
   ) {
     this.#script = script;
     this.#logger = logger;
     this.#abort = abort;
+    this.#cache = cache;
 
     if (!this.#aborted) {
       abort.signal.addEventListener(
@@ -140,7 +145,7 @@ export class Watcher {
     }
 
     try {
-      const executor = new Executor(this.#logger);
+      const executor = new Executor(this.#logger, this.#cache);
       await executor.execute(analysis);
     } catch (error) {
       this.#triageErrors(error);
