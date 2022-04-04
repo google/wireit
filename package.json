@@ -1,6 +1,5 @@
 {
   "name": "wireit",
-  "private": true,
   "version": "0.0.0",
   "description": "Upgrade your npm scripts to make them smarter and more efficient",
   "author": "Google LLC",
