@@ -2,6 +2,9 @@
 
 > Wireit upgrades your npm scripts to make them smarter and more efficient.
 
+[![Published on npm](https://img.shields.io/npm/v/wireit.svg?logo=npm)](https://www.npmjs.com/package/wireit)
+[![Build Status](https://github.com/google/wireit/actions/workflows/tests.yml/badge.svg)](https://github.com/google/wireit/actions/workflows/tests.yml)
+
 ## Features
 
 - 🙂 Use the `npm run` commands you already know
@@ -9,7 +12,11 @@
 - ⛓️ Automatically run dependencies between npm scripts in parallel
 - 👀 Watch any script and continuously re-run on changes
 - 🥬 Skip scripts that are already fresh
-- ♻️ Cache output locally and on GitHub Actions
+- ♻️ (**Coming soon**) Cache output locally and on GitHub Actions
+
+## Alpha
+
+> ### 🚧 Wireit is alpha software — in active but early development. You are welcome to try it out, but note there a number of [missing features and issues](https://github.com/google/wireit/issues) that you may run into! 🚧
 
 ## Contents
 
