@@ -23,7 +23,11 @@
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
 - [Package locks](#package-locks)
-- [Glob patterns](#glob-patterns)
+- [Reference](#reference)
+  - [Configuration](#configuration)
+  - [Dependency syntax](#dependency-syntax)
+  - [Glob patterns](#glob-patterns)
+  - [Cache key](#cache-key)
 - [Requirements](#requirements)
 - [Contributing](#contributing)
 
@@ -279,9 +283,34 @@ If you're sure that a script isn't affected by dependencies at all, you can turn
 off this behavior entirely to improve your cache hit rate by setting
 `wireit.<script>.packageLocks` to `[]`.
 
-## Glob patterns
+## Reference
 
-The following glob syntaxes are supported in the `files` array:
+### Configuration
+
+The following properties can be set inside `wireit.<script>` objects in
+`package.json` files:
+
+| Example        | Type       | Default                 | Description                                                                                                 |
+| -------------- | ---------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `command`      | `string`   | `undefined`             | The shell command to run.                                                                                   |
+| `dependencies` | `string[]` | `undefined`             | [Scripts that must run before this one](#dependencies).                                                     |
+| `files`        | `string[]` | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [cache key](#cache-key).                  |
+| `output`       | `string[]` | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output). |
+| `clean`        | `boolean`  | `true`                  | [Delete output files before running](#cleaning-output).                                                     |
+| `packageLocks` | `string[]` | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                              |
+
+### Dependency syntax
+
+The following syntaxes can be used in the `wireit.<script>.dependencies` array:
+
+| Example      | Description                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| `foo`        | Script named `"foo"` in the same package.                                                       |
+| `../foo:bar` | Script named `"bar"` in the package found at `../foo` ([details](#cross-package-dependencies)). |
+
+### Glob patterns
+
+The following glob syntaxes are supported in the `files` and `output` arrays:
 
 | Example         | Description                                                                    |
 | --------------- | ------------------------------------------------------------------------------ |
@@ -295,6 +324,21 @@ Also note these details:
 
 - Hidden/dot files are matched by `*` and `**`.
 - Patterns are case-sensitive (if supported by the filesystem).
+
+### Cache key
+
+The following inputs determine the _cache key_ for a script. This key is used to
+determine whether a script can be skipped for [incremental
+build](#incremental-build), and whether its output can be [restored from
+cache](#caching).
+
+- The `command` setting.
+- The `clean` setting.
+- The `output` glob patterns.
+- The SHA256 content hashes of all files matching `files`.
+- The SHA256 content hashes of all files matching `packageLocks` in the current
+  package and all parent directories.
+- The cache key of all transitive dependencies.
 
 ## Requirements
 
