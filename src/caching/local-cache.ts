@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
 import {scriptDataDir} from '../util/script-data-dir.js';
+import {optimizeCopies, optimizeMkdirs} from '../util/optimize-fs-ops.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, CacheKeyString} from '../script.js';
@@ -51,16 +52,19 @@ export class LocalCache implements Cache {
       // checked for an existing cache hit.
       throw new Error(`Did not expect ${absCacheDir} to already exist.`);
     }
-    const uniqueRelativeDirs = new Set(
-      relativeFiles.map((file) => pathlib.dirname(file))
+    // Compute the smallest set of recursive fs.cp and fs.mkdir operations
+    // needed to cover all of the files.
+    const copyOps = optimizeCopies(relativeFiles);
+    const mkdirOps = optimizeMkdirs(
+      copyOps.map((path) => pathlib.dirname(path))
     );
     await Promise.all(
-      [...uniqueRelativeDirs].map((dir) =>
+      mkdirOps.map((dir) =>
         fs.mkdir(pathlib.join(absCacheDir, dir), {recursive: true})
       )
     );
     await Promise.all(
-      relativeFiles.map((file) =>
+      copyOps.map((file) =>
         // TODO(aomarks) fs.cp is experimental and was added in Node 16.7.0. It
         // could be removed or changed in the future
         // (https://nodejs.org/api/fs.html#fscpsrc-dest-options-callback). We're
