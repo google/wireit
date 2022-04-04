@@ -1,7 +1,6 @@
 /.tsbuildinfo
 /.wireit
 /*.tgz
-!/known-good.tgz
 /lib
 /node_modules
 /temp
