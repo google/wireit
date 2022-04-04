@@ -8,7 +8,7 @@ import fastGlob from 'fast-glob';
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
-import {createReadStream} from 'fs';
+import {createReadStream, createWriteStream} from 'fs';
 import {spawn} from 'child_process';
 import {WireitError} from './error.js';
 import {scriptReferenceToString} from './script.js';
@@ -23,6 +23,7 @@ import type {
   Sha256HexDigest,
 } from './script.js';
 import type {Logger} from './logging/logger.js';
+import type {WriteStream} from 'fs';
 
 /**
  * Unique symbol to represent a script that isn't safe to be cached, because its
@@ -48,28 +49,59 @@ export class Executor {
     const cacheKey = scriptReferenceToString(script);
     let promise = this.#cache.get(cacheKey);
     if (promise === undefined) {
-      promise = this.#execute(script);
+      promise = ScriptExecution.execute(script, this, this.#logger);
       this.#cache.set(cacheKey, promise);
     }
     return promise;
   }
+}
 
-  async #execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
-    const dependencyCacheKeys = await this.#executeDependencies(script);
+/**
+ * A single execution of a specific script.
+ */
+class ScriptExecution {
+  static execute(
+    script: ScriptConfig,
+    executor: Executor,
+    logger: Logger
+  ): Promise<CacheKey | typeof UNCACHEABLE> {
+    return new ScriptExecution(script, executor, logger).#execute();
+  }
+
+  readonly #script: ScriptConfig;
+  readonly #logger: Logger;
+  readonly #executor: Executor;
+
+  private constructor(
+    script: ScriptConfig,
+    executor: Executor,
+    logger: Logger
+  ) {
+    this.#script = script;
+    this.#executor = executor;
+    this.#logger = logger;
+  }
+
+  async #execute(): Promise<CacheKey | typeof UNCACHEABLE> {
+    const dependencyCacheKeys = await this.#executeDependencies();
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const cacheKey = await this.#getCacheKey(script, dependencyCacheKeys);
+    const cacheKey = await this.#getCacheKey(dependencyCacheKeys);
     let cacheKeyStr: CacheKeyString | typeof UNCACHEABLE;
     if (cacheKey !== UNCACHEABLE) {
       cacheKeyStr = JSON.stringify(cacheKey) as CacheKeyString;
-      const previousCacheKeyStr = await this.#readStateFile(script);
+      const previousCacheKeyStr = await this.#readStateFile();
       if (
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
       ) {
+        await Promise.all([
+          this.#replayStdoutIfPresent(),
+          this.#replayStderrIfPresent(),
+        ]);
         this.#logger.log({
-          script,
+          script: this.#script,
           type: 'success',
           reason: 'fresh',
         });
@@ -79,38 +111,40 @@ export class Executor {
       cacheKeyStr = UNCACHEABLE;
     }
 
-    // It's important that we delete any previous state file before running the
+    // It's important that we delete any previous state before running the
     // command, because if the command fails we won't update the state file,
     // even though the command might have produced some output.
-    await this.#deleteStateFile(script);
+    await this.#prepareDataDir();
 
-    if (script.clean) {
-      await this.#cleanOutput(script);
+    if (this.#script.clean) {
+      await this.#cleanOutput();
     }
 
     // TODO(aomarks) Implement caching.
-    await this.#executeCommandIfNeeded(script);
+    await this.#executeCommandIfNeeded();
 
     if (cacheKeyStr !== UNCACHEABLE) {
       // TODO(aomarks) We don't technically need to wait for this to finish to
       // return, we only need to wait in the top-level call to execute. The same
       // will go for saving output to the cache.
-      await this.#writeStateFile(script, cacheKeyStr);
+      await this.#writeStateFile(cacheKeyStr);
     }
     return cacheKey;
   }
 
-  async #executeDependencies(
-    script: ScriptConfig
-  ): Promise<Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>> {
+  async #executeDependencies(): Promise<
+    Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
+  > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
-    shuffle(script.dependencies);
+    shuffle(this.#script.dependencies);
     // Note we use Promise.allSettled instead of Promise.all so that we can
     // collect all errors, instead of just the first one.
     const dependencyResults = await Promise.allSettled(
-      script.dependencies.map((dependency) => this.execute(dependency))
+      this.#script.dependencies.map((dependency) =>
+        this.#executor.execute(dependency)
+      )
     );
     const errors: unknown[] = [];
     const results: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]> = [];
@@ -125,7 +159,7 @@ export class Executor {
           errors.push(error);
         }
       } else {
-        results.push([script.dependencies[i], result.value]);
+        results.push([this.#script.dependencies[i], result.value]);
       }
     }
     if (errors.length > 0) {
@@ -134,12 +168,12 @@ export class Executor {
     return results;
   }
 
-  async #executeCommandIfNeeded(script: ScriptConfig): Promise<void> {
+  async #executeCommandIfNeeded(): Promise<void> {
     // It's valid to not have a command defined, since thats a useful way to
     // alias a group of dependency scripts. In this case, we can return early.
-    if (!script.command) {
+    if (!this.#script.command) {
       this.#logger.log({
-        script,
+        script: this.#script,
         type: 'success',
         reason: 'no-command',
       });
@@ -147,7 +181,7 @@ export class Executor {
     }
 
     this.#logger.log({
-      script,
+      script: this.#script,
       type: 'info',
       detail: 'running',
     });
@@ -155,8 +189,8 @@ export class Executor {
     // TODO(aomarks) Fix PATH and npm_ environment variables to reflect the new
     // package when cross-package dependencies are supported.
 
-    const child = spawn(script.command, {
-      cwd: script.packageDir,
+    const child = spawn(this.#script.command, {
+      cwd: this.#script.packageDir,
       // Conveniently, "shell:true" has the same shell-selection behavior as
       // "npm run", where on macOS and Linux it is "sh", and on Windows it is
       // %COMSPEC% || "cmd.exe".
@@ -168,29 +202,42 @@ export class Executor {
       shell: true,
     });
 
+    // Only create the stdout/stderr replay files if we encounter anything on
+    // this streams.
+    let stdoutReplay: WriteStream | undefined;
+    let stderrReplay: WriteStream | undefined;
+
     child.stdout.on('data', (data: string | Buffer) => {
       this.#logger.log({
-        script,
+        script: this.#script,
         type: 'output',
         stream: 'stdout',
         data,
       });
+      if (stdoutReplay === undefined) {
+        stdoutReplay = createWriteStream(this.#stdoutReplayPath);
+      }
+      stdoutReplay.write(data);
     });
 
     child.stderr.on('data', (data: string | Buffer) => {
       this.#logger.log({
-        script,
+        script: this.#script,
         type: 'output',
         stream: 'stderr',
         data,
       });
+      if (stderrReplay === undefined) {
+        stderrReplay = createWriteStream(this.#stderrReplayPath);
+      }
+      stderrReplay.write(data);
     });
 
     const completed = new Promise<void>((resolve, reject) => {
       child.on('error', (error) => {
         reject(
           new WireitError({
-            script,
+            script: this.#script,
             type: 'failure',
             reason: 'spawn-error',
             message: error.message,
@@ -202,7 +249,7 @@ export class Executor {
         if (signal !== null) {
           reject(
             new WireitError({
-              script,
+              script: this.#script,
               type: 'failure',
               reason: 'signal',
               signal,
@@ -211,7 +258,7 @@ export class Executor {
         } else if (status !== 0) {
           reject(
             new WireitError({
-              script,
+              script: this.#script,
               type: 'failure',
               reason: 'exit-non-zero',
               // status should only ever be null if signal was not null, but
@@ -227,10 +274,19 @@ export class Executor {
       });
     });
 
-    await completed;
+    try {
+      await completed;
+    } finally {
+      if (stdoutReplay !== undefined) {
+        await closeWriteStream(stdoutReplay);
+      }
+      if (stderrReplay !== undefined) {
+        await closeWriteStream(stderrReplay);
+      }
+    }
 
     this.#logger.log({
-      script,
+      script: this.#script,
       type: 'success',
       reason: 'exit-zero',
     });
@@ -244,10 +300,12 @@ export class Executor {
    * this script's transitive dependencies, have undefined input files.
    */
   async #getCacheKey(
-    script: ScriptConfig,
     dependencyCacheKeys: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
   ): Promise<CacheKey | typeof UNCACHEABLE> {
-    if (script.files === undefined && script.command !== undefined) {
+    if (
+      this.#script.files === undefined &&
+      this.#script.command !== undefined
+    ) {
       // If files are undefined, then it's never safe for us to be cached,
       // because we don't know what the inputs are, so we can't know if the
       // output of this script could change.
@@ -275,12 +333,10 @@ export class Executor {
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
-    if (script.files?.length) {
-      const files = await this.#glob(script, script.files, {
-        // TODO(aomarks) It is possible for a script to produce different output
-        // when an empty directory is added. Consider whether we should actually
-        // include directories here. Directories will need to have some special
-        // handling in the cache key, since they have no content to hash.
+    if (this.#script.files?.length) {
+      const files = await fastGlob(this.#script.files, {
+        cwd: this.#script.packageDir,
+        dot: true,
         onlyFiles: true,
         absolute: false,
       });
@@ -291,7 +347,7 @@ export class Executor {
       // ".wireit/<script>/hashes".
       fileHashes = await Promise.all(
         files.map(async (file): Promise<[string, Sha256HexDigest]> => {
-          const absolutePath = pathlib.resolve(script.packageDir, file);
+          const absolutePath = pathlib.resolve(this.#script.packageDir, file);
           const hash = createHash('sha256');
           for await (const chunk of createReadStream(absolutePath)) {
             hash.update(chunk as Buffer);
@@ -304,12 +360,12 @@ export class Executor {
     }
 
     return {
-      command: script.command,
-      clean: script.clean,
+      command: this.#script.command,
+      clean: this.#script.clean,
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
       ),
-      output: script.output ?? [],
+      output: this.#script.output ?? [],
       dependencies: Object.fromEntries(
         filteredDependencyCacheKeys.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
@@ -319,11 +375,11 @@ export class Executor {
   }
 
   /**
-   * Get the directory name where Wireit data can be saved for a script.
+   * Get the directory name where Wireit data can be saved for this script.
    */
-  #getScriptDataDir(script: ScriptReference): string {
+  get #dataDir(): string {
     return pathlib.join(
-      script.packageDir,
+      this.#script.packageDir,
       '.wireit',
       // Script names can contain any character, so they aren't safe to use
       // directly in a filepath, because certain characters aren't allowed on
@@ -332,19 +388,37 @@ export class Executor {
       //
       // Reference:
       // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
-      Buffer.from(script.name).toString('hex')
+      Buffer.from(this.#script.name).toString('hex')
     );
   }
 
   /**
-   * Read a script's ".wireit/<hex-script-name>/state" file.
+   * Get the path where the current cache key is saved for this script.
    */
-  async #readStateFile(
-    script: ScriptReference
-  ): Promise<CacheKeyString | undefined> {
-    const stateFilepath = pathlib.join(this.#getScriptDataDir(script), 'state');
+  get #statePath(): string {
+    return pathlib.join(this.#dataDir, 'state');
+  }
+
+  /**
+   * Get the path where the stdout replay is saved for this script.
+   */
+  get #stdoutReplayPath(): string {
+    return pathlib.join(this.#dataDir, 'stdout');
+  }
+
+  /**
+   * Get the path where the stderr replay is saved for this script.
+   */
+  get #stderrReplayPath(): string {
+    return pathlib.join(this.#dataDir, 'stderr');
+  }
+
+  /**
+   * Read this script's ".wireit/<hex-script-name>/state" file.
+   */
+  async #readStateFile(): Promise<CacheKeyString | undefined> {
     try {
-      return (await fs.readFile(stateFilepath, 'utf8')) as CacheKeyString;
+      return (await fs.readFile(this.#statePath, 'utf8')) as CacheKeyString;
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
         return undefined;
@@ -354,48 +428,41 @@ export class Executor {
   }
 
   /**
-   * Write a script's ".wireit/<hex-script-name>/state" file.
+   * Write this script's ".wireit/<hex-script-name>/state" file.
    */
-  async #writeStateFile(
-    script: ScriptReference,
-    cacheKeyStr: CacheKeyString
-  ): Promise<void> {
-    const dataDir = this.#getScriptDataDir(script);
-    await fs.mkdir(dataDir, {recursive: true});
-    const stateFilepath = pathlib.join(dataDir, 'state');
-    await fs.writeFile(stateFilepath, cacheKeyStr, 'utf8');
+  async #writeStateFile(cacheKeyStr: CacheKeyString): Promise<void> {
+    await fs.mkdir(this.#dataDir, {recursive: true});
+    await fs.writeFile(this.#statePath, cacheKeyStr, 'utf8');
   }
 
   /**
-   * Delete a script's ".wireit/<hex-script-name>/state" file.
+   * Delete all state for this script from the previous run, and ensure the data
+   * directory is created.
    */
-  async #deleteStateFile(script: ScriptReference): Promise<void> {
-    const stateFilepath = pathlib.join(this.#getScriptDataDir(script), 'state');
-    try {
-      await fs.unlink(stateFilepath);
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        return undefined;
-      }
-      throw error;
-    }
+  async #prepareDataDir(): Promise<void> {
+    await Promise.all([
+      fs.rm(this.#statePath, {force: true}),
+      fs.rm(this.#stdoutReplayPath, {force: true}),
+      fs.rm(this.#stderrReplayPath, {force: true}),
+      fs.mkdir(this.#dataDir, {recursive: true}),
+    ]);
   }
 
   /**
-   * Delete all files matched by the given script's "output" glob patterns.
+   * Delete all files matched by this script's "output" glob patterns.
    */
-  async #cleanOutput(script: ScriptConfig): Promise<void> {
-    if (script.output === undefined) {
+  async #cleanOutput(): Promise<void> {
+    if (this.#script.output === undefined) {
       return;
     }
-    const absFiles = await this.#glob(script, script.output, {
+    const absFiles = await this.#glob(this.#script.output, {
       onlyFiles: false,
       absolute: true,
     });
     if (absFiles.length === 0) {
       return;
     }
-    const insidePackagePrefix = script.packageDir + pathlib.sep;
+    const insidePackagePrefix = this.#script.packageDir + pathlib.sep;
     for (const absFile of absFiles) {
       // TODO(aomarks) It would be better to do this in the Analyzer by looking
       // at the output glob patterns, so that we catch errors earlier and can
@@ -404,7 +471,7 @@ export class Executor {
       // it slightly tricky to detect).
       if (!absFile.startsWith(insidePackagePrefix)) {
         throw new WireitError({
-          script,
+          script: this.#script,
           type: 'failure',
           reason: 'invalid-config-syntax',
           message: `refusing to delete output file outside of package: ${absFile}`,
@@ -426,15 +493,14 @@ export class Executor {
 
   /**
    * Match the given glob patterns against the filesystem, interpreting paths
-   * relative to the given script's package directory.
+   * relative to this script's package directory.
    */
   async #glob(
-    script: ScriptConfig,
     patterns: string[],
     {onlyFiles, absolute}: {onlyFiles: boolean; absolute: boolean}
   ): Promise<string[]> {
     const files = await fastGlob(patterns, {
-      cwd: script.packageDir,
+      cwd: this.#script.packageDir,
       dot: true,
       onlyFiles,
       absolute,
@@ -448,4 +514,64 @@ export class Executor {
     }
     return files;
   }
+
+  /**
+   * Write this script's stdout replay to stdout if it exists, otherwise do
+   * nothing.
+   */
+  async #replayStdoutIfPresent(): Promise<void> {
+    try {
+      for await (const chunk of createReadStream(this.#stdoutReplayPath)) {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stdout',
+          data: chunk as Buffer,
+        });
+      }
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        // There is no saved replay.
+        return;
+      }
+    }
+  }
+
+  /**
+   * Write this script's stderr replay to stderr if it exists, otherwise do
+   * nothing.
+   */
+  async #replayStderrIfPresent(): Promise<void> {
+    try {
+      for await (const chunk of createReadStream(this.#stderrReplayPath)) {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stderr',
+          data: chunk as Buffer,
+        });
+      }
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        // There is no saved replay.
+        return;
+      }
+    }
+  }
 }
+
+/**
+ * Close the given write stream and resolve or reject the returned promise when
+ * completed or failed.
+ */
+const closeWriteStream = (stream: WriteStream): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    stream.close((error) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
+};
