@@ -26,8 +26,7 @@
     "lint": "eslint .",
     "format": "prettier . -w",
     "format:check": "prettier . -c",
-    "test": "wireit",
-    "update-known-good": "npm run build && rm -f wireit-*.tgz && npm pack && mv wireit-*.tgz known-good.tgz && npm i -D known-good.tgz"
+    "test": "wireit"
   },
   "wireit": {
     "build": {
@@ -59,7 +58,7 @@
     "prettier": "^2.6.2",
     "typescript": "^4.6.3",
     "uvu": "^0.5.3",
-    "wireit": "file:known-good.tgz"
+    "wireit": "^0.0.0"
   },
   "prettier": {
     "singleQuote": true,
