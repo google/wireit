@@ -62,6 +62,7 @@ test('leading slash is significant', () => {
 
 test('various shuffled cases', () => {
   const input = [
+    '',
     'a',
     'a',
     'a/b',
@@ -79,6 +80,7 @@ test('various shuffled cases', () => {
     'd/e',
   ];
   const expected = [
+    '',
     'a',
     'ab',
     'abc',

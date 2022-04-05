@@ -43,6 +43,7 @@ test('parent and child reversed', () => {
 
 test('various shuffled cases', () => {
   const input = [
+    '',
     'a/b/c',
     'd/e/f',
     'd/e/f',
@@ -57,7 +58,7 @@ test('various shuffled cases', () => {
     '1/2',
     '1',
   ];
-  const expected = ['a/b/c', 'd/e/f', 'foo/bar/baz', '1/2/3/4/5'];
+  const expected = ['', 'a/b/c', 'd/e/f', 'foo/bar/baz', '1/2/3/4/5'];
   for (let i = 0; i < 1000; i++) {
     shuffle(input);
     check(input, expected);

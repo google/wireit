@@ -45,7 +45,7 @@ export class Executor {
     Promise<CacheKey | typeof UNCACHEABLE>
   >();
   readonly #logger: Logger;
-  readonly #cache: Cache | undefined;
+  readonly #cache?: Cache;
 
   constructor(logger: Logger, cache: Cache | undefined) {
     this.#logger = logger;
@@ -84,7 +84,7 @@ class ScriptExecution {
   readonly #script: ScriptConfig;
   readonly #logger: Logger;
   readonly #executor: Executor;
-  readonly #cache: Cache | undefined;
+  readonly #cache?: Cache;
 
   private constructor(
     script: ScriptConfig,
@@ -112,6 +112,8 @@ class ScriptExecution {
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
       ) {
+        // TODO(aomarks) Does not preserve original order of stdout vs stderr
+        // chunks. See https://github.com/google/wireit/issues/74.
         await Promise.all([
           this.#replayStdoutIfPresent(),
           this.#replayStderrIfPresent(),
@@ -155,6 +157,8 @@ class ScriptExecution {
       await cacheHit.apply();
       // We include stdout and stderr replay files when we save to the cache, so
       // if there were any, they will now be in place.
+      // TODO(aomarks) Does not preserve original order of stdout vs stderr
+      // chunks. See https://github.com/google/wireit/issues/74.
       await Promise.all([
         this.#replayStdoutIfPresent(),
         this.#replayStderrIfPresent(),

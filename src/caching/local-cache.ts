@@ -45,6 +45,8 @@ export class LocalCache implements Cache {
     // directory (e.g. LRU capped to some number of entries).
     // https://github.com/lit/wireit/issues/71
     const absCacheDir = this.#cacheDir(script, cacheKey);
+    // Note fs.mkdir returns the first created directory, or undefined if no
+    // directory was created.
     const existed =
       (await fs.mkdir(absCacheDir, {recursive: true})) === undefined;
     if (existed) {

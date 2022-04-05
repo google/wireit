@@ -63,7 +63,7 @@ export class Watcher {
   readonly #logger: Logger;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
   readonly #abort: AbortController;
-  readonly #cache: Cache | undefined;
+  readonly #cache?: Cache;
 
   /** Whether an executor is currently running. */
   #executing = false;
