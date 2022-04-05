@@ -12,7 +12,7 @@
 - ⛓️ Automatically run dependencies between npm scripts in parallel
 - 👀 Watch any script and continuously re-run on changes
 - 🥬 Skip scripts that are already fresh
-- ♻️ (**Coming soon**) Cache output locally and on GitHub Actions
+- ♻️ Cache output locally and (**Coming soon**) on GitHub Actions
 
 ## Alpha
 
