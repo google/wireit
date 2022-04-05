@@ -21,6 +21,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - [**Breaking**] Bumped minimum Node version from `16.0.0` to `16.7.0` in order
   to use `fs.cp`.
 
+### Fixed
+
+- Fixed bug where deleting a file would not trigger a re-run in watch mode.
+
 ## [0.0.0] - 2022-04-04
 
 ### Added
