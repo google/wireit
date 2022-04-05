@@ -12,6 +12,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Fixed bug where deleting a file would not trigger a re-run in watch mode.
 
+## [Unreleased]
+
+- Limit the number of scripts running at any one time. By default it's 4 \* the
+  number of CPU cores. Use the environment variable WIREIT_PARALLEL to override
+  this default. Set it to Infinity to go back to unbounded parallelism.
+
 ## [0.0.0] - 2022-04-04
 
 ### Added

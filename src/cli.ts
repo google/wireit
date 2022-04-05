@@ -8,6 +8,8 @@ import {WireitError} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
+import * as os from 'os';
+import {WorkerPool} from './util/worker-pool.js';
 
 const packageDir = process.env.npm_config_local_prefix;
 const logger = new DefaultLogger(packageDir ?? process.cwd());
@@ -40,14 +42,40 @@ const run = async () => {
     abort.abort();
   });
 
+  const numWorkers = (() => {
+    const workerString = process.env['WIREIT_PARALLEL'] ?? '';
+    // Many scripts will be IO blocked rather than CPU blocked, so running
+    // multiple scripts per CPU will help keep things moving.
+    const defaultValue = os.cpus().length * 4;
+    if (workerString.match(/^infinity$/i)) {
+      return Infinity;
+    }
+    if (workerString == null || workerString === '') {
+      return defaultValue;
+    }
+    const parsedInt = parseInt(workerString, 10);
+    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+      throw new WireitError({
+        reason: 'invalid-usage',
+        message: `Expected the WIREIT_PARALLEL env variable to be a positive integer, got ${JSON.stringify(
+          workerString
+        )}`,
+        script,
+        type: 'failure',
+      });
+    }
+    return parsedInt;
+  })();
+  const workerPool = new WorkerPool(numWorkers);
+
   if (process.argv[2] === 'watch') {
     // Only import the extra modules needed for watch mode if we need them.
     const {Watcher} = await import('./watcher.js');
-    await Watcher.watch(script, logger, abort);
+    await Watcher.watch(script, logger, workerPool, abort);
   } else {
     const analyzer = new Analyzer();
     const analyzed = await analyzer.analyze(script);
-    const executor = new Executor(logger);
+    const executor = new Executor(logger, workerPool);
     await executor.execute(analyzed);
   }
 };

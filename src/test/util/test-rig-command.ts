@@ -105,7 +105,7 @@ export class WireitTestRigCommand {
     while (true) {
       const socket = this.#newConnections.shift();
       if (socket !== undefined) {
-        return new WireitTestRigCommandInvocation(socket);
+        return new WireitTestRigCommandInvocation(socket, this);
       }
       await this.#newConnectionNotification.promise;
     }
@@ -129,13 +129,15 @@ export class WireitTestRigCommand {
 export class WireitTestRigCommandInvocation {
   readonly #socket: net.Socket;
   readonly #socketClosed = new Deferred<void>();
+  readonly command: WireitTestRigCommand;
   #state: 'connected' | 'closed' = 'connected';
 
-  constructor(socket: net.Socket) {
+  constructor(socket: net.Socket, command: WireitTestRigCommand) {
     this.#socket = socket;
     this.#socket.on('close', () => {
       this.#socketClosed.resolve();
     });
+    this.command = command;
   }
 
   #assertState(expected: 'connected' | 'closed') {
