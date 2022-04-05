@@ -169,6 +169,47 @@ test(
 );
 
 test(
+  'runs again when input file deleted',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    const exec = rig.exec('npm run a watch');
+
+    // Initial run.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+    }
+
+    // Deleting the input file should cause another run.
+    {
+      await rig.delete('input');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await inv.closed;
+    }
+
+    exec.terminate();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
+test(
   'runs again when input file changes in the middle of execution',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
