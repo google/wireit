@@ -363,6 +363,11 @@ class ScriptExecution {
           // standard location within the ".wireit" directory for this script so
           // that we can replay them after restoring.
           //
+          // We're passing this to #glob because it's an easy way to only
+          // include them only if they exist. We don't want to include files
+          // that don't exist becuase then we'll make empty directories and will
+          // get an error from fs.cp.
+          //
           // Convert to relative paths because we want to pass relative paths to
           // Cache.set, but fast-glob doesn't automatically relativize to the
           // cwd when passing an absolute path.

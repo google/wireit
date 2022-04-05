@@ -130,6 +130,7 @@ test(
       await rig.write({'output/0/a': 'v0'});
       await rig.write({'output/0/b': 'v0'});
       await rig.write({'output/0/c/d/e': 'v0'});
+      assert.equal(await rig.read('output/excluded/foo'), 'excluded');
 
       inv.exit(0);
       const res = await exec.exit;
@@ -147,6 +148,7 @@ test(
       assert.not(await rig.exists('output/0/a'));
       assert.not(await rig.exists('output/0/b'));
       assert.not(await rig.exists('output/0/c/d/e'));
+      assert.equal(await rig.read('output/excluded/foo'), 'excluded');
 
       await rig.write({'output/1/a': 'v1'});
       await rig.write({'output/1/b': 'v1'});
@@ -172,6 +174,7 @@ test(
       assert.equal(await rig.read('output/0/a'), 'v0');
       assert.equal(await rig.read('output/0/b'), 'v0');
       assert.equal(await rig.read('output/0/c/d/e'), 'v0');
+      assert.equal(await rig.read('output/excluded/foo'), 'excluded');
     }
 
     // Input changed back to v1. Output should be cached.
@@ -188,6 +191,7 @@ test(
       assert.equal(await rig.read('output/1/a'), 'v1');
       assert.equal(await rig.read('output/1/b'), 'v1');
       assert.equal(await rig.read('output/1/c/d/e'), 'v1');
+      assert.equal(await rig.read('output/excluded/foo'), 'excluded');
     }
   })
 );
