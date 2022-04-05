@@ -11,6 +11,7 @@ import {Executor} from './executor.js';
 import {Deferred} from './util/deferred.js';
 import {scriptReferenceToString} from './script.js';
 import {WireitError} from './error.js';
+import {WorkerPool} from './util/worker-pool.js';
 
 import type {Logger} from './logging/logger.js';
 import type {
@@ -53,17 +54,19 @@ export class Watcher {
   static watch(
     script: ScriptReference,
     logger: Logger,
-    abort: AbortController,
-    cache: Cache
+    workerPool: WorkerPool,
+    cache: Cache,
+    abort: AbortController
   ): Promise<void> {
-    return new Watcher(script, logger, abort, cache).#watch();
+    return new Watcher(script, logger, workerPool, cache, abort).#watch();
   }
 
   readonly #script: ScriptReference;
   readonly #logger: Logger;
+  readonly #workerPool: WorkerPool;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
-  readonly #abort: AbortController;
   readonly #cache?: Cache;
+  readonly #abort: AbortController;
 
   /** Whether an executor is currently running. */
   #executing = false;
@@ -82,11 +85,13 @@ export class Watcher {
   private constructor(
     script: ScriptReference,
     logger: Logger,
-    abort: AbortController,
-    cache: Cache | undefined
+    workerPool: WorkerPool,
+    cache: Cache | undefined,
+    abort: AbortController
   ) {
     this.#script = script;
     this.#logger = logger;
+    this.#workerPool = workerPool;
     this.#abort = abort;
     this.#cache = cache;
 
@@ -145,7 +150,11 @@ export class Watcher {
     }
 
     try {
-      const executor = new Executor(this.#logger, this.#cache);
+      const executor = new Executor(
+        this.#logger,
+        this.#workerPool,
+        this.#cache
+      );
       await executor.execute(analysis);
     } catch (error) {
       this.#triageErrors(error);

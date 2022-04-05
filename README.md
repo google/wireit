@@ -371,6 +371,13 @@ cache](#caching).
   package and all parent directories.
 - The cache key of all transitive dependencies.
 
+### Environment variables
+
+- Set `WIREIT_PARALLEL` to specify the maximum number of scripts that may run
+  at once. This can prevent resource starvation in large, highly parallel
+  builds. If this variable is unset, the default is a multiple of the number
+  of CPU cores available. Set to `Infinity` to run without a limit.
+
 ## Requirements
 
 Wireit is supported on Linux, macOS, and Windows.

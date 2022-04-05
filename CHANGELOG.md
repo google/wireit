@@ -10,6 +10,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Limit the number of scripts running at any one time. By default it's 4 \* the
+  number of CPU cores. Use the environment variable WIREIT_PARALLEL to override
+  this default. Set it to Infinity to go back to unbounded parallelism.
+
 - Added local disk caching. If a script has both its `files` and `output` arrays
   defined, then the `output` files for each run will now be cached inside the
   `.wireit` directory. If a script runs with the same configuration and `files`,

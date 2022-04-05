@@ -65,4 +65,78 @@ test(
   })
 );
 
+test(
+  'negative parallelism',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '-1'}});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "-1"`.trim()
+    );
+  })
+);
+
+test(
+  'zero parallelism',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '0'}});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "0"`.trim()
+    );
+  })
+);
+
+test(
+  'nonsense parallelism',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_PARALLEL: 'aklsdjflajsdkflj'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "aklsdjflajsdkflj"`.trim()
+    );
+  })
+);
+
 test.run();

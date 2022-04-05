@@ -13,6 +13,7 @@ import {spawn} from 'child_process';
 import {WireitError} from './error.js';
 import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
+import {WorkerPool} from './util/worker-pool.js';
 import {scriptDataDir} from './util/script-data-dir.js';
 
 import type {
@@ -45,10 +46,16 @@ export class Executor {
     Promise<CacheKey | typeof UNCACHEABLE>
   >();
   readonly #logger: Logger;
+  readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
 
-  constructor(logger: Logger, cache: Cache | undefined) {
+  constructor(
+    logger: Logger,
+    workerPool: WorkerPool,
+    cache: Cache | undefined
+  ) {
     this.#logger = logger;
+    this.#workerPool = workerPool;
     this.#cache = cache;
   }
 
@@ -59,8 +66,9 @@ export class Executor {
       promise = ScriptExecution.execute(
         script,
         this,
-        this.#logger,
-        this.#cache
+        this.#workerPool,
+        this.#cache,
+        this.#logger
       );
       this.#executions.set(cacheKey, promise);
     }
@@ -75,27 +83,37 @@ class ScriptExecution {
   static execute(
     script: ScriptConfig,
     executor: Executor,
-    logger: Logger,
-    cache: Cache | undefined
+    workerPool: WorkerPool,
+    cache: Cache | undefined,
+    logger: Logger
   ): Promise<CacheKey | typeof UNCACHEABLE> {
-    return new ScriptExecution(script, executor, logger, cache).#execute();
+    return new ScriptExecution(
+      script,
+      executor,
+      workerPool,
+      cache,
+      logger
+    ).#execute();
   }
 
   readonly #script: ScriptConfig;
-  readonly #logger: Logger;
   readonly #executor: Executor;
   readonly #cache?: Cache;
+  readonly #workerPool: WorkerPool;
+  readonly #logger: Logger;
 
   private constructor(
     script: ScriptConfig,
     executor: Executor,
-    logger: Logger,
-    cache: Cache | undefined
+    workerPool: WorkerPool,
+    cache: Cache | undefined,
+    logger: Logger
   ) {
     this.#script = script;
     this.#executor = executor;
-    this.#logger = logger;
+    this.#workerPool = workerPool;
     this.#cache = cache;
+    this.#logger = logger;
   }
 
   async #execute(): Promise<CacheKey | typeof UNCACHEABLE> {
@@ -234,104 +252,107 @@ class ScriptExecution {
       detail: 'running',
     });
 
-    // TODO(aomarks) Fix PATH and npm_ environment variables to reflect the new
-    // package when cross-package dependencies are supported.
+    const command = this.#script.command;
+    await this.#workerPool.run(async () => {
+      // TODO(aomarks) Fix PATH and npm_ environment variables to reflect the new
+      // package when cross-package dependencies are supported.
 
-    const child = spawn(this.#script.command, {
-      cwd: this.#script.packageDir,
-      // Conveniently, "shell:true" has the same shell-selection behavior as
-      // "npm run", where on macOS and Linux it is "sh", and on Windows it is
-      // %COMSPEC% || "cmd.exe".
-      //
-      // References:
-      //   https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
-      //   https://nodejs.org/api/child_process.html#default-windows-shell
-      //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
-      shell: true,
-    });
-
-    // Only create the stdout/stderr replay files if we encounter anything on
-    // this streams.
-    let stdoutReplay: WriteStream | undefined;
-    let stderrReplay: WriteStream | undefined;
-
-    child.stdout.on('data', (data: string | Buffer) => {
-      this.#logger.log({
-        script: this.#script,
-        type: 'output',
-        stream: 'stdout',
-        data,
-      });
-      if (stdoutReplay === undefined) {
-        stdoutReplay = createWriteStream(this.#stdoutReplayPath);
-      }
-      stdoutReplay.write(data);
-    });
-
-    child.stderr.on('data', (data: string | Buffer) => {
-      this.#logger.log({
-        script: this.#script,
-        type: 'output',
-        stream: 'stderr',
-        data,
-      });
-      if (stderrReplay === undefined) {
-        stderrReplay = createWriteStream(this.#stderrReplayPath);
-      }
-      stderrReplay.write(data);
-    });
-
-    const completed = new Promise<void>((resolve, reject) => {
-      child.on('error', (error) => {
-        reject(
-          new WireitError({
-            script: this.#script,
-            type: 'failure',
-            reason: 'spawn-error',
-            message: error.message,
-          })
-        );
+      const child = spawn(command, {
+        cwd: this.#script.packageDir,
+        // Conveniently, "shell:true" has the same shell-selection behavior as
+        // "npm run", where on macOS and Linux it is "sh", and on Windows it is
+        // %COMSPEC% || "cmd.exe".
+        //
+        // References:
+        //   https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
+        //   https://nodejs.org/api/child_process.html#default-windows-shell
+        //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
+        shell: true,
       });
 
-      child.on('close', (status, signal) => {
-        if (signal !== null) {
-          reject(
-            new WireitError({
-              script: this.#script,
-              type: 'failure',
-              reason: 'signal',
-              signal,
-            })
-          );
-        } else if (status !== 0) {
-          reject(
-            new WireitError({
-              script: this.#script,
-              type: 'failure',
-              reason: 'exit-non-zero',
-              // status should only ever be null if signal was not null, but
-              // this isn't reflected in the TypeScript types. Just in case, and
-              // to make TypeScript happy, fall back to -1 (which is a
-              // conventional exit status used for "exited with signal").
-              status: status ?? -1,
-            })
-          );
-        } else {
-          resolve();
+      // Only create the stdout/stderr replay files if we encounter anything on
+      // this streams.
+      let stdoutReplay: WriteStream | undefined;
+      let stderrReplay: WriteStream | undefined;
+
+      child.stdout.on('data', (data: string | Buffer) => {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stdout',
+          data,
+        });
+        if (stdoutReplay === undefined) {
+          stdoutReplay = createWriteStream(this.#stdoutReplayPath);
         }
+        stdoutReplay.write(data);
       });
-    });
 
-    try {
-      await completed;
-    } finally {
-      if (stdoutReplay !== undefined) {
-        await closeWriteStream(stdoutReplay);
+      child.stderr.on('data', (data: string | Buffer) => {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stderr',
+          data,
+        });
+        if (stderrReplay === undefined) {
+          stderrReplay = createWriteStream(this.#stderrReplayPath);
+        }
+        stderrReplay.write(data);
+      });
+
+      const completed = new Promise<void>((resolve, reject) => {
+        child.on('error', (error) => {
+          reject(
+            new WireitError({
+              script: this.#script,
+              type: 'failure',
+              reason: 'spawn-error',
+              message: error.message,
+            })
+          );
+        });
+
+        child.on('close', (status, signal) => {
+          if (signal !== null) {
+            reject(
+              new WireitError({
+                script: this.#script,
+                type: 'failure',
+                reason: 'signal',
+                signal,
+              })
+            );
+          } else if (status !== 0) {
+            reject(
+              new WireitError({
+                script: this.#script,
+                type: 'failure',
+                reason: 'exit-non-zero',
+                // status should only ever be null if signal was not null, but
+                // this isn't reflected in the TypeScript types. Just in case, and
+                // to make TypeScript happy, fall back to -1 (which is a
+                // conventional exit status used for "exited with signal").
+                status: status ?? -1,
+              })
+            );
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      try {
+        await completed;
+      } finally {
+        if (stdoutReplay !== undefined) {
+          await closeWriteStream(stdoutReplay);
+        }
+        if (stderrReplay !== undefined) {
+          await closeWriteStream(stderrReplay);
+        }
       }
-      if (stderrReplay !== undefined) {
-        await closeWriteStream(stderrReplay);
-      }
-    }
+    });
 
     this.#logger.log({
       script: this.#script,

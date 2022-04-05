@@ -67,6 +67,7 @@ export type Failure =
   | ScriptNotFound
   | ScriptNotWireit
   | InvalidConfigSyntax
+  | InvalidUsage
   | DuplicateDependency
   | Cycle;
 
@@ -139,6 +140,11 @@ export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
  */
 export interface InvalidConfigSyntax extends ErrorBase<ScriptReference> {
   reason: 'invalid-config-syntax';
+  message: string;
+}
+
+export interface InvalidUsage extends ErrorBase<ScriptReference> {
+  reason: 'invalid-usage';
   message: string;
 }
 
