@@ -15,6 +15,11 @@ jobs:
           - node: 17
             os: ubuntu-20.04
 
+      # Allow all matrix configurations to complete, instead of cancelling as
+      # soon as one fails. Useful because we often have different kinds of
+      # failures depending on the OS.
+      fail-fast: false
+
     timeout-minutes: 15
     runs-on: ${{ matrix.os }}
 
