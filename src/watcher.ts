@@ -55,7 +55,7 @@ export class Watcher {
     script: ScriptReference,
     logger: Logger,
     workerPool: WorkerPool,
-    cache: Cache,
+    cache: Cache | undefined,
     abort: AbortController
   ): Promise<void> {
     return new Watcher(script, logger, workerPool, cache, abort).#watch();

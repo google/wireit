@@ -10,12 +10,21 @@ import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
 import {WorkerPool} from './util/worker-pool.js';
-import {LocalCache} from './caching/local-cache.js';
+import {unreachable} from './util/unreachable.js';
+
+import type {ScriptReference} from './script.js';
 
 const packageDir = process.env.npm_config_local_prefix;
 const logger = new DefaultLogger(packageDir ?? process.cwd());
 
-const run = async () => {
+interface Options {
+  script: ScriptReference;
+  watch: boolean;
+  numWorkers: number;
+  cache: 'local' | 'none';
+}
+
+const getOptions = (): Options => {
   // These "npm_" prefixed environment variables are set by npm. We require that
   // wireit always be launched via an npm script, so if any are missing we
   // assume it was run directly instead of via npm.
@@ -35,13 +44,7 @@ const run = async () => {
       script: {packageDir: packageDir ?? process.cwd()},
     });
   }
-
   const script = {packageDir, name};
-
-  const abort = new AbortController();
-  process.on('SIGINT', () => {
-    abort.abort();
-  });
 
   const numWorkers = (() => {
     const workerString = process.env['WIREIT_PARALLEL'] ?? '';
@@ -58,25 +61,90 @@ const run = async () => {
     if (Number.isNaN(parsedInt) || parsedInt <= 0) {
       throw new WireitError({
         reason: 'invalid-usage',
-        message: `Expected the WIREIT_PARALLEL env variable to be a positive integer, got ${JSON.stringify(
-          workerString
-        )}`,
+        message:
+          `Expected the WIREIT_PARALLEL env variable to be ` +
+          `a positive integer, got ${JSON.stringify(workerString)}`,
         script,
         type: 'failure',
       });
     }
     return parsedInt;
   })();
-  const workerPool = new WorkerPool(numWorkers);
-  const cache = new LocalCache();
 
-  if (process.argv[2] === 'watch') {
-    // Only import the extra modules needed for watch mode if we need them.
+  const cache = (() => {
+    const str = process.env['WIREIT_CACHE'];
+    if (str === undefined) {
+      // The CI variable is a convention that is automatically set by GitHub
+      // Actions [0], Travis [1], and other CI (continuous integration)
+      // providers.
+      //
+      // [0] https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
+      // [1] https://docs.travis-ci.com/user/environment-variables/#default-environment-variables
+      //
+      // If we're on CI, we don't want "local" caching, because anything we
+      // store locally will be lost when the VM shuts down. We also don't want
+      // "github", because (even if we also detected that we're specifically on
+      // GitHub) we should be cautious about using up storage quota, and instead
+      // require opt-in via WIREIT_CACHE=github.
+      const ci = process.env['CI'] === 'true';
+      return ci ? 'none' : 'local';
+    }
+    if (str === 'local' || str === 'none') {
+      return str;
+    }
+    throw new WireitError({
+      reason: 'invalid-usage',
+      message:
+        `Expected the WIREIT_CACHE env variable to be ` +
+        `"local" or "none", got ${JSON.stringify(str)}`,
+      script,
+      type: 'failure',
+    });
+  })();
+
+  return {
+    script,
+    watch: process.argv[2] === 'watch',
+    numWorkers,
+    cache,
+  };
+};
+
+const run = async () => {
+  const options = getOptions();
+
+  const workerPool = new WorkerPool(options.numWorkers);
+
+  let cache;
+  switch (options.cache) {
+    case 'local': {
+      // Import dynamically so that we import fewer unnecessary modules.
+      const {LocalCache} = await import('./caching/local-cache.js');
+      cache = new LocalCache();
+      break;
+    }
+    case 'none': {
+      cache = undefined;
+      break;
+    }
+    default: {
+      throw new Error(
+        `Unhandled cache: ${unreachable(options.cache) as string}`
+      );
+    }
+  }
+
+  const abort = new AbortController();
+  process.on('SIGINT', () => {
+    abort.abort();
+  });
+
+  if (options.watch) {
     const {Watcher} = await import('./watcher.js');
-    await Watcher.watch(script, logger, workerPool, cache, abort);
+    await Watcher.watch(options.script, logger, workerPool, cache, abort);
   } else {
     const analyzer = new Analyzer();
-    const analyzed = await analyzer.analyze(script);
+    const analyzed = await analyzer.analyze(options.script);
     const executor = new Executor(logger, workerPool, cache);
     await executor.execute(analyzed);
   }
