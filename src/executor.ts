@@ -14,6 +14,7 @@ import {WireitError} from './error.js';
 import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
+import {getScriptDataDir} from './util/script-data-dir.js';
 
 import type {
   ScriptConfig,
@@ -25,6 +26,7 @@ import type {
 } from './script.js';
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
+import type {Cache} from './caching/cache.js';
 
 /**
  * Unique symbol to represent a script that isn't safe to be cached, because its
@@ -39,26 +41,36 @@ const IS_WINDOWS = process.platform === 'win32';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #cache = new Map<string, Promise<CacheKey | typeof UNCACHEABLE>>();
+  readonly #executions = new Map<
+    string,
+    Promise<CacheKey | typeof UNCACHEABLE>
+  >();
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
+  readonly #cache?: Cache;
 
-  constructor(logger: Logger, workerPool: WorkerPool) {
+  constructor(
+    logger: Logger,
+    workerPool: WorkerPool,
+    cache: Cache | undefined
+  ) {
     this.#logger = logger;
     this.#workerPool = workerPool;
+    this.#cache = cache;
   }
 
   async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
     const cacheKey = scriptReferenceToString(script);
-    let promise = this.#cache.get(cacheKey);
+    let promise = this.#executions.get(cacheKey);
     if (promise === undefined) {
       promise = ScriptExecution.execute(
         script,
         this,
         this.#workerPool,
+        this.#cache,
         this.#logger
       );
-      this.#cache.set(cacheKey, promise);
+      this.#executions.set(cacheKey, promise);
     }
     return promise;
   }
@@ -72,13 +84,21 @@ class ScriptExecution {
     script: ScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
+    cache: Cache | undefined,
     logger: Logger
   ): Promise<CacheKey | typeof UNCACHEABLE> {
-    return new ScriptExecution(script, executor, workerPool, logger).#execute();
+    return new ScriptExecution(
+      script,
+      executor,
+      workerPool,
+      cache,
+      logger
+    ).#execute();
   }
 
   readonly #script: ScriptConfig;
   readonly #executor: Executor;
+  readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
   readonly #logger: Logger;
 
@@ -86,11 +106,13 @@ class ScriptExecution {
     script: ScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
+    cache: Cache | undefined,
     logger: Logger
   ) {
     this.#script = script;
     this.#executor = executor;
     this.#workerPool = workerPool;
+    this.#cache = cache;
     this.#logger = logger;
   }
 
@@ -108,6 +130,8 @@ class ScriptExecution {
         previousCacheKeyStr !== undefined &&
         cacheKeyStr === previousCacheKeyStr
       ) {
+        // TODO(aomarks) Does not preserve original order of stdout vs stderr
+        // chunks. See https://github.com/google/wireit/issues/74.
         await Promise.all([
           this.#replayStdoutIfPresent(),
           this.#replayStderrIfPresent(),
@@ -124,23 +148,53 @@ class ScriptExecution {
     }
 
     // It's important that we delete any previous state before running the
-    // command, because if the command fails we won't update the state file,
-    // even though the command might have produced some output.
+    // command or restoring from cache, because if either fails mid-flight, we
+    // don't want to think that the previous state is still valid.
     await this.#prepareDataDir();
 
-    if (this.#script.clean) {
+    const cacheHit =
+      cacheKeyStr !== UNCACHEABLE
+        ? await this.#cache?.get(this.#script, cacheKeyStr)
+        : undefined;
+
+    // The "clean" setting controls whether we delete output before execution.
+    //
+    // However, if we are restoring from cache, we should always delete existing
+    // output, regardless of the "clean" setting. The purpose of the "clean"
+    // setting is to allow tools that are smart about cleaning up their own
+    // previous output to work more efficiently, but that only applies when the
+    // tool is able to observe each incremental change to the input files. When
+    // we restore from cache, we are directly replacing the output files, and
+    // not invoking the tool at all, so there is no way for the tool to do any
+    // cleanup.
+    if (this.#script.clean || cacheHit !== undefined) {
       await this.#cleanOutput();
     }
 
-    // TODO(aomarks) Implement caching.
-    await this.#executeCommandIfNeeded();
+    if (cacheHit !== undefined) {
+      await cacheHit.apply();
+      // We include stdout and stderr replay files when we save to the cache, so
+      // if there were any, they will now be in place.
+      // TODO(aomarks) Does not preserve original order of stdout vs stderr
+      // chunks. See https://github.com/google/wireit/issues/74.
+      await Promise.all([
+        this.#replayStdoutIfPresent(),
+        this.#replayStderrIfPresent(),
+      ]);
+    } else {
+      await this.#executeCommandIfNeeded();
+    }
 
     if (cacheKeyStr !== UNCACHEABLE) {
-      // TODO(aomarks) We don't technically need to wait for this to finish to
+      // TODO(aomarks) We don't technically need to wait for these to finish to
       // return, we only need to wait in the top-level call to execute. The same
       // will go for saving output to the cache.
       await this.#writeStateFile(cacheKeyStr);
+      if (cacheHit === undefined) {
+        await this.#saveToCacheIfPossible(cacheKeyStr);
+      }
     }
+
     return cacheKey;
   }
 
@@ -308,6 +362,55 @@ class ScriptExecution {
   }
 
   /**
+   * Save the current output files to the configured cache if possible.
+   */
+  async #saveToCacheIfPossible(
+    cacheKeyStr: CacheKeyString | typeof UNCACHEABLE
+  ): Promise<void> {
+    if (
+      cacheKeyStr === UNCACHEABLE ||
+      this.#cache === undefined ||
+      this.#script.output === undefined
+    ) {
+      return;
+    }
+    await this.#cache.set(
+      this.#script,
+      cacheKeyStr,
+      await this.#glob(
+        [
+          ...this.#script.output,
+          // Also include the "stdout" and "stderr" replay files at their
+          // standard location within the ".wireit" directory for this script so
+          // that we can replay them after restoring.
+          //
+          // We're passing this to #glob because it's an easy way to only
+          // include them only if they exist. We don't want to include files
+          // that don't exist becuase then we'll make empty directories and will
+          // get an error from fs.cp.
+          //
+          // Convert to relative paths because we want to pass relative paths to
+          // Cache.set, but fast-glob doesn't automatically relativize to the
+          // cwd when passing an absolute path.
+          //
+          // Convert Windows-style paths to POSIX-style paths if we are on
+          // Windows, because fast-glob only understands POSIX-style paths.
+          posixifyPathIfOnWindows(
+            pathlib.relative(this.#script.packageDir, this.#stdoutReplayPath)
+          ),
+          posixifyPathIfOnWindows(
+            pathlib.relative(this.#script.packageDir, this.#stderrReplayPath)
+          ),
+        ],
+        {
+          onlyFiles: false,
+          absolute: false,
+        }
+      )
+    );
+  }
+
+  /**
    * Generate the cache key for this script based on its current input files,
    * and the cache keys of its dependencies.
    *
@@ -393,18 +496,7 @@ class ScriptExecution {
    * Get the directory name where Wireit data can be saved for this script.
    */
   get #dataDir(): string {
-    return pathlib.join(
-      this.#script.packageDir,
-      '.wireit',
-      // Script names can contain any character, so they aren't safe to use
-      // directly in a filepath, because certain characters aren't allowed on
-      // certain filesystems (e.g. ":" is forbidden on Windows). Hex-encode
-      // instead so that we only get safe ASCII characters.
-      //
-      // Reference:
-      // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
-      Buffer.from(this.#script.name).toString('hex')
-    );
+    return getScriptDataDir(this.#script);
   }
 
   /**
@@ -590,3 +682,10 @@ const closeWriteStream = (stream: WriteStream): Promise<void> => {
     });
   });
 };
+
+/**
+ * If we are on Windows, convert back slashes to forward slashes (e.g. "foo\bar"
+ * -> "foo/bar").
+ */
+const posixifyPathIfOnWindows = (path: string) =>
+  IS_WINDOWS ? path.replaceAll(pathlib.win32.sep, pathlib.posix.sep) : path;

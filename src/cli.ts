@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as os from 'os';
 import {WireitError} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
-import * as os from 'os';
 import {WorkerPool} from './util/worker-pool.js';
+import {LocalCache} from './caching/local-cache.js';
 
 const packageDir = process.env.npm_config_local_prefix;
 const logger = new DefaultLogger(packageDir ?? process.cwd());
@@ -67,15 +68,16 @@ const run = async () => {
     return parsedInt;
   })();
   const workerPool = new WorkerPool(numWorkers);
+  const cache = new LocalCache();
 
   if (process.argv[2] === 'watch') {
     // Only import the extra modules needed for watch mode if we need them.
     const {Watcher} = await import('./watcher.js');
-    await Watcher.watch(script, logger, workerPool, abort);
+    await Watcher.watch(script, logger, workerPool, cache, abort);
   } else {
     const analyzer = new Analyzer();
     const analyzed = await analyzer.analyze(script);
-    const executor = new Executor(logger, workerPool);
+    const executor = new Executor(logger, workerPool, cache);
     await executor.execute(analyzed);
   }
 };
