@@ -8,6 +8,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
+import {IS_WINDOWS} from './util/windows.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -489,6 +490,184 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
+  })
+);
+
+test(
+  'finds node_modules binary in starting dir',
+  timeout(async ({rig}) => {
+    const cmd = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'test-binary',
+          },
+        },
+      },
+    });
+    await rig.generateAndInstallNodeBinary({
+      command: cmd.command,
+      binaryPath: 'node_modules/test-pkg/test-binary',
+      installPath: 'node_modules/.bin/test-binary',
+    });
+    const exec = rig.exec('npm run a');
+    (await cmd.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmd.numInvocations, 1);
+  })
+);
+
+test(
+  'finds node_modules binary in parent dir',
+  timeout(async ({rig}) => {
+    const cmd = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'test-binary',
+          },
+        },
+      },
+    });
+    await rig.generateAndInstallNodeBinary({
+      command: cmd.command,
+      binaryPath: 'node_modules/test-pkg/test-binary',
+      installPath: 'node_modules/.bin/test-binary',
+    });
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+    (await cmd.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmd.numInvocations, 1);
+  })
+);
+
+test(
+  'finds node_modules binary across packages (child)',
+  timeout(async ({rig}) => {
+    const cmd = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./bar:b'],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: 'test-binary',
+          },
+        },
+      },
+    });
+    await rig.generateAndInstallNodeBinary({
+      command: cmd.command,
+      binaryPath: 'bar/node_modules/test-pkg/test-binary',
+      installPath: 'bar/node_modules/.bin/test-binary',
+    });
+    const exec = rig.exec('npm run a');
+    (await cmd.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmd.numInvocations, 1);
+  })
+);
+
+test(
+  'finds node_modules binary across packages (sibling)',
+  timeout(async ({rig}) => {
+    const cmd = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../bar:b'],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: 'test-binary',
+          },
+        },
+      },
+    });
+    await rig.generateAndInstallNodeBinary({
+      command: cmd.command,
+      binaryPath: 'bar/node_modules/test-pkg/test-binary',
+      installPath: 'bar/node_modules/.bin/test-binary',
+    });
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+    (await cmd.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmd.numInvocations, 1);
+  })
+);
+
+test(
+  'starting node_modules binaries are not available across packages (sibling)',
+  timeout(async ({rig}) => {
+    const cmd = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../bar:b'],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: 'test-binary',
+          },
+        },
+      },
+    });
+    await rig.generateAndInstallNodeBinary({
+      command: cmd.command,
+      binaryPath: 'foo/node_modules/test-pkg/test-binary',
+      installPath: 'foo/node_modules/.bin/test-binary',
+    });
+    const exec = rig.exec('npm run b', {cwd: 'bar'});
+    const res = await exec.exit;
+    assert.equal(res.code, 1);
+    assert.equal(cmd.numInvocations, 0);
+    assert.match(
+      res.stderr,
+      IS_WINDOWS ? "'test-binary' is not recognized" : 'exit status 127'
+    );
   })
 );
 

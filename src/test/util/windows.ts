@@ -6,7 +6,7 @@
 
 import * as pathlib from 'path';
 
-const IS_WINDOWS = process.platform === 'win32';
+export const IS_WINDOWS = process.platform === 'win32';
 
 /**
  * If we're on Windows, replace all forward-slashes with back-slashes.
