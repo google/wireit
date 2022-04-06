@@ -11,7 +11,7 @@ import type {ScriptReference} from '../script.js';
 /**
  * Get the directory name where Wireit data can be saved for a script.
  */
-export const scriptDataDir = (script: ScriptReference) =>
+export const getScriptDataDir = (script: ScriptReference) =>
   pathlib.join(
     script.packageDir,
     '.wireit',

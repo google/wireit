@@ -7,7 +7,7 @@
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
-import {scriptDataDir} from '../util/script-data-dir.js';
+import {getScriptDataDir} from '../util/script-data-dir.js';
 import {optimizeCopies, optimizeMkdirs} from '../util/optimize-fs-ops.js';
 
 import type {Cache, CacheHit} from './cache.js';
@@ -22,7 +22,7 @@ export class LocalCache implements Cache {
     script: ScriptReference,
     cacheKey: CacheKeyString
   ): Promise<CacheHit | undefined> {
-    const cacheDir = this.#cacheDir(script, cacheKey);
+    const cacheDir = this.#getCacheDir(script, cacheKey);
     try {
       await fs.access(cacheDir);
     } catch (error) {
@@ -44,7 +44,7 @@ export class LocalCache implements Cache {
     // almost certainly want an automated way to limit the size of the cache
     // directory (e.g. LRU capped to some number of entries).
     // https://github.com/lit/wireit/issues/71
-    const absCacheDir = this.#cacheDir(script, cacheKey);
+    const absCacheDir = this.#getCacheDir(script, cacheKey);
     // Note fs.mkdir returns the first created directory, or undefined if no
     // directory was created.
     const existed =
@@ -86,9 +86,9 @@ export class LocalCache implements Cache {
     );
   }
 
-  #cacheDir(script: ScriptReference, cacheKey: CacheKeyString): string {
+  #getCacheDir(script: ScriptReference, cacheKey: CacheKeyString): string {
     return pathlib.join(
-      scriptDataDir(script),
+      getScriptDataDir(script),
       'cache',
       createHash('sha256').update(cacheKey).digest('hex')
     );

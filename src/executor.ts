@@ -14,7 +14,7 @@ import {WireitError} from './error.js';
 import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
-import {scriptDataDir} from './util/script-data-dir.js';
+import {getScriptDataDir} from './util/script-data-dir.js';
 
 import type {
   ScriptConfig,
@@ -496,7 +496,7 @@ class ScriptExecution {
    * Get the directory name where Wireit data can be saved for this script.
    */
   get #dataDir(): string {
-    return scriptDataDir(this.#script);
+    return getScriptDataDir(this.#script);
   }
 
   /**

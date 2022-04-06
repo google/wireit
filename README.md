@@ -238,7 +238,7 @@ Notes:
 - If a script doesn't have a `output` list defined at all, then it will never be
   cached, because Wireit doesn't know which files to save to the cache. To tell
   Wireit it is safe to store a cache entry even when there are no output files,
-  set `output` to an empty array (`array: []`). An empty `output` array is
+  set `output` to an empty array (`output: []`). An empty `output` array is
   especially useful for tests.
 
 ## Cleaning output

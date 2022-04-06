@@ -8,12 +8,7 @@ import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {optimizeCopies} from '../util/optimize-fs-ops.js';
 import {shuffle} from '../util/shuffle.js';
-import * as pathlib from 'path';
-
-const IS_WINDOWS = process.platform === 'win32';
-
-const windowsifyPathIfOnWindows = (path: string) =>
-  IS_WINDOWS ? path.replaceAll(pathlib.posix.sep, pathlib.win32.sep) : path;
+import {windowsifyPathIfOnWindows} from './util/windows.js';
 
 const check = (input: string[], expected: string[]) =>
   assert.equal(
