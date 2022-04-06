@@ -25,7 +25,15 @@
     "lint": "eslint .",
     "format": "prettier . -w",
     "format:check": "prettier . -c",
-    "test": "wireit"
+    "test": "wireit",
+    "test:basic": "wireit",
+    "test:clean": "wireit",
+    "test:errors-analysis": "wireit",
+    "test:errors-usage": "wireit",
+    "test:freshness": "wireit",
+    "test:parallelism": "wireit",
+    "test:stdio-replay": "wireit",
+    "test:watch": "wireit"
   },
   "wireit": {
     "build": {
@@ -40,7 +48,75 @@
       "clean": false
     },
     "test": {
-      "command": "uvu lib/test \"\\.test\\.js$\"",
+      "dependencies": [
+        "test:basic",
+        "test:clean",
+        "test:errors-analysis",
+        "test:errors-usage",
+        "test:freshness",
+        "test:parallelism",
+        "test:stdio-replay",
+        "test:watch"
+      ]
+    },
+    "test:basic": {
+      "command": "uvu lib/test \"basic\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:clean": {
+      "command": "uvu lib/test \"clean\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:errors-analysis": {
+      "command": "uvu lib/test \"errors-analysis\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:errors-usage": {
+      "command": "uvu lib/test \"errors-usage\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:freshness": {
+      "command": "uvu lib/test \"freshness\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:parallelism": {
+      "command": "uvu lib/test \"parallelism\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:stdio-replay": {
+      "command": "uvu lib/test \"stdio-replay\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:watch": {
+      "command": "uvu lib/test \"watch\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
