@@ -11,11 +11,11 @@ import {spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import cmdShim from 'cmd-shim';
 import {WireitTestRigCommand} from './test-rig-command.js';
 import {Deferred} from '../../util/deferred.js';
+import {IS_WINDOWS} from './windows.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
-const isWindows = process.platform === 'win32';
 
 /**
  * A test rig for managing a temporary filesystem and executing Wireit.
@@ -48,7 +48,7 @@ export class WireitTestRig {
       '.bin',
       'wireit'
     );
-    if (isWindows) {
+    if (IS_WINDOWS) {
       // Npm install works differently on Windows, since it won't recognize a
       // shebang like "#!/usr/bin/env node". Npm instead uses the cmd-shim
       // package to generate Windows shell wrappers for each binary, so we do
@@ -59,6 +59,54 @@ export class WireitTestRig {
     }
   }
 
+  /**
+   * Generates and installs a Node binary which invokes the given command. On
+   * Linux/macOS, this is performed with a symlink. On Windows, it is performed
+   * with the special cmd-shim package.
+   *
+   * @param command The command that the binary should invoke.
+   * @param actualBinaryPath Path to the binary that is being installed (e.g.
+   * "node_modules/foo/bin/bar")
+   * @param installPath Path to the location where the binary will be installed
+   * (e.g. "node_modules/.bin/bar")
+   */
+  async generateAndInstallNodeBinary({
+    command,
+    binaryPath,
+    installPath,
+  }: {
+    command: string;
+    binaryPath: string;
+    installPath: string;
+  }) {
+    this.#assertState('running');
+
+    binaryPath = this.#resolve(binaryPath);
+    installPath = this.#resolve(installPath);
+    const binaryContent = IS_WINDOWS
+      ? // This incantation works on Windows but not Linux, because real "env"
+        // requires an "-S" flag to pass arguments to a binary, but cmd-shim
+        // doesn't handle that correctly (see
+        // https://github.com/npm/cmd-shim/issues/54).
+        `#!/usr/bin/env ${command}`
+      : // This incantation works on Linux and macOS, but not Windows.
+        // "#!/usr/bin/env -S <command>" also works on Linux, but not macOS
+        // (unsure why).
+        `#!/bin/sh\n${command}`;
+
+    await fs.mkdir(pathlib.dirname(binaryPath), {recursive: true});
+    await fs.writeFile(binaryPath, binaryContent, {
+      encoding: 'utf8',
+      mode: 0o777,
+    });
+
+    await fs.mkdir(pathlib.dirname(installPath), {recursive: true});
+    if (IS_WINDOWS) {
+      await cmdShim(binaryPath, installPath);
+    } else {
+      await this.symlink(binaryPath, installPath);
+    }
+  }
   /**
    * Delete the temporary filesystem and perform other cleanup.
    */
@@ -185,7 +233,7 @@ export class WireitTestRig {
     // can be any filepath. See https://nodejs.org/api/net.html#ipc-support for
     // more details.
     let ipcPath: string;
-    if (isWindows) {
+    if (IS_WINDOWS) {
       ipcPath = pathlib.join(
         '\\\\?\\pipe',
         this.temp,
@@ -259,7 +307,7 @@ class ExecResult {
       // child processes with "taskkill". If we set "detached" on Windows, it
       // has the side effect of causing all child processes to open in new
       // terminal windows.
-      detached: !isWindows,
+      detached: !IS_WINDOWS,
     });
 
     this.#child.stdout.on('data', this.#onStdout);
@@ -307,7 +355,7 @@ class ExecResult {
     if (this.#child.pid === undefined) {
       throw new Error("Can't terminate child process because it has no pid");
     }
-    if (isWindows) {
+    if (IS_WINDOWS) {
       // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
       // the behavior of SIGKILL (and ignores the signal you pass in), but it
       // seems to leave streams and file handles open. The taskkill command does

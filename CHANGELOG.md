@@ -29,6 +29,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Fixed bug where deleting a file would not trigger a re-run in watch mode.
 
+- Fixed bug which caused `node_modules/` binaries to not be found when crossing
+  package boundaries through dependencies.
+
 ## [0.0.0] - 2022-04-04
 
 ### Added
