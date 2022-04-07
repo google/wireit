@@ -215,7 +215,13 @@ export class WireitTestRig {
     const cwd = this.#resolve(opts?.cwd ?? '.');
     const env = opts?.env ?? {};
     const result = new ExecResult(command, cwd, {
+      // We hard code the parallelism here because by default we infer a value
+      // based on the number of cores we find on the machine, but we want tests
+      // to behave as consistently as possible across machines.
       WIREIT_PARALLEL: '10',
+      // GitHub Actions sets CI=true, but we want our tests to act like they are
+      // running locally by default, even when they are actually running on CI.
+      CI: undefined,
       ...env,
     });
     this.#activeChildProcesses.add(result);
@@ -271,10 +277,7 @@ class ExecResult {
   constructor(
     command: string,
     cwd: string,
-    // We hard code the parallelism here because by default we infer a value
-    // based on the number of cores we find on the machine, but we want tests
-    // to behave as consistently as possible across machines.
-    env: Record<string, string>
+    env: Record<string, string | undefined>
   ) {
     this.#child = spawn(command, {
       cwd,

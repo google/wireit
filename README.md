@@ -8,11 +8,11 @@
 ## Features
 
 - 🙂 Use the `npm run` commands you already know
-- 🛠️ Works with single packages, npm workspaces, and other monorepos
 - ⛓️ Automatically run dependencies between npm scripts in parallel
 - 👀 Watch any script and continuously re-run on changes
 - 🥬 Skip scripts that are already fresh
 - ♻️ Cache output locally and (**Coming soon**) on GitHub Actions
+- 🛠️ Works with single packages, npm workspaces, and other monorepos
 
 ## Alpha
 
@@ -26,6 +26,7 @@
 - [Dependencies](#dependencies)
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
+- [Parallelism](#parallelism)
 - [Incremental build](#incremental-build)
 - [Caching](#caching)
 - [Cleaning output](#cleaning-output)
@@ -34,6 +35,7 @@
 - [Reference](#reference)
   - [Configuration](#configuration)
   - [Dependency syntax](#dependency-syntax)
+  - [Environment variables](#environment-variables)
   - [Glob patterns](#glob-patterns)
   - [Cache key](#cache-key)
 - [Requirements](#requirements)
@@ -147,6 +149,35 @@ workspaces, as well as in other kinds of monorepos.
 }
 ```
 
+## Parallelism
+
+Wireit will run scripts in parallel whenever it is safe to do so according to
+the dependency graph.
+
+For example, in this diagram, the `B` and `C` scripts will run in parallel,
+while the `A` script won't start until both `B` and `C` finish.
+
+```mermaid
+graph TD
+  A-->B;
+  A-->C;
+  subgraph parallel
+    B;
+    C;
+  end
+```
+
+By default, Wireit will run up to 4 scripts in parallel for every CPU core
+detected on your system. To change this default, set the `WIREIT_PARALLEL`
+[environment variable](#environment-variables) to a positive integer, or `infinity` to run without a
+limit. You may want to lower this number if you experience resource starvation
+in large builds. For example, to run only one script at a time:
+
+```sh
+export WIREIT_PARALLEL=1
+npm run build
+```
+
 ## Incremental build
 
 Wireit can automatically skip execution of a script if nothing has changed that
@@ -227,6 +258,18 @@ To enable caching, configure the output files for each script by specifying
     }
   }
 }
+```
+
+Caching is enabled by default, unless Wireit detects that you are running in CI
+(continuous integration) by checking whether the `CI` [environment
+variable](#environment-variables) is `true`, in which case it is disabled.
+
+To disable caching manually, set the `WIREIT_CACHE` environment variable to
+`none`:
+
+```sh
+export WIREIT_CACHE=none
+npm run build
 ```
 
 Notes:
@@ -321,7 +364,7 @@ off this behavior entirely to improve your cache hit rate by setting
 The following properties can be set inside `wireit.<script>` objects in
 `package.json` files:
 
-| Example        | Type       | Default                 | Description                                                                                                 |
+| Property       | Type       | Default                 | Description                                                                                                 |
 | -------------- | ---------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `command`      | `string`   | `undefined`             | The shell command to run.                                                                                   |
 | `dependencies` | `string[]` | `undefined`             | [Scripts that must run before this one](#dependencies).                                                     |
@@ -338,6 +381,16 @@ The following syntaxes can be used in the `wireit.<script>.dependencies` array:
 | ------------ | ----------------------------------------------------------------------------------------------- |
 | `foo`        | Script named `"foo"` in the same package.                                                       |
 | `../foo:bar` | Script named `"bar"` in the package found at `../foo` ([details](#cross-package-dependencies)). |
+
+### Environment variables
+
+The following environment variables affect the behavior of Wireit:
+
+| Variable          | Description                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                 |
+| `WIREIT_CACHE`    | [Caching strategy](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Options:<ul><li>`local`: Cache to local disk.</li><li>`none`: Disable caching.</li></ul>                                                                                                                                         |
+| `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`. |
 
 ### Glob patterns
 
@@ -370,13 +423,6 @@ cache](#caching).
 - The SHA256 content hashes of all files matching `packageLocks` in the current
   package and all parent directories.
 - The cache key of all transitive dependencies.
-
-### Environment variables
-
-- Set `WIREIT_PARALLEL` to specify the maximum number of scripts that may run
-  at once. This can prevent resource starvation in large, highly parallel
-  builds. If this variable is unset, the default is a multiple of the number
-  of CPU cores available. Set to `Infinity` to run without a limit.
 
 ## Requirements
 
