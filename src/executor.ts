@@ -390,6 +390,7 @@ class ScriptExecution {
       reason: 'exit-zero',
     });
   }
+
   /**
    * Generates the PATH environment variable that should be set when this
    * script's command is spawned.
@@ -716,6 +717,7 @@ class ScriptExecution {
         // There is no saved replay.
         return;
       }
+      throw error;
     }
   }
 }
