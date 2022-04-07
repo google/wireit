@@ -23,6 +23,12 @@ jobs:
     timeout-minutes: 15
     runs-on: ${{ matrix.os }}
 
+    env:
+      # TODO(aomarks) It's a little difficult to read the test results, because
+      # stdio streams of all parallel processes are interleaved. Remove this
+      # after implementing stdio locking.
+      WIREIT_PARALLEL: 1
+
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
