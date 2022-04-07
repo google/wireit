@@ -26,7 +26,7 @@ interface EventBase<T extends PackageReference> {
 // Success events
 // -------------------------------
 
-type Success = ExitZero | NoCommand | Fresh;
+type Success = ExitZero | NoCommand | Fresh | Cached;
 
 interface SuccessBase<T extends PackageReference> extends EventBase<T> {
   type: 'success';
@@ -51,6 +51,13 @@ export interface NoCommand extends SuccessBase<ScriptConfig> {
  */
 export interface Fresh extends SuccessBase<ScriptConfig> {
   reason: 'fresh';
+}
+
+/**
+ * Script output was restored from cache.
+ */
+export interface Cached extends SuccessBase<ScriptConfig> {
+  reason: 'cached';
 }
 
 // -------------------------------

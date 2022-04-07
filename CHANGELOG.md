@@ -16,6 +16,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - In watch mode, a "Watching for file changes" message is now logged at the end
   of each run.
 
+- A "Restored from cache" message is now logged when output was restored from
+  cache.
+
 ## [0.1.0] - 2022-04-06
 
 ### Added

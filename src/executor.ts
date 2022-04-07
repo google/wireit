@@ -203,6 +203,11 @@ class ScriptExecution {
         this.#replayStdoutIfPresent(),
         this.#replayStderrIfPresent(),
       ]);
+      this.#logger.log({
+        script: this.#script,
+        type: 'success',
+        reason: 'cached',
+      });
     } else {
       await this.#executeCommandIfNeeded();
     }

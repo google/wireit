@@ -81,6 +81,10 @@ export class DefaultLogger implements Logger {
             console.log(`✅${prefix} Already fresh`);
             break;
           }
+          case 'cached': {
+            console.log(`✅${prefix} Restored from cache`);
+            break;
+          }
         }
         break;
       }
