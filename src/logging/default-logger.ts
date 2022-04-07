@@ -81,6 +81,10 @@ export class DefaultLogger implements Logger {
             console.log(`✅${prefix} Already fresh`);
             break;
           }
+          case 'cached': {
+            console.log(`✅${prefix} Restored from cache`);
+            break;
+          }
         }
         break;
       }
@@ -213,6 +217,24 @@ export class DefaultLogger implements Logger {
             console.log(
               `🏃${prefix} Running command "${event.script.command ?? ''}"`
             );
+            break;
+          }
+          case 'watch-run-start': {
+            if (process.stdout.isTTY) {
+              // If we are in an interactive terminal (TTY), reset it before
+              // each run. This is helpful because it means only the output for
+              // the current build is visible. This is exactly the same as what
+              // "tsc --watch" does.
+              //
+              // This string is the ESC character (ASCII \x1B) followed by "c",
+              // which is the VT100 reset sequence, supported by most terminals:
+              // https://www2.ccs.neu.edu/research/gpc/VonaUtils/vona/terminal/vtansi.htm#:~:text=Reset%20Device
+              console.log('\x1Bc');
+            }
+            break;
+          }
+          case 'watch-run-end': {
+            console.log(`👀${prefix} Watching for file changes`);
             break;
           }
         }
