@@ -568,4 +568,191 @@ test(
   })
 );
 
+test(
+  'does not cache when WIREIT_CACHE=none',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Initial run with input v0.
+    {
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Input changed to v1. Run again.
+    {
+      await rig.write({input: 'v1'});
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v1'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v1');
+    }
+
+    // Input changed back to v0. Output should NOT be cached.
+    {
+      await rig.write({input: 'v0'});
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 3);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+  })
+);
+
+test(
+  'does not cache when CI=true and WIREIT_CACHE is unset',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Initial run with input v0.
+    {
+      const exec = rig.exec('npm run a', {env: {CI: 'true'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Input changed to v1. Run again.
+    {
+      await rig.write({input: 'v1'});
+      const exec = rig.exec('npm run a', {env: {CI: 'true'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v1'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v1');
+    }
+
+    // Input changed back to v0. Output should NOT be cached.
+    {
+      await rig.write({input: 'v0'});
+      const exec = rig.exec('npm run a', {env: {CI: 'true'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 3);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+  })
+);
+
+test(
+  'caches when CI=true and WIREIT_CACHE=local',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Initial run with input v0.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Input changed to v1. Run again.
+    {
+      await rig.write({input: 'v1'});
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v1'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v1');
+    }
+
+    // Input changed back to v0. Output should be cached.
+    {
+      await rig.write({input: 'v0'});
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Input changed back to v1. Output should be cached.
+    {
+      await rig.write({input: 'v1'});
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v1');
+    }
+  })
+);
+
 test.run();

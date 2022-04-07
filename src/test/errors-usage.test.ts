@@ -139,4 +139,30 @@ test(
   })
 );
 
+test(
+  'nonsense WIREIT_CACHE',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_CACHE: 'aklsdjflajsdkflj'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local" or "none", got "aklsdjflajsdkflj"`.trim()
+    );
+  })
+);
+
 test.run();
