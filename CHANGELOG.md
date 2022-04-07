@@ -8,6 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Added `WIREIT_CACHE` environment variable, which controls caching behavior.
+  Can be `local` or `none` to disable.
+
 ### Changed
 
 - In watch mode, the terminal is now cleared at the start of each run, making it
@@ -18,6 +23,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A "Restored from cache" message is now logged when output was restored from
   cache.
+
+- Caching is now disabled by default when the `CI` environment variable is
+  `true`. This variable is automatically set by GitHub Actions and Travis. The
+  `WIREIT_CACHE` environment variable takes precedence over this default.
 
 ## [0.1.0] - 2022-04-06
 
