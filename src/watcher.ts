@@ -132,6 +132,12 @@ export class Watcher {
    * Perform an analysis and execution.
    */
   async #analyzeAndExecute(): Promise<void> {
+    this.#logger.log({
+      script: this.#script,
+      type: 'info',
+      detail: 'watch-run-start',
+    });
+
     // Reset _stale before execution, not after, because a file could change
     // during execution, and we must not clobber that.
     this.#stale = false;
@@ -161,6 +167,12 @@ export class Watcher {
     }
     this.#executing = false;
     this.#update.resolve();
+
+    this.#logger.log({
+      script: this.#script,
+      type: 'info',
+      detail: 'watch-run-end',
+    });
   }
 
   /**

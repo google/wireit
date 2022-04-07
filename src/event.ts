@@ -206,15 +206,29 @@ export interface Stderr extends OutputBase {
 // Informational events
 // -------------------------------
 
-type Info = ScriptRunning;
+type Info = ScriptRunning | WatchRunStart | WatchRunEnd;
 
-interface InfoBase extends EventBase<ScriptConfig> {
+interface InfoBase<T extends ScriptReference> extends EventBase<T> {
   type: 'info';
 }
 
 /**
  * A script's command started running.
  */
-export interface ScriptRunning extends InfoBase {
+export interface ScriptRunning extends InfoBase<ScriptConfig> {
   detail: 'running';
+}
+
+/**
+ * A watch mode iteration started.
+ */
+export interface WatchRunStart extends InfoBase<ScriptReference> {
+  detail: 'watch-run-start';
+}
+
+/**
+ * A watch mode iteration ended.
+ */
+export interface WatchRunEnd extends InfoBase<ScriptReference> {
+  detail: 'watch-run-end';
 }
