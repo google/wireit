@@ -260,6 +260,18 @@ To enable caching, configure the output files for each script by specifying
 }
 ```
 
+Caching is enabled by default, unless Wireit detects that you are running in CI
+(continuous integration) by checking whether the `CI` [environment
+variable](#environment-variables) is `true`, in which case it is disabled.
+
+To disable caching manually, set the `WIREIT_CACHE` environment variable to
+`none`:
+
+```sh
+export WIREIT_CACHE=none
+npm run build
+```
+
 Notes:
 
 - In order to be cached, both a `files` array _and_ an `output` array must be
@@ -374,9 +386,11 @@ The following syntaxes can be used in the `wireit.<script>.dependencies` array:
 
 The following environment variables affect the behavior of Wireit:
 
-| Variable          | Description                                                                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`. |
+| Variable          | Description                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                 |
+| `WIREIT_CACHE`    | [Caching strategy](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Options:<ul><li>`local`: Cache to local disk.</li><li>`none`: Disable caching.</li></ul>                                                                                                                                         |
+| `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`. |
 
 ### Glob patterns
 
