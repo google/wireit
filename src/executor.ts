@@ -15,25 +15,19 @@ import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {getScriptDataDir} from './util/script-data-dir.js';
+import {unreachable} from './util/unreachable.js';
 
 import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-  CacheKey,
-  CacheKeyString,
+  ScriptState,
+  ScriptStateString,
   Sha256HexDigest,
 } from './script.js';
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
-
-/**
- * Unique symbol to represent a script that isn't safe to be cached, because its
- * input files, or the input files of one of its transitive dependencies, are
- * undefined.
- */
-const UNCACHEABLE = Symbol();
 
 /**
  * The PATH environment variable of this process, minus all of the leading
@@ -63,10 +57,7 @@ const IS_WINDOWS = process.platform === 'win32';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #executions = new Map<
-    string,
-    Promise<CacheKey | typeof UNCACHEABLE>
-  >();
+  readonly #executions = new Map<string, Promise<ScriptState>>();
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
@@ -81,9 +72,9 @@ export class Executor {
     this.#cache = cache;
   }
 
-  async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
-    const cacheKey = scriptReferenceToString(script);
-    let promise = this.#executions.get(cacheKey);
+  async execute(script: ScriptConfig): Promise<ScriptState> {
+    const executionKey = scriptReferenceToString(script);
+    let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
       promise = ScriptExecution.execute(
         script,
@@ -92,7 +83,7 @@ export class Executor {
         this.#cache,
         this.#logger
       );
-      this.#executions.set(cacheKey, promise);
+      this.#executions.set(executionKey, promise);
     }
     return promise;
   }
@@ -108,7 +99,7 @@ class ScriptExecution {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
-  ): Promise<CacheKey | typeof UNCACHEABLE> {
+  ): Promise<ScriptState> {
     return new ScriptExecution(
       script,
       executor,
@@ -138,35 +129,31 @@ class ScriptExecution {
     this.#logger = logger;
   }
 
-  async #execute(): Promise<CacheKey | typeof UNCACHEABLE> {
-    const dependencyCacheKeys = await this.#executeDependencies();
+  async #execute(): Promise<ScriptState> {
+    const dependencyStates = await this.#executeDependencies();
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const cacheKey = await this.#getCacheKey(dependencyCacheKeys);
-    let cacheKeyStr: CacheKeyString | typeof UNCACHEABLE;
-    if (cacheKey !== UNCACHEABLE) {
-      cacheKeyStr = JSON.stringify(cacheKey) as CacheKeyString;
-      const previousCacheKeyStr = await this.#readStateFile();
-      if (
-        previousCacheKeyStr !== undefined &&
-        cacheKeyStr === previousCacheKeyStr
-      ) {
-        // TODO(aomarks) Does not preserve original order of stdout vs stderr
-        // chunks. See https://github.com/google/wireit/issues/74.
-        await Promise.all([
-          this.#replayStdoutIfPresent(),
-          this.#replayStderrIfPresent(),
-        ]);
-        this.#logger.log({
-          script: this.#script,
-          type: 'success',
-          reason: 'fresh',
-        });
-        return cacheKey;
-      }
-    } else {
-      cacheKeyStr = UNCACHEABLE;
+    const state = await this.#computeState(dependencyStates);
+    const stateStr = JSON.stringify(state) as ScriptStateString;
+    const prevStateStr = await this.#readPreviousState();
+    if (
+      state.cacheable &&
+      prevStateStr !== undefined &&
+      prevStateStr === stateStr
+    ) {
+      // TODO(aomarks) Does not preserve original order of stdout vs stderr
+      // chunks. See https://github.com/google/wireit/issues/74.
+      await Promise.all([
+        this.#replayStdoutIfPresent(),
+        this.#replayStderrIfPresent(),
+      ]);
+      this.#logger.log({
+        script: this.#script,
+        type: 'success',
+        reason: 'fresh',
+      });
+      return state;
     }
 
     // It's important that we delete any previous state before running the
@@ -174,22 +161,51 @@ class ScriptExecution {
     // don't want to think that the previous state is still valid.
     await this.#prepareDataDir();
 
-    const cacheHit =
-      cacheKeyStr !== UNCACHEABLE
-        ? await this.#cache?.get(this.#script, cacheKeyStr)
-        : undefined;
+    const cacheHit = state.cacheable
+      ? await this.#cache?.get(this.#script, stateStr)
+      : undefined;
 
-    // The "clean" setting controls whether we delete output before execution.
-    //
-    // However, if we are restoring from cache, we should always delete existing
-    // output, regardless of the "clean" setting. The purpose of the "clean"
-    // setting is to allow tools that are smart about cleaning up their own
-    // previous output to work more efficiently, but that only applies when the
-    // tool is able to observe each incremental change to the input files. When
-    // we restore from cache, we are directly replacing the output files, and
-    // not invoking the tool at all, so there is no way for the tool to do any
-    // cleanup.
-    if (this.#script.clean || cacheHit !== undefined) {
+    const shouldClean = (() => {
+      if (cacheHit !== undefined) {
+        // If we are restoring from cache, we should always delete existing
+        // output. The purpose of "clean:false" and "clean:if-file-deleted" is to
+        // allow tools with incremental build (like tsc --build) to work.
+        //
+        // However, this only applies when the tool is able to observe each
+        // incremental change to the input files. When we restore from cache, we
+        // are directly replacing the output files, and not invoking the tool at
+        // all, so there is no way for the tool to do any cleanup.
+        return true;
+      }
+      switch (this.#script.clean) {
+        case true: {
+          return true;
+        }
+        case false: {
+          return false;
+        }
+        case 'if-file-deleted': {
+          if (prevStateStr === undefined) {
+            // If we don't know the previous state, then we can't know whether
+            // any input files were removed. It's safer to err on the side of
+            // cleaning.
+            return true;
+          }
+          return this.#anyInputFilesDeletedSinceLastRun(
+            state,
+            JSON.parse(prevStateStr) as ScriptState
+          );
+        }
+        default: {
+          throw new Error(
+            `Unhandled clean setting: ${
+              unreachable(this.#script.clean) as string
+            }`
+          );
+        }
+      }
+    })();
+    if (shouldClean) {
       await this.#cleanOutput();
     }
 
@@ -212,22 +228,40 @@ class ScriptExecution {
       await this.#executeCommandIfNeeded();
     }
 
-    if (cacheKeyStr !== UNCACHEABLE) {
-      // TODO(aomarks) We don't technically need to wait for these to finish to
-      // return, we only need to wait in the top-level call to execute. The same
-      // will go for saving output to the cache.
-      await this.#writeStateFile(cacheKeyStr);
-      if (cacheHit === undefined) {
-        await this.#saveToCacheIfPossible(cacheKeyStr);
-      }
+    // TODO(aomarks) We don't technically need to wait for these to finish to
+    // return, we only need to wait in the top-level call to execute. The same
+    // will go for saving output to the cache.
+    await this.#writeStateFile(stateStr);
+    if (cacheHit === undefined && state.cacheable) {
+      await this.#saveToCacheIfPossible(stateStr);
     }
 
-    return cacheKey;
+    return state;
   }
 
-  async #executeDependencies(): Promise<
-    Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
-  > {
+  /**
+   * Compares the current set of input file names to the previous set of input
+   * file names, and returns whether any files have been removed.
+   */
+  #anyInputFilesDeletedSinceLastRun(
+    curState: ScriptState,
+    prevState: ScriptState
+  ): boolean {
+    const curFiles = Object.keys(curState.files);
+    const prevFiles = Object.keys(prevState.files);
+    if (curFiles.length < prevFiles.length) {
+      return true;
+    }
+    const newFilesSet = new Set(curFiles);
+    for (const oldFile of prevFiles) {
+      if (!newFilesSet.has(oldFile)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async #executeDependencies(): Promise<Array<[ScriptReference, ScriptState]>> {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
@@ -240,7 +274,7 @@ class ScriptExecution {
       )
     );
     const errors: unknown[] = [];
-    const results: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]> = [];
+    const results: Array<[ScriptReference, ScriptState]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -418,19 +452,13 @@ class ScriptExecution {
   /**
    * Save the current output files to the configured cache if possible.
    */
-  async #saveToCacheIfPossible(
-    cacheKeyStr: CacheKeyString | typeof UNCACHEABLE
-  ): Promise<void> {
-    if (
-      cacheKeyStr === UNCACHEABLE ||
-      this.#cache === undefined ||
-      this.#script.output === undefined
-    ) {
+  async #saveToCacheIfPossible(stateStr: ScriptStateString): Promise<void> {
+    if (this.#cache === undefined || this.#script.output === undefined) {
       return;
     }
     await this.#cache.set(
       this.#script,
-      cacheKeyStr,
+      stateStr,
       await this.#glob(
         [
           ...this.#script.output,
@@ -465,43 +493,21 @@ class ScriptExecution {
   }
 
   /**
-   * Generate the cache key for this script based on its current input files,
-   * and the cache keys of its dependencies.
-   *
-   * Returns the sentinel value {@link UNCACHEABLE} if this script, or any of
-   * this script's transitive dependencies, have undefined input files.
+   * Generate the state object for this script based on its current input files,
+   * and the state of its dependencies.
    */
-  async #getCacheKey(
-    dependencyCacheKeys: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
-  ): Promise<CacheKey | typeof UNCACHEABLE> {
-    if (
-      this.#script.files === undefined &&
-      this.#script.command !== undefined
-    ) {
-      // If files are undefined, then it's never safe for us to be cached,
-      // because we don't know what the inputs are, so we can't know if the
-      // output of this script could change.
-      //
-      // However, if the command is also undefined, then it actually _is_ safe
-      // to be cached, because the script isn't itself going to do anything
-      // anyway. In that case, the cache keys will be purely the cache keys of
-      // the dependencies.
-      return UNCACHEABLE;
-    }
-
-    const filteredDependencyCacheKeys: Array<
-      [ScriptReferenceString, CacheKey]
+  async #computeState(
+    dependencyStates: Array<[ScriptReference, ScriptState]>
+  ): Promise<ScriptState> {
+    let allDependenciesAreCacheable = true;
+    const filteredDependencyStates: Array<
+      [ScriptReferenceString, ScriptState]
     > = [];
-    for (const [dep, depCacheKey] of dependencyCacheKeys) {
-      if (depCacheKey === UNCACHEABLE) {
-        // If one of our dependencies is uncacheable, then we're uncacheable
-        // too, because that dependency could have an effect on our output.
-        return UNCACHEABLE;
+    for (const [dep, depState] of dependencyStates) {
+      if (!depState.cacheable) {
+        allDependenciesAreCacheable = false;
       }
-      filteredDependencyCacheKeys.push([
-        scriptReferenceToString(dep),
-        depCacheKey,
-      ]);
+      filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
@@ -531,7 +537,22 @@ class ScriptExecution {
       fileHashes = [];
     }
 
+    const cacheable =
+      // If command is undefined, then it's always safe to be cached, because
+      // the script isn't going to do anything anyway. In these cases, the state
+      // is essentially just the state of the dependencies.
+      this.#script.command === undefined ||
+      // Otherwise, If files are undefined, then it's not safe to be cached,
+      // because we don't know what the inputs are, so we can't know if the
+      // output of this script could change.
+      (this.#script.files !== undefined &&
+        // Similarly, if any of our dependencies are uncacheable, then we're
+        // uncacheable too, because that dependency could also have an effect on
+        // our output.
+        allDependenciesAreCacheable);
+
     return {
+      cacheable,
       command: this.#script.command,
       clean: this.#script.clean,
       files: Object.fromEntries(
@@ -539,7 +560,7 @@ class ScriptExecution {
       ),
       output: this.#script.output ?? [],
       dependencies: Object.fromEntries(
-        filteredDependencyCacheKeys.sort(([aRef], [bRef]) =>
+        filteredDependencyStates.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
         )
       ),
@@ -577,9 +598,9 @@ class ScriptExecution {
   /**
    * Read this script's ".wireit/<hex-script-name>/state" file.
    */
-  async #readStateFile(): Promise<CacheKeyString | undefined> {
+  async #readPreviousState(): Promise<ScriptStateString | undefined> {
     try {
-      return (await fs.readFile(this.#statePath, 'utf8')) as CacheKeyString;
+      return (await fs.readFile(this.#statePath, 'utf8')) as ScriptStateString;
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
         return undefined;
@@ -591,9 +612,9 @@ class ScriptExecution {
   /**
    * Write this script's ".wireit/<hex-script-name>/state" file.
    */
-  async #writeStateFile(cacheKeyStr: CacheKeyString): Promise<void> {
+  async #writeStateFile(stateStr: ScriptStateString): Promise<void> {
     await fs.mkdir(this.#dataDir, {recursive: true});
-    await fs.writeFile(this.#statePath, cacheKeyStr, 'utf8');
+    await fs.writeFile(this.#statePath, stateStr, 'utf8');
   }
 
   /**

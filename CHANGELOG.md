@@ -13,6 +13,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added `WIREIT_CACHE` environment variable, which controls caching behavior.
   Can be `local` or `none` to disable.
 
+- Added `if-file-deleted` option to the `clean` settings. In this mode,
+  `output` files are deleted if any of the input files have been deleted since
+  the last run.
+
 ### Changed
 
 - In watch mode, the terminal is now cleared at the start of each run, making it

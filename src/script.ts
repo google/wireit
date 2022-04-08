@@ -56,10 +56,14 @@ export interface ScriptConfig extends ScriptReference {
   output: string[] | undefined;
 
   /**
-   * Whether all files matching the output glob patterns should be deleted
-   * before the script executes.
+   * When to clean output:
+   *
+   * - true: Before the script executes, and before restoring from cache.
+   * - false: Before restoring from cache.
+   * - "if-file-deleted": If an input file has been deleted, and before restoring from
+   *   cache.
    */
-  clean: boolean;
+  clean: boolean | 'if-file-deleted';
 }
 
 /**
@@ -94,7 +98,18 @@ export type ScriptReferenceString = string & {
  * All meaningful input state of a script. Used for determining if a script is
  * fresh, and as the key for storing cached output.
  */
-export interface CacheKey {
+export interface ScriptState {
+  /**
+   * Whether the output for this script can be fresh or cached.
+   *
+   * True only if the "files" array was defined for this script, and for all of
+   * this script's transitive dependencies.
+   */
+  cacheable: boolean;
+
+  /**
+   * The shell command from the Wireit config.
+   */
   command: string | undefined;
 
   /**
@@ -104,7 +119,7 @@ export interface CacheKey {
    * could produce different output, so a re-run should be triggered even if
    * nothing else changed.
    */
-  clean: boolean;
+  clean: boolean | 'if-file-deleted';
 
   // Must be sorted.
   files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
@@ -123,19 +138,19 @@ export interface CacheKey {
   output: string[];
 
   // Must be sorted.
-  dependencies: {[dependency: ScriptReferenceString]: CacheKey};
+  dependencies: {[dependency: ScriptReferenceString]: ScriptState};
 }
 
 /**
- * String serialization of a {@link CacheKey}.
+ * String serialization of a {@link ScriptState}.
  */
-export type CacheKeyString = string & {
-  __CacheKeyStringBrand__: never;
+export type ScriptStateString = string & {
+  __ScriptStateStringBrand__: never;
 };
 
 /**
  * SHA256 hash hexadecimal digest of a file's content.
  */
 export type Sha256HexDigest = string & {
-  __Sha256HexDigest__: never;
+  __Sha256HexDigestBrand__: never;
 };
