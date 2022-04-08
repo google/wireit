@@ -419,22 +419,17 @@ to emit colorful stylized output even on non-interactive terminals.
 ```json
 {
   "scripts": {
-    "ts": "wireit",
+    "ts": "wireit"
   },
   "wireit": {
     "ts": {
       "command": "tsc --build --pretty",
       "clean": "if-file-deleted",
-      "files": [
-        "src/**/*.ts",
-        "tsconfig.json"
-      ],
-      "output": [
-        "lib/**",
-        ".tsbuildinfo"
-      ]
+      "files": ["src/**/*.ts", "tsconfig.json"],
+      "output": ["lib/**", ".tsbuildinfo"]
     }
   }
+}
 ```
 
 ## Reference
