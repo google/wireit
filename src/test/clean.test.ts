@@ -285,6 +285,7 @@ test(
       'package.json': {
         scripts: {
           a: 'wireit',
+          b: 'wireit',
         },
         wireit: {
           a: {
@@ -292,6 +293,19 @@ test(
             files: ['input/**'],
             output: ['output/**'],
             clean: 'if-file-deleted',
+            // Include a dependency on a script with no input files to cover an
+            // edge case that was broken in an earlier implementation.
+            //
+            // We use the ".wireit/<script>/state" file to find out which input
+            // files were present in the previous run, so that we can compare
+            // them to the current input files. However, in an earlier
+            // implementation we did not save a "state" file for scripts with a
+            // dependency that have no input files (because that makes the
+            // script "uncacheable").
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'true',
           },
         },
       },
@@ -405,76 +419,6 @@ test(
     }
 
     assert.equal(cmdA.numInvocations, 5);
-  })
-);
-
-test(
-  '"if-file-deleted" cleans only when input file deleted when dependency has no input files',
-  timeout(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-          b: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['input/**'],
-            output: ['output/**'],
-            clean: 'if-file-deleted',
-            dependencies: ['b'],
-          },
-          b: {
-            command: 'true',
-          },
-        },
-      },
-    });
-
-    // Initial run creates output A.
-    {
-      await rig.write({'input/a': 'v0'});
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // No outputs have been written yet.
-      assert.not(await rig.exists('output/a'));
-      assert.not(await rig.exists('output/b'));
-      assert.not(await rig.exists('output/c'));
-
-      // Write output A.
-      await rig.write({'output/a': 'v0'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-    }
-
-    // Add new input file. Don't clean. Creates output/b.
-    {
-      await rig.write({'input/b': 'v0'});
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // Output A should still exist.
-      assert.equal(await rig.read('output/a'), 'v0');
-      assert.not(await rig.exists('output/b'));
-      assert.not(await rig.exists('output/c'));
-
-      // Write outputs A and B.
-      await rig.write({'output/a': 'v1'});
-      await rig.write({'output/b': 'v1'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-    }
-
-    assert.equal(cmdA.numInvocations, 2);
   })
 );
 

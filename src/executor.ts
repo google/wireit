@@ -493,11 +493,8 @@ class ScriptExecution {
   }
 
   /**
-   * Generate the cache key for this script based on its current input files,
-   * and the cache keys of its dependencies.
-   *
-   * Returns the sentinel value {@link UNCACHEABLE} if this script, or any of
-   * this script's transitive dependencies, have undefined input files.
+   * Generate the state fobject or this script based on its current input files,
+   * and the state of its dependencies.
    */
   async #computeState(
     dependencyStates: Array<[ScriptReference, ScriptState]>
@@ -542,8 +539,8 @@ class ScriptExecution {
 
     const cacheable =
       // If command is undefined, then it's always safe to be cached, because
-      // the script isn't going to do anything anyway. In these cases, the cache
-      // keys are essentially just the cache keys of the dependencies.
+      // the script isn't going to do anything anyway. In these cases, the state
+      // is essentially just the state of the dependencies.
       this.#script.command === undefined ||
       // Otherwise, If files are undefined, then it's not safe to be cached,
       // because we don't know what the inputs are, so we can't know if the
