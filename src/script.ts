@@ -95,6 +95,17 @@ export type ScriptReferenceString = string & {
  * fresh, and as the key for storing cached output.
  */
 export interface ScriptState {
+  /**
+   * Whether the output for this script can be fresh or cached.
+   *
+   * True only if the "files" array was defined for this script, and for all of
+   * this script's transitive dependencies.
+   */
+  cacheable: boolean;
+
+  /**
+   * The shell command from the Wireit config.
+   */
   command: string | undefined;
 
   /**

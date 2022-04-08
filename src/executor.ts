@@ -29,13 +29,6 @@ import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
 
 /**
- * Unique symbol to represent a script that isn't safe to be cached, because its
- * input files, or the input files of one of its transitive dependencies, are
- * undefined.
- */
-const UNCACHEABLE = Symbol();
-
-/**
  * The PATH environment variable of this process, minus all of the leading
  * "node_modules/.bin" entries that the incoming "npm run" command already set.
  *
@@ -63,10 +56,7 @@ const IS_WINDOWS = process.platform === 'win32';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #executions = new Map<
-    string,
-    Promise<ScriptState | typeof UNCACHEABLE>
-  >();
+  readonly #executions = new Map<string, Promise<ScriptState>>();
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
@@ -81,9 +71,7 @@ export class Executor {
     this.#cache = cache;
   }
 
-  async execute(
-    script: ScriptConfig
-  ): Promise<ScriptState | typeof UNCACHEABLE> {
+  async execute(script: ScriptConfig): Promise<ScriptState> {
     const executionKey = scriptReferenceToString(script);
     let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
@@ -110,7 +98,7 @@ class ScriptExecution {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
-  ): Promise<ScriptState | typeof UNCACHEABLE> {
+  ): Promise<ScriptState> {
     return new ScriptExecution(
       script,
       executor,
@@ -140,15 +128,14 @@ class ScriptExecution {
     this.#logger = logger;
   }
 
-  async #execute(): Promise<ScriptState | typeof UNCACHEABLE> {
+  async #execute(): Promise<ScriptState> {
     const dependencyStates = await this.#executeDependencies();
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
     const state = await this.#computeState(dependencyStates);
-    let stateStr: ScriptStateString | typeof UNCACHEABLE;
-    if (state !== UNCACHEABLE) {
-      stateStr = JSON.stringify(state) as ScriptStateString;
+    const stateStr = JSON.stringify(state) as ScriptStateString;
+    if (state.cacheable) {
       const prevStateStr = await this.#readPreviousState();
       if (prevStateStr !== undefined && stateStr === prevStateStr) {
         // TODO(aomarks) Does not preserve original order of stdout vs stderr
@@ -164,8 +151,6 @@ class ScriptExecution {
         });
         return state;
       }
-    } else {
-      stateStr = UNCACHEABLE;
     }
 
     // It's important that we delete any previous state before running the
@@ -173,10 +158,9 @@ class ScriptExecution {
     // don't want to think that the previous state is still valid.
     await this.#prepareDataDir();
 
-    const cacheHit =
-      stateStr !== UNCACHEABLE
-        ? await this.#cache?.get(this.#script, stateStr)
-        : undefined;
+    const cacheHit = state.cacheable
+      ? await this.#cache?.get(this.#script, stateStr)
+      : undefined;
 
     // The "clean" setting controls whether we delete output before execution.
     //
@@ -211,22 +195,18 @@ class ScriptExecution {
       await this.#executeCommandIfNeeded();
     }
 
-    if (stateStr !== UNCACHEABLE) {
-      // TODO(aomarks) We don't technically need to wait for these to finish to
-      // return, we only need to wait in the top-level call to execute. The same
-      // will go for saving output to the cache.
-      await this.#writeStateFile(stateStr);
-      if (cacheHit === undefined) {
-        await this.#saveToCacheIfPossible(stateStr);
-      }
+    // TODO(aomarks) We don't technically need to wait for these to finish to
+    // return, we only need to wait in the top-level call to execute. The same
+    // will go for saving output to the cache.
+    await this.#writeStateFile(stateStr);
+    if (cacheHit === undefined && state.cacheable) {
+      await this.#saveToCacheIfPossible(stateStr);
     }
 
     return state;
   }
 
-  async #executeDependencies(): Promise<
-    Array<[ScriptReference, ScriptState | typeof UNCACHEABLE]>
-  > {
+  async #executeDependencies(): Promise<Array<[ScriptReference, ScriptState]>> {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
@@ -239,8 +219,7 @@ class ScriptExecution {
       )
     );
     const errors: unknown[] = [];
-    const results: Array<[ScriptReference, ScriptState | typeof UNCACHEABLE]> =
-      [];
+    const results: Array<[ScriptReference, ScriptState]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -418,14 +397,8 @@ class ScriptExecution {
   /**
    * Save the current output files to the configured cache if possible.
    */
-  async #saveToCacheIfPossible(
-    stateStr: ScriptStateString | typeof UNCACHEABLE
-  ): Promise<void> {
-    if (
-      stateStr === UNCACHEABLE ||
-      this.#cache === undefined ||
-      this.#script.output === undefined
-    ) {
+  async #saveToCacheIfPossible(stateStr: ScriptStateString): Promise<void> {
+    if (this.#cache === undefined || this.#script.output === undefined) {
       return;
     }
     await this.#cache.set(
@@ -472,31 +445,15 @@ class ScriptExecution {
    * this script's transitive dependencies, have undefined input files.
    */
   async #computeState(
-    dependencyStates: Array<[ScriptReference, ScriptState | typeof UNCACHEABLE]>
-  ): Promise<ScriptState | typeof UNCACHEABLE> {
-    if (
-      this.#script.files === undefined &&
-      this.#script.command !== undefined
-    ) {
-      // If files are undefined, then it's never safe for us to be cached,
-      // because we don't know what the inputs are, so we can't know if the
-      // output of this script could change.
-      //
-      // However, if the command is also undefined, then it actually _is_ safe
-      // to be cached, because the script isn't itself going to do anything
-      // anyway. In that case, the cache keys will be purely the cache keys of
-      // the dependencies.
-      return UNCACHEABLE;
-    }
-
+    dependencyStates: Array<[ScriptReference, ScriptState]>
+  ): Promise<ScriptState> {
+    let allDependenciesAreCacheable = true;
     const filteredDependencyStates: Array<
       [ScriptReferenceString, ScriptState]
     > = [];
     for (const [dep, depState] of dependencyStates) {
-      if (depState === UNCACHEABLE) {
-        // If one of our dependencies is uncacheable, then we're uncacheable
-        // too, because that dependency could have an effect on our output.
-        return UNCACHEABLE;
+      if (!depState.cacheable) {
+        allDependenciesAreCacheable = false;
       }
       filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
     }
@@ -528,7 +485,22 @@ class ScriptExecution {
       fileHashes = [];
     }
 
+    const cacheable =
+      // If command is undefined, then it's always safe to be cached, because
+      // the script isn't going to do anything anyway. In these cases, the cache
+      // keys are essentially just the cache keys of the dependencies.
+      this.#script.command === undefined ||
+      // Otherwise, If files are undefined, then it's not safe to be cached,
+      // because we don't know what the inputs are, so we can't know if the
+      // output of this script could change.
+      (this.#script.files !== undefined &&
+        // Similarly, if any of our dependencies are uncacheable, then we're
+        // uncacheable too, because that dependency could also have an effect on
+        // our output.
+        allDependenciesAreCacheable);
+
     return {
+      cacheable,
       command: this.#script.command,
       clean: this.#script.clean,
       files: Object.fromEntries(
