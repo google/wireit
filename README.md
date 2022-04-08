@@ -291,13 +291,15 @@ a script. This is helpful for ensuring that every build is clean and free from
 outdated files created in previous runs from source files that have since been
 removed.
 
-To enable output cleaning, configure the output files for each script by
-specifying the `wireit.<script>.output` array (see [caching](#caching) for
-example).
+Cleaning is enabled by default as long as the `output` array is declared (see
+[caching](#caching) for an example). To change this behavior, set the
+`wireit.<script>.clean` property to one of these values:
 
-To disable this behavior, set `<script>.clean` to `false`. You should only
-disable cleaning if you are certain that the script itself already takes care of
-removing outdated files from previous runs.
+| Setting             | Description                                                                                                                                                                                                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `true`              | Clean before every run (the default).                                                                                                                                                                                                                                                           |
+| `"if-file-deleted"` | Clean only if an input file has been deleted since the last run.<br><br>Use this option for tools that have incremental build support, but do not clean up outdated output when a source file has been deleted, such as `tsc --build` (see [TypeScript](#typescript) for more on this example.) |
+| `false`             | Do not clean.<br><br>Only use this option if you are certain that the script command itself already takes care of removing outdated files from previous runs.                                                                                                                                   |
 
 ## Watch mode
 
@@ -364,14 +366,14 @@ off this behavior entirely to improve your cache hit rate by setting
 The following properties can be set inside `wireit.<script>` objects in
 `package.json` files:
 
-| Property       | Type       | Default                 | Description                                                                                                 |
-| -------------- | ---------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `command`      | `string`   | `undefined`             | The shell command to run.                                                                                   |
-| `dependencies` | `string[]` | `undefined`             | [Scripts that must run before this one](#dependencies).                                                     |
-| `files`        | `string[]` | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [cache key](#cache-key).                  |
-| `output`       | `string[]` | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output). |
-| `clean`        | `boolean`  | `true`                  | [Delete output files before running](#cleaning-output).                                                     |
-| `packageLocks` | `string[]` | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                              |
+| Property       | Type                           | Default                 | Description                                                                                                 |
+| -------------- | ------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `command`      | `string`                       | `undefined`             | The shell command to run.                                                                                   |
+| `dependencies` | `string[]`                     | `undefined`             | [Scripts that must run before this one](#dependencies).                                                     |
+| `files`        | `string[]`                     | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [cache key](#cache-key).                  |
+| `output`       | `string[]`                     | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output). |
+| `clean`        | `boolean \| "if-file-deleted"` | `true`                  | [Delete output files before running](#cleaning-output).                                                     |
+| `packageLocks` | `string[]`                     | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                              |
 
 ### Dependency syntax
 
