@@ -268,7 +268,7 @@ test(
 );
 
 test(
-  'clean is not a boolean',
+  'clean is not a boolean or "if-file-deleted"',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {
@@ -289,7 +289,7 @@ test(
     assert.equal(
       done.stderr.trim(),
       `
-❌ [a] Invalid config: clean is not a boolean`.trim()
+❌ [a] Invalid config: clean must be true, false, or "if-file-deleted"`.trim()
     );
   })
 );

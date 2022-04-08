@@ -234,8 +234,18 @@ export class Analyzer {
       }
     }
 
-    if (wireitConfig?.clean !== undefined) {
-      assertBoolean(placeholder, wireitConfig.clean, 'clean');
+    if (
+      wireitConfig?.clean !== undefined &&
+      wireitConfig.clean !== true &&
+      wireitConfig.clean !== false &&
+      wireitConfig.clean !== 'if-file-deleted'
+    ) {
+      throw new WireitError({
+        script: placeholder,
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        message: `clean must be true, false, or "if-file-deleted"`,
+      });
     }
 
     if (wireitConfig?.packageLocks !== undefined) {
@@ -422,24 +432,6 @@ const assertString = (
       reason: 'invalid-config-syntax',
       script,
       message: `${name} is not a string`,
-    });
-  }
-};
-
-/**
- * Throw an error if the given value is not a boolean.
- */
-const assertBoolean = (
-  script: ScriptReference,
-  value: unknown,
-  name: string
-) => {
-  if (typeof value !== 'boolean') {
-    throw new WireitError({
-      type: 'failure',
-      reason: 'invalid-config-syntax',
-      script,
-      message: `${name} is not a boolean`,
     });
   }
 };

@@ -56,10 +56,14 @@ export interface ScriptConfig extends ScriptReference {
   output: string[] | undefined;
 
   /**
-   * Whether all files matching the output glob patterns should be deleted
-   * before the script executes.
+   * When to clean output:
+   *
+   * - true: Before the script executes, and before restoring from cache.
+   * - false: Before restoring from cache.
+   * - "if-file-deleted": If an input file has been deleted, and before restoring from
+   *   cache.
    */
-  clean: boolean;
+  clean: boolean | 'if-file-deleted';
 }
 
 /**
@@ -115,7 +119,7 @@ export interface ScriptState {
    * could produce different output, so a re-run should be triggered even if
    * nothing else changed.
    */
-  clean: boolean;
+  clean: boolean | 'if-file-deleted';
 
   // Must be sorted.
   files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
