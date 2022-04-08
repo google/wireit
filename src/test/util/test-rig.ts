@@ -26,6 +26,11 @@ export class WireitTestRig {
   readonly #activeChildProcesses = new Set<ExecResult>();
   readonly #commands: Array<WireitTestRigCommand> = [];
 
+  /**
+   * Environment variables to set on spawned child processes.
+   */
+  env: Record<string, string | undefined> = {};
+
   #assertState(expected: 'uninitialized' | 'running' | 'done') {
     if (this.#state !== expected) {
       throw new Error(
@@ -209,11 +214,10 @@ export class WireitTestRig {
    */
   exec(
     command: string,
-    opts?: {cwd?: string; env?: Record<string, string>}
+    opts?: {cwd?: string; env?: Record<string, string | undefined>}
   ): ExecResult {
     this.#assertState('running');
     const cwd = this.#resolve(opts?.cwd ?? '.');
-    const env = opts?.env ?? {};
     const result = new ExecResult(command, cwd, {
       // We hard code the parallelism here because by default we infer a value
       // based on the number of cores we find on the machine, but we want tests
@@ -222,7 +226,10 @@ export class WireitTestRig {
       // GitHub Actions sets CI=true, but we want our tests to act like they are
       // running locally by default, even when they are actually running on CI.
       CI: undefined,
-      ...env,
+      // Environment variables specific to this TestRig instance.
+      ...this.env,
+      // Environment variables specific to this test case.
+      ...(opts?.env ?? {}),
     });
     this.#activeChildProcesses.add(result);
     result.exit.finally(() => this.#activeChildProcesses.delete(result));
