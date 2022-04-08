@@ -493,7 +493,7 @@ class ScriptExecution {
   }
 
   /**
-   * Generate the state object or this script based on its current input files,
+   * Generate the state object for this script based on its current input files,
    * and the state of its dependencies.
    */
   async #computeState(
