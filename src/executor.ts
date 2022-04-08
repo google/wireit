@@ -20,8 +20,8 @@ import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-  CacheKey,
-  CacheKeyString,
+  ScriptState,
+  ScriptStateString,
   Sha256HexDigest,
 } from './script.js';
 import type {Logger} from './logging/logger.js';
@@ -65,7 +65,7 @@ const IS_WINDOWS = process.platform === 'win32';
 export class Executor {
   readonly #executions = new Map<
     string,
-    Promise<CacheKey | typeof UNCACHEABLE>
+    Promise<ScriptState | typeof UNCACHEABLE>
   >();
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
@@ -81,9 +81,11 @@ export class Executor {
     this.#cache = cache;
   }
 
-  async execute(script: ScriptConfig): Promise<CacheKey | typeof UNCACHEABLE> {
-    const cacheKey = scriptReferenceToString(script);
-    let promise = this.#executions.get(cacheKey);
+  async execute(
+    script: ScriptConfig
+  ): Promise<ScriptState | typeof UNCACHEABLE> {
+    const executionKey = scriptReferenceToString(script);
+    let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
       promise = ScriptExecution.execute(
         script,
@@ -92,7 +94,7 @@ export class Executor {
         this.#cache,
         this.#logger
       );
-      this.#executions.set(cacheKey, promise);
+      this.#executions.set(executionKey, promise);
     }
     return promise;
   }
@@ -108,7 +110,7 @@ class ScriptExecution {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
-  ): Promise<CacheKey | typeof UNCACHEABLE> {
+  ): Promise<ScriptState | typeof UNCACHEABLE> {
     return new ScriptExecution(
       script,
       executor,
@@ -138,20 +140,17 @@ class ScriptExecution {
     this.#logger = logger;
   }
 
-  async #execute(): Promise<CacheKey | typeof UNCACHEABLE> {
-    const dependencyCacheKeys = await this.#executeDependencies();
+  async #execute(): Promise<ScriptState | typeof UNCACHEABLE> {
+    const dependencyStates = await this.#executeDependencies();
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const cacheKey = await this.#getCacheKey(dependencyCacheKeys);
-    let cacheKeyStr: CacheKeyString | typeof UNCACHEABLE;
-    if (cacheKey !== UNCACHEABLE) {
-      cacheKeyStr = JSON.stringify(cacheKey) as CacheKeyString;
-      const previousCacheKeyStr = await this.#readStateFile();
-      if (
-        previousCacheKeyStr !== undefined &&
-        cacheKeyStr === previousCacheKeyStr
-      ) {
+    const state = await this.#computeState(dependencyStates);
+    let stateStr: ScriptStateString | typeof UNCACHEABLE;
+    if (state !== UNCACHEABLE) {
+      stateStr = JSON.stringify(state) as ScriptStateString;
+      const prevStateStr = await this.#readPreviousState();
+      if (prevStateStr !== undefined && stateStr === prevStateStr) {
         // TODO(aomarks) Does not preserve original order of stdout vs stderr
         // chunks. See https://github.com/google/wireit/issues/74.
         await Promise.all([
@@ -163,10 +162,10 @@ class ScriptExecution {
           type: 'success',
           reason: 'fresh',
         });
-        return cacheKey;
+        return state;
       }
     } else {
-      cacheKeyStr = UNCACHEABLE;
+      stateStr = UNCACHEABLE;
     }
 
     // It's important that we delete any previous state before running the
@@ -175,8 +174,8 @@ class ScriptExecution {
     await this.#prepareDataDir();
 
     const cacheHit =
-      cacheKeyStr !== UNCACHEABLE
-        ? await this.#cache?.get(this.#script, cacheKeyStr)
+      stateStr !== UNCACHEABLE
+        ? await this.#cache?.get(this.#script, stateStr)
         : undefined;
 
     // The "clean" setting controls whether we delete output before execution.
@@ -212,21 +211,21 @@ class ScriptExecution {
       await this.#executeCommandIfNeeded();
     }
 
-    if (cacheKeyStr !== UNCACHEABLE) {
+    if (stateStr !== UNCACHEABLE) {
       // TODO(aomarks) We don't technically need to wait for these to finish to
       // return, we only need to wait in the top-level call to execute. The same
       // will go for saving output to the cache.
-      await this.#writeStateFile(cacheKeyStr);
+      await this.#writeStateFile(stateStr);
       if (cacheHit === undefined) {
-        await this.#saveToCacheIfPossible(cacheKeyStr);
+        await this.#saveToCacheIfPossible(stateStr);
       }
     }
 
-    return cacheKey;
+    return state;
   }
 
   async #executeDependencies(): Promise<
-    Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
+    Array<[ScriptReference, ScriptState | typeof UNCACHEABLE]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
@@ -240,7 +239,8 @@ class ScriptExecution {
       )
     );
     const errors: unknown[] = [];
-    const results: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]> = [];
+    const results: Array<[ScriptReference, ScriptState | typeof UNCACHEABLE]> =
+      [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -419,10 +419,10 @@ class ScriptExecution {
    * Save the current output files to the configured cache if possible.
    */
   async #saveToCacheIfPossible(
-    cacheKeyStr: CacheKeyString | typeof UNCACHEABLE
+    stateStr: ScriptStateString | typeof UNCACHEABLE
   ): Promise<void> {
     if (
-      cacheKeyStr === UNCACHEABLE ||
+      stateStr === UNCACHEABLE ||
       this.#cache === undefined ||
       this.#script.output === undefined
     ) {
@@ -430,7 +430,7 @@ class ScriptExecution {
     }
     await this.#cache.set(
       this.#script,
-      cacheKeyStr,
+      stateStr,
       await this.#glob(
         [
           ...this.#script.output,
@@ -471,9 +471,9 @@ class ScriptExecution {
    * Returns the sentinel value {@link UNCACHEABLE} if this script, or any of
    * this script's transitive dependencies, have undefined input files.
    */
-  async #getCacheKey(
-    dependencyCacheKeys: Array<[ScriptReference, CacheKey | typeof UNCACHEABLE]>
-  ): Promise<CacheKey | typeof UNCACHEABLE> {
+  async #computeState(
+    dependencyStates: Array<[ScriptReference, ScriptState | typeof UNCACHEABLE]>
+  ): Promise<ScriptState | typeof UNCACHEABLE> {
     if (
       this.#script.files === undefined &&
       this.#script.command !== undefined
@@ -489,19 +489,16 @@ class ScriptExecution {
       return UNCACHEABLE;
     }
 
-    const filteredDependencyCacheKeys: Array<
-      [ScriptReferenceString, CacheKey]
+    const filteredDependencyStates: Array<
+      [ScriptReferenceString, ScriptState]
     > = [];
-    for (const [dep, depCacheKey] of dependencyCacheKeys) {
-      if (depCacheKey === UNCACHEABLE) {
+    for (const [dep, depState] of dependencyStates) {
+      if (depState === UNCACHEABLE) {
         // If one of our dependencies is uncacheable, then we're uncacheable
         // too, because that dependency could have an effect on our output.
         return UNCACHEABLE;
       }
-      filteredDependencyCacheKeys.push([
-        scriptReferenceToString(dep),
-        depCacheKey,
-      ]);
+      filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
@@ -539,7 +536,7 @@ class ScriptExecution {
       ),
       output: this.#script.output ?? [],
       dependencies: Object.fromEntries(
-        filteredDependencyCacheKeys.sort(([aRef], [bRef]) =>
+        filteredDependencyStates.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
         )
       ),
@@ -577,9 +574,9 @@ class ScriptExecution {
   /**
    * Read this script's ".wireit/<hex-script-name>/state" file.
    */
-  async #readStateFile(): Promise<CacheKeyString | undefined> {
+  async #readPreviousState(): Promise<ScriptStateString | undefined> {
     try {
-      return (await fs.readFile(this.#statePath, 'utf8')) as CacheKeyString;
+      return (await fs.readFile(this.#statePath, 'utf8')) as ScriptStateString;
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
         return undefined;
@@ -591,9 +588,9 @@ class ScriptExecution {
   /**
    * Write this script's ".wireit/<hex-script-name>/state" file.
    */
-  async #writeStateFile(cacheKeyStr: CacheKeyString): Promise<void> {
+  async #writeStateFile(stateStr: ScriptStateString): Promise<void> {
     await fs.mkdir(this.#dataDir, {recursive: true});
-    await fs.writeFile(this.#statePath, cacheKeyStr, 'utf8');
+    await fs.writeFile(this.#statePath, stateStr, 'utf8');
   }
 
   /**

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {CacheKeyString, ScriptReference} from '../script.js';
+import type {ScriptStateString, ScriptReference} from '../script.js';
 
 /**
  * Saves and restores output files to some cache store (e.g. local disk or
@@ -23,7 +23,7 @@ export interface Cache {
    */
   get(
     script: ScriptReference,
-    cacheKey: CacheKeyString
+    cacheKey: ScriptStateString
   ): Promise<CacheHit | undefined>;
 
   /**
@@ -37,7 +37,7 @@ export interface Cache {
    */
   set(
     script: ScriptReference,
-    cacheKey: CacheKeyString,
+    cacheKey: ScriptStateString,
     relativeFilePaths: string[]
   ): Promise<void>;
 }

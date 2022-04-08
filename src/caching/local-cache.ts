@@ -11,7 +11,7 @@ import {getScriptDataDir} from '../util/script-data-dir.js';
 import {optimizeCopies, optimizeMkdirs} from '../util/optimize-fs-ops.js';
 
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference, CacheKeyString} from '../script.js';
+import type {ScriptReference, ScriptStateString} from '../script.js';
 
 /**
  * Caches script output to each package's
@@ -20,7 +20,7 @@ import type {ScriptReference, CacheKeyString} from '../script.js';
 export class LocalCache implements Cache {
   async get(
     script: ScriptReference,
-    cacheKey: CacheKeyString
+    cacheKey: ScriptStateString
   ): Promise<CacheHit | undefined> {
     const cacheDir = this.#getCacheDir(script, cacheKey);
     try {
@@ -36,7 +36,7 @@ export class LocalCache implements Cache {
 
   async set(
     script: ScriptReference,
-    cacheKey: CacheKeyString,
+    cacheKey: ScriptStateString,
     relativeFiles: string[]
   ): Promise<void> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
@@ -86,7 +86,7 @@ export class LocalCache implements Cache {
     );
   }
 
-  #getCacheDir(script: ScriptReference, cacheKey: CacheKeyString): string {
+  #getCacheDir(script: ScriptReference, cacheKey: ScriptStateString): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',

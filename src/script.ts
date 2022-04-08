@@ -94,7 +94,7 @@ export type ScriptReferenceString = string & {
  * All meaningful input state of a script. Used for determining if a script is
  * fresh, and as the key for storing cached output.
  */
-export interface CacheKey {
+export interface ScriptState {
   command: string | undefined;
 
   /**
@@ -123,19 +123,19 @@ export interface CacheKey {
   output: string[];
 
   // Must be sorted.
-  dependencies: {[dependency: ScriptReferenceString]: CacheKey};
+  dependencies: {[dependency: ScriptReferenceString]: ScriptState};
 }
 
 /**
- * String serialization of a {@link CacheKey}.
+ * String serialization of a {@link ScriptState}.
  */
-export type CacheKeyString = string & {
-  __CacheKeyStringBrand__: never;
+export type ScriptStateString = string & {
+  __ScriptStateStringBrand__: never;
 };
 
 /**
  * SHA256 hash hexadecimal digest of a file's content.
  */
 export type Sha256HexDigest = string & {
-  __Sha256HexDigest__: never;
+  __Sha256HexDigestBrand__: never;
 };
