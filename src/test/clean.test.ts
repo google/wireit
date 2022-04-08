@@ -277,4 +277,205 @@ test(
   })
 );
 
+test(
+  '"if-file-deleted" cleans only when input file deleted',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input/**'],
+            output: ['output/**'],
+            clean: 'if-file-deleted',
+          },
+        },
+      },
+    });
+
+    // Initial run creates output A.
+    {
+      await rig.write({'input/a': 'v0'});
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // No outputs have been written yet.
+      assert.not(await rig.exists('output/a'));
+      assert.not(await rig.exists('output/b'));
+      assert.not(await rig.exists('output/c'));
+
+      // Write output A.
+      await rig.write({'output/a': 'v0'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    // Add new input file. Don't clean. Creates output/b.
+    {
+      await rig.write({'input/b': 'v0'});
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // Output A should still exist.
+      assert.equal(await rig.read('output/a'), 'v0');
+      assert.not(await rig.exists('output/b'));
+      assert.not(await rig.exists('output/c'));
+
+      // Write outputs A and B.
+      await rig.write({'output/a': 'v1'});
+      await rig.write({'output/b': 'v1'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    // Modify input file. Don't clean.
+    {
+      await rig.write({'input/a': 'v1'});
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // Outputs A and B should still exist.
+      assert.equal(await rig.read('output/a'), 'v1');
+      assert.equal(await rig.read('output/b'), 'v1');
+      assert.not(await rig.exists('output/c'));
+
+      // Write outputs A and B
+      await rig.write({'output/a': 'v2'});
+      await rig.write({'output/b': 'v2'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 3);
+    }
+
+    // Delete input file. Clean. (This covers the case where the number of input
+    // files is lower).
+    {
+      await rig.delete('input/a');
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // Outputs A and B should have been cleaned.
+      assert.not(await rig.exists('output/a'));
+      assert.not(await rig.exists('output/b'));
+      assert.not(await rig.exists('output/c'));
+
+      // Write output B.
+      await rig.write({'output/b': 'v3'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    // Delete an input file, and also add an input file. Clean. (This covers the
+    // case where the number of input files are the same, but they are
+    // different.)
+    {
+      await rig.delete('input/b');
+      await rig.write({'input/c': 'v0'});
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // Output B should have been cleaned.
+      assert.not(await rig.exists('output/a'));
+      assert.not(await rig.exists('output/b'));
+      assert.not(await rig.exists('output/c'));
+
+      // Write output C.
+      await rig.write({'output/c': 'v0'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    assert.equal(cmdA.numInvocations, 5);
+  })
+);
+
+test(
+  '"if-file-deleted" cleans only when input file deleted when dependency has no input files',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input/**'],
+            output: ['output/**'],
+            clean: 'if-file-deleted',
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'true',
+          },
+        },
+      },
+    });
+
+    // Initial run creates output A.
+    {
+      await rig.write({'input/a': 'v0'});
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // No outputs have been written yet.
+      assert.not(await rig.exists('output/a'));
+      assert.not(await rig.exists('output/b'));
+      assert.not(await rig.exists('output/c'));
+
+      // Write output A.
+      await rig.write({'output/a': 'v0'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    // Add new input file. Don't clean. Creates output/b.
+    {
+      await rig.write({'input/b': 'v0'});
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // Output A should still exist.
+      assert.equal(await rig.read('output/a'), 'v0');
+      assert.not(await rig.exists('output/b'));
+      assert.not(await rig.exists('output/c'));
+
+      // Write outputs A and B.
+      await rig.write({'output/a': 'v1'});
+      await rig.write({'output/b': 'v1'});
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
 test.run();

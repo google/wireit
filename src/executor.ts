@@ -15,6 +15,7 @@ import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {getScriptDataDir} from './util/script-data-dir.js';
+import {unreachable} from './util/unreachable.js';
 
 import type {
   ScriptConfig,
@@ -135,22 +136,24 @@ class ScriptExecution {
     // script, which would affect the key.
     const state = await this.#computeState(dependencyStates);
     const stateStr = JSON.stringify(state) as ScriptStateString;
-    if (state.cacheable) {
-      const prevStateStr = await this.#readPreviousState();
-      if (prevStateStr !== undefined && stateStr === prevStateStr) {
-        // TODO(aomarks) Does not preserve original order of stdout vs stderr
-        // chunks. See https://github.com/google/wireit/issues/74.
-        await Promise.all([
-          this.#replayStdoutIfPresent(),
-          this.#replayStderrIfPresent(),
-        ]);
-        this.#logger.log({
-          script: this.#script,
-          type: 'success',
-          reason: 'fresh',
-        });
-        return state;
-      }
+    const prevStateStr = await this.#readPreviousState();
+    if (
+      state.cacheable &&
+      prevStateStr !== undefined &&
+      prevStateStr === stateStr
+    ) {
+      // TODO(aomarks) Does not preserve original order of stdout vs stderr
+      // chunks. See https://github.com/google/wireit/issues/74.
+      await Promise.all([
+        this.#replayStdoutIfPresent(),
+        this.#replayStderrIfPresent(),
+      ]);
+      this.#logger.log({
+        script: this.#script,
+        type: 'success',
+        reason: 'fresh',
+      });
+      return state;
     }
 
     // It's important that we delete any previous state before running the
@@ -162,17 +165,47 @@ class ScriptExecution {
       ? await this.#cache?.get(this.#script, stateStr)
       : undefined;
 
-    // The "clean" setting controls whether we delete output before execution.
-    //
-    // However, if we are restoring from cache, we should always delete existing
-    // output, regardless of the "clean" setting. The purpose of the "clean"
-    // setting is to allow tools that are smart about cleaning up their own
-    // previous output to work more efficiently, but that only applies when the
-    // tool is able to observe each incremental change to the input files. When
-    // we restore from cache, we are directly replacing the output files, and
-    // not invoking the tool at all, so there is no way for the tool to do any
-    // cleanup.
-    if (this.#script.clean || cacheHit !== undefined) {
+    const shouldClean = (() => {
+      if (cacheHit !== undefined) {
+        // If we are restoring from cache, we should always delete existing
+        // output. The purpose of "clean:false" and "clean:if-file-deleted" is to
+        // allow tools with incremental build (like tsc --build) to work.
+        //
+        // However, this only applies when the tool is able to observe each
+        // incremental change to the input files. When we restore from cache, we
+        // are directly replacing the output files, and not invoking the tool at
+        // all, so there is no way for the tool to do any cleanup.
+        return true;
+      }
+      switch (this.#script.clean) {
+        case true: {
+          return true;
+        }
+        case false: {
+          return false;
+        }
+        case 'if-file-deleted': {
+          if (prevStateStr === undefined) {
+            // If we don't know the previous state, then we can't know whether
+            // any input files were removed. It's safer to err on the side of
+            // cleaning.
+            return true;
+          }
+          return this.#anyInputFilesDeletedSinceLastRun(
+            state,
+            JSON.parse(prevStateStr) as ScriptState
+          );
+        }
+        default: {
+          throw new Error(
+            `Unhandled clean setting: ${
+              unreachable(this.#script.clean) as string
+            }`
+          );
+        }
+      }
+    })();
+    if (shouldClean) {
       await this.#cleanOutput();
     }
 
@@ -204,6 +237,28 @@ class ScriptExecution {
     }
 
     return state;
+  }
+
+  /**
+   * Compares the current set of input file names to the previous set of input
+   * file names, and returns whether any files have been removed.
+   */
+  #anyInputFilesDeletedSinceLastRun(
+    curState: ScriptState,
+    prevState: ScriptState
+  ): boolean {
+    const curFiles = Object.keys(curState.files);
+    const prevFiles = Object.keys(prevState.files);
+    if (curFiles.length < prevFiles.length) {
+      return true;
+    }
+    const newFilesSet = new Set(curFiles);
+    for (const oldFile of prevFiles) {
+      if (!newFilesSet.has(oldFile)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async #executeDependencies(): Promise<Array<[ScriptReference, ScriptState]>> {
