@@ -4,36 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
 
-const test = suite<{rig: WireitTestRig}>();
+import type {Test} from 'uvu';
+import type {WireitTestRig} from './util/test-rig.js';
 
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
-
+/**
+ * Registers test cases that are common to all cache implementations.
+ */
+export const registerCommonCacheTests = (
+  test: Test<{rig: WireitTestRig}>,
+  cacheMode: 'local' | 'github'
+) => {
   test(
     'caches single file',
     timeout(async ({rig}) => {
@@ -455,7 +438,7 @@ test.after.each(async (ctx) => {
   );
 
   test(
-    'replays stdout when restored from local cache',
+    'replays stdout when restored from cache',
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
@@ -512,7 +495,7 @@ test.after.each(async (ctx) => {
   );
 
   test(
-    'replays stderr when restored from local cache',
+    'replays stderr when restored from cache',
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
@@ -650,7 +633,9 @@ test.after.each(async (ctx) => {
 
       // Initial run with input v0.
       {
-        const exec = rig.exec('npm run a', {env: {CI: 'true'}});
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: undefined},
+        });
         const inv = await cmdA.nextInvocation();
         await rig.write({output: 'v0'});
         inv.exit(0);
@@ -663,7 +648,9 @@ test.after.each(async (ctx) => {
       // Input changed to v1. Run again.
       {
         await rig.write({input: 'v1'});
-        const exec = rig.exec('npm run a', {env: {CI: 'true'}});
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: undefined},
+        });
         const inv = await cmdA.nextInvocation();
         await rig.write({output: 'v1'});
         inv.exit(0);
@@ -676,7 +663,9 @@ test.after.each(async (ctx) => {
       // Input changed back to v0. Output should NOT be cached.
       {
         await rig.write({input: 'v0'});
-        const exec = rig.exec('npm run a', {env: {CI: 'true'}});
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: undefined},
+        });
         const inv = await cmdA.nextInvocation();
         await rig.write({output: 'v0'});
         inv.exit(0);
@@ -689,7 +678,7 @@ test.after.each(async (ctx) => {
   );
 
   test(
-    'caches when CI=true and WIREIT_CACHE=local',
+    `caches when CI=true and WIREIT_CACHE=${cacheMode}`,
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
@@ -710,7 +699,9 @@ test.after.each(async (ctx) => {
 
       // Initial run with input v0.
       {
-        const exec = rig.exec('npm run a');
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: cacheMode},
+        });
         const inv = await cmdA.nextInvocation();
         await rig.write({output: 'v0'});
         inv.exit(0);
@@ -723,7 +714,9 @@ test.after.each(async (ctx) => {
       // Input changed to v1. Run again.
       {
         await rig.write({input: 'v1'});
-        const exec = rig.exec('npm run a');
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: cacheMode},
+        });
         const inv = await cmdA.nextInvocation();
         await rig.write({output: 'v1'});
         inv.exit(0);
@@ -736,7 +729,9 @@ test.after.each(async (ctx) => {
       // Input changed back to v0. Output should be cached.
       {
         await rig.write({input: 'v0'});
-        const exec = rig.exec('npm run a');
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: cacheMode},
+        });
         const res = await exec.exit;
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
@@ -746,7 +741,9 @@ test.after.each(async (ctx) => {
       // Input changed back to v1. Output should be cached.
       {
         await rig.write({input: 'v1'});
-        const exec = rig.exec('npm run a');
+        const exec = rig.exec('npm run a', {
+          env: {CI: 'true', WIREIT_CACHE: cacheMode},
+        });
         const res = await exec.exit;
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
@@ -754,5 +751,4 @@ test.after.each(async (ctx) => {
       }
     })
   );
-
-test.run();
+};
