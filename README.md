@@ -497,6 +497,9 @@ cache](#caching).
 - The SHA256 content hashes of all files matching `files`.
 - The SHA256 content hashes of all files matching `packageLocks` in the current
   package and all parent directories.
+- The system platform (e.g. `linux`, `win32`).
+- The system CPU architecture (e.g. `x64`).
+- The system Node version (e.g. `16.7.0`).
 - The cache key of all transitive dependencies.
 
 ## Requirements
