@@ -27,8 +27,10 @@
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
 - [Parallelism](#parallelism)
+- [Input and output files](#input-and-output-files)
 - [Incremental build](#incremental-build)
 - [Caching](#caching)
+  - [Local caching](#local-caching)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
 - [Package locks](#package-locks)
@@ -171,74 +173,34 @@ graph TD
 
 By default, Wireit will run up to 4 scripts in parallel for every CPU core
 detected on your system. To change this default, set the `WIREIT_PARALLEL`
-[environment variable](#environment-variables) to a positive integer, or `infinity` to run without a
-limit. You may want to lower this number if you experience resource starvation
-in large builds. For example, to run only one script at a time:
+[environment variable](#environment-variables) to a positive integer, or
+`infinity` to run without a limit. You may want to lower this number if you
+experience resource starvation in large builds. For example, to run only one
+script at a time:
 
 ```sh
 export WIREIT_PARALLEL=1
 npm run build
 ```
 
-## Incremental build
+## Input and output files
 
-Wireit can automatically skip execution of a script if nothing has changed that
-would cause it to produce different output since the last time it ran. This is
-called _incremental build_. When a script is skipped, any `stdout` or `stderr`
-that it produced in the previous run is replayed.
+The `files` and `output` properties of `wireit.<script>` tell Wireit what your
+script's input and output files are, respectively. They should be arrays of
+[glob patterns](#glob-patterns), where paths are interpreted relative to the
+package directory. They can be set on some, all, or none of your scripts.
 
-To enable incremental build, configure the input files for each script by
-specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list:
+Setting these properties allow you to use more features of Wireit:
 
-```json
-{
-  "scripts": {
-    "build": "wireit",
-    "bundle": "wireit"
-  },
-  "wireit": {
-    "build": {
-      "command": "tsc",
-      "files": ["src/**/*.ts", "tsconfig.json"]
-    },
-    "bundle": {
-      "command": "rollup -c",
-      "dependencies": ["build"],
-      "files": ["rollup.config.json"]
-    }
-  }
-}
-```
+|                                             | Requires<br>`files` | Requires<br>`output` |
+| ------------------------------------------: | :-----------------: | :------------------: |
+|       [**Dependency graph**](#dependencies) |          -          |          -           |
+| [**Incremental build**](#incremental-build) |         ☑️          |          -           |
+|               [**Watch mode**](#watch-mode) |         ☑️          |          -           |
+|         [**Clean build**](#cleaning-output) |          -          |          ☑️          |
+|                     [**Caching**](#caching) |         ☑️          |          ☑️          |
 
-Now when you run `npm run bundle`:
-
-- The `tsc` command is skipped if no changes are detected in the `.ts` or
-  `tsconfig.json` files.
-- The `rollup` command is skipped if no changes are detected in the
-  `rollup.config.json` file, and if no changes were detected in the input files
-  to `tsc`.
-
-Notes:
-
-- If a script doesn't have a `files` list defined at all, then it will _always_
-  run, because Wireit doesn't know which files to check for changes. To tell
-  Wireit it is safe to skip execution of a script that definitely has no input
-  files, set `files` to an empty array (`files: []`).
-
-- In addition to the `files` list, the following also determine whether a script
-  will be skipped or not:
-  - The `command` must not have changed.
-  - The `files` of all transitive dependencies must not have changed.
-  - All transitive dependencies must have `files` defined (can be empty).
-
-## Caching
-
-If a script has previously succeeded with the same configuration and input
-files, then Wireit can copy the output from a cache, instead of running the
-command.
-
-To enable caching, configure the output files for each script by specifying
-[glob patterns](#glob-patterns) in the `wireit.<script>.output` list:
+#### Example configuration
 
 ```json
 {
@@ -262,29 +224,58 @@ To enable caching, configure the output files for each script by specifying
 }
 ```
 
-Caching is enabled by default, unless Wireit detects that you are running in CI
-(continuous integration) by checking whether the `CI` [environment
-variable](#environment-variables) is `true`, in which case it is disabled.
+## Incremental build
 
-To disable caching manually, set the `WIREIT_CACHE` environment variable to
-`none`:
+Wireit can automatically skip execution of a script if nothing has changed that
+would cause it to produce different output since the last time it ran. This is
+called _incremental build_. When a script is skipped, any `stdout` or `stderr`
+that it produced in the previous run is replayed.
 
-```sh
-export WIREIT_CACHE=none
-npm run build
-```
+To enable incremental build, configure the input files for each script by
+specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list:
 
 Notes:
 
-- In order to be cached, both a `files` array _and_ an `output` array must be
-  defined. See [incremental build](#incremental-build) for details about the
-  `files` array.
+- If a script doesn't have a `files` list defined at all, then it will _always_
+  run, because Wireit doesn't know which files to check for changes. To tell
+  Wireit it is safe to skip execution of a script that definitely has no input
+  files, set `files` to an empty array (`files: []`).
 
-- If a script doesn't have a `output` list defined at all, then it will never be
-  cached, because Wireit doesn't know which files to save to the cache. To tell
-  Wireit it is safe to store a cache entry even when there are no output files,
-  set `output` to an empty array (`output: []`). An empty `output` array is
-  especially useful for tests.
+- In addition to the `files` list, the following also determine whether a script
+  will be skipped or not:
+  - The `command` must not have changed.
+  - The `files` of all transitive dependencies must not have changed.
+  - All transitive dependencies must have `files` defined (can be empty).
+
+## Caching
+
+If a script has previously succeeded with the same configuration and input
+files, then Wireit can copy the output from a cache, instead of running the
+command. This can significantly improve build and test time. When a script is
+restored from cache, any `stdout` or `stderr` is replayed.
+
+To enable caching for a script, ensure you have defined both the [`files` and
+`output`](#input-and-output-files) arrays.
+
+> ℹ️ If a script doesn't produce any output files, it can still be cached by
+> setting `output` to an empty array (`"output": []`). Empty output is common for
+> tests, and is useful because it allows you to skip running tests if they
+> previously passed with the exact same inputs.
+
+### Local caching
+
+In _local_ mode, Wireit caches `output` files to the `.wireit` folder inside
+each of your packages.
+
+Local caching is enabled by default, unless the
+[`CI=true`](https://docs.github.com/en/enterprise-cloud@latest/actions/learn-github-actions/environment-variables#default-environment-variables)
+environment variable is detected. To force local caching, set
+`WIREIT_CACHE=local`. To disable local caching, set `WIREIT_CACHE=none`.
+
+> ⚠️ Wireit does not currently limit the size of local caches. To free up this
+> space, use `rm -rf .wireit/*/cache`. Automatic cache size limits will be added
+> in an upcoming release, tracked at
+> [wireit#71](https://github.com/google/wireit/issues/71).
 
 ## Cleaning output
 
@@ -293,9 +284,9 @@ a script. This is helpful for ensuring that every build is clean and free from
 outdated files created in previous runs from source files that have since been
 removed.
 
-Cleaning is enabled by default as long as the `output` array is declared (see
-[caching](#caching) for an example). To change this behavior, set the
-`wireit.<script>.clean` property to one of these values:
+Cleaning is enabled by default as long as the
+[`output`](#input-and-output-files) array is defined. To change this behavior,
+set the `wireit.<script>.clean` property to one of these values:
 
 | Setting             | Description                                                                                                                                                                                                                                                                                     |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -307,7 +298,9 @@ Cleaning is enabled by default as long as the `output` array is declared (see
 
 In _watch_ mode, Wireit monitors all `files` of a script, and all `files` of its
 transitive dependencies, and when there is a change, it re-runs only the
-affected scripts. To enable watch mode, add the `watch` argument:
+affected scripts. To enable watch mode, ensure that the
+[`files`](#input-and-output-files) array is defined, and add the `watch`
+argument:
 
 ```sh
 npm run <script> watch
@@ -464,7 +457,7 @@ The following environment variables affect the behavior of Wireit:
 | Variable          | Description                                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                 |
-| `WIREIT_CACHE`    | [Caching strategy](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Options:<ul><li>`local`: Cache to local disk.</li><li>`none`: Disable caching.</li></ul>                                                                                                                                         |
+| `WIREIT_CACHE`    | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>`none`: Disable caching.</li></ul>                                                                                                                           |
 | `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`. |
 
 ### Glob patterns
