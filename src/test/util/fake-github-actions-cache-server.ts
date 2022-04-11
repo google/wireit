@@ -31,7 +31,7 @@ type KeyAndVersion = string & {
 interface CacheEntry {
   chunks: Buffer[];
   commited: boolean;
-  tarballId: string;
+  tarballId: TarballId;
 }
 
 const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
