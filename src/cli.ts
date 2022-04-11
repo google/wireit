@@ -21,7 +21,7 @@ interface Options {
   script: ScriptReference;
   watch: boolean;
   numWorkers: number;
-  cache: 'local' | 'none';
+  cache: 'local' | 'github' | 'none';
 }
 
 const getOptions = (): Options => {
@@ -82,21 +82,22 @@ const getOptions = (): Options => {
       // [1] https://docs.travis-ci.com/user/environment-variables/#default-environment-variables
       //
       // If we're on CI, we don't want "local" caching, because anything we
-      // store locally will be lost when the VM shuts down. We also don't want
-      // "github", because (even if we also detected that we're specifically on
-      // GitHub) we should be cautious about using up storage quota, and instead
-      // require opt-in via WIREIT_CACHE=github.
+      // store locally will be lost when the VM shuts down.
+      //
+      // We also don't want "github", because (even if we also detected that
+      // we're specifically on GitHub) we should be cautious about using up
+      // storage quota, and instead require opt-in via WIREIT_CACHE=github.
       const ci = process.env['CI'] === 'true';
       return ci ? 'none' : 'local';
     }
-    if (str === 'local' || str === 'none') {
+    if (str === 'local' || str === 'github' || str === 'none') {
       return str;
     }
     throw new WireitError({
       reason: 'invalid-usage',
       message:
         `Expected the WIREIT_CACHE env variable to be ` +
-        `"local" or "none", got ${JSON.stringify(str)}`,
+        `"local", "github", or "none", got ${JSON.stringify(str)}`,
       script,
       type: 'failure',
     });
@@ -121,6 +122,28 @@ const run = async () => {
       // Import dynamically so that we import fewer unnecessary modules.
       const {LocalCache} = await import('./caching/local-cache.js');
       cache = new LocalCache();
+      break;
+    }
+    case 'github': {
+      const {GitHubActionsCache, GitHubActionsCacheError} = await import(
+        './caching/github-actions-cache.js'
+      );
+      try {
+        cache = new GitHubActionsCache();
+      } catch (error) {
+        if (
+          error instanceof GitHubActionsCacheError &&
+          error.reason === 'invalid-usage'
+        ) {
+          throw new WireitError({
+            script: options.script,
+            type: 'failure',
+            reason: 'invalid-usage',
+            message: error.message,
+          });
+        }
+        throw error;
+      }
       break;
     }
     case 'none': {
