@@ -11,7 +11,7 @@
 - ⛓️ Automatically run dependencies between npm scripts in parallel
 - 👀 Watch any script and continuously re-run on changes
 - 🥬 Skip scripts that are already fresh
-- ♻️ Cache output locally and (**Coming soon**) on GitHub Actions
+- ♻️ Cache output locally and remotely on GitHub Actions for free
 - 🛠️ Works with single packages, npm workspaces, and other monorepos
 
 ## Alpha
@@ -31,6 +31,7 @@
 - [Incremental build](#incremental-build)
 - [Caching](#caching)
   - [Local caching](#local-caching)
+  - [GitHub Actions caching](#github-actions-caching)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
 - [Package locks](#package-locks)
@@ -277,6 +278,57 @@ environment variable is detected. To force local caching, set
 > in an upcoming release, tracked at
 > [wireit#71](https://github.com/google/wireit/issues/71).
 
+### GitHub Actions caching
+
+In _[GitHub Actions](https://github.com/features/actions)_ mode, Wireit caches
+`output` files to the [GitHub Actions
+cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows)
+service. This service is available whenever running in GitHub Actions, and is
+free for all GitHub users.
+
+> ℹ️ GitHub Actions cache entries are automatically deleted after 7 days, or if
+> total usage exceeds 10 GB (the least recently used cache entry is deleted
+> first). See the [GitHub Actions
+> documentation](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#usage-limits-and-eviction-policy)
+> for more details.
+
+To enable caching on GitHub Actions, add the following
+[`uses`](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsuses)
+clause to your workflow. It can appear anywhere before the first `npm run` or
+`npm test` command:
+
+```yaml
+- uses: google/wireit@setup-github-actions-caching/v1
+```
+
+#### Example workflow
+
+```yaml
+# File: .github/workflows/tests.yml
+
+name: Tests
+on: [push, pull_request]
+jobs:
+  tests:
+    os: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          cache: true
+
+      # Set up GitHub Actions caching for Wireit.
+      - uses: google/wireit@setup-github-actions-caching/v1
+
+      # Install npm dependencies.
+      - run: npm ci
+
+      # Run tests. Wireit will automatically use
+      # the GitHub Actions cache whenever possible.
+      - run: npm test
+```
+
 ## Cleaning output
 
 Wireit can automatically delete output files from previous runs before executing
@@ -454,11 +506,11 @@ The following syntaxes can be used in the `wireit.<script>.dependencies` array:
 
 The following environment variables affect the behavior of Wireit:
 
-| Variable          | Description                                                                                                                                                                                                                                                                                                                                               |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                 |
-| `WIREIT_CACHE`    | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>`none`: Disable caching.</li></ul>                                                                                                                           |
-| `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`. |
+| Variable          | Description                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                            |
+| `WIREIT_CACHE`    | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v1`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul> |
+| `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`.                                                                            |
 
 ### Glob patterns
 
@@ -494,6 +546,11 @@ cache](#caching).
 - The system CPU architecture (e.g. `x64`).
 - The system Node version (e.g. `16.7.0`).
 - The cache key of all transitive dependencies.
+
+When using [GitHub Actions caching](#github-actions-caching), the following
+input also affects the cache key:
+
+- The `ImageOS` environment variable (e.g. `ubuntu20`, `macos11`).
 
 ## Requirements
 
