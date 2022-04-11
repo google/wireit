@@ -160,7 +160,97 @@ test(
     assert.equal(
       done.stderr.trim(),
       `
-❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local" or "none", got "aklsdjflajsdkflj"`.trim()
+❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local", "github", or "none", got "aklsdjflajsdkflj"`.trim()
+    );
+  })
+);
+
+test(
+  'github caching without ACTIONS_CACHE_URL',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {
+        WIREIT_CACHE: 'github',
+        ACTIONS_CACHE_URL: undefined,
+        ACTIONS_RUNTIME_TOKEN: 'token',
+      },
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: The ACTIONS_CACHE_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim()
+    );
+  })
+);
+
+test(
+  'github caching but ACTIONS_CACHE_URL does not end in slash',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {
+        WIREIT_CACHE: 'github',
+        ACTIONS_CACHE_URL: 'http://example.com',
+        ACTIONS_RUNTIME_TOKEN: 'token',
+      },
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: The ACTIONS_CACHE_URL must end in a forward-slash, got "http://example.com".`.trim()
+    );
+  })
+);
+
+test(
+  'github caching without ACTIONS_CACHE_URL',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: (await rig.newCommand()).command},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {
+        WIREIT_CACHE: 'github',
+        ACTIONS_CACHE_URL: 'http://example.com/',
+        ACTIONS_RUNTIME_TOKEN: undefined,
+      },
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [main] Invalid usage: The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim()
     );
   })
 );

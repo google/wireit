@@ -27,6 +27,7 @@
     "format:check": "prettier . -c",
     "test": "wireit",
     "test:basic": "wireit",
+    "test:cache-github": "wireit",
     "test:cache-local": "wireit",
     "test:clean": "wireit",
     "test:errors-analysis": "wireit",
@@ -52,6 +53,7 @@
     "test": {
       "dependencies": [
         "test:basic",
+        "test:cache-github",
         "test:cache-local",
         "test:clean",
         "test:errors-analysis",
@@ -64,6 +66,14 @@
     },
     "test:basic": {
       "command": "uvu lib/test \"basic\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:cache-github": {
+      "command": "uvu lib/test \"cache-github\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
