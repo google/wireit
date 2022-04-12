@@ -553,6 +553,9 @@ class ScriptExecution {
 
     return {
       cacheable,
+      platform: process.platform,
+      arch: process.arch,
+      nodeVersion: process.version,
       command: this.#script.command,
       clean: this.#script.clean,
       files: Object.fromEntries(

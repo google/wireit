@@ -107,6 +107,15 @@ export interface ScriptState {
    */
   cacheable: boolean;
 
+  /** E.g. linux, win32 */
+  platform: NodeJS.Platform;
+
+  /** E.g. x64 */
+  arch: string;
+
+  /** E.g. 16.7.0 */
+  nodeVersion: string;
+
   /**
    * The shell command from the Wireit config.
    */
