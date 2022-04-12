@@ -108,7 +108,7 @@ export interface ScriptState {
   cacheable: boolean;
 
   /** E.g. linux, win32 */
-  platform: string;
+  platform: NodeJS.Platform;
 
   /** E.g. x64 */
   arch: string;
