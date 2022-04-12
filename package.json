@@ -27,11 +27,11 @@
     "format:check": "prettier . -c",
     "test": "wireit",
     "test:basic": "wireit",
+    "test:cache-local": "wireit",
     "test:clean": "wireit",
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
     "test:freshness": "wireit",
-    "test:local-cache": "wireit",
     "test:parallelism": "wireit",
     "test:stdio-replay": "wireit",
     "test:watch": "wireit"
@@ -52,11 +52,11 @@
     "test": {
       "dependencies": [
         "test:basic",
+        "test:cache-local",
         "test:clean",
         "test:errors-analysis",
         "test:errors-usage",
         "test:freshness",
-        "test:local-cache",
         "test:parallelism",
         "test:stdio-replay",
         "test:watch"
@@ -64,6 +64,14 @@
     },
     "test:basic": {
       "command": "uvu lib/test \"basic\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:cache-local": {
+      "command": "uvu lib/test \"cache-local\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -96,14 +104,6 @@
     },
     "test:freshness": {
       "command": "uvu lib/test \"freshness\\.test\\.js$\"",
-      "dependencies": [
-        "build"
-      ],
-      "files": [],
-      "output": []
-    },
-    "test:local-cache": {
-      "command": "uvu lib/test \"local-cache\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
