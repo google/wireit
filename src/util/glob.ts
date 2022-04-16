@@ -42,6 +42,7 @@ export interface GlobOptions {
  *   are included.
  * - Matches are returned with the OS-specific separator.
  * - Dot (aka hidden) files are always matched.
+ * - Empty or blank patterns throw.
  *
  * @param patterns The glob patterns to match. Must use forward-slash separator,
  * even on Windows.
@@ -53,6 +54,16 @@ export const glob = async (
 ): Promise<string[]> => {
   if (patterns.length === 0) {
     return [];
+  }
+
+  // fast-glob already throws on empty strings, but we also throw on
+  // only-whitespace patterns.
+  for (const pattern of patterns) {
+    if (pattern.match(/^\s*$/)) {
+      throw new Error(
+        `glob encountered empty or blank pattern: ${JSON.stringify(pattern)}`
+      );
+    }
   }
 
   let expandedPatterns;
