@@ -181,7 +181,7 @@ export class Analyzer {
       const uniqueDependencies = new Set<string>();
       for (let i = 0; i < wireitConfig.dependencies.length; i++) {
         const unresolved = wireitConfig.dependencies[i];
-        assertString(placeholder, unresolved, `dependencies[${i}]`);
+        assertNonBlankString(placeholder, unresolved, `dependencies[${i}]`);
         for (const resolved of this.#resolveDependency(
           unresolved,
           placeholder
@@ -206,7 +206,7 @@ export class Analyzer {
       command = scriptCommand;
     } else {
       if (wireitConfig.command !== undefined) {
-        assertString(placeholder, wireitConfig.command, 'command');
+        assertNonBlankString(placeholder, wireitConfig.command, 'command');
       }
       command = wireitConfig.command;
     }
@@ -223,14 +223,18 @@ export class Analyzer {
     if (wireitConfig?.files !== undefined) {
       assertArray(placeholder, wireitConfig.files, 'files');
       for (let i = 0; i < wireitConfig.files.length; i++) {
-        assertString(placeholder, wireitConfig.files[i], `files[${i}]`);
+        assertNonBlankString(placeholder, wireitConfig.files[i], `files[${i}]`);
       }
     }
 
     if (wireitConfig?.output !== undefined) {
       assertArray(placeholder, wireitConfig.output, 'output');
       for (let i = 0; i < wireitConfig.output.length; i++) {
-        assertString(placeholder, wireitConfig.output[i], `output[${i}]`);
+        assertNonBlankString(
+          placeholder,
+          wireitConfig.output[i],
+          `output[${i}]`
+        );
       }
     }
 
@@ -252,7 +256,7 @@ export class Analyzer {
       assertArray(placeholder, wireitConfig.packageLocks, 'packageLocks');
       for (let i = 0; i < wireitConfig.packageLocks.length; i++) {
         const filename = wireitConfig.packageLocks[i];
-        assertString(placeholder, filename, `packageLocks[${i}]`);
+        assertNonBlankString(placeholder, filename, `packageLocks[${i}]`);
         if (filename !== pathlib.basename(filename)) {
           throw new WireitError({
             type: 'failure',
@@ -421,7 +425,7 @@ export class Analyzer {
 /**
  * Throw an error if the given value is not a string.
  */
-const assertString = (
+const assertNonBlankString = (
   script: ScriptReference,
   value: unknown,
   name: string
@@ -432,6 +436,14 @@ const assertString = (
       reason: 'invalid-config-syntax',
       script,
       message: `${name} is not a string`,
+    });
+  }
+  if (value.match(/^\s*$/)) {
+    throw new WireitError({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script,
+      message: `${name} is empty or blank`,
     });
   }
 };
