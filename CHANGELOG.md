@@ -10,6 +10,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- [**Breaking**] In the `files` array, matching a directory now matches all
+  recursive contents of that directory.
+
 - The cache key now additionally includes the following fields:
   - The system platform (e.g. `linux`, `win32`).
   - The system CPU architecture (e.g. `x64`).
