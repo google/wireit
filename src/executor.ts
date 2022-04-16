@@ -488,8 +488,9 @@ class ScriptExecution {
           cwd: this.#script.packageDir,
           absolute: false,
           includeDirectories: true,
-          // We must expand directories here, because we need the complete
-          // explicit list of files to hash.
+          // No need to expand directories, because we perform recursive
+          // operations on the results, so recursive children are already
+          // included.
           expandDirectories: false,
         }
       )
@@ -525,8 +526,8 @@ class ScriptExecution {
         // special handling when we compute the state key, because there is no
         // hash we can compute.
         includeDirectories: false,
-        // No need to expand directories, because we perform recursive operations
-        // on the results, so recursive children are already included.
+        // We must expand directories here, because we need the complete
+        // explicit list of files to hash.
         expandDirectories: true,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
