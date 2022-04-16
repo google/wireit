@@ -32,6 +32,7 @@
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
     "test:freshness": "wireit",
+    "test:glob": "wireit",
     "test:parallelism": "wireit",
     "test:stdio-replay": "wireit",
     "test:watch": "wireit"
@@ -57,6 +58,7 @@
         "test:errors-analysis",
         "test:errors-usage",
         "test:freshness",
+        "test:glob",
         "test:parallelism",
         "test:stdio-replay",
         "test:watch"
@@ -104,6 +106,14 @@
     },
     "test:freshness": {
       "command": "uvu lib/test \"freshness\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:glob": {
+      "command": "uvu lib/test \"glob\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
