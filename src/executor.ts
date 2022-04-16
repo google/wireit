@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fastGlob from 'fast-glob';
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
@@ -28,6 +27,7 @@ import type {
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
+import {glob} from './util/glob.js';
 
 /**
  * The PATH environment variable of this process, minus all of the leading
@@ -459,7 +459,7 @@ class ScriptExecution {
     await this.#cache.set(
       this.#script,
       stateStr,
-      await this.#glob(
+      await glob(
         [
           ...this.#script.output,
           // Also include the "stdout" and "stderr" replay files at their
@@ -485,8 +485,9 @@ class ScriptExecution {
           ),
         ],
         {
-          onlyFiles: false,
+          cwd: this.#script.packageDir,
           absolute: false,
+          includeDirectories: true,
         }
       )
     );
@@ -512,11 +513,15 @@ class ScriptExecution {
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
     if (this.#script.files?.length) {
-      const files = await fastGlob(this.#script.files, {
+      const files = await glob(this.#script.files, {
         cwd: this.#script.packageDir,
-        dot: true,
-        onlyFiles: true,
         absolute: false,
+        // TODO(aomarks) This means that empty directories are not reflected in
+        // the state, however an empty directory could modify the behavior of a
+        // script. We should probably include empty directories; we'll just need
+        // special handling when we compute the state key, because there is no
+        // hash we can compute.
+        includeDirectories: false,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
       // build, use inode/mtime/ctime/size metadata (which is much faster to
@@ -640,9 +645,10 @@ class ScriptExecution {
     if (this.#script.output === undefined) {
       return;
     }
-    const absFiles = await this.#glob(this.#script.output, {
-      onlyFiles: false,
+    const absFiles = await glob(this.#script.output, {
+      cwd: this.#script.packageDir,
       absolute: true,
+      includeDirectories: true,
     });
     if (absFiles.length === 0) {
       return;
@@ -674,30 +680,6 @@ class ScriptExecution {
         }
       })
     );
-  }
-
-  /**
-   * Match the given glob patterns against the filesystem, interpreting paths
-   * relative to this script's package directory.
-   */
-  async #glob(
-    patterns: string[],
-    {onlyFiles, absolute}: {onlyFiles: boolean; absolute: boolean}
-  ): Promise<string[]> {
-    const files = await fastGlob(patterns, {
-      cwd: this.#script.packageDir,
-      dot: true,
-      onlyFiles,
-      absolute,
-    });
-    if (IS_WINDOWS) {
-      // fast-glob returns paths with forward-slash as the delimiter, even on
-      // Windows. Normalize so that they are always valid filesystem paths.
-      for (let i = 0; i < files.length; i++) {
-        files[i] = pathlib.normalize(files[i]);
-      }
-    }
-    return files;
   }
 
   /**
