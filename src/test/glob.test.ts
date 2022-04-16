@@ -25,7 +25,7 @@ interface Symlink {
 interface TestCase {
   files: Array<string | Symlink>;
   patterns: string[];
-  expected: string[];
+  expected: string[] | 'ERROR';
   cwd?: string;
   absolute?: boolean;
   includeDirectories?: boolean;
@@ -70,18 +70,33 @@ test.before.each(async (ctx) => {
         }
       }
 
-      if (pathlib.sep === '\\') {
+      if (pathlib.sep === '\\' && expected !== 'ERROR') {
         // On Windows we expect to get results back with "\" as the separator.
         expected = expected.map((path) => path.replaceAll('/', '\\'));
       }
 
-      const actual = await glob(patterns, {
-        cwd,
-        absolute,
-        includeDirectories,
-        expandDirectories,
-      });
-      assert.equal(actual.sort(), expected.sort());
+      let actual, error;
+      try {
+        actual = await glob(patterns, {
+          cwd,
+          absolute,
+          includeDirectories,
+          expandDirectories,
+        });
+      } catch (e) {
+        error = e;
+      }
+      if (expected === 'ERROR') {
+        if (error === undefined) {
+          assert.unreachable('Expected an error');
+        }
+      } else if (error !== undefined) {
+        throw error;
+      } else if (actual === undefined) {
+        throw new Error('Actual was undefined');
+      } else {
+        assert.equal(actual.sort(), expected.sort());
+      }
     };
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -205,7 +220,7 @@ test('* star excludes directory when includeDirectories=true', ({check}) =>
 
 test('includeDirectories=false + expandDirectories=false', ({check}) =>
   check({
-    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
     patterns: ['foo'],
     expected: [],
     includeDirectories: false,
@@ -214,7 +229,7 @@ test('includeDirectories=false + expandDirectories=false', ({check}) =>
 
 test('includeDirectories=true + expandDirectories=false', ({check}) =>
   check({
-    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
     patterns: ['foo'],
     expected: ['foo'],
     includeDirectories: true,
@@ -223,7 +238,7 @@ test('includeDirectories=true + expandDirectories=false', ({check}) =>
 
 test('includeDirectories=false + expandDirectories=true', ({check}) =>
   check({
-    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
     patterns: ['foo'],
     expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
     includeDirectories: false,
@@ -232,7 +247,7 @@ test('includeDirectories=false + expandDirectories=true', ({check}) =>
 
 test('includeDirectories=true + expandDirectories=true', ({check}) =>
   check({
-    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
     patterns: ['foo'],
     expected: [
       'foo',
@@ -251,7 +266,7 @@ test('includeDirectories=true + expandDirectories=true + recursive !exclusion', 
   check,
 }) =>
   check({
-    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
     patterns: [
       'foo',
       // This exclusion pattern needs to match recursively too. We don't just
@@ -261,6 +276,52 @@ test('includeDirectories=true + expandDirectories=true + recursive !exclusion', 
     ],
     expected: ['foo', 'foo/1', 'foo/2', 'foo/baz'],
     includeDirectories: true,
+    expandDirectories: true,
+  }));
+
+test('. matches current directory with includeDirectories=true', ({check}) =>
+  check({
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['.'],
+    expected: ['.'],
+    includeDirectories: true,
+  }));
+
+test('. matches current directory with expandDirectories=true', ({check}) =>
+  check({
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['.'],
+    expected: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
+    expandDirectories: true,
+  }));
+
+test('empty pattern throws', ({check}) =>
+  check({
+    files: ['foo', 'bar'],
+    patterns: [''],
+    expected: 'ERROR',
+  }));
+
+test('empty pattern throws with expandDirectories=true', ({check}) =>
+  check({
+    files: ['foo', 'bar'],
+    patterns: [''],
+    expected: 'ERROR',
+    expandDirectories: true,
+  }));
+
+test('whitespace pattern throws', ({check}) =>
+  check({
+    files: ['foo', 'bar'],
+    patterns: [' '],
+    expected: 'ERROR',
+  }));
+
+test('whitespace pattern throws with expandDirectories=true', ({check}) =>
+  check({
+    files: ['foo', 'bar'],
+    patterns: [' '],
+    expected: 'ERROR',
     expandDirectories: true,
   }));
 
