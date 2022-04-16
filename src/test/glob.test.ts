@@ -247,4 +247,21 @@ test('includeDirectories=true + expandDirectories=true', ({check}) =>
     expandDirectories: true,
   }));
 
+test('includeDirectories=true + expandDirectories=true + recursive !exclusion', ({
+  check,
+}) =>
+  check({
+    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: [
+      'foo',
+      // This exclusion pattern needs to match recursively too. We don't just
+      // exclude the "foo/bar" directory, we also exclude its recursive
+      // children.
+      '!foo/bar',
+    ],
+    expected: ['foo', 'foo/1', 'foo/2', 'foo/baz'],
+    includeDirectories: true,
+    expandDirectories: true,
+  }));
+
 test.run();
