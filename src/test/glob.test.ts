@@ -29,6 +29,7 @@ interface TestCase {
   cwd?: string;
   absolute?: boolean;
   includeDirectories?: boolean;
+  expandDirectories?: boolean;
 }
 
 const test = suite<{
@@ -48,6 +49,7 @@ test.before.each(async (ctx) => {
       cwd = ctx.temp,
       absolute = false,
       includeDirectories = false,
+      expandDirectories = false,
     }: TestCase): Promise<void> => {
       for (const file of files) {
         if (typeof file === 'string') {
@@ -77,6 +79,7 @@ test.before.each(async (ctx) => {
         cwd,
         absolute,
         includeDirectories,
+        expandDirectories,
       });
       assert.equal(actual.sort(), expected.sort());
     };
@@ -198,6 +201,50 @@ test('* star excludes directory when includeDirectories=true', ({check}) =>
     patterns: ['*'],
     expected: ['foo'],
     includeDirectories: true,
+  }));
+
+test('includeDirectories=false + expandDirectories=false', ({check}) =>
+  check({
+    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['foo'],
+    expected: [],
+    includeDirectories: false,
+    expandDirectories: false,
+  }));
+
+test('includeDirectories=true + expandDirectories=false', ({check}) =>
+  check({
+    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['foo'],
+    expected: ['foo'],
+    includeDirectories: true,
+    expandDirectories: false,
+  }));
+
+test('includeDirectories=false + expandDirectories=true', ({check}) =>
+  check({
+    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['foo'],
+    expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
+    includeDirectories: false,
+    expandDirectories: true,
+  }));
+
+test('includeDirectories=true + expandDirectories=true', ({check}) =>
+  check({
+    files: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['foo'],
+    expected: [
+      'foo',
+      'foo/1',
+      'foo/2',
+      'foo/bar',
+      'foo/bar/1',
+      'foo/bar/2',
+      'foo/baz',
+    ],
+    includeDirectories: true,
+    expandDirectories: true,
   }));
 
 test.run();

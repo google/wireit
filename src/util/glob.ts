@@ -26,6 +26,12 @@ export interface GlobOptions {
    * Whether to include directories in the results.
    */
   includeDirectories: boolean;
+
+  /**
+   * Whether to recursively expand any matched directory
+   * Note this works even if includeDirectories is false.
+   */
+  expandDirectories: boolean;
 }
 
 /**
@@ -49,11 +55,32 @@ export const glob = async (
     return [];
   }
 
-  const matches = await fastGlob(patterns, {
+  let expandedPatterns;
+  if (opts.expandDirectories) {
+    expandedPatterns = [];
+    for (const pattern of patterns) {
+      expandedPatterns.push(pattern);
+      // Also include a recursive-children version of every pattern, in case the
+      // pattern refers to a directory. This gives us behavior similar to
+      // .gitignore files and the npm package.json "files" array, where matching
+      // a directory implicitly includes all transitive children.
+      if (!isRecursive(pattern)) {
+        expandedPatterns.push(pattern + '/**');
+      }
+    }
+  } else {
+    expandedPatterns = patterns;
+  }
+
+  const matches = await fastGlob(expandedPatterns, {
     cwd: opts.cwd,
     dot: true,
     onlyFiles: !opts.includeDirectories,
     absolute: opts.absolute,
+    // Since we append "/**" to patterns above, we will sometimes get ENOTDIR
+    // errors when the path we appended to was not a directory. We can't know in
+    // advance which patterns refer to directories.
+    suppressErrors: true,
   });
 
   if (pathlib.sep === '\\') {
@@ -66,3 +93,6 @@ export const glob = async (
 
   return matches;
 };
+
+const isRecursive = (pattern: string): boolean =>
+  pattern === '**' || pattern.endsWith('/**');

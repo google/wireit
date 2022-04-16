@@ -120,6 +120,54 @@ test(
 );
 
 test(
+  'directory matched by files array covers recursive contents',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            // We behave like .gitignore and the npm "files" array in that if
+            // you match a directory, the recursive contents of that directory
+            // are also included.
+            files: ['input'],
+          },
+        },
+      },
+      'input/a': 'v0',
+    });
+
+    // Initially stale, so command is invoked.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // A child of the directory in the input files array changed, so script is
+    // stale, and command is invoked.
+    {
+      await rig.write({
+        'input/a': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
   'changing input file modtime does not make script stale',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
