@@ -226,7 +226,7 @@ test(
 );
 
 test(
-  'github caching without ACTIONS_CACHE_URL',
+  'github caching without ACTIONS_RUNTIME_TOKEN',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {

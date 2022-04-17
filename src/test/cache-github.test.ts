@@ -96,7 +96,7 @@ test(
       assert.equal(await rig.read('output'), 'v1');
     }
 
-    // Input changed back to v0, but OS is now ubuntu18. Output should not be
+    // Input changed back to v0, but OS is now ubuntu20. Output should not be
     // cached, because we changed OS.
     {
       await rig.write({input: 'v0'});

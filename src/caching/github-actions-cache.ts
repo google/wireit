@@ -49,8 +49,8 @@ import type {ScriptReference, ScriptStateString} from '../script.js';
 // The @actions/cache package is also our largest dependency by far. It's 22MB,
 // and adds 63 transitive dependencies.
 //
-// The logic it here could be re-implemented in a fairly minimal way. The main
-// tricky part are the way it handles tarball generation across platforms
+// The logic in here could be re-implemented in a fairly minimal way. The main
+// tricky part is the way it handles tarball generation across platforms
 // (https://github.com/actions/toolkit/blob/7654d97eb6c4a3d564f036a2d4a783ae9105ec07/packages/cache/src/internal/tar.ts).
 
 /**
