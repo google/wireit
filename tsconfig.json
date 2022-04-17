@@ -16,6 +16,10 @@
     "useUnknownInCatchVariables": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
+    // TODO(aomarks) skipLibCheck is temporarily true because the @actions/cache
+    // dependency is missing the file "lib/internal/contracts.d.ts". We hit this
+    // because we import directly from "lib/internal". See
+    // https://github.com/google/wireit/issues/107 for details.
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts"],

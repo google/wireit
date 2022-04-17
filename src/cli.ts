@@ -129,7 +129,7 @@ const run = async () => {
         './caching/github-actions-cache.js'
       );
       try {
-        cache = new GitHubActionsCache();
+        cache = new GitHubActionsCache(logger);
       } catch (error) {
         if (
           error instanceof GitHubActionsCacheError &&

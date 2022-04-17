@@ -19,6 +19,8 @@ const test = suite<{
 
 test.before.each(async (ctx) => {
   try {
+    // Set up the cache service for each test (as opposed to for the whole
+    // suite) because we want fresh cache state for each test.
     const authToken = String(Math.random()).slice(2);
     ctx.server = new FakeGitHubActionsCacheServer(authToken);
     await ctx.server.listen();

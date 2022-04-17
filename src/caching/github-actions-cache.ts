@@ -28,9 +28,11 @@ import type {
 } from '@actions/cache/lib/internal/contracts.js';
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
+import type {Logger} from '../logging/logger.js';
 
-// TODO(aomarks) Drop the dependency on @actions/cache by writing our own
-// implementation.
+// TODO(aomarks) Consider dropping the dependency on @actions/cache by writing
+// our own implementation. See https://github.com/google/wireit/issues/107 for
+// details.
 //
 // The public API provided by the @actions/cache package doesn't exactly meet
 // our needs, because it automatically uses the file paths that are included in
@@ -70,8 +72,9 @@ export class GitHubActionsCache implements Cache {
 
   readonly #baseUrl: string;
   readonly #authToken: string;
+  readonly #logger: Logger;
 
-  constructor() {
+  constructor(logger: Logger) {
     // The ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN environment variables are
     // automatically provided to GitHub Actions re-usable workflows. However,
     // they are _not_ provided to regular "run" scripts. For this reason, we
@@ -109,6 +112,8 @@ export class GitHubActionsCache implements Cache {
       );
     }
     this.#authToken = authToken;
+
+    this.#logger = logger;
   }
 
   async get(
@@ -131,7 +136,7 @@ export class GitHubActionsCache implements Cache {
     script: ScriptReference,
     stateStr: ScriptStateString,
     relativeFiles: string[]
-  ): Promise<void> {
+  ): Promise<boolean> {
     const compressionMethod = await GitHubActionsCache.#compressionMethod;
     const tarballPath = await this.#makeTarball(
       relativeFiles.map((file) => pathlib.join(script.packageDir, file)),
@@ -140,12 +145,22 @@ export class GitHubActionsCache implements Cache {
     try {
       const tarBytes = cacheUtils.getArchiveFileSizeInBytes(tarballPath);
       // Reference: https://github.com/actions/toolkit/blob/f8a69bc473af4a204d0c03de61d5c9d1300dfb17/packages/cache/src/cache.ts#L174
-      const maxBytes = 10 * 1024 * 1024 * 1024; // 10GB
+      const GB = 1024 * 1024 * 1024;
+      const maxBytes = 10 * GB;
       if (tarBytes > maxBytes) {
-        return;
+        this.#logger.log({
+          script,
+          type: 'info',
+          detail: 'generic',
+          message:
+            `Output was too big to be cached: ` +
+            `${Math.round(tarBytes / GB)}GB > ` +
+            `${Math.round(maxBytes / GB)}GB.`,
+        });
+        return false;
       }
       const id = await this.#reserveCacheEntry(
-        this.makeAuthenticatedHttpClient(),
+        this.#makeAuthenticatedHttpClient(),
         this.#computeCacheKey(script),
         this.#computeVersion(stateStr, compressionMethod),
         tarBytes
@@ -162,6 +177,7 @@ export class GitHubActionsCache implements Cache {
       // Delete the tarball.
       await cacheUtils.unlinkFile(tarballPath);
     }
+    return true;
   }
 
   #computeCacheKey(script: ScriptReference): string {
@@ -187,7 +203,7 @@ export class GitHubActionsCache implements Cache {
           // There is also an ImageVersion variable (e.g. "20220405.4") which we
           // could consider including, but it probably changes frequently and is
           // unlikely to affect output, so we prefer the higher cache hit rate.
-          process.env.ImageOS,
+          process.env.ImageOS ?? '',
         ].join('\x1E') // ASCII record seperator
       )
       .digest('hex');
@@ -197,7 +213,7 @@ export class GitHubActionsCache implements Cache {
    * Make an HTTP client which always sends "Authorization: Bearer <token>"
    * header.
    */
-  makeAuthenticatedHttpClient(): HttpClient {
+  #makeAuthenticatedHttpClient(): HttpClient {
     const bearerCredentialHandler = new BearerCredentialHandler(
       this.#authToken
     );
@@ -237,11 +253,12 @@ export class GitHubActionsCache implements Cache {
     key: string,
     version: string
   ): Promise<string | undefined> {
-    const httpClient = this.makeAuthenticatedHttpClient();
+    const httpClient = this.#makeAuthenticatedHttpClient();
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const response: ITypedResponseWithError<ArtifactCacheEntry> =
       await retryTypedResponse('getCacheEntry', async () =>
         httpClient.getJson<ArtifactCacheEntry>(
+          /** For docs on this API, see {@link FakeGitHubActionsCacheServer} */
           `${this.#baseUrl}_apis/artifactcache/cache?keys=${encodeURIComponent(
             key
           )}&version=${version}`
@@ -285,6 +302,7 @@ export class GitHubActionsCache implements Cache {
     const response: ITypedResponseWithError<ReserveCacheResponse> =
       await retryTypedResponse('reserveCache', async () =>
         httpClient.postJson(
+          /** For docs on this API, see {@link FakeGitHubActionsCacheServer} */
           `${this.#baseUrl}_apis/artifactcache/caches`,
           request
         )
@@ -319,7 +337,6 @@ class GitHubActionsCacheHit implements CacheHit {
   }
 
   async apply(): Promise<void> {
-    console.log('TARBALLS URL', this.#url);
     if (this.#applied) {
       throw new Error('GitHubActionsCacheHit.apply was called more than once');
     }

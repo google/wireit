@@ -237,6 +237,10 @@ export class DefaultLogger implements Logger {
             console.log(`👀${prefix} Watching for file changes`);
             break;
           }
+          case 'generic': {
+            console.log(`ℹ️${prefix} ${event.message}`);
+            break;
+          }
         }
       }
     }
