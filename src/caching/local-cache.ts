@@ -38,7 +38,7 @@ export class LocalCache implements Cache {
     script: ScriptReference,
     cacheKey: ScriptStateString,
     relativeFiles: string[]
-  ): Promise<void> {
+  ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
     // We'll have the "clean" command to help with manual cleanup, but we'll
     // almost certainly want an automated way to limit the size of the cache
@@ -84,6 +84,7 @@ export class LocalCache implements Cache {
         )
       )
     );
+    return true;
   }
 
   #getCacheDir(script: ScriptReference, cacheKey: ScriptStateString): string {

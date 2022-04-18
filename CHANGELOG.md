@@ -8,6 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Added support for caching on GitHub Actions. Use the
+  `google/wireit@setup-github-actions-caching/v1` action to enable.
+
 ### Changed
 
 - [**Breaking**] In the `files` array, matching a directory now matches all

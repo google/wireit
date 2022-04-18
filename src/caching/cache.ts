@@ -27,19 +27,23 @@ export interface Cache {
   ): Promise<CacheHit | undefined>;
 
   /**
-   * Write the given file paths to the cache, keyed by the given script and
-   * cache key.
+   * Write the given file paths to the cache if possible, keyed by the given
+   * script and cache key.
+   *
+   * It is valid for an implementation to decide not to write to the cache and
+   * return false, for example if the contents are too large.
    *
    * @param script The script whose output will be saved to the cache.
    * @param cacheKey The string-encoded cache key for the script.
    * @param relativeFilePaths The package-relative output file paths to cache
    * (concrete paths, not glob patterns).
+   * @returns Whether the cache was written.
    */
   set(
     script: ScriptReference,
     cacheKey: ScriptStateString,
     relativeFilePaths: string[]
-  ): Promise<void>;
+  ): Promise<boolean>;
 }
 
 /**

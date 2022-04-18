@@ -213,7 +213,7 @@ export interface Stderr extends OutputBase {
 // Informational events
 // -------------------------------
 
-type Info = ScriptRunning | WatchRunStart | WatchRunEnd;
+type Info = ScriptRunning | WatchRunStart | WatchRunEnd | GenericInfo;
 
 interface InfoBase<T extends ScriptReference> extends EventBase<T> {
   type: 'info';
@@ -238,4 +238,12 @@ export interface WatchRunStart extends InfoBase<ScriptReference> {
  */
 export interface WatchRunEnd extends InfoBase<ScriptReference> {
   detail: 'watch-run-end';
+}
+
+/**
+ * A generic info event.
+ */
+export interface GenericInfo extends InfoBase<ScriptReference> {
+  detail: 'generic';
+  message: string;
 }
