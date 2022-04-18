@@ -64,9 +64,9 @@ export const glob = async (
     }
   }
 
-  let expandedPatterns;
+  let expandedPatterns = patterns;
   if (opts.expandDirectories) {
-    expandedPatterns = [];
+    expandedPatterns = []; // New array so we don't mutate input patterns array.
     for (const pattern of patterns) {
       expandedPatterns.push(pattern);
       // Also include a recursive-children version of every pattern, in case the
@@ -77,8 +77,6 @@ export const glob = async (
         expandedPatterns.push(pattern + '/**');
       }
     }
-  } else {
-    expandedPatterns = patterns;
   }
 
   const matches = await fastGlob(expandedPatterns, {
@@ -104,4 +102,7 @@ export const glob = async (
 };
 
 const isRecursive = (pattern: string): boolean =>
-  pattern === '**' || pattern.endsWith('/**');
+  pattern === '**' ||
+  pattern === '**/*' ||
+  pattern.endsWith('/**') ||
+  pattern.endsWith('/**/*');

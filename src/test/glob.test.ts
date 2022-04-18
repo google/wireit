@@ -203,14 +203,14 @@ test('explicit directory included when includeDirectories=true', ({check}) =>
     includeDirectories: true,
   }));
 
-test('* star includes directory when includeDirectories=false', ({check}) =>
+test('* star excludes directory when includeDirectories=false', ({check}) =>
   check({
     files: ['foo/'],
     patterns: ['*'],
     expected: [],
   }));
 
-test('* star excludes directory when includeDirectories=true', ({check}) =>
+test('* star includes directory when includeDirectories=true', ({check}) =>
   check({
     files: ['foo/'],
     patterns: ['*'],
@@ -292,6 +292,14 @@ test('. matches current directory with expandDirectories=true', ({check}) =>
     files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
     patterns: ['.'],
     expected: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
+    expandDirectories: true,
+  }));
+
+test('{} groups with expand directories', ({check}) =>
+  check({
+    files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+    patterns: ['{foo,baz}'],
+    expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
     expandDirectories: true,
   }));
 
