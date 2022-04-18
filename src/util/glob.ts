@@ -28,7 +28,7 @@ export interface GlobOptions {
   includeDirectories: boolean;
 
   /**
-   * Whether to recursively expand any matched directory
+   * Whether to recursively expand any matched directory.
    * Note this works even if includeDirectories is false.
    */
   expandDirectories: boolean;
@@ -38,8 +38,6 @@ export interface GlobOptions {
  * Match glob patterns against the file system.
  *
  * - Input patterns must be / separated.
- * - If a directory is matched, then all recursive contents of that directory
- *   are included.
  * - Matches are returned with the OS-specific separator.
  * - Dot (aka hidden) files are always matched.
  * - Empty or blank patterns throw.
