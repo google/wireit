@@ -134,6 +134,32 @@ test(
 );
 
 test(
+  'dependency is empty or blank',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: [' '],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: dependencies[0] is empty or blank`.trim()
+    );
+  })
+);
+
+test(
   'command is not a string',
   timeout(async ({rig}) => {
     await rig.write({
@@ -155,6 +181,32 @@ test(
       done.stderr.trim(),
       `
 ❌ [a] Invalid config: command is not a string`.trim()
+    );
+  })
+);
+
+test(
+  'command is empty or blank',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: '',
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: command is empty or blank`.trim()
     );
   })
 );
@@ -214,6 +266,33 @@ test(
 );
 
 test(
+  'file item is empty or blank',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            files: [''],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: files[0] is empty or blank`.trim()
+    );
+  })
+);
+
+test(
   'output is not an array',
   timeout(async ({rig}) => {
     await rig.write({
@@ -263,6 +342,33 @@ test(
       done.stderr.trim(),
       `
 ❌ [a] Invalid config: output[0] is not a string`.trim()
+    );
+  })
+);
+
+test(
+  'output item is empty or blank',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            output: [' \t\n '],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: output[0] is empty or blank`.trim()
     );
   })
 );
@@ -344,6 +450,33 @@ test(
       done.stderr.trim(),
       `
 ❌ [a] Invalid config: packageLocks[0] is not a string`.trim()
+    );
+  })
+);
+
+test(
+  'packageLocks item is empty or blank',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            packageLocks: [' '],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [a] Invalid config: packageLocks[0] is empty or blank`.trim()
     );
   })
 );

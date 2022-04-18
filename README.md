@@ -464,16 +464,18 @@ The following environment variables affect the behavior of Wireit:
 
 The following glob syntaxes are supported in the `files` and `output` arrays:
 
-| Example         | Description                                                                    |
-| --------------- | ------------------------------------------------------------------------------ |
-| `foo`           | The file named `foo`.                                                          |
-| `foo/*`         | All files directly in the `foo/` directory.                                    |
-| `foo/**/*`      | All files in the `foo/` directory, and in any of its recursive subdirectories. |
-| `foo.{html,js}` | Files named `foo.html` or `foo.js`.                                            |
-| `!foo`          | Exclude the file `foo` from previous matches.                                  |
+| Example         | Description                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `foo`           | The file named `foo`, or if `foo` is a directory, all recursive children of `foo`.       |
+| `foo/*.js`      | All files directly in the `foo/` directory which end in `.js`.                           |
+| `foo/**/*.js`   | All files in the `foo/` directory, and all recursive subdirectories, which end in `.js`. |
+| `foo.{html,js}` | Files named `foo.html` or `foo.js`.                                                      |
+| `!foo`          | Exclude the file or directory `foo` from previous matches.                               |
 
 Also note these details:
 
+- Whenever a directory is matched, all recursive children of that directory are
+  included.
 - Hidden/dot files are matched by `*` and `**`.
 - Patterns are case-sensitive (if supported by the filesystem).
 
