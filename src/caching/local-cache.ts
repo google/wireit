@@ -8,7 +8,7 @@ import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
 import {getScriptDataDir} from '../util/script-data-dir.js';
-import {optimizeCopies, optimizeMkdirs} from '../util/optimize-fs-ops.js';
+import {optimizeCpRms, optimizeMkdirs} from '../util/optimize-fs-ops.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
@@ -56,7 +56,7 @@ export class LocalCache implements Cache {
     }
     // Compute the smallest set of recursive fs.cp and fs.mkdir operations
     // needed to cover all of the files.
-    const copyOps = optimizeCopies(relativeFiles);
+    const copyOps = optimizeCpRms(relativeFiles);
     const mkdirOps = optimizeMkdirs(
       copyOps.map((path) => pathlib.dirname(path))
     );

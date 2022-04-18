@@ -17,7 +17,7 @@ import {HttpClient} from '@actions/http-client';
 import {BearerCredentialHandler} from '@actions/http-client/auth.js';
 import {isSuccessStatusCode} from '@actions/cache/lib/internal/requestUtils.js';
 import {scriptReferenceToString} from '../script.js';
-import {optimizeCopies} from '../util/optimize-fs-ops.js';
+import {optimizeCpRms} from '../util/optimize-fs-ops.js';
 
 import type {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 import type {
@@ -233,7 +233,7 @@ export class GitHubActionsCache implements Cache {
     paths: string[],
     compressionMethod: CompressionMethod
   ): Promise<string> {
-    const optimized = optimizeCopies(paths);
+    const optimized = optimizeCpRms(paths);
     const folder = await cacheUtils.createTempDirectory();
     await createTar(folder, optimized, compressionMethod);
     const path = pathlib.join(
