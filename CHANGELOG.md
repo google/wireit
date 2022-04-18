@@ -18,6 +18,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - [**Breaking**] In the `files` array, matching a directory now matches all
   recursive contents of that directory.
 
+- [**Breaking**] The order of `!exclude` glob patterns in the `files` and
+  `output` arrays is now significant.
+
 - [**Breaking**] It is now an error to include an empty string or all-whitespace
   string in any of these fields:
 

@@ -528,6 +528,7 @@ Also note these details:
 
 - Whenever a directory is matched, all recursive children of that directory are
   included.
+- The order of `!exclude` patterns is significant.
 - Hidden/dot files are matched by `*` and `**`.
 - Patterns are case-sensitive (if supported by the filesystem).
 

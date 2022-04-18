@@ -333,4 +333,28 @@ test('whitespace pattern throws with expandDirectories=true', ({check}) =>
     expandDirectories: true,
   }));
 
+test('re-inclusion of file', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['!foo', 'foo'],
+    expected: ['foo'],
+  }));
+
+test('re-inclusion of file into directory', ({check}) =>
+  check({
+    files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
+    patterns: ['foo/**', '!foo/bar/**', 'foo/bar/baz', '!foo/qux'],
+    expected: ['foo/1', 'foo/bar/baz'],
+  }));
+
+test('re-inclusion of file into directory with expandDirectories=true', ({
+  check,
+}) =>
+  check({
+    files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
+    patterns: ['foo', '!foo/bar', 'foo/bar/baz', '!foo/qux'],
+    expected: ['foo/1', 'foo/bar/baz'],
+    expandDirectories: true,
+  }));
+
 test.run();
