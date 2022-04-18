@@ -168,6 +168,68 @@ test(
 );
 
 test(
+  'freshness check supports glob re-inclusion',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: [
+              'input/**',
+              '!input/subdir/**',
+              // We should behave like .gitignore and allow re-including a path
+              // that has been prevously excluded (i.e. order matters).
+              'input/subdir/reincluded',
+            ],
+          },
+        },
+      },
+      'input/subdir/excluded': 'v0',
+      'input/subdir/reincluded': 'v0',
+    });
+
+    // Initially stale.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Excluded file modified. Fresh.
+    {
+      await rig.write({
+        'input/subdir/excluded': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Re-included file modified. Stale.
+    {
+      await rig.write({
+        'input/subdir/reincluded': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
   'changing input file modtime does not make script stale',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();

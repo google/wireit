@@ -180,6 +180,100 @@ export const registerCommonCacheTests = (
   );
 
   test(
+    'caching supports glob re-inclusion',
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['input'],
+              output: [
+                'output/**',
+                '!output/subdir/**',
+                'output/subdir/reincluded',
+              ],
+            },
+          },
+        },
+        input: 'v0',
+        'output/subdir/excluded': 'v0',
+      });
+
+      // Initial run with input v0.
+      {
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+
+        // The excluded file should be un-touched. The reincluded file should
+        // have been cleaned.
+        assert.equal(await rig.read('output/subdir/excluded'), 'v0');
+        assert.not(await rig.exists('output/subdir/reincluded'));
+
+        // Write v0 output.
+        await rig.write({'output/subdir/reincluded': 'v0'});
+
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+      }
+
+      // Input changed to v1. Run again.
+      {
+        await rig.write({input: 'v1'});
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+
+        // The excluded file should be un-touched. The reincluded file should
+        // have been cleaned.
+        assert.equal(await rig.read('output/subdir/excluded'), 'v0');
+        assert.not(await rig.exists('output/subdir/reincluded'));
+
+        // Write v1 output.
+        await rig.write({'output/subdir/reincluded': 'v1'});
+
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+      }
+
+      // Input changed back to v0. Output should be cached.
+      {
+        await rig.write({input: 'v0'});
+        const exec = rig.exec('npm run a');
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+
+        // The re-included output file should be deleted. The other output file
+        // should be restored from the v0 cache.
+        assert.equal(await rig.read('output/subdir/excluded'), 'v0');
+        assert.equal(await rig.read('output/subdir/reincluded'), 'v0');
+      }
+
+      // Input changed back to v1. Output should be cached.
+      {
+        await rig.write({input: 'v1'});
+        const exec = rig.exec('npm run a');
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+
+        // The re-included output file should be deleted. The other output file
+        // should be restored from the v1 cache.
+        assert.equal(await rig.read('output/subdir/excluded'), 'v0');
+        assert.equal(await rig.read('output/subdir/reincluded'), 'v1');
+      }
+    })
+  );
+
+  test(
     'cleans output when restoring from cache even when clean setting is false',
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();
