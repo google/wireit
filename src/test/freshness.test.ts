@@ -131,9 +131,6 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // We behave like .gitignore and the npm "files" array in that if
-            // you match a directory, the recursive contents of that directory
-            // are also included.
             files: ['input'],
           },
         },
@@ -179,13 +176,7 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            files: [
-              'input/**',
-              '!input/subdir/**',
-              // We should behave like .gitignore and allow re-including a path
-              // that has been prevously excluded (i.e. order matters).
-              'input/subdir/reincluded',
-            ],
+            files: ['input/**', '!input/subdir/**', 'input/subdir/reincluded'],
           },
         },
       },

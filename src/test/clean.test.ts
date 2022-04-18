@@ -189,8 +189,6 @@ test(
             output: [
               'output/**',
               '!output/subdir/**',
-              // We should behave like .gitignore and allow re-including a path
-              // that has been prevously excluded (i.e. order matters).
               'output/subdir/reincluded',
             ],
           },

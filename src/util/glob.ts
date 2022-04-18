@@ -67,9 +67,9 @@ export const glob = async (
     for (const pattern of patterns) {
       expandedPatterns.push(pattern);
       // Also include a recursive-children version of every pattern, in case the
-      // pattern refers to a directory. This gives us behavior similar to
-      // .gitignore files and the npm package.json "files" array, where matching
-      // a directory implicitly includes all transitive children.
+      // pattern refers to a directory. This gives us behavior similar the npm
+      // package.json "files" array, where matching a directory implicitly
+      // includes all transitive children.
       if (!isRecursive(pattern)) {
         expandedPatterns.push(pattern + '/**');
       }
