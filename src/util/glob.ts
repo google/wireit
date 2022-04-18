@@ -141,7 +141,7 @@ export const glob = async (
     prevWasInclusive = !isExclusive;
   }
 
-  // Pass each cluster to fast-glob to match in parallel, and combine into a
+  // Pass each group to fast-glob to match in parallel, and combine into a
   // single set.
   const combinedSet = new Set<string>();
   await Promise.all(
