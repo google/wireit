@@ -13,7 +13,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - [**Breaking**] In the `files` array, matching a directory now matches all
   recursive contents of that directory.
 
+- [**Breaking**] It is now an error to include an empty string or all-whitespace
+  string in any of these fields:
+
+  - `command`
+  - `dependencies`
+  - `files`
+  - `output`
+  - `packageLocks`
+
 - The cache key now additionally includes the following fields:
+
   - The system platform (e.g. `linux`, `win32`).
   - The system CPU architecture (e.g. `x64`).
   - The system Node version (e.g. `16.7.0`).
