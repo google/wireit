@@ -131,9 +131,6 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // We behave like .gitignore and the npm "files" array in that if
-            // you match a directory, the recursive contents of that directory
-            // are also included.
             files: ['input'],
           },
         },
@@ -156,6 +153,62 @@ test(
     {
       await rig.write({
         'input/a': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'freshness check supports glob re-inclusion',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input/**', '!input/subdir/**', 'input/subdir/reincluded'],
+          },
+        },
+      },
+      'input/subdir/excluded': 'v0',
+      'input/subdir/reincluded': 'v0',
+    });
+
+    // Initially stale.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Excluded file modified. Fresh.
+    {
+      await rig.write({
+        'input/subdir/excluded': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Re-included file modified. Stale.
+    {
+      await rig.write({
+        'input/subdir/reincluded': 'v1',
       });
       const exec = rig.exec('npm run a');
       const inv = await cmdA.nextInvocation();

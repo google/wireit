@@ -175,6 +175,43 @@ test(
 );
 
 test(
+  'cleaning supports glob re-inclusion',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            output: [
+              'output/**',
+              '!output/subdir/**',
+              'output/subdir/reincluded',
+            ],
+          },
+        },
+      },
+      'output/subdir/excluded': 'v0',
+      'output/subdir/reincluded': 'v0',
+    });
+
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    assert.ok(await rig.exists('output/subdir/excluded'));
+    assert.not(await rig.exists('output/subdir/reincluded'));
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+  })
+);
+
+test(
   'cleaning deletes directories',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
