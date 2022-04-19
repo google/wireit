@@ -6,13 +6,13 @@
 
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
-import {optimizeCopies} from '../util/optimize-fs-ops.js';
+import {optimizeCpRms} from '../util/optimize-fs-ops.js';
 import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 
 const check = (input: string[], expected: string[]) =>
   assert.equal(
-    optimizeCopies(input.map(windowsifyPathIfOnWindows)).sort(),
+    optimizeCpRms(input.map(windowsifyPathIfOnWindows)).sort(),
     expected.map(windowsifyPathIfOnWindows).sort()
   );
 

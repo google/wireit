@@ -15,6 +15,8 @@ import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {getScriptDataDir} from './util/script-data-dir.js';
 import {unreachable} from './util/unreachable.js';
+import {glob} from './util/glob.js';
+import {optimizeCpRms} from './util/optimize-fs-ops.js';
 
 import type {
   ScriptConfig,
@@ -27,7 +29,6 @@ import type {
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
-import {glob} from './util/glob.js';
 
 /**
  * The PATH environment variable of this process, minus all of the leading
@@ -679,8 +680,11 @@ class ScriptExecution {
         });
       }
     }
+    // Compute the smallest set of recursive fs.rm operations needed to cover
+    // all of the files.
+    const optimized = optimizeCpRms(absFiles);
     await Promise.all(
-      absFiles.map(async (absFile) => {
+      optimized.map(async (absFile) => {
         try {
           await fs.rm(absFile, {recursive: true});
         } catch (error) {

@@ -7,8 +7,8 @@
 import {sep, dirname} from 'path';
 
 /**
- * Given a set of filesystem paths, returns the smallest set of {@link fs.cp}
- * operations required to cover all paths.
+ * Given a set of filesystem paths, returns the smallest set of recursive
+ * {@link fs.cp} or {@link fs.rm} operations required to cover all paths.
  *
  * For example, given:
  *
@@ -24,7 +24,7 @@ import {sep, dirname} from 'path';
  *
  * Note this function does an in-place sort of the given paths.
  */
-export const optimizeCopies = (paths: string[]): string[] => {
+export const optimizeCpRms = (paths: string[]): string[] => {
   if (paths.length <= 1) {
     return paths;
   }
