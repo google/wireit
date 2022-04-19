@@ -340,6 +340,14 @@ test('re-inclusion of file', ({check}) =>
     expected: ['foo'],
   }));
 
+test('re-inclusion of directory', ({check}) =>
+  check({
+    files: ['foo/'],
+    patterns: ['!foo', 'foo'],
+    expected: ['foo'],
+    includeDirectories: true,
+  }));
+
 test('re-inclusion of file into directory', ({check}) =>
   check({
     files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
@@ -354,6 +362,16 @@ test('re-inclusion of file into directory with expandDirectories=true', ({
     files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
     patterns: ['foo', '!foo/bar', 'foo/bar/baz', '!foo/qux'],
     expected: ['foo/1', 'foo/bar/baz'],
+    expandDirectories: true,
+  }));
+
+test('re-inclusion of directory into directory with expandDirectories=true', ({
+  check,
+}) =>
+  check({
+    files: ['foo/1', 'foo/bar/1', 'foo/bar/baz/1'],
+    patterns: ['foo', '!foo/bar', 'foo/bar/baz'],
+    expected: ['foo/1', 'foo/bar/baz/1'],
     expandDirectories: true,
   }));
 

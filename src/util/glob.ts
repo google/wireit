@@ -132,6 +132,10 @@ export const glob = async (
     } else if (pattern.match(/^\s*$/)) {
       // fast-glob already throws on empty strings, but we also throw on
       // only-whitespace patterns.
+      //
+      // Note minor optimization here: there is no reason to check this regexp
+      // on exclusive patterns, because by definition they start with a "!" so
+      // can't have been empty/blank.
       throw new Error(
         `glob encountered empty or blank pattern: ${JSON.stringify(pattern)}`
       );

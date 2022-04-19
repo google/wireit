@@ -202,6 +202,7 @@ export const registerCommonCacheTests = (
         },
         input: 'v0',
         'output/subdir/excluded': 'v0',
+        'output/subdir/reincluded': 'v0',
       });
 
       // Initial run with input v0.

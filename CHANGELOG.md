@@ -19,7 +19,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   recursive contents of that directory.
 
 - [**Breaking**] The order of `!exclude` glob patterns in the `files` and
-  `output` arrays is now significant.
+  `output` arrays is now significant. `!exclude` patterns now only apply to the
+  patterns that precede it. This allows a file or directory to be re-included
+  after exclusion.
 
 - [**Breaking**] It is now an error to include an empty string or all-whitespace
   string in any of these fields:
