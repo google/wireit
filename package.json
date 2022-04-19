@@ -34,6 +34,8 @@
     "test:errors-usage": "wireit",
     "test:freshness": "wireit",
     "test:glob": "wireit",
+    "test:optimize-cprms": "wireit",
+    "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
     "test:stdio-replay": "wireit",
     "test:watch": "wireit"
@@ -61,6 +63,8 @@
         "test:errors-usage",
         "test:freshness",
         "test:glob",
+        "test:optimize-cprms",
+        "test:optimize-mkdirs",
         "test:parallelism",
         "test:stdio-replay",
         "test:watch"
@@ -124,6 +128,22 @@
     },
     "test:glob": {
       "command": "uvu lib/test \"glob\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:optimize-cprms": {
+      "command": "uvu lib/test \"optimize-cprms\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:optimize-mkdirs": {
+      "command": "uvu lib/test \"optimize-mkdirs\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
