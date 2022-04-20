@@ -38,10 +38,25 @@ const getOptions = (): Options => {
     !name ||
     !process.env.npm_execpath?.endsWith('npm-cli.js')
   ) {
+    let message;
+    if (!packageDir) {
+      message = `Expected env variable npm_config_local_prefix to be set, but was ${String(
+        packageDir
+      )}`;
+    } else if (!name) {
+      message = `Expected env variable npm_lifecycle_event to be set, but was ${String(
+        name
+      )}`;
+    } else {
+      message = `Expected env variable npm_execpath to be set to a string that ends with npm-cli.js but was ${String(
+        process.env.npm_execpath
+      )}`;
+    }
     throw new WireitError({
       type: 'failure',
       reason: 'launched-incorrectly',
       script: {packageDir: packageDir ?? process.cwd()},
+      message,
     });
   }
   const script = {packageDir, name};

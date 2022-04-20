@@ -98,7 +98,9 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'launched-incorrectly': {
-            console.error(`❌${prefix} wireit must be launched with "npm run"`);
+            console.error(
+              `❌${prefix} wireit must be launched with "npm run"\n      More detail: ${event.message}`
+            );
             break;
           }
           case 'missing-package-json': {
