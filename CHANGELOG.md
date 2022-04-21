@@ -38,6 +38,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - The system CPU architecture (e.g. `x64`).
   - The system Node version (e.g. `16.7.0`).
 
+### Fixed
+
+- Give a clearer error message when run with an old npm version.
+
 ## [0.1.1] - 2022-04-08
 
 ### Added
