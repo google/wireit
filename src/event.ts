@@ -112,7 +112,7 @@ export interface SpawnError extends ErrorBase<ScriptReference> {
  */
 export interface LaunchedIncorrectly extends ErrorBase<PackageReference> {
   reason: 'launched-incorrectly';
-  message: string;
+  advice: string | undefined;
 }
 
 /**

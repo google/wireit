@@ -33,30 +33,22 @@ const getOptions = (): Options => {
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be either
   // "npm-cli.js" or "npx-cli.js", so we use that to detect this case.
   const name = process.env.npm_lifecycle_event;
-  if (
-    !packageDir ||
-    !name ||
-    !process.env.npm_execpath?.endsWith('npm-cli.js')
-  ) {
-    let message;
-    if (!packageDir) {
-      message = `Expected env variable npm_config_local_prefix to be set, but was ${String(
-        packageDir
-      )}`;
-    } else if (!name) {
-      message = `Expected env variable npm_lifecycle_event to be set, but was ${String(
-        name
-      )}`;
-    } else {
-      message = `Expected env variable npm_execpath to be set to a string that ends with npm-cli.js but was ${String(
-        process.env.npm_execpath
-      )}`;
+  const execPathCorrect = process.env.npm_execpath?.endsWith('npm-cli.js');
+  if (!packageDir || !name || !execPathCorrect) {
+    // Ideally we'd look at package.json#engines.node but in the limit that
+    // requires doing a semver comparison. This gets 99% of the value
+    // (giving a good hint to the user of what's gone wrong) without adding
+    // more deps or complexity.
+    const nodeMajorVersion = Number(process.versions.node.split('.')[0]);
+    let advice: string | undefined;
+    if (nodeMajorVersion < 16) {
+      advice = `Your version of NodeJS is older than wireit supports.`;
     }
     throw new WireitError({
       type: 'failure',
       reason: 'launched-incorrectly',
       script: {packageDir: packageDir ?? process.cwd()},
-      message,
+      advice,
     });
   }
   const script = {packageDir, name};
