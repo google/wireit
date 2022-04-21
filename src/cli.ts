@@ -40,9 +40,14 @@ const getOptions = (): Options => {
     // (giving a good hint to the user of what's gone wrong) without adding
     // more deps or complexity.
     const nodeMajorVersion = Number(process.versions.node.split('.')[0]);
+    const npmMajorVersion =
+      process.env.npm_config_user_agent?.match(/npm\/(\d+)/)?.[1];
     let advice: string | undefined;
-    if (nodeMajorVersion < 16) {
-      advice = `Your version of NodeJS is older than wireit supports.`;
+    if (
+      nodeMajorVersion < 16 ||
+      (npmMajorVersion != null && Number(npmMajorVersion) < 7)
+    ) {
+      advice = `Your version of NodeJS or NPM is older than wireit supports.`;
     }
     throw new WireitError({
       type: 'failure',
