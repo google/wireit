@@ -101,6 +101,13 @@ export class DefaultLogger implements Logger {
             console.error(`❌${prefix} wireit must be launched with "npm run"`);
             break;
           }
+          case 'old-npm-version': {
+            console.error(
+              `❌${prefix} wireit must be run with npm at least v${event.minNpmVersion}.`
+            );
+            console.error(`    More info: ${event.detail}`);
+            break;
+          }
           case 'missing-package-json': {
             console.error(
               `❌${prefix} No package.json was found in ${event.script.packageDir}`

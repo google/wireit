@@ -32,12 +32,26 @@ const getOptions = (): Options => {
   // We need to handle "npx wireit" as a special case, because it sets
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be either
   // "npm-cli.js" or "npx-cli.js", so we use that to detect this case.
+  if (!packageDir) {
+    const npmMajorVersion =
+      process.env.npm_config_user_agent?.match(/npm\/(\d+)/)?.[1];
+    const minimumMajorNpmVersion = 8;
+    if (
+      npmMajorVersion != null &&
+      Number(npmMajorVersion) < minimumMajorNpmVersion
+    ) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'old-npm-version',
+        minNpmVersion: `${minimumMajorNpmVersion}`,
+        script: {packageDir: process.cwd()},
+        detail: `Env variable npm_config_local_prefix was not set.`,
+      });
+    }
+  }
   const name = process.env.npm_lifecycle_event;
-  if (
-    !packageDir ||
-    !name ||
-    !process.env.npm_execpath?.endsWith('npm-cli.js')
-  ) {
+  const execPathCorrect = process.env.npm_execpath?.endsWith('npm-cli.js');
+  if (!packageDir || !name || !execPathCorrect) {
     throw new WireitError({
       type: 'failure',
       reason: 'launched-incorrectly',
