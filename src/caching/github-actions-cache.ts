@@ -29,6 +29,7 @@ import type {
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
 import type {Logger} from '../logging/logger.js';
+import type {Entry} from '../util/glob.js';
 
 // TODO(aomarks) Consider dropping the dependency on @actions/cache by writing
 // our own implementation. See https://github.com/google/wireit/issues/107 for
@@ -135,11 +136,11 @@ export class GitHubActionsCache implements Cache {
   async set(
     script: ScriptReference,
     stateStr: ScriptStateString,
-    relativeFiles: string[]
+    relativeFiles: Entry[]
   ): Promise<boolean> {
     const compressionMethod = await GitHubActionsCache.#compressionMethod;
     const tarballPath = await this.#makeTarball(
-      relativeFiles.map((file) => pathlib.join(script.packageDir, file)),
+      relativeFiles.map((file) => pathlib.join(script.packageDir, file.path)),
       compressionMethod
     );
     try {
