@@ -12,6 +12,7 @@ import cmdShim from 'cmd-shim';
 import {WireitTestRigCommand} from './test-rig-command.js';
 import {Deferred} from '../../util/deferred.js';
 import {IS_WINDOWS} from './windows.js';
+import {FilesystemTestRig} from './filesystem-test-rig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -20,9 +21,7 @@ const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 /**
  * A test rig for managing a temporary filesystem and executing Wireit.
  */
-export class WireitTestRig {
-  readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
-  #state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
+export class WireitTestRig extends FilesystemTestRig {
   readonly #activeChildProcesses = new Set<ExecResult>();
   readonly #commands: Array<WireitTestRigCommand> = [];
 
@@ -31,21 +30,12 @@ export class WireitTestRig {
    */
   env: Record<string, string | undefined> = {};
 
-  #assertState(expected: 'uninitialized' | 'running' | 'done') {
-    if (this.#state !== expected) {
-      throw new Error(
-        `Expected state to be ${expected} but was ${this.#state}`
-      );
-    }
-  }
-
   /**
    * Initialize the temporary filesystem, and set up the wireit binary to be
    * runnable as though it had been installed there through npm.
    */
   async setup() {
-    this.#assertState('uninitialized');
-    this.#state = 'running';
+    await super.setup();
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
       this.temp,
@@ -84,7 +74,7 @@ export class WireitTestRig {
     binaryPath: string;
     installPath: string;
   }) {
-    this.#assertState('running');
+    this.assertState('running');
 
     binaryPath = this.#resolve(binaryPath);
     installPath = this.#resolve(installPath);
@@ -112,101 +102,21 @@ export class WireitTestRig {
       await this.symlink(binaryPath, installPath);
     }
   }
+
   /**
    * Delete the temporary filesystem and perform other cleanup.
    */
   async cleanup(): Promise<void> {
-    this.#assertState('running');
-    this.#state = 'done';
     for (const child of this.#activeChildProcesses) {
       child.terminate();
       await child.exit;
     }
-    await Promise.all([
-      fs.rm(this.temp, {recursive: true}),
-      ...this.#commands.map((command) => command.close()),
-    ]);
+    await Promise.all(this.#commands.map((command) => command.close()));
+    await super.cleanup();
   }
 
   #resolve(filename: string): string {
     return pathlib.resolve(this.temp, filename);
-  }
-
-  /**
-   * Write files to the temporary filesystem.
-   *
-   * If the value of an entry in the files object is a string, it is written as
-   * UTF-8 text. Otherwise it is JSON encoded.
-   */
-  async write(files: {[filename: string]: unknown}) {
-    this.#assertState('running');
-    await Promise.all(
-      Object.entries(files).map(async ([relative, data]) => {
-        const absolute = pathlib.resolve(this.temp, relative);
-        await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
-        const str =
-          typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-        await fs.writeFile(absolute, str, 'utf8');
-      })
-    );
-  }
-
-  /**
-   * Read a file from the temporary filesystem.
-   */
-  async read(filename: string): Promise<string> {
-    this.#assertState('running');
-    return fs.readFile(this.#resolve(filename), 'utf8');
-  }
-
-  /**
-   * Check whether a file exists in the temporary filesystem.
-   */
-  async exists(filename: string): Promise<boolean> {
-    this.#assertState('running');
-    try {
-      await fs.access(this.#resolve(filename));
-      return true;
-    } catch (err) {
-      if ((err as {code?: string}).code === 'ENOENT') {
-        return false;
-      }
-      throw err;
-    }
-  }
-
-  /**
-   * Create an empty directory in the temporary filesystem, including all parent
-   * directories.
-   */
-  async mkdir(dirname: string): Promise<void> {
-    this.#assertState('running');
-    await fs.mkdir(this.#resolve(dirname), {recursive: true});
-  }
-
-  /**
-   * Delete a file or directory in the temporary filesystem.
-   */
-  async delete(filename: string): Promise<void> {
-    this.#assertState('running');
-    await fs.rm(this.#resolve(filename), {force: true, recursive: true});
-  }
-
-  /**
-   * Create a symlink in the temporary filesystem.
-   */
-  async symlink(target: string, filename: string): Promise<void> {
-    this.#assertState('running');
-    const absolute = this.#resolve(filename);
-    try {
-      await fs.unlink(absolute);
-    } catch (err) {
-      if ((err as {code?: string}).code !== 'ENOENT') {
-        throw err;
-      }
-      await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
-    }
-    await fs.symlink(target, absolute);
   }
 
   /**
@@ -216,7 +126,7 @@ export class WireitTestRig {
     command: string,
     opts?: {cwd?: string; env?: Record<string, string | undefined>}
   ): ExecResult {
-    this.#assertState('running');
+    this.assertState('running');
     const cwd = this.#resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
       // We hard code the parallelism here because by default we infer a value
@@ -240,7 +150,7 @@ export class WireitTestRig {
    * Create a new test command.
    */
   async newCommand(): Promise<WireitTestRigCommand> {
-    this.#assertState('running');
+    this.assertState('running');
     // On Windows, Node IPC is implemented with named pipes, which must be
     // prefixed by "\\?\pipe\". On Linux/macOS it's a unix domain socket, which
     // can be any filepath. See https://nodejs.org/api/net.html#ipc-support for
