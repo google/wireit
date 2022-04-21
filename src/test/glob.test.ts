@@ -4,16 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
 import {suite} from 'uvu';
 import {glob} from '../util/glob.js';
-import {fileURLToPath} from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = pathlib.dirname(__filename);
-const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
+import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 
 interface Symlink {
   /** Where the symlink file points to. */
@@ -33,40 +28,36 @@ interface TestCase {
 }
 
 const test = suite<{
-  temp: string;
+  rig: FilesystemTestRig;
   check: (data: TestCase) => Promise<void>;
 }>();
 
 test.before.each(async (ctx) => {
   try {
-    ctx.temp = pathlib.resolve(repoRoot, 'temp', 'glob', String(Math.random()));
-    await fs.mkdir(ctx.temp, {recursive: true});
+    const rig = (ctx.rig = new FilesystemTestRig());
+    await rig.setup();
 
     ctx.check = async ({
       files,
       patterns,
       expected,
-      cwd = ctx.temp,
+      cwd = rig.temp,
       absolute = false,
       includeDirectories = false,
       expandDirectories = false,
     }: TestCase): Promise<void> => {
       for (const file of files) {
         if (typeof file === 'string') {
-          const abs = pathlib.join(ctx.temp, file);
           if (file.endsWith('/')) {
             // directory
-            await fs.mkdir(abs, {recursive: true});
+            await rig.mkdir(file);
           } else {
             // file
-            await fs.mkdir(pathlib.dirname(abs), {recursive: true});
-            await fs.writeFile(abs, 'utf8');
+            await rig.touch(file);
           }
         } else {
           // symlink
-          const abs = pathlib.join(ctx.temp, file.path);
-          await fs.mkdir(pathlib.dirname(abs), {recursive: true});
-          await fs.symlink(file.target, abs);
+          await rig.symlink(file.target, file.path);
         }
       }
 
@@ -108,7 +99,7 @@ test.before.each(async (ctx) => {
 
 test.after.each(async (ctx) => {
   try {
-    await fs.rm(ctx.temp, {recursive: true});
+    await ctx.rig.cleanup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
     // see https://github.com/lukeed/uvu/issues/191.
@@ -180,11 +171,11 @@ test('matches explicit symlink', ({check}) =>
     expected: ['symlink'],
   }));
 
-test('absolute', ({check, temp}) =>
+test('absolute', ({check, rig}) =>
   check({
     files: ['foo'],
     patterns: ['foo'],
-    expected: [pathlib.join(temp, 'foo')],
+    expected: [rig.resolve('foo')],
     absolute: true,
   }));
 
