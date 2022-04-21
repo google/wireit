@@ -72,6 +72,13 @@ export class FilesystemTestRig {
   }
 
   /**
+   * Write an empty file to the temporary filesystem.
+   */
+  async touch(file: string): Promise<void> {
+    await this.write({[file]: ''});
+  }
+
+  /**
    * Read a file from the temporary filesystem.
    */
   async read(filename: string): Promise<string> {
