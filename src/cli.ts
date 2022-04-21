@@ -32,28 +32,30 @@ const getOptions = (): Options => {
   // We need to handle "npx wireit" as a special case, because it sets
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be either
   // "npm-cli.js" or "npx-cli.js", so we use that to detect this case.
+  if (!packageDir) {
+    const npmMajorVersion =
+      process.env.npm_config_user_agent?.match(/npm\/(\d+)/)?.[1];
+    const minimumMajorNpmVersion = 8;
+    if (
+      npmMajorVersion != null &&
+      Number(npmMajorVersion) < minimumMajorNpmVersion
+    ) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'old-npm-version',
+        minNpmVersion: `${minimumMajorNpmVersion}`,
+        script: {packageDir: process.cwd()},
+        detail: `Env variable npm_config_local_prefix was not set.`,
+      });
+    }
+  }
   const name = process.env.npm_lifecycle_event;
   const execPathCorrect = process.env.npm_execpath?.endsWith('npm-cli.js');
   if (!packageDir || !name || !execPathCorrect) {
-    // Ideally we'd look at package.json#engines.node but in the limit that
-    // requires doing a semver comparison. This gets 99% of the value
-    // (giving a good hint to the user of what's gone wrong) without adding
-    // more deps or complexity.
-    const nodeMajorVersion = Number(process.versions.node.split('.')[0]);
-    const npmMajorVersion =
-      process.env.npm_config_user_agent?.match(/npm\/(\d+)/)?.[1];
-    let advice: string | undefined;
-    if (
-      nodeMajorVersion < 16 ||
-      (npmMajorVersion != null && Number(npmMajorVersion) < 7)
-    ) {
-      advice = `Your version of NodeJS or NPM is older than wireit supports.`;
-    }
     throw new WireitError({
       type: 'failure',
       reason: 'launched-incorrectly',
       script: {packageDir: packageDir ?? process.cwd()},
-      advice,
     });
   }
   const script = {packageDir, name};
