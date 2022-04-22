@@ -233,20 +233,12 @@ called _incremental build_. When a script is skipped, any `stdout` or `stderr`
 that it produced in the previous run is replayed.
 
 To enable incremental build, configure the input files for each script by
-specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list:
+specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list.
 
-Notes:
-
-- If a script doesn't have a `files` list defined at all, then it will _always_
-  run, because Wireit doesn't know which files to check for changes. To tell
-  Wireit it is safe to skip execution of a script that definitely has no input
-  files, set `files` to an empty array (`files: []`).
-
-- In addition to the `files` list, the following also determine whether a script
-  will be skipped or not:
-  - The `command` must not have changed.
-  - The `files` of all transitive dependencies must not have changed.
-  - All transitive dependencies must have `files` defined (can be empty).
+> ℹ️ If a script doesn't have a `files` list defined at all, then it will _always_
+> run, because Wireit doesn't know which files to check for changes. To tell
+> Wireit it is safe to skip execution of a script that definitely has no input
+> files, set `files` to an empty array (`files: []`).
 
 ## Caching
 
