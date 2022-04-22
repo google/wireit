@@ -74,7 +74,7 @@ interface Directory {
 
 /**
  * Walk a {@link Directory} tree depth-first, deleting any directories that were
- * scheduled for deletion as long as they aren't empty.
+ * scheduled for deletion as long as they are empty.
  */
 const deleteDirectoriesDepthFirst = async (
   directory: Directory
