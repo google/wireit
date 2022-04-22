@@ -20,8 +20,7 @@ export const deleteEntries = async (entries: Entry[]): Promise<void> => {
 
   const directories = [];
   const unlinkPromises = [];
-  for (const entry of entries) {
-    const {path, dirent} = entry;
+  for (const {path, dirent} of entries) {
     if (dirent.isDirectory()) {
       // Don't delete directories yet.
       directories.push(path);

@@ -65,6 +65,10 @@ test.after.each(async (ctx) => {
   }
 });
 
+test('empty entries', async () => {
+  await deleteEntries([]);
+});
+
 test('delete 1 file', async ({rig, file}) => {
   await rig.touch('foo');
   await deleteEntries([file('foo')]);
