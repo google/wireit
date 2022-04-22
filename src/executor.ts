@@ -16,7 +16,7 @@ import {WorkerPool} from './util/worker-pool.js';
 import {getScriptDataDir} from './util/script-data-dir.js';
 import {unreachable} from './util/unreachable.js';
 import {glob} from './util/glob.js';
-import {optimizeCpRms} from './util/optimize-fs-ops.js';
+import {deleteEntries} from './util/delete.js';
 
 import type {
   ScriptConfig,
@@ -660,9 +660,7 @@ class ScriptExecution {
       cwd: this.#script.packageDir,
       absolute: true,
       includeDirectories: true,
-      // No need to expand directories, because we perform recursive operations
-      // on the results, so recursive children are already included.
-      expandDirectories: false,
+      expandDirectories: true,
     });
     if (absFiles.length === 0) {
       return;
@@ -683,20 +681,7 @@ class ScriptExecution {
         });
       }
     }
-    // Compute the smallest set of recursive fs.rm operations needed to cover
-    // all of the files.
-    const optimized = optimizeCpRms(absFiles.map((file) => file.path));
-    await Promise.all(
-      optimized.map(async (absFile) => {
-        try {
-          await fs.rm(absFile, {recursive: true});
-        } catch (error) {
-          if ((error as {code?: string}).code !== 'ENOENT') {
-            throw error;
-          }
-        }
-      })
-    );
+    await deleteEntries(absFiles);
   }
 
   /**
