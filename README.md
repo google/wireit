@@ -589,11 +589,11 @@ Here are some things you might especially like about Wireit:
   best way to set up monorepos. To use Wireit with npm workspaces, you'll just
   use standard npm workspace commands like `npm run build -ws`.
 
-- **Adopt incrementally**. Wireit can be adopted on a script-by-script basis.
-  Wireit scripts behave just like classic npm scripts, and a Wireit script can
-  reference a classic npm script as a dependency. This lets you focus on
-  optimizing the slow parts of your build without having to change everything
-  all at once.
+- **Adopt incrementally**. Wireit scripts can be freely mixed with plain npm
+  scripts, because Wireit scripts can depend on plain npm scripts, and because
+  you run them in the exact same way. This means you can use Wireit only for the
+  parts of your build that need it most, and you can try it out on a
+  script-by-script basis without changing too much at the same time.
 
 ## Contributing
 
