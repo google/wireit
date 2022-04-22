@@ -538,12 +538,15 @@ class ScriptExecution {
       // ".wireit/<script>/hashes".
       fileHashes = await Promise.all(
         files.map(async (file): Promise<[string, Sha256HexDigest]> => {
-          const absolutePath = pathlib.resolve(this.#script.packageDir, file);
+          const absolutePath = pathlib.resolve(
+            this.#script.packageDir,
+            file.path
+          );
           const hash = createHash('sha256');
           for await (const chunk of createReadStream(absolutePath)) {
             hash.update(chunk as Buffer);
           }
-          return [file, hash.digest('hex') as Sha256HexDigest];
+          return [file.path, hash.digest('hex') as Sha256HexDigest];
         })
       );
     } else {
@@ -671,18 +674,18 @@ class ScriptExecution {
       // provide a more useful message, but we need to be certain that we are
       // parsing glob patterns correctly (e.g. negations and other syntax make
       // it slightly tricky to detect).
-      if (!absFile.startsWith(insidePackagePrefix)) {
+      if (!absFile.path.startsWith(insidePackagePrefix)) {
         throw new WireitError({
           script: this.#script,
           type: 'failure',
           reason: 'invalid-config-syntax',
-          message: `refusing to delete output file outside of package: ${absFile}`,
+          message: `refusing to delete output file outside of package: ${absFile.path}`,
         });
       }
     }
     // Compute the smallest set of recursive fs.rm operations needed to cover
     // all of the files.
-    const optimized = optimizeCpRms(absFiles);
+    const optimized = optimizeCpRms(absFiles.map((file) => file.path));
     await Promise.all(
       optimized.map(async (absFile) => {
         try {

@@ -86,7 +86,8 @@ test.before.each(async (ctx) => {
       } else if (actual === undefined) {
         throw new Error('Actual was undefined');
       } else {
-        assert.equal(actual.sort(), expected.sort());
+        const actualPaths = actual.map((file) => file.path);
+        assert.equal(actualPaths.sort(), expected.sort());
       }
     };
   } catch (error) {
@@ -365,5 +366,33 @@ test('re-inclusion of directory into directory with expandDirectories=true', ({
     expected: ['foo/1', 'foo/bar/baz/1'],
     expandDirectories: true,
   }));
+
+test('dirent identifies files', async ({rig}) => {
+  await rig.touch('foo');
+  const actual = await glob(['foo'], {
+    cwd: rig.temp,
+    absolute: false,
+    includeDirectories: true,
+    expandDirectories: false,
+  });
+  assert.equal(actual.length, 1);
+  assert.equal(actual[0].path, 'foo');
+  assert.ok(actual[0].dirent.isFile());
+  assert.not(actual[0].dirent.isDirectory());
+});
+
+test('dirent identifies directories', async ({rig}) => {
+  await rig.mkdir('foo');
+  const actual = await glob(['foo'], {
+    cwd: rig.temp,
+    absolute: false,
+    includeDirectories: true,
+    expandDirectories: false,
+  });
+  assert.equal(actual.length, 1);
+  assert.equal(actual[0].path, 'foo');
+  assert.not(actual[0].dirent.isFile());
+  assert.ok(actual[0].dirent.isDirectory());
+});
 
 test.run();

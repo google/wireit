@@ -5,6 +5,7 @@
  */
 
 import type {ScriptStateString, ScriptReference} from '../script.js';
+import type {Entry} from '../util/glob.js';
 
 /**
  * Saves and restores output files to some cache store (e.g. local disk or
@@ -35,14 +36,13 @@ export interface Cache {
    *
    * @param script The script whose output will be saved to the cache.
    * @param cacheKey The string-encoded cache key for the script.
-   * @param relativeFilePaths The package-relative output file paths to cache
-   * (concrete paths, not glob patterns).
+   * @param relativeFiles The package-relative output files to cache.
    * @returns Whether the cache was written.
    */
   set(
     script: ScriptReference,
     cacheKey: ScriptStateString,
-    relativeFilePaths: string[]
+    relativeFiles: Entry[]
   ): Promise<boolean>;
 }
 

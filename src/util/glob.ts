@@ -7,6 +7,10 @@
 import fastGlob from 'fast-glob';
 import * as pathlib from 'path';
 
+import type {Entry} from 'fast-glob';
+
+export {Entry};
+
 /**
  * Options for {@link glob}.
  */
@@ -56,7 +60,7 @@ interface GlobGroup {
 export const glob = async (
   patterns: string[],
   opts: GlobOptions
-): Promise<string[]> => {
+): Promise<Entry[]> => {
   if (patterns.length === 0) {
     return [];
   }
@@ -147,7 +151,7 @@ export const glob = async (
 
   // Pass each group to fast-glob to match in parallel, and combine into a
   // single set.
-  const combinedSet = new Set<string>();
+  const combinedMap = new Map<string, Entry>();
   await Promise.all(
     groups.map(async ({include, exclude}) => {
       const matches = await fastGlob(include, {
@@ -156,23 +160,27 @@ export const glob = async (
         dot: true,
         onlyFiles: !opts.includeDirectories,
         absolute: opts.absolute,
+        // This should have no overhead because fast-glob already uses these
+        // objects for its internal representation:
+        // https://github.com/mrmlnc/fast-glob#objectmode
+        objectMode: true,
         // Since we append "/**" to patterns above, we will sometimes get
         // ENOTDIR errors when the path we appended to was not a directory. We
         // can't know in advance which patterns refer to directories.
         suppressErrors: true,
       });
       for (const match of matches) {
-        combinedSet.add(match);
+        combinedMap.set(match.path, match);
       }
     })
   );
 
-  const combinedArr = [...combinedSet];
+  const combinedArr = [...combinedMap.values()];
   if (pathlib.sep === '\\') {
-    for (let i = 0; i < combinedArr.length; i++) {
+    for (const entry of combinedArr) {
       // fast-glob always returns "/" separated paths, even on Windows. Convert
       // to the OS-native separator.
-      combinedArr[i] = pathlib.normalize(combinedArr[i]);
+      entry.path = pathlib.normalize(entry.path);
     }
   }
   return combinedArr;

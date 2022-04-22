@@ -12,6 +12,7 @@ import {optimizeCpRms, optimizeMkdirs} from '../util/optimize-fs-ops.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
+import type {Entry} from '../util/glob.js';
 
 /**
  * Caches script output to each package's
@@ -37,7 +38,7 @@ export class LocalCache implements Cache {
   async set(
     script: ScriptReference,
     cacheKey: ScriptStateString,
-    relativeFiles: string[]
+    relativeFiles: Entry[]
   ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
     // We'll have the "clean" command to help with manual cleanup, but we'll
@@ -56,7 +57,7 @@ export class LocalCache implements Cache {
     }
     // Compute the smallest set of recursive fs.cp and fs.mkdir operations
     // needed to cover all of the files.
-    const copyOps = optimizeCpRms(relativeFiles);
+    const copyOps = optimizeCpRms(relativeFiles.map((file) => file.path));
     const mkdirOps = optimizeMkdirs(
       copyOps.map((path) => pathlib.dirname(path))
     );
