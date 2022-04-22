@@ -44,6 +44,7 @@
   - [Glob patterns](#glob-patterns)
   - [Cache key](#cache-key)
 - [Requirements](#requirements)
+- [Related tools](#related-tools)
 - [Contributing](#contributing)
 
 ## Install
@@ -554,6 +555,45 @@ Wireit is supported on Linux, macOS, and Windows.
 Wireit requires Node Active LTS (16.7.0+) or Current (17.0.0+). Node Maintenance
 LTS releases are not supported. See
 [here](https://nodejs.org/en/about/releases/) for Node's release schedule.
+
+## Related tools
+
+Wireit shares many of its features with a number of other great tools, and we
+highly recommend you check them out too:
+
+- [Nx](https://nx.dev/)
+- [Turborepo](https://turborepo.org/)
+- [Chomp](https://chompbuild.com/)
+- [Bazel](https://bazel.build/)
+
+Here are some things you might especially like about Wireit:
+
+- **Feels like npm**. When you use Wireit, you'll continue typing the regular
+  npm commands you already know, like `npm run build` and `npm test`. There are
+  no new command-line tools to learn, and there's only one way to run each
+  script.
+
+- **Caching with GitHub Actions**. Wireit supports caching build artifacts and
+  test results directly through GitHub Actions, without any extra third-party
+  services. Just add a single `use` line to your workflows.
+
+- **Great for single packages and monorepos**. Wireit has no opinion about how
+  your packages are arranged. It works great with single packages, because you
+  can link together scripts within the same package. It also works great with
+  any kind of monorepo, because you can link together scripts across different
+  packages using relative paths.
+
+- **Compliments npm workspaces**. We think Wireit could be the missing tool that
+  unlocks the potential for [npm
+  workspaces](https://docs.npmjs.com/cli/v8/using-npm/workspaces) to become the
+  best way to set up monorepos. To use Wireit with npm workspaces, you'll just
+  use standard npm workspace commands like `npm run build -ws`.
+
+- **Adopt incrementally**. Wireit can be adopted on a script-by-script basis.
+  Wireit scripts behave just like classic npm scripts, and a Wireit script can
+  reference a classic npm script as a dependency. This lets you focus on
+  optimizing the slow parts of your build without having to change everything
+  all at once.
 
 ## Contributing
 
