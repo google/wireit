@@ -5,6 +5,7 @@
  */
 
 import * as os from 'os';
+import {dirname} from 'path';
 import {WireitError} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
@@ -14,7 +15,14 @@ import {unreachable} from './util/unreachable.js';
 
 import type {ScriptReference} from './script.js';
 
-const packageDir = process.env.npm_config_local_prefix;
+// The "npm_package_json" environment variable gives us the path to the
+// package.json file for the current script's npm package. The similar
+// environment variable "npm_config_local_prefix" gives us the package directory
+// (i.e. without the "/package.json"), however when a package is a member of an
+// npm workspace, then "npm_config_local_prefix" is instead that of the
+// workspace root package.
+const packageJsonPath = process.env.npm_package_json;
+const packageDir = packageJsonPath ? dirname(packageJsonPath) : undefined;
 const logger = new DefaultLogger(packageDir ?? process.cwd());
 
 interface Options {
@@ -45,7 +53,7 @@ const getOptions = (): Options => {
         reason: 'old-npm-version',
         minNpmVersion: `${minimumMajorNpmVersion}`,
         script: {packageDir: process.cwd()},
-        detail: `Env variable npm_config_local_prefix was not set.`,
+        detail: `Env variable npm_package_json was not set.`,
       });
     }
   }

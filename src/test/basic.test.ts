@@ -671,4 +671,57 @@ test(
   })
 );
 
+test(
+  'commands run under npm workspaces',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        workspaces: ['foo', 'bar'],
+      },
+      'foo/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdA.command,
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdB.command,
+          },
+        },
+      },
+    });
+
+    // Run both from the workspaces root package.
+    {
+      const exec = rig.exec('npm run cmd -ws');
+      // Workspace commands run in serial.
+      (await cmdA.nextInvocation()).exit(0);
+      (await cmdB.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+
+    // Run one from the workspace package.
+    {
+      const exec = rig.exec('npm run cmd', {cwd: 'foo'});
+      (await cmdA.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+  })
+);
+
 test.run();
