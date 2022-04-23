@@ -65,7 +65,7 @@ test.after.each(async (ctx) => {
   }
 });
 
-test('empty entries', async () => {
+test('ignore empty entries', async () => {
   await deleteEntries([]);
 });
 

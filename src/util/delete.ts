@@ -10,8 +10,14 @@ import * as pathlib from 'path';
 import type {Entry} from './glob.js';
 
 /**
- * Delete all of the given files and directories. If a directory is still not
- * empty after all of its given children have been deleted, do nothing.
+ * Delete all of the given files and directories.
+ *
+ * Directories are NOT deleted recursively. To delete a directory, it must
+ * either already be empty, or all of its transitive children must be explicitly
+ * provided in the {@link entries} parameter. Deletes are performed depth-first
+ * so that children are deleted before their parents. If a directory is still
+ * not empty after all of the provided children have been deleted, then it is
+ * left in-place.
  */
 export const deleteEntries = async (entries: Entry[]): Promise<void> => {
   if (entries.length === 0) {
@@ -38,6 +44,11 @@ export const deleteEntries = async (entries: Entry[]): Promise<void> => {
     return;
   }
   if (directories.length === 1) {
+    // Minor optimization for the common case of 1 directory. We've already
+    // deleted all regular files, and we don't delete directories recursively.
+    // So either [1] this directory is empty and we should delete it, or [2] it
+    // has a child directory that was not explicitly listed so we should leave
+    // it in-place.
     await rmdirGracefully(directories[0]);
     return;
   }
@@ -53,12 +64,7 @@ export const deleteEntries = async (entries: Entry[]): Promise<void> => {
   for (const path of directories) {
     let cur = root;
     for (const part of path.split(pathlib.sep)) {
-      let node = cur.children[part];
-      if (node === undefined) {
-        node = {children: {}};
-        cur.children[part] = node;
-      }
-      cur = node;
+      cur = cur.children[part] ??= {children: {}};
     }
     cur.pathIfShouldDelete = path;
   }
