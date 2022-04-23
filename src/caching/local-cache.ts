@@ -8,7 +8,8 @@ import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
 import {getScriptDataDir} from '../util/script-data-dir.js';
-import {optimizeCpRms, optimizeMkdirs} from '../util/optimize-fs-ops.js';
+import {copyEntries} from '../util/copy.js';
+import {glob} from '../util/glob.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
@@ -55,36 +56,7 @@ export class LocalCache implements Cache {
       // checked for an existing cache hit.
       throw new Error(`Did not expect ${absCacheDir} to already exist.`);
     }
-    // Compute the smallest set of recursive fs.cp and fs.mkdir operations
-    // needed to cover all of the files.
-    const copyOps = optimizeCpRms(relativeFiles.map((file) => file.path));
-    const mkdirOps = optimizeMkdirs(
-      copyOps.map((path) => pathlib.dirname(path))
-    );
-    await Promise.all(
-      mkdirOps.map((dir) =>
-        fs.mkdir(pathlib.join(absCacheDir, dir), {recursive: true})
-      )
-    );
-    await Promise.all(
-      copyOps.map((file) =>
-        // TODO(aomarks) fs.cp is experimental and was added in Node 16.7.0. It
-        // could be removed or changed in the future
-        // (https://nodejs.org/api/fs.html#fscpsrc-dest-options-callback). We're
-        // using it here because unlike fs.copyFile, it is able to copy a
-        // symlink without dereferencing it, and because it can recursively copy
-        // an entire directory.
-        fs.cp(
-          pathlib.join(script.packageDir, file),
-          pathlib.join(absCacheDir, file),
-          {
-            recursive: true,
-            // Copy symlinks as symlinks, instead of following them.
-            dereference: false,
-          }
-        )
-      )
-    );
+    await copyEntries(relativeFiles, script.packageDir, absCacheDir);
     return true;
   }
 
@@ -115,11 +87,13 @@ class LocalCacheHit implements CacheHit {
   }
 
   async apply(): Promise<void> {
-    // TODO(aomarks) See note above about experimental status of fs.cp.
-    await fs.cp(this.#source, this.#destination, {
-      recursive: true,
-      // Copy symlinks as symlinks, instead of following them.
-      dereference: false,
+    const entries = await glob(['**'], {
+      cwd: this.#source,
+      absolute: false,
+      followSymlinks: false,
+      includeDirectories: true,
+      expandDirectories: true,
     });
+    await copyEntries(entries, this.#source, this.#destination);
   }
 }
