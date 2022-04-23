@@ -5,7 +5,7 @@
  */
 
 import type {ScriptStateString, ScriptReference} from '../script.js';
-import type {Entry} from '../util/glob.js';
+import type {RelativeEntry} from '../util/glob.js';
 
 /**
  * Saves and restores output files to some cache store (e.g. local disk or
@@ -42,7 +42,7 @@ export interface Cache {
   set(
     script: ScriptReference,
     cacheKey: ScriptStateString,
-    relativeFiles: Entry[]
+    relativeFiles: RelativeEntry[]
   ): Promise<boolean>;
 }
 

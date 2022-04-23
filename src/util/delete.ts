@@ -7,7 +7,7 @@
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 
-import type {Entry} from './glob.js';
+import type {AbsoluteEntry} from './glob.js';
 
 /**
  * Delete all of the given files and directories.
@@ -19,7 +19,9 @@ import type {Entry} from './glob.js';
  * not empty after all of the provided children have been deleted, then it is
  * left in-place.
  */
-export const deleteEntries = async (entries: Entry[]): Promise<void> => {
+export const deleteEntries = async (
+  entries: AbsoluteEntry[]
+): Promise<void> => {
   if (entries.length === 0) {
     return;
   }

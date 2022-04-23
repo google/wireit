@@ -12,7 +12,7 @@ import {optimizeCpRms, optimizeMkdirs} from '../util/optimize-fs-ops.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
-import type {Entry} from '../util/glob.js';
+import type {RelativeEntry} from '../util/glob.js';
 
 /**
  * Caches script output to each package's
@@ -38,7 +38,7 @@ export class LocalCache implements Cache {
   async set(
     script: ScriptReference,
     cacheKey: ScriptStateString,
-    relativeFiles: Entry[]
+    relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
     // We'll have the "clean" command to help with manual cleanup, but we'll
