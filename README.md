@@ -44,6 +44,7 @@
   - [Glob patterns](#glob-patterns)
   - [Cache key](#cache-key)
 - [Requirements](#requirements)
+- [Related tools](#related-tools)
 - [Contributing](#contributing)
 
 ## Install
@@ -233,20 +234,12 @@ called _incremental build_. When a script is skipped, any `stdout` or `stderr`
 that it produced in the previous run is replayed.
 
 To enable incremental build, configure the input files for each script by
-specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list:
+specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list.
 
-Notes:
-
-- If a script doesn't have a `files` list defined at all, then it will _always_
-  run, because Wireit doesn't know which files to check for changes. To tell
-  Wireit it is safe to skip execution of a script that definitely has no input
-  files, set `files` to an empty array (`files: []`).
-
-- In addition to the `files` list, the following also determine whether a script
-  will be skipped or not:
-  - The `command` must not have changed.
-  - The `files` of all transitive dependencies must not have changed.
-  - All transitive dependencies must have `files` defined (can be empty).
+> ℹ️ If a script doesn't have a `files` list defined at all, then it will _always_
+> run, because Wireit doesn't know which files to check for changes. To tell
+> Wireit it is safe to skip execution of a script that definitely has no input
+> files, set `files` to an empty array (`files: []`).
 
 ## Caching
 
@@ -562,6 +555,50 @@ Wireit is supported on Linux, macOS, and Windows.
 Wireit requires Node Active LTS (16.7.0+) or Current (17.0.0+). Node Maintenance
 LTS releases are not supported. See
 [here](https://nodejs.org/en/about/releases/) for Node's release schedule.
+
+## Related tools
+
+Wireit shares a number of features with these other great tools, and we highly
+recommend you check them out too:
+
+- [Nx](https://nx.dev/)
+- [Turborepo](https://turborepo.org/)
+- [Chomp](https://chompbuild.com/)
+- [Bazel](https://bazel.build/)
+
+Here are some things you might especially like about Wireit:
+
+- **Feels like npm**. When you use Wireit, you'll continue typing the same npm
+  commands you already use, like `npm run build` and `npm test`. There are no
+  new command-line tools to learn, and there's only one way to run each script.
+  Your script config stays in your `package.json`, too. Wireit is designed to be
+  the minimal addition to npm needed to get script dependencies and incremental
+  build.
+
+- **Caching with GitHub Actions**. Wireit supports caching build artifacts and
+  test results directly through GitHub Actions, without any extra third-party
+  services. Just add a single `use` line to your workflows.
+
+- **Watch any script**. Want to automatically re-run your build and tests
+  whenever you make a change? Type `npm test watch`. Any script you've
+  configured using Wireit can be watched by typing `watch` after it.
+
+- **Great for single packages and monorepos**. Wireit has no opinion about how
+  your packages are arranged. It works great with single packages, because you
+  can link together scripts within the same package. It also works great with
+  any kind of monorepo, because you can link together scripts across different
+  packages using relative paths.
+
+- **Complements npm workspaces**. We think Wireit could be the missing tool that
+  unlocks the potential for [npm
+  workspaces](https://docs.npmjs.com/cli/v8/using-npm/workspaces) to become the
+  best way to set up monorepos. To use Wireit with npm workspaces, you'll just
+  use standard npm workspace commands like `npm run build -ws`.
+
+- **Adopt incrementally**. Wireit scripts can depend on plain npm scripts, so
+  they can be freely mixed. This means you can use Wireit only for the parts of
+  your build that need it most, or you can try it out on a script-by-script
+  basis without changing too much at the same time.
 
 ## Contributing
 
