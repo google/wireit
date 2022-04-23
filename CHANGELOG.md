@@ -42,6 +42,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Give a clearer error message when run with an old npm version.
 
+- When cleaning output, directories will now only be deleted if they are empty.
+
 ## [0.1.1] - 2022-04-08
 
 ### Added

@@ -459,4 +459,69 @@ test(
   })
 );
 
+test(
+  'directories are not deleted unless empty',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            output: ['output', '!output/excluded'],
+          },
+        },
+      },
+      'output/included': '',
+      'output/excluded': '',
+    });
+
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // The included file should have been deleted.
+      assert.not(await rig.exists('output/included'));
+
+      // The output directory should not have been deleted, even though it was
+      // matched, because the excluded file still exists, so it's not empty.
+      assert.ok(await rig.exists('output'));
+
+      // The excluded should not have been deleted.
+      assert.ok(await rig.exists('output/excluded'));
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    {
+      // Restore the included file and delete the excluded file.
+      await rig.touch('output/included');
+      await rig.delete('output/excluded');
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+
+      // The included file should have been deleted.
+      assert.not(await rig.exists('output/included'));
+
+      // The output directory is now empty, so it should have been deleted.
+      assert.not(await rig.exists('output'));
+
+      // The excluded file didn't exist to begin with.
+      assert.not(await rig.exists('output/excluded'));
+
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
 test.run();
