@@ -8,6 +8,7 @@
       "properties": {
         "wireit": {
           "additionalProperties": {
+            "description": "The wireit config for the npm script with this name.\n\nThe npm script should just run `wireit` with no args and its actual command should be put in the `command` property of this object.\n\nFor more info see: https://github.com/google/wireit#cleaning-output",
             "additionalProperties": false,
             "properties": {
               "clean": {
