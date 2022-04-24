@@ -370,7 +370,29 @@ test('re-inclusion of directory into directory with expandDirectories=true', ({
     expandDirectories: true,
   }));
 
-test('dirent identifies files', async ({rig}) => {
+test('walks through symlinked directories when followSymlinks=true', ({
+  check,
+}) =>
+  check({
+    files: ['target/foo', {target: 'target', path: 'symlink'}],
+    patterns: ['**'],
+    expected: ['target', 'target/foo', 'symlink', 'symlink/foo'],
+    includeDirectories: true,
+    followSymlinks: true,
+  }));
+
+test('does not walk through symlinked directories when followSymlinks=false', ({
+  check,
+}) =>
+  check({
+    files: ['target/foo', {target: 'target', path: 'symlink'}],
+    patterns: ['**'],
+    expected: ['target', 'target/foo', 'symlink'],
+    includeDirectories: true,
+    followSymlinks: false,
+  }));
+
+test('dirent tags files', async ({rig}) => {
   await rig.touch('foo');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
@@ -383,9 +405,10 @@ test('dirent identifies files', async ({rig}) => {
   assert.equal(actual[0].path, 'foo');
   assert.ok(actual[0].dirent.isFile());
   assert.not(actual[0].dirent.isDirectory());
+  assert.not(actual[0].dirent.isSymbolicLink());
 });
 
-test('dirent identifies directories', async ({rig}) => {
+test('dirent tags directories', async ({rig}) => {
   await rig.mkdir('foo');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
@@ -398,6 +421,61 @@ test('dirent identifies directories', async ({rig}) => {
   assert.equal(actual[0].path, 'foo');
   assert.not(actual[0].dirent.isFile());
   assert.ok(actual[0].dirent.isDirectory());
+  assert.not(actual[0].dirent.isSymbolicLink());
+});
+
+test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
+  await rig.symlink('target', 'foo');
+  const actual = await glob(['foo'], {
+    cwd: rig.temp,
+    absolute: false,
+    followSymlinks: false,
+    includeDirectories: true,
+    expandDirectories: false,
+  });
+  assert.equal(actual.length, 1);
+  assert.equal(actual[0].path, 'foo');
+  assert.not(actual[0].dirent.isFile());
+  assert.not(actual[0].dirent.isDirectory());
+  assert.ok(actual[0].dirent.isSymbolicLink());
+});
+
+test('dirent tags symlinks to files as files when followSymlinks=true', async ({
+  rig,
+}) => {
+  await rig.symlink('target', 'foo');
+  await rig.touch('target');
+  const actual = await glob(['foo'], {
+    cwd: rig.temp,
+    absolute: false,
+    followSymlinks: true,
+    includeDirectories: true,
+    expandDirectories: false,
+  });
+  assert.equal(actual.length, 1);
+  assert.equal(actual[0].path, 'foo');
+  assert.ok(actual[0].dirent.isFile());
+  assert.not(actual[0].dirent.isDirectory());
+  assert.not(actual[0].dirent.isSymbolicLink());
+});
+
+test('dirent tags symlinks to directories as directories when followSymlinks=true', async ({
+  rig,
+}) => {
+  await rig.symlink('target', 'foo');
+  await rig.mkdir('target');
+  const actual = await glob(['foo'], {
+    cwd: rig.temp,
+    absolute: false,
+    followSymlinks: true,
+    includeDirectories: true,
+    expandDirectories: false,
+  });
+  assert.equal(actual.length, 1);
+  assert.equal(actual[0].path, 'foo');
+  assert.not(actual[0].dirent.isFile());
+  assert.ok(actual[0].dirent.isDirectory());
+  assert.not(actual[0].dirent.isSymbolicLink());
 });
 
 test.run();
