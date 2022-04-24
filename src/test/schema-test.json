@@ -6,8 +6,8 @@
       "dependencies": ["build:ts"]
     },
     "build:ts": {
-      "output": [],
-      "files": [],
+      "output": ["lib/**/*", "!lib/bundle.js"],
+      "files": ["src/**/*.ts"],
       "command": "tsc",
       "clean": true
     }
