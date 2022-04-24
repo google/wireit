@@ -22,6 +22,9 @@ const test = suite<{
 
   /** Make a fake glob Entry that looks like a directory. */
   dir: (path: string) => Entry;
+
+  /** Make a fake glob Entry that looks like a symlink. */
+  symlink: (path: string) => Entry;
 }>();
 
 test.before.each(async (ctx) => {
@@ -35,6 +38,7 @@ test.before.each(async (ctx) => {
         dirent: {
           isFile: () => true,
           isDirectory: () => false,
+          isSymbolicLink: () => false,
         },
       } as Entry);
 
@@ -44,6 +48,17 @@ test.before.each(async (ctx) => {
         dirent: {
           isFile: () => false,
           isDirectory: () => true,
+          isSymbolicLink: () => false,
+        },
+      } as Entry);
+
+    ctx.symlink = (path) =>
+      ({
+        path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
+        dirent: {
+          isFile: () => false,
+          isDirectory: () => false,
+          isSymbolicLink: () => true,
         },
       } as Entry);
   } catch (error) {
@@ -133,6 +148,37 @@ test('delete child directories before parents', async ({rig, dir}) => {
   assert.not(await rig.exists('a/b/c'));
   assert.not(await rig.exists('a/b'));
   assert.not(await rig.exists('a'));
+});
+
+test('delete symlink to existing file but not its target', async ({
+  rig,
+  symlink,
+}) => {
+  await rig.write('target', 'content');
+  await rig.symlink('target', 'symlink');
+  const entries = [symlink('symlink')];
+  await deleteEntries(entries);
+  assert.not(await rig.exists('symlink'));
+  assert.equal(await rig.read('target'), 'content');
+});
+
+test('delete symlink to existing directory but not its target', async ({
+  rig,
+  symlink,
+}) => {
+  await rig.mkdir('target');
+  await rig.symlink('target', 'symlink');
+  const entries = [symlink('symlink')];
+  await deleteEntries(entries);
+  assert.not(await rig.exists('symlink'));
+  assert.ok(await rig.isDirectory('target'));
+});
+
+test('delete symlink to non-existing file', async ({rig, symlink}) => {
+  await rig.symlink('target', 'symlink');
+  const entries = [symlink('symlink')];
+  await deleteEntries(entries);
+  assert.not(await rig.exists('symlink'));
 });
 
 test('stress test', async ({rig, file, dir}) => {
