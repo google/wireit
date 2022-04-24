@@ -26,13 +26,6 @@ export interface PackageJson {
   };
 }
 
-export interface WireitPackageJsonField {
-  [scriptName: string]: {
-    /** The shell command to run */
-    command?: string;
-  };
-}
-
 /**
  * Reads package.json files and caches them.
  */
