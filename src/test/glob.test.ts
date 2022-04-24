@@ -23,6 +23,7 @@ interface TestCase {
   expected: string[] | 'ERROR';
   cwd?: string;
   absolute?: boolean;
+  followSymlinks?: boolean;
   includeDirectories?: boolean;
   expandDirectories?: boolean;
 }
@@ -43,6 +44,7 @@ test.before.each(async (ctx) => {
       expected,
       cwd = rig.temp,
       absolute = false,
+      followSymlinks = true,
       includeDirectories = false,
       expandDirectories = false,
     }: TestCase): Promise<void> => {
@@ -71,6 +73,7 @@ test.before.each(async (ctx) => {
         actual = await glob(patterns, {
           cwd,
           absolute,
+          followSymlinks,
           includeDirectories,
           expandDirectories,
         });
@@ -372,6 +375,7 @@ test('dirent identifies files', async ({rig}) => {
   const actual = await glob(['foo'], {
     cwd: rig.temp,
     absolute: false,
+    followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
   });
@@ -386,6 +390,7 @@ test('dirent identifies directories', async ({rig}) => {
   const actual = await glob(['foo'], {
     cwd: rig.temp,
     absolute: false,
+    followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
   });

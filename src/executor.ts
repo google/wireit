@@ -488,6 +488,7 @@ class ScriptExecution {
         {
           cwd: this.#script.packageDir,
           absolute: false,
+          followSymlinks: false,
           includeDirectories: true,
           // No need to expand directories, because we perform recursive
           // operations on the results, so recursive children are already
@@ -521,6 +522,7 @@ class ScriptExecution {
       const files = await glob(this.#script.files, {
         cwd: this.#script.packageDir,
         absolute: false,
+        followSymlinks: true,
         // TODO(aomarks) This means that empty directories are not reflected in
         // the state, however an empty directory could modify the behavior of a
         // script. We should probably include empty directories; we'll just need
@@ -659,6 +661,7 @@ class ScriptExecution {
     const absFiles = await glob(this.#script.output, {
       cwd: this.#script.packageDir,
       absolute: true,
+      followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,
     });
