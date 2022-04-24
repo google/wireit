@@ -165,6 +165,50 @@ test(
 );
 
 test(
+  'content of symlink targets affects key',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['symlink'],
+          },
+        },
+      },
+    });
+
+    await rig.symlink('target', 'symlink');
+    await rig.write('target', 'v0');
+
+    // Initial run.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Changing the content of the target of the symlink should cause a new run.
+    {
+      await rig.write('target', 'v1');
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
   'freshness check supports glob re-inclusion',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
