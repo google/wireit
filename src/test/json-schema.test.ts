@@ -39,7 +39,7 @@ function expectValidationErrors(packageJson: unknown, errors: string[]) {
   );
 }
 
-const test = suite<{}>();
+const test = suite<unknown>();
 
 test('an empty package.json file is valid', () => {
   shouldValidate({});
