@@ -40,6 +40,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Scripts now identify their own package correctly when they are members of npm
+  workspaces, and they can be invoked from the root workspace using `-ws`
+  commands.
+
 - Give a clearer error message when run with an old npm version.
 
 - When cleaning output, directories will now only be deleted if they are empty.
