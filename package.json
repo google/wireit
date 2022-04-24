@@ -15,7 +15,8 @@
   "files": [
     "bin/wireit.js",
     "lib/**/*.js",
-    "!lib/test/**"
+    "!lib/test/**",
+    "schema.json"
   ],
   "engines": {
     "node": ">=16.7.0"
