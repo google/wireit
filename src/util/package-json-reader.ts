@@ -20,9 +20,16 @@ export interface PackageJson {
       dependencies?: string[];
       files?: string[];
       output?: string[];
-      clean?: boolean;
+      clean?: boolean | 'if-file-deleted';
       packageLocks?: string[];
     };
+  };
+}
+
+export interface WireitPackageJsonField {
+  [scriptName: string]: {
+    /** The shell command to run */
+    command?: string;
   };
 }
 

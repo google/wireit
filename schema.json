@@ -1,0 +1,64 @@
+{
+  "$ref": "#/definitions/Config",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "Config": {
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "wireit": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "clean": {
+                "anyOf": [
+                  {
+                    "$id": "boolean",
+                    "type": "boolean"
+                  },
+                  {
+                    "$id": "'if-file-deleted'",
+                    "const": "if-file-deleted",
+                    "type": "string"
+                  }
+                ]
+              },
+              "command": {
+                "type": "string"
+              },
+              "dependencies": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "files": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "output": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "packageLocks": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    }
+  }
+}
