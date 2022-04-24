@@ -23,7 +23,7 @@ const schema = JSON.parse(
     ),
     'utf-8'
   )
-);
+) as jsonSchema.Schema;
 const validator = new jsonSchema.Validator();
 validator.addSchema(schema);
 
