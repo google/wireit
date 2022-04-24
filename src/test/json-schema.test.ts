@@ -115,7 +115,9 @@ test('clean can be either a boolean or the string if-file-deleted', () => {
         },
       },
     },
-    ["instance.wireit.a.clean is not any of <boolean>,<'if-file-deleted'>"]
+    [
+      'instance.wireit.a.clean is not one of enum values: true,false,if-file-deleted',
+    ]
   );
 });
 
