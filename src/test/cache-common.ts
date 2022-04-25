@@ -6,6 +6,7 @@
 
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
+import {sep} from 'path';
 
 import type {Test} from 'uvu';
 import type {WireitTestRig} from './util/test-rig.js';
@@ -465,7 +466,7 @@ export const registerCommonCacheTests = (
   );
 
   test(
-    'caches symlinks without following them',
+    'caches symlinks to files without following them',
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
@@ -521,6 +522,14 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
 
+        assert.equal(
+          await rig.readlink('symlink'),
+          // TODO(aomarks) tar copies symlink targets verbatim. Node's fs.cp
+          // resolves them. We want the verbatim behavior, this should be fixed
+          // when we switch our own implementation of copy.
+          cacheMode === 'github' ? 'target' : rig.resolve('target')
+        );
+
         assert.equal(await rig.read('symlink'), 'foo');
         // If we restored a real symlink, then changing the target file now will
         // be reflected when we read the symlink. Otherwise, we must have
@@ -528,6 +537,91 @@ export const registerCommonCacheTests = (
         // symlink.
         await rig.write({target: 'bar'});
         assert.equal(await rig.read('symlink'), 'bar');
+      }
+    })
+  );
+
+  test(
+    'caches symlinks to directories without following them',
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['input'],
+              output: ['output'],
+            },
+          },
+        },
+        input: 'v0',
+        target: 'v0',
+      });
+
+      // Initial run with input v0.
+      {
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+
+        // Target directory should not have been cleaned.
+        assert.equal(await rig.read('target'), 'v0');
+
+        // Creates a symlink to the "target" directory.
+        await rig.symlink(`..${sep}target`, 'output/symlink');
+
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+      }
+
+      // Change input to v1. Run again.
+      {
+        await rig.write({input: 'v1'});
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+
+        // Target directory should not have been cleaned.
+        assert.equal(await rig.read('target'), 'v0');
+
+        // Symlink should have been cleaned.
+        assert.not(await rig.exists('symlink'));
+
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+      }
+
+      // Change input back to v0. Restore from cache.
+      {
+        // Delete relevant files before running so we can be sure we're looking
+        // at the results of a cache restore.
+        await rig.delete('output');
+        await rig.delete('target');
+
+        await rig.write('input', 'v0');
+        const exec = rig.exec('npm run a');
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+
+        // The target directory should not have been restored.
+        assert.not(await rig.exists('target'));
+
+        // The symlink file should have been restored, and it should be a
+        // symlink to the directory.
+        assert.equal(
+          await rig.readlink('output/symlink'),
+          // TODO(aomarks) tar copies symlink targets verbatim. Node's fs.cp
+          // resolves them. We want the verbatim behavior, this should be fixed
+          // when we switch our own implementation of copy.
+          cacheMode === 'github' ? `..${sep}target` : rig.resolve('target')
+        );
       }
     })
   );
