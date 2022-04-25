@@ -6,7 +6,7 @@
     "wireit": {
       "additionalProperties": {
         "markdownDescription": "The wireit config for the npm script with this name.\n\nThe npm script should just run `wireit` with no args and its actual command should be put in the `command` property of this object.\n\nFor more info see: https://github.com/google/wireit#cleaning-output",
-        "additionalProperties": false,
+        "additionalProperties": true,
         "properties": {
           "clean": {
             "markdownDescription": "By default, `output` files are deleted before the command is run.\n\nSet `clean` to false to prevent this.\n\nSome commands, like `tsc --build`, have their own incremental run logic and only write those output files that have changed. In that case, it can be beneficial to only delete output files when one of the input files has been deleted. In that case, set `clean` to \"if-file-deleted\".\n\nFor more info see: https://github.com/google/wireit#cleaning-output",
