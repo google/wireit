@@ -13,15 +13,23 @@
       }
     ]
   },
+  "main": "./client.js",
+  "activationEvents": [
+    "onLanguage:json"
+  ],
   "scripts": {
-    "vscode:prepublish": "npm run build",
-    "package": "vsce package",
+    "vscode:prepublish": "npm run build:package",
+    "package": "wireit",
     "test": "wireit",
     "test:actual": "wireit",
     "build": "wireit",
     "build:ts": "wireit",
     "build:copy-schema": "wireit",
-    "lint": "wireit"
+    "build:bundle": "wireit",
+    "watch": "npm run build watch",
+    "lint": "wireit",
+    "install-extension": "wireit",
+    "build:package": "wireit"
   },
   "engines": {
     "vscode": "^1.66.0"
@@ -29,8 +37,14 @@
   "wireit": {
     "build": {
       "dependencies": [
+        "build:ts",
+        "build:package"
+      ]
+    },
+    "build:package": {
+      "dependencies": [
         "build:copy-schema",
-        "build:ts"
+        "build:bundle"
       ]
     },
     "build:copy-schema": {
@@ -53,6 +67,16 @@
       ],
       "clean": "if-file-deleted",
       "command": "tsc --build --pretty"
+    },
+    "build:bundle": {
+      "files": [
+        "src/**/*ts",
+        "esbuild.script.mjs"
+      ],
+      "output": [
+        "client.js"
+      ],
+      "command": "node esbuild.script.mjs"
     },
     "lint": {
       "files": [
@@ -77,6 +101,22 @@
       ],
       "output": [],
       "command": "node ./lib/test/scripts/runner.js"
+    },
+    "package": {
+      "dependencies": [
+        "build:package"
+      ],
+      "files": [
+        "package.json"
+      ],
+      "command": "vsce package -o wireit.vsix"
+    },
+    "install-extension": {
+      "dependencies": [
+        "package"
+      ],
+      "#comment": "Useful when manually testing, you can run this in watch mode, and do a > Developer: Reload Window in vscode to pick up the new version of the extension.",
+      "command": "code --install-extension wireit.vsix"
     }
   },
   "repository": {
@@ -92,6 +132,11 @@
   "devDependencies": {
     "@types/vscode": "^1.66.0",
     "@vscode/test-electron": "^2.1.3",
-    "vsce": "^2.7.0"
+    "esbuild": "^0.14.38",
+    "jsonc-parser": "^3.0.0",
+    "vsce": "^2.7.0",
+    "vscode-languageclient": "^7.0.0",
+    "vscode-languageserver": "^7.0.0",
+    "vscode-languageserver-textdocument": "^1.0.4"
   }
 }

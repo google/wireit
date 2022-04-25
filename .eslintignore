@@ -4,3 +4,6 @@
 /temp
 /vscode-extension/lib
 .wireit
+/vscode-extension/client.js
+/vscode-extension/server.js
+/vscode-extension/esbuild.script.mjs
