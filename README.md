@@ -552,7 +552,7 @@ input also affects the cache key:
 
 Wireit is supported on Linux, macOS, and Windows.
 
-Wireit requires Node Active LTS (16.7.0+) or Current (17.0.0+). Node Maintenance
+Wireit requires Node Active LTS (16.7.0+) or Current (18.0.0+). Node Maintenance
 LTS releases are not supported. See
 [here](https://nodejs.org/en/about/releases/) for Node's release schedule.
 
