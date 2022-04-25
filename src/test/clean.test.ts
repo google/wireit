@@ -261,7 +261,7 @@ test(
       },
       'symlink.target': 'foo',
     });
-    await rig.symlink('symlink.target', 'symlink');
+    await rig.symlink('symlink.target', 'symlink', 'file');
 
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();

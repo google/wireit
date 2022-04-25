@@ -155,7 +155,7 @@ test('delete symlink to existing file but not its target', async ({
   symlink,
 }) => {
   await rig.write('target', 'content');
-  await rig.symlink('target', 'symlink');
+  await rig.symlink('target', 'symlink', 'file');
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
   assert.not(await rig.exists('symlink'));
@@ -167,7 +167,7 @@ test('delete symlink to existing directory but not its target', async ({
   symlink,
 }) => {
   await rig.mkdir('target');
-  await rig.symlink('target', 'symlink');
+  await rig.symlink('target', 'symlink', 'dir');
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
   assert.not(await rig.exists('symlink'));
@@ -175,7 +175,7 @@ test('delete symlink to existing directory but not its target', async ({
 });
 
 test('delete symlink to non-existing file', async ({rig, symlink}) => {
-  await rig.symlink('target', 'symlink');
+  await rig.symlink('target', 'symlink', 'file');
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
   assert.not(await rig.exists('symlink'));

@@ -182,7 +182,7 @@ test(
       },
     });
 
-    await rig.symlink('target', 'symlink');
+    await rig.symlink('target', 'symlink', 'file');
     await rig.write('target', 'v0');
 
     // Initial run.

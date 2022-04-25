@@ -15,6 +15,8 @@ interface Symlink {
   target: string;
   /** The symlink file. */
   path: string;
+  /** The type of symlink on Windows. */
+  windowsType: 'file' | 'dir' | 'junction';
 }
 
 interface TestCase {
@@ -59,7 +61,7 @@ test.before.each(async (ctx) => {
           }
         } else {
           // symlink
-          await rig.symlink(file.target, file.path);
+          await rig.symlink(file.target, file.path, file.windowsType);
         }
       }
 
@@ -170,7 +172,7 @@ test('{} groups', ({check}) =>
 
 test('matches explicit symlink', ({check}) =>
   check({
-    files: ['target', {target: 'target', path: 'symlink'}],
+    files: ['target', {target: 'target', path: 'symlink', windowsType: 'file'}],
     patterns: ['symlink'],
     expected: ['symlink'],
   }));
@@ -374,7 +376,10 @@ test('walks through symlinked directories when followSymlinks=true', ({
   check,
 }) =>
   check({
-    files: ['target/foo', {target: 'target', path: 'symlink'}],
+    files: [
+      'target/foo',
+      {target: 'target', path: 'symlink', windowsType: 'dir'},
+    ],
     patterns: ['**'],
     expected: ['target', 'target/foo', 'symlink', 'symlink/foo'],
     includeDirectories: true,
@@ -385,7 +390,10 @@ test('does not walk through symlinked directories when followSymlinks=false', ({
   check,
 }) =>
   check({
-    files: ['target/foo', {target: 'target', path: 'symlink'}],
+    files: [
+      'target/foo',
+      {target: 'target', path: 'symlink', windowsType: 'dir'},
+    ],
     patterns: ['**'],
     expected: ['target', 'target/foo', 'symlink'],
     includeDirectories: true,
@@ -425,7 +433,7 @@ test('dirent tags directories', async ({rig}) => {
 });
 
 test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
-  await rig.symlink('target', 'foo');
+  await rig.symlink('target', 'foo', 'file');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
     absolute: false,
@@ -443,7 +451,7 @@ test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
 test('dirent tags symlinks to files as files when followSymlinks=true', async ({
   rig,
 }) => {
-  await rig.symlink('target', 'foo');
+  await rig.symlink('target', 'foo', 'file');
   await rig.touch('target');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
@@ -462,7 +470,7 @@ test('dirent tags symlinks to files as files when followSymlinks=true', async ({
 test('dirent tags symlinks to directories as directories when followSymlinks=true', async ({
   rig,
 }) => {
-  await rig.symlink('target', 'foo');
+  await rig.symlink('target', 'foo', 'dir');
   await rig.mkdir('target');
   const actual = await glob(['foo'], {
     cwd: rig.temp,

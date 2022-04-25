@@ -50,7 +50,7 @@ export class WireitTestRig extends FilesystemTestRig {
       // that here too.
       await cmdShim(absWireitBinaryPath, absWireitTempInstallPath);
     } else {
-      await this.symlink(absWireitBinaryPath, absWireitTempInstallPath);
+      await this.symlink(absWireitBinaryPath, absWireitTempInstallPath, 'file');
     }
   }
 
@@ -99,7 +99,7 @@ export class WireitTestRig extends FilesystemTestRig {
     if (IS_WINDOWS) {
       await cmdShim(binaryPath, installPath);
     } else {
-      await this.symlink(binaryPath, installPath);
+      await this.symlink(binaryPath, installPath, 'file');
     }
   }
 

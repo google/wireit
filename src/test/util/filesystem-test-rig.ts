@@ -176,7 +176,11 @@ export class FilesystemTestRig {
   /**
    * Create a symlink in the temporary filesystem.
    */
-  async symlink(target: string, filename: string): Promise<void> {
+  async symlink(
+    target: string,
+    filename: string,
+    windowsType: 'file' | 'dir' | 'junction'
+  ): Promise<void> {
     this.assertState('running');
     const absolute = this.resolve(filename);
     try {
@@ -187,6 +191,6 @@ export class FilesystemTestRig {
       }
       await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
     }
-    await fs.symlink(target, absolute);
+    await fs.symlink(target, absolute, windowsType);
   }
 }

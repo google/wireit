@@ -486,7 +486,7 @@ export const registerCommonCacheTests = (
         target: 'foo',
       });
 
-      await rig.symlink('target', 'symlink');
+      await rig.symlink('target', 'symlink', 'file');
       assert.equal(await rig.read('symlink'), 'foo');
 
       // Initial run with input v0.
@@ -494,7 +494,7 @@ export const registerCommonCacheTests = (
         const exec = rig.exec('npm run a');
         const inv = await cmdA.nextInvocation();
         assert.not(await rig.exists('symlink'));
-        await rig.symlink('target', 'symlink');
+        await rig.symlink('target', 'symlink', 'file');
         inv.exit(0);
         const res = await exec.exit;
         assert.equal(res.code, 0);
@@ -507,7 +507,7 @@ export const registerCommonCacheTests = (
         const exec = rig.exec('npm run a');
         const inv = await cmdA.nextInvocation();
         assert.not(await rig.exists('symlink'));
-        await rig.symlink('target', 'symlink');
+        await rig.symlink('target', 'symlink', 'file');
         inv.exit(0);
         const res = await exec.exit;
         assert.equal(res.code, 0);
@@ -571,7 +571,7 @@ export const registerCommonCacheTests = (
         assert.equal(await rig.read('target'), 'v0');
 
         // Creates a symlink to the "target" directory.
-        await rig.symlink(`..${sep}target`, 'output/symlink');
+        await rig.symlink(`..${sep}target`, 'output/symlink', 'dir');
 
         inv.exit(0);
         const res = await exec.exit;
