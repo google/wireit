@@ -521,7 +521,8 @@ Also note these details:
 
 - Whenever a directory is matched, all recursive children of that directory are
   included.
-- Symlinks are followed for `input` files, but not for `output` files.
+- Symlinks in input `files` are followed, so that they are identified by their content.
+- Symlinks in `output` files are cached as symlinks, so that restoring from cache doesn't create unnecessary copies.
 - The order of `!exclude` patterns is significant.
 - Hidden/dot files are matched by `*` and `**`.
 - Patterns are case-sensitive (if supported by the filesystem).
