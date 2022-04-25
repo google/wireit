@@ -929,10 +929,7 @@ export const registerCommonCacheTests = (
     })
   );
 
-  // TODO(aomarks) This test currently fails in GitHub Actions. Remove the
-  // "skip" when fixed.
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  (cacheMode === 'github' ? test.skip : test)(
+  test(
     'can cache empty directory',
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();

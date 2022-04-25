@@ -52,8 +52,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   they would be copied if the parent directory was also included in the `output`
   glob patterns.
 
-  **TODO(aomarks)** Caveat: in GitHub Actions, empty directories are not cached.
-
 - Symlinks cached to local disk are now restored with verbatim targets, instead
   of resolved targets.
 
