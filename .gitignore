@@ -4,3 +4,12 @@
 /lib
 /node_modules
 /temp
+
+/vscode-extension/.wireit
+/vscode-extension/lib
+/vscode-extension/.tsbuildinfo
+/vscode-extension/.vscode-test
+/vscode-extension/*.vsix
+/vscode-extension/schema.json
+
+.DS_Store

@@ -3,3 +3,6 @@
 /package-lock.json
 /temp
 /.wireit
+/vscode-extension/.vscode-test
+/vscode-extension/.wireit
+/vscode-extension/lib

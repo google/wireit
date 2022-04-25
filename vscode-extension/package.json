@@ -1,0 +1,97 @@
+{
+  "name": "wireit-extension",
+  "displayName": "wireit",
+  "description": "For the wireit script runner",
+  "publisher": "todo-register-publisher",
+  "version": "0.1.0",
+  "contributes": {
+    "commands": [],
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "./schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package",
+    "test": "wireit",
+    "test:actual": "wireit",
+    "build": "wireit",
+    "build:ts": "wireit",
+    "build:copy-schema": "wireit",
+    "lint": "wireit"
+  },
+  "engines": {
+    "vscode": "^1.66.0"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:copy-schema",
+        "build:ts"
+      ]
+    },
+    "build:copy-schema": {
+      "files": [
+        "../schema.json"
+      ],
+      "output": [
+        "./schema.json"
+      ],
+      "command": "cp ../schema.json ./schema.json"
+    },
+    "build:ts": {
+      "files": [
+        "tsconfig.json",
+        "src/**/*.ts"
+      ],
+      "output": [
+        "out",
+        ".tsbuildinfo"
+      ],
+      "clean": "if-file-deleted",
+      "command": "tsc --build"
+    },
+    "lint": {
+      "files": [
+        "src/**/*.ts"
+      ],
+      "output": [],
+      "command": "eslint src --ext ts"
+    },
+    "test": {
+      "dependencies": [
+        "test:actual",
+        "lint"
+      ]
+    },
+    "test:actual": {
+      "dependencies": [
+        "build"
+      ],
+      "files": [
+        "package.json",
+        "schema.json"
+      ],
+      "output": [],
+      "command": "node ./lib/test/scripts/runner.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lit/wireit.git"
+  },
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/lit/wireit/issues"
+  },
+  "homepage": "https://github.com/lit/wireit#readme",
+  "devDependencies": {
+    "@types/vscode": "^1.66.0",
+    "@vscode/test-electron": "^2.1.3",
+    "vsce": "^2.7.0"
+  }
+}
