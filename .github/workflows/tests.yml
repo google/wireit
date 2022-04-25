@@ -12,8 +12,8 @@ jobs:
         include:
           # Also test latest, but just one OS should give us sufficient
           # coverage.
-          - node: 17
-            os: ubuntu-20.04
+          - os: ubuntu-20.04
+            node: 18
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
