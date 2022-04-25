@@ -27,6 +27,13 @@ export interface GlobOptions {
   absolute: boolean;
 
   /**
+   * If true, symlinks are followed, and the entry dirents will identify as
+   * normal files/directories. If false, symlinks are not followed, and the
+   * entry dirents will identify as symlinks.
+   */
+  followSymlinks: boolean;
+
+  /**
    * Whether to include directories in the results.
    */
   includeDirectories: boolean;
@@ -160,6 +167,7 @@ export const glob = async (
         dot: true,
         onlyFiles: !opts.includeDirectories,
         absolute: opts.absolute,
+        followSymbolicLinks: opts.followSymlinks,
         // This should have no overhead because fast-glob already uses these
         // objects for its internal representation:
         // https://github.com/mrmlnc/fast-glob#objectmode

@@ -8,6 +8,8 @@ import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
 
+import type {Stats} from 'fs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
@@ -58,17 +60,26 @@ export class FilesystemTestRig {
    * If the value of an entry in the files object is a string, it is written as
    * UTF-8 text. Otherwise it is JSON encoded.
    */
-  async write(files: {[filename: string]: unknown}) {
+  async write(file: string, content: unknown): Promise<void>;
+  async write(files: {[filename: string]: unknown}): Promise<void>;
+  async write(
+    fileOrFiles: string | {[filename: string]: unknown},
+    data?: string
+  ): Promise<void> {
     this.assertState('running');
-    await Promise.all(
-      Object.entries(files).map(async ([relative, data]) => {
-        const absolute = pathlib.resolve(this.temp, relative);
-        await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
-        const str =
-          typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-        await fs.writeFile(absolute, str, 'utf8');
-      })
-    );
+    if (typeof fileOrFiles === 'string') {
+      const absolute = pathlib.resolve(this.temp, fileOrFiles);
+      await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
+      const str =
+        typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      await fs.writeFile(absolute, str, 'utf8');
+    } else {
+      await Promise.all(
+        Object.entries(fileOrFiles).map(async ([relative, data]) =>
+          this.write(relative, data)
+        )
+      );
+    }
   }
 
   /**
@@ -103,6 +114,49 @@ export class FilesystemTestRig {
   }
 
   /**
+   * Get filesystem metadata for the given path in the temporary filesystem.
+   */
+  async lstat(path: string): Promise<Stats> {
+    this.assertState('running');
+    return fs.lstat(this.resolve(path));
+  }
+
+  /**
+   * Return true if the given path in the temporary filesystem is a directory.
+   * Return false if it is another kind of file, or if it doesn't exit.
+   */
+  async isDirectory(path: string): Promise<boolean> {
+    this.assertState('running');
+    try {
+      const stats = await this.lstat(path);
+      return stats.isDirectory();
+    } catch (error) {
+      const {code} = error as {code: string};
+      if (code === /* does not exist */ 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Read the string contents of the given symlink in the temporary filesystem,
+   * or undefined if it doesn't exist.
+   */
+  async readlink(path: string): Promise<string | undefined> {
+    this.assertState('running');
+    try {
+      return await fs.readlink(this.resolve(path));
+    } catch (error) {
+      const {code} = error as {code: string};
+      if (code === /* does not exist */ 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Create an empty directory in the temporary filesystem, including all parent
    * directories.
    */
@@ -122,7 +176,11 @@ export class FilesystemTestRig {
   /**
    * Create a symlink in the temporary filesystem.
    */
-  async symlink(target: string, filename: string): Promise<void> {
+  async symlink(
+    target: string,
+    filename: string,
+    windowsType: 'file' | 'dir' | 'junction'
+  ): Promise<void> {
     this.assertState('running');
     const absolute = this.resolve(filename);
     try {
@@ -133,6 +191,6 @@ export class FilesystemTestRig {
       }
       await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
     }
-    await fs.symlink(target, absolute);
+    await fs.symlink(target, absolute, windowsType);
   }
 }
