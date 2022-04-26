@@ -182,9 +182,8 @@ test('file that already exists is error', async ({src, dst, file}) => {
 });
 
 test('file listed twice is not an error', async ({src, dst, file}) => {
-  // We error if a file already existed in the destination, but we hit that
-  // error if the same file was listed twice in the given entries, because we
-  // dedupe.
+  // We error if a file already existed in the destination, but not if the same
+  // file was listed twice in the given entries, because we dedupe.
   await src.write('foo', 'content');
   await copyEntries([file('foo'), file('foo')], src.temp, dst.temp);
   assert.equal(await dst.read('foo'), 'content');
@@ -202,12 +201,12 @@ test('directory that already exists is not error', async ({src, dst, dir}) => {
 
 test('directory listed twice is not an error', async ({src, dst, dir}) => {
   await src.mkdir('foo');
-  await copyEntries([dir('foo')], src.temp, dst.temp);
+  await copyEntries([dir('foo'), dir('foo')], src.temp, dst.temp);
   assert.ok(await dst.isDirectory('foo'));
 });
 
 test('copies symlink to file verbatim', async ({src, dst, symlink}) => {
-  await src.write('foo', 'content');
+  await src.write('target', 'content');
   await src.symlink('target', 'foo', 'file');
   await copyEntries([symlink('foo')], src.temp, dst.temp);
   assert.equal(await dst.readlink('foo'), 'target');
