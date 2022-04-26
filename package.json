@@ -31,6 +31,7 @@
     "test:cache-github": "wireit",
     "test:cache-local": "wireit",
     "test:clean": "wireit",
+    "test:copy": "wireit",
     "test:delete": "wireit",
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
@@ -62,6 +63,7 @@
         "test:cache-github",
         "test:cache-local",
         "test:clean",
+        "test:copy",
         "test:delete",
         "test:errors-analysis",
         "test:errors-usage",
@@ -101,6 +103,14 @@
     },
     "test:clean": {
       "command": "uvu lib/test \"clean\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:copy": {
+      "command": "uvu lib/test \"copy\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],

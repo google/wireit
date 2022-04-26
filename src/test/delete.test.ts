@@ -12,19 +12,19 @@ import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 import {deleteEntries} from '../util/delete.js';
 
-import type {Entry} from '../util/glob.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 
 const test = suite<{
   rig: FilesystemTestRig;
 
-  /** Make a fake glob Entry that looks like a regular file. */
-  file: (path: string) => Entry;
+  /** Make a fake glob AbsoluteEntry that looks like a regular file. */
+  file: (path: string) => AbsoluteEntry;
 
-  /** Make a fake glob Entry that looks like a directory. */
-  dir: (path: string) => Entry;
+  /** Make a fake glob AbsoluteEntry that looks like a directory. */
+  dir: (path: string) => AbsoluteEntry;
 
   /** Make a fake glob Entry that looks like a symlink. */
-  symlink: (path: string) => Entry;
+  symlink: (path: string) => AbsoluteEntry;
 }>();
 
 test.before.each(async (ctx) => {
@@ -40,7 +40,7 @@ test.before.each(async (ctx) => {
           isDirectory: () => false,
           isSymbolicLink: () => false,
         },
-      } as Entry);
+      } as AbsoluteEntry);
 
     ctx.dir = (path) =>
       ({
@@ -50,7 +50,7 @@ test.before.each(async (ctx) => {
           isDirectory: () => true,
           isSymbolicLink: () => false,
         },
-      } as Entry);
+      } as AbsoluteEntry);
 
     ctx.symlink = (path) =>
       ({
@@ -60,7 +60,7 @@ test.before.each(async (ctx) => {
           isDirectory: () => false,
           isSymbolicLink: () => true,
         },
-      } as Entry);
+      } as AbsoluteEntry);
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
     // see https://github.com/lukeed/uvu/issues/191.

@@ -9,7 +9,8 @@ import * as pathlib from 'path';
 
 import type {Entry} from 'fast-glob';
 
-export {Entry};
+export type AbsoluteEntry = Entry & {_AbsoluteEntryBrand_: never};
+export type RelativeEntry = Entry & {_RelativeEntryBrand_: never};
 
 /**
  * Options for {@link glob}.
@@ -64,10 +65,22 @@ interface GlobGroup {
  * even on Windows.
  * @params opts See {@link GlobOptions}.
  */
-export const glob = async (
+export async function glob(
+  patterns: string[],
+  opts: GlobOptions & {absolute: true}
+): Promise<AbsoluteEntry[]>;
+export async function glob(
+  patterns: string[],
+  opts: GlobOptions & {absolute: false}
+): Promise<RelativeEntry[]>;
+export async function glob(
   patterns: string[],
   opts: GlobOptions
-): Promise<Entry[]> => {
+): Promise<AbsoluteEntry[] | RelativeEntry[]>;
+export async function glob(
+  patterns: string[],
+  opts: GlobOptions
+): Promise<AbsoluteEntry[] | RelativeEntry[]> {
   if (patterns.length === 0) {
     return [];
   }
@@ -191,8 +204,8 @@ export const glob = async (
       entry.path = pathlib.normalize(entry.path);
     }
   }
-  return combinedArr;
-};
+  return combinedArr as AbsoluteEntry[] | RelativeEntry[];
+}
 
 const isRecursive = (pattern: string): boolean =>
   pattern === '**' ||

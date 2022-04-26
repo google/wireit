@@ -490,10 +490,7 @@ class ScriptExecution {
           absolute: false,
           followSymlinks: false,
           includeDirectories: true,
-          // No need to expand directories, because we perform recursive
-          // operations on the results, so recursive children are already
-          // included.
-          expandDirectories: false,
+          expandDirectories: true,
         }
       )
     );

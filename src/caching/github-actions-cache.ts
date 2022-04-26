@@ -17,7 +17,6 @@ import {HttpClient} from '@actions/http-client';
 import {BearerCredentialHandler} from '@actions/http-client/auth.js';
 import {isSuccessStatusCode} from '@actions/cache/lib/internal/requestUtils.js';
 import {scriptReferenceToString} from '../script.js';
-import {optimizeCpRms} from '../util/optimize-fs-ops.js';
 
 import type {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 import type {
@@ -29,7 +28,7 @@ import type {
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
 import type {Logger} from '../logging/logger.js';
-import type {Entry} from '../util/glob.js';
+import type {RelativeEntry} from '../util/glob.js';
 
 // TODO(aomarks) Consider dropping the dependency on @actions/cache by writing
 // our own implementation. See https://github.com/google/wireit/issues/107 for
@@ -136,11 +135,16 @@ export class GitHubActionsCache implements Cache {
   async set(
     script: ScriptReference,
     stateStr: ScriptStateString,
-    relativeFiles: Entry[]
+    relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
     const compressionMethod = await GitHubActionsCache.#compressionMethod;
     const tarballPath = await this.#makeTarball(
-      relativeFiles.map((file) => pathlib.join(script.packageDir, file.path)),
+      relativeFiles
+        // TODO(aomarks) The tar command will include directories recursively,
+        // so we need to exclude them. This means we'll be missing empty
+        // directories. Find a workaround.
+        .filter((entry) => !entry.dirent.isDirectory())
+        .map((entry) => pathlib.join(script.packageDir, entry.path)),
       compressionMethod
     );
     try {
@@ -234,9 +238,8 @@ export class GitHubActionsCache implements Cache {
     paths: string[],
     compressionMethod: CompressionMethod
   ): Promise<string> {
-    const optimized = optimizeCpRms(paths);
     const folder = await cacheUtils.createTempDirectory();
-    await createTar(folder, optimized, compressionMethod);
+    await createTar(folder, paths, compressionMethod);
     const path = pathlib.join(
       folder,
       cacheUtils.getCacheFileName(compressionMethod)

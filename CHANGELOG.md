@@ -48,6 +48,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - When cleaning output, directories will now only be deleted if they are empty.
 
+- When caching output, excluded files will now reliably be skipped. Previously
+  they would be copied if the parent directory was also included in the `output`
+  glob patterns.
+
+  **TODO(aomarks)** Caveat: in GitHub Actions, empty directories are not cached.
+
+- Symlinks cached to local disk are now restored with verbatim targets, instead
+  of resolved targets.
+
 ## [0.1.1] - 2022-04-08
 
 ### Added

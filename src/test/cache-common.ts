@@ -522,13 +522,7 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
 
-        assert.equal(
-          await rig.readlink('symlink'),
-          // TODO(aomarks) tar copies symlink targets verbatim. Node's fs.cp
-          // resolves them. We want the verbatim behavior, this should be fixed
-          // when we switch our own implementation of copy.
-          cacheMode === 'github' ? 'target' : rig.resolve('target')
-        );
+        assert.equal(await rig.readlink('symlink'), 'target');
 
         assert.equal(await rig.read('symlink'), 'foo');
         // If we restored a real symlink, then changing the target file now will
@@ -615,13 +609,7 @@ export const registerCommonCacheTests = (
 
         // The symlink file should have been restored, and it should be a
         // symlink to the directory.
-        assert.equal(
-          await rig.readlink('output/symlink'),
-          // TODO(aomarks) tar copies symlink targets verbatim. Node's fs.cp
-          // resolves them. We want the verbatim behavior, this should be fixed
-          // when we switch our own implementation of copy.
-          cacheMode === 'github' ? `..${sep}target` : rig.resolve('target')
-        );
+        assert.equal(await rig.readlink('output/symlink'), `..${sep}target`);
       }
     })
   );
@@ -937,6 +925,88 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output'), 'v1');
+      }
+    })
+  );
+
+  // TODO(aomarks) This test currently fails in GitHub Actions. Remove the
+  // "skip" when fixed.
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  (cacheMode === 'github' ? test.skip : test)(
+    'can cache empty directory',
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['input'],
+              output: [
+                // An actually empty directory.
+                'empty',
+                // This directory isn't empty, but the only child it has is
+                // excluded by our output globs. So in terms of what we should
+                // cache, it is effectively empty.
+                //
+                // This distinction is important, because an actually empty
+                // directory can be naively copied recursively or passed to
+                // "tar" as-is, but a directory with an excluded child can't be,
+                // because that would incorrectly include the child.
+                'with-exclusion',
+                '!with-exclusion/excluded',
+              ],
+            },
+          },
+        },
+      });
+
+      // Initial run.
+      {
+        await rig.write('input', 'v0');
+
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+
+        await rig.mkdir('empty');
+        await rig.mkdir('with-exclusion');
+        await rig.touch('with-exclusion/excluded');
+
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+      }
+
+      // Reset state.
+      {
+        await rig.write('input', 'v1');
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+      }
+
+      // Restore cache.
+      {
+        // Ensure we'll be looking at output restored from cache.
+        await rig.delete('empty');
+        await rig.delete('with-exclusion');
+
+        await rig.write('input', 'v0');
+        const exec = rig.exec('npm run a');
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+
+        assert.ok(await rig.isDirectory('empty'));
+        assert.ok(await rig.isDirectory('with-exclusion'));
+        assert.not(await rig.exists('with-exclusion/excluded'));
       }
     })
   );
