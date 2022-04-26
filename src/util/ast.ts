@@ -92,7 +92,7 @@ export function parseTree(
   placeholder: PlaceholderConfig
 ): AstNode {
   const errors: ParseError[] = [];
-  const result = parseTreeInternal(json, []);
+  const result = parseTreeInternal(json, errors);
   if (errors.length > 0) {
     throw new WireitError({
       type: 'failure',
