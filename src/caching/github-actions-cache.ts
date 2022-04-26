@@ -169,26 +169,20 @@ export class GitHubActionsCache implements Cache {
       for (const {path, dirent} of relativeFiles) {
         const absPath = pathlib.join(script.packageDir, path);
         if (dirent.isDirectory()) {
-          // Initially assume every directory might be empty. We'll filter it
-          // down after this loop.
+          // Initially assume every directory might be empty. We might see a
+          // directory entry after a file that's in it. We'll filter it down
+          // after this loop.
           emptyDirs.add(absPath);
         } else {
           files.add(absPath);
           // Add all parent directories of this file to set of non-empty
           // directories.
           let cur = pathlib.dirname(absPath);
-          while (true) {
-            if (nonEmptyDirs.has(cur)) {
-              // If we've already added the child, we must have already added
-              // all of its parents too.
-              break;
-            }
+          while (!nonEmptyDirs.has(cur)) {
+            // Note if we've already added the child, we must have already added
+            // all of its parents too.
             nonEmptyDirs.add(cur);
-            const parent = pathlib.dirname(cur);
-            if (parent === cur) {
-              break;
-            }
-            cur = parent;
+            cur = pathlib.dirname(cur);
           }
         }
       }
@@ -462,8 +456,10 @@ class GitHubActionsCacheHit implements CacheHit {
       throw error;
     }
     const emptyDirs = JSON.parse(manifest) as string[];
-    await Promise.all(emptyDirs.map((dir) => fs.mkdir(dir, {recursive: true})));
-    await fs.unlink(this.#emptyDirectoriesManifestPath);
+    await Promise.all([
+      ...emptyDirs.map((dir) => fs.mkdir(dir, {recursive: true})),
+      fs.unlink(this.#emptyDirectoriesManifestPath),
+    ]);
   }
 }
 
