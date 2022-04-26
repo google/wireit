@@ -20,7 +20,7 @@ export interface PackageJson {
       dependencies?: string[];
       files?: string[];
       output?: string[];
-      clean?: boolean;
+      clean?: boolean | 'if-file-deleted';
       packageLocks?: string[];
     };
   };

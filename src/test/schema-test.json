@@ -1,0 +1,15 @@
+{
+  "$schema": "../../schema.json",
+  "#comment": "This is a file for manually playing with editors' support for editing a package.json file with our json schema loaded. So far, we've only tested with VSCode.",
+  "wireit": {
+    "build": {
+      "dependencies": ["build:ts"]
+    },
+    "build:ts": {
+      "output": ["lib/**/*", "!lib/bundle.js"],
+      "files": ["src/**/*.ts"],
+      "command": "tsc",
+      "clean": true
+    }
+  }
+}
