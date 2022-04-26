@@ -2,7 +2,8 @@
   "scripts": {
     "not_wireit_command": "tsc",
     "neither_dependencies_nor_command": "wireit",
-    "invalid_dependency": "wireit"
+    "invalid_dependency": "wireit",
+    "unrelated": "foo bar baz"
   },
   "wireit": {
     "not_wireit_command": {
