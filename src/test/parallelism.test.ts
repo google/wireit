@@ -10,6 +10,7 @@ import {timeout, wait} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {PackageJson} from '../util/package-json-reader.js';
 import * as os from 'os';
+import {addAst} from './util/add-ast.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -142,14 +143,14 @@ test(
     // that default.
     const n = os.cpus().length * 10;
     const depNames: string[] = [];
-    const packageJson: PackageJson = {
+    const packageJson: PackageJson = addAst({
       scripts: {
         main: 'wireit',
       },
       wireit: {
         main: {command: main.command, dependencies: depNames},
       },
-    };
+    });
     const commands = [];
     const invocations = [];
     for (let i = 0; i < n; i++) {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Node as JsonAstNode} from 'jsonc-parser';
+import {AstNode, NamedAstNode} from './util/ast.js';
 
 /**
  * The location on disk of an npm package.
@@ -32,7 +32,7 @@ export interface ScriptConfig extends ScriptReference {
    * An undefined command is valid as a way to give name to a group of other
    * scripts (specified as dependencies).
    */
-  command: string | undefined;
+  command: AstNode<string> | undefined;
 
   /**
    * Scripts that must run before this one.
@@ -42,6 +42,7 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: ScriptConfig[];
+  dependenciesAst: AstNode<string[]> | undefined;
 
   /**
    * Input file globs for this script.
@@ -50,12 +51,12 @@ export interface ScriptConfig extends ScriptReference {
    * be cached). If defined but empty, there are no input files (meaning the
    * script can safely be cached).
    */
-  files: string[] | undefined;
+  files: AstNode<string[]> | undefined;
 
   /**
    * Output file globs for this script.
    */
-  output: string[] | undefined;
+  output: AstNode<string[]> | undefined;
 
   /**
    * When to clean output:
@@ -65,22 +66,36 @@ export interface ScriptConfig extends ScriptReference {
    * - "if-file-deleted": If an input file has been deleted, and before restoring from
    *   cache.
    */
-  clean: boolean | 'if-file-deleted';
+  clean: AstNode<boolean | 'if-file-deleted'> | undefined;
 
   /**
-   * The AST node for the property in the package.json file that declared
-   * this script.
-   *
-   * Includes both the key and the value. i.e.:
+   * The command string in the scripts section. i.e.:
    *
    * ```json
    *   "scripts": {
    *     "build": "tsc"
-   *     ~~~~~~~~~~~~~~
+   *              ~~~~
    *   }
    * ```
    */
-  scriptAstNode: JsonAstNode | undefined;
+  scriptAstNode: NamedAstNode<string> | undefined;
+
+  /**
+   * The entire config in the wireit section. i.e.:
+   *
+   * ```json
+   *   "build": {
+   *            ~
+   *     "command": "tsc"
+   *   ~~~~~~~~~~~~~~~~~~
+   *   }
+   *   ~
+   * ```
+   *
+   * Typed as void to discourage looking at its value, which is better
+   * represented by `this`.
+   */
+  configAstNode: NamedAstNode<void> | undefined;
 }
 
 /**

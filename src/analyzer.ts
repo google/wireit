@@ -6,7 +6,7 @@
 
 import * as pathlib from 'path';
 import {WireitError} from './error.js';
-import {CachingPackageJsonReader} from './util/package-json-reader.js';
+import {astKey, CachingPackageJsonReader} from './util/package-json-reader.js';
 import {scriptReferenceToString, stringToScriptReference} from './script.js';
 import {AggregateError} from './util/aggregate-error.js';
 
@@ -16,12 +16,18 @@ import type {
   ScriptReference,
   ScriptReferenceString,
 } from './script.js';
+import {
+  AstNode,
+  findNamedNodeAtLocation,
+  findNodeAtLocation,
+  NamedAstNode,
+} from './util/ast.js';
 
 /**
  * A {@link ScriptConfig} where all fields are optional apart from `packageDir`
  * and `name`, used temporarily while package.json files are still loading.
  */
-type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
+export type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
 
 /**
  * Analyzes and validates a script along with all of its transitive
@@ -114,7 +120,7 @@ export class Analyzer {
   async #upgradePlaceholder(placeholder: PlaceholderConfig): Promise<void> {
     let packageJson;
     try {
-      packageJson = await this.#packageJsonReader.read(placeholder.packageDir);
+      packageJson = await this.#packageJsonReader.read(placeholder.packageDir, placeholder);
     } catch (error) {
       const reason = (error as CachingPackageJsonReaderError).reason;
       if (
@@ -132,162 +138,261 @@ export class Analyzer {
       }
     }
 
-    if (packageJson.wireit !== undefined) {
-      assertJsonObject(placeholder, packageJson.wireit, 'wireit');
+    const packageJsonAst = packageJson[astKey];
+    const wireitConfig = findNamedNodeAtLocation(
+      packageJsonAst,
+      ['wireit', placeholder.name],
+      placeholder
+    ) as undefined | NamedAstNode<void>;
+    if (wireitConfig !== undefined) {
+      assertJsonObject(placeholder, wireitConfig.value, 'wireit', wireitConfig);
     }
 
-    const scriptCommand = packageJson.scripts?.[placeholder.name];
+    const scriptsSection = findNamedNodeAtLocation(
+      packageJsonAst,
+      ['scripts'],
+      placeholder
+    );
+    if (scriptsSection === undefined) {
+      throw new WireitError({
+        type: 'failure',
+        reason: 'no-scripts-in-package-json',
+        script: placeholder,
+      });
+    }
+
+    const scriptCommand = findNamedNodeAtLocation(
+      scriptsSection,
+      [placeholder.name],
+      placeholder
+    ) as undefined | NamedAstNode<string>;
     if (scriptCommand === undefined) {
       throw new WireitError({
         type: 'failure',
         reason: 'script-not-found',
         script: placeholder,
+        astNode: wireitConfig?.name ?? scriptsSection.name,
       });
     }
+    assertNonBlankString(
+      placeholder,
+      scriptCommand.value,
+      'command',
+      scriptCommand
+    );
 
-    const wireitConfig = packageJson.wireit?.[placeholder.name];
     if (wireitConfig !== undefined) {
       assertJsonObject(
         placeholder,
         wireitConfig,
-        `wireit[${placeholder.name}]`
+        `wireit[${placeholder.name}]`,
+        wireitConfig
       );
     }
 
-    if (wireitConfig !== undefined && scriptCommand !== 'wireit') {
+    if (wireitConfig !== undefined && scriptCommand.value !== 'wireit') {
       throw new WireitError({
         type: 'failure',
         reason: 'script-not-wireit',
         script: placeholder,
+        astNode: scriptCommand,
       });
     }
 
-    if (wireitConfig === undefined && scriptCommand === 'wireit') {
+    if (wireitConfig === undefined && scriptCommand.value === 'wireit') {
       throw new WireitError({
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: placeholder,
         message: `script has no wireit config`,
+        astNode: scriptCommand,
       });
     }
 
     const dependencies: Array<PlaceholderConfig> = [];
-    if (wireitConfig?.dependencies !== undefined) {
-      assertArray(placeholder, wireitConfig.dependencies, 'dependencies');
+    const dependenciesAst =
+      wireitConfig &&
+      (findNodeAtLocation(wireitConfig, ['dependencies']) as
+        | undefined
+        | AstNode<string[]>);
+    if (dependenciesAst !== undefined) {
+      assertArray(
+        placeholder,
+        dependenciesAst.value as unknown,
+        'dependencies',
+        dependenciesAst
+      );
       // Error if the same dependency is declared multiple times. Duplicate
       // dependencies aren't necessarily a serious problem (since we already
       // prevent double-analysis here, and double-analysis in the Executor), but
       // they may indicate that the user has made a mistake (e.g. maybe they
       // meant a different dependency).
-      const uniqueDependencies = new Set<string>();
-      for (let i = 0; i < wireitConfig.dependencies.length; i++) {
-        const unresolved = wireitConfig.dependencies[i];
-        assertNonBlankString(placeholder, unresolved, `dependencies[${i}]`);
+      const uniqueDependencies = new Map<string, AstNode>();
+      const children = dependenciesAst.children ?? [];
+      for (let i = 0; i < children.length; i++) {
+        const unresolved = children[i] as AstNode<string>;
+        assertNonBlankString(
+          placeholder,
+          unresolved.value,
+          `dependencies[${i}]`,
+          unresolved
+        );
         for (const resolved of this.#resolveDependency(
-          unresolved,
-          placeholder
+          unresolved.value,
+          placeholder,
+          unresolved
         )) {
           const uniqueKey = scriptReferenceToString(resolved);
-          if (uniqueDependencies.has(uniqueKey)) {
+          const duplicate = uniqueDependencies.get(uniqueKey);
+          if (duplicate !== undefined) {
             throw new WireitError({
               type: 'failure',
               reason: 'duplicate-dependency',
               script: placeholder,
               dependency: resolved,
+              astNode: unresolved,
+              duplicate,
             });
           }
-          uniqueDependencies.add(uniqueKey);
+          uniqueDependencies.set(uniqueKey, unresolved);
           dependencies.push(this.#getPlaceholder(resolved));
         }
       }
     }
 
-    let command: string | undefined;
+    let command: AstNode<string> | undefined;
     if (wireitConfig === undefined) {
+      assertNonBlankString(
+        placeholder,
+        scriptCommand.value,
+        'command',
+        scriptCommand
+      );
       command = scriptCommand;
     } else {
-      if (wireitConfig.command !== undefined) {
-        assertNonBlankString(placeholder, wireitConfig.command, 'command');
-      }
-      command = wireitConfig.command;
-    }
-
-    if (command === undefined && dependencies.length === 0) {
-      throw new WireitError({
-        type: 'failure',
-        reason: 'invalid-config-syntax',
-        script: placeholder,
-        message: `script has no command and no dependencies`,
-      });
-    }
-
-    if (wireitConfig?.files !== undefined) {
-      assertArray(placeholder, wireitConfig.files, 'files');
-      for (let i = 0; i < wireitConfig.files.length; i++) {
-        assertNonBlankString(placeholder, wireitConfig.files[i], `files[${i}]`);
-      }
-    }
-
-    if (wireitConfig?.output !== undefined) {
-      assertArray(placeholder, wireitConfig.output, 'output');
-      for (let i = 0; i < wireitConfig.output.length; i++) {
+      const commandAst = findNodeAtLocation(wireitConfig, ['command']);
+      if (commandAst !== undefined) {
         assertNonBlankString(
           placeholder,
-          wireitConfig.output[i],
-          `output[${i}]`
+          commandAst.value,
+          'command',
+          commandAst
         );
+        command = commandAst.value as AstNode<string>;
       }
     }
 
-    if (
-      wireitConfig?.clean !== undefined &&
-      wireitConfig.clean !== true &&
-      wireitConfig.clean !== false &&
-      wireitConfig.clean !== 'if-file-deleted'
-    ) {
-      throw new WireitError({
-        script: placeholder,
-        type: 'failure',
-        reason: 'invalid-config-syntax',
-        message: `clean must be true, false, or "if-file-deleted"`,
-      });
-    }
+    let files: undefined | AstNode<string[]>;
+    let output: undefined | AstNode<string[]>;
+    let clean: undefined | AstNode<true | false | 'if-file-deleted'>;
+    if (wireitConfig !== undefined) {
+      if (command === undefined && dependencies.length === 0) {
+        throw new WireitError({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: placeholder,
+          message: `script has no command and no dependencies`,
+          astNode: wireitConfig.name,
+        });
+      }
 
-    if (wireitConfig?.packageLocks !== undefined) {
-      assertArray(placeholder, wireitConfig.packageLocks, 'packageLocks');
-      for (let i = 0; i < wireitConfig.packageLocks.length; i++) {
-        const filename = wireitConfig.packageLocks[i];
-        assertNonBlankString(placeholder, filename, `packageLocks[${i}]`);
-        if (filename !== pathlib.basename(filename)) {
-          throw new WireitError({
-            type: 'failure',
-            reason: 'invalid-config-syntax',
-            script: placeholder,
-            message: `packageLocks[${i}] must be a filename, not a path`,
-          });
+      files = findNodeAtLocation(wireitConfig, ['files']) as
+        | undefined
+        | AstNode<string[]>;
+      if (files !== undefined) {
+        assertArray(placeholder, files.value, 'files', files);
+        const children = files.children ?? [];
+        for (let i = 0; i < children.length; i++) {
+          const file = children[i];
+          assertNonBlankString(placeholder, file.value, `files[${i}]`, file);
         }
       }
-    }
 
-    if (
-      // There's no reason to check package locks when "files" is undefined,
-      // because scripts will always run in that case anyway.
-      wireitConfig?.files !== undefined &&
-      // An explicitly empty "packageLocks" array disables package lock checking
-      // entirely.
-      wireitConfig?.packageLocks?.length !== 0
-    ) {
-      const lockfileNames = wireitConfig.packageLocks ?? ['package-lock.json'];
-      // Generate "package-lock.json", "../package-lock.json",
-      // "../../package-lock.json" etc. all the way up to the root of the
-      // filesystem, because that's how Node package resolution works.
-      const depth = placeholder.packageDir.split(pathlib.sep).length;
-      for (let i = 0; i < depth; i++) {
-        // Glob patterns are specified with forward-slash delimiters, even on
-        // Windows.
-        const prefix = Array(i + 1).join('../');
-        for (const lockfileName of lockfileNames) {
-          wireitConfig.files.push(prefix + lockfileName);
+      output = findNodeAtLocation(wireitConfig, ['output']) as
+        | undefined
+        | AstNode<string[]>;
+      if (output !== undefined) {
+        assertArray(placeholder, output.value, 'output', output);
+        const children = output.children ?? [];
+        for (let i = 0; i < children.length; i++) {
+          const anOutput = children[i];
+          assertNonBlankString(
+            placeholder,
+            anOutput.value,
+            `output[${i}]`,
+            anOutput
+          );
+        }
+      }
+      clean = findNodeAtLocation(wireitConfig, ['clean']) as
+        | undefined
+        | AstNode<true | false | 'if-file-deleted'>;
+      if (
+        clean !== undefined &&
+        clean.value !== true &&
+        clean.value !== false &&
+        clean.value !== 'if-file-deleted'
+      ) {
+        throw new WireitError({
+          script: placeholder,
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          message: `clean must be true, false, or "if-file-deleted"`,
+          astNode: clean,
+        });
+      }
+
+      const packageLocks = findNodeAtLocation(wireitConfig, [
+        'package-locks',
+      ]) as AstNode<string[]> | undefined;
+
+      if (packageLocks !== undefined) {
+        assertArray(
+          placeholder,
+          packageLocks.value,
+          'packageLocks',
+          packageLocks
+        );
+        const children = packageLocks.children ?? [];
+        for (let i = 0; i < children.length; i++) {
+          const filename = children[i] as AstNode<string>;
+          assertNonBlankString(
+            placeholder,
+            filename.value,
+            `packageLocks[${i}]`,
+            filename
+          );
+          if (filename.value !== pathlib.basename(filename.value)) {
+            throw new WireitError({
+              type: 'failure',
+              reason: 'invalid-config-syntax',
+              script: placeholder,
+              message: `packageLocks[${i}] must be a filename, not a path`,
+              astNode: filename,
+            });
+          }
+        }
+      }
+      if (
+        // There's no reason to check package locks when "files" is undefined,
+        // because scripts will always run in that case anyway.
+        files !== undefined &&
+        // An explicitly empty "packageLocks" array disables package lock checking
+        // entirely.
+        packageLocks?.value?.length !== 0
+      ) {
+        const lockfileNames = packageLocks?.value ?? ['package-lock.json'];
+        // Generate "package-lock.json", "../package-lock.json",
+        // "../../package-lock.json" etc. all the way up to the root of the
+        // filesystem, because that's how Node package resolution works.
+        const depth = placeholder.packageDir.split(pathlib.sep).length;
+        for (let i = 0; i < depth; i++) {
+          // Glob patterns are specified with forward-slash delimiters, even on
+          // Windows.
+          const prefix = Array(i + 1).join('../');
+          for (const lockfileName of lockfileNames) {
+            files.value.push(prefix + lockfileName);
+          }
         }
       }
     }
@@ -298,9 +403,12 @@ export class Analyzer {
     const remainingConfig: Omit<ScriptConfig, keyof ScriptReference> = {
       command,
       dependencies: dependencies as Array<ScriptConfig>,
-      files: wireitConfig?.files,
-      output: wireitConfig?.output,
-      clean: wireitConfig?.clean ?? true,
+      dependenciesAst,
+      files,
+      output,
+      clean,
+      scriptAstNode: scriptCommand,
+      configAstNode: wireitConfig,
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -362,13 +470,16 @@ export class Analyzer {
    */
   #resolveDependency(
     dependency: string,
-    context: ScriptReference
+    context: ScriptReference,
+    reference: AstNode
   ): Array<ScriptReference> {
     // TODO(aomarks) Implement $WORKSPACES syntax.
     if (dependency.startsWith('.')) {
       // TODO(aomarks) It is technically valid for an npm script to start with a
       // ".". We should support that edge case with backslash escaping.
-      return [this.#resolveCrossPackageDependency(dependency, context)];
+      return [
+        this.#resolveCrossPackageDependency(dependency, context, reference),
+      ];
     }
     return [{packageDir: context.packageDir, name: dependency}];
   }
@@ -377,7 +488,11 @@ export class Analyzer {
    * Resolve a cross-package dependency (e.g. "../other-package:build").
    * Cross-package dependencies always start with a ".".
    */
-  #resolveCrossPackageDependency(dependency: string, context: ScriptReference) {
+  #resolveCrossPackageDependency(
+    dependency: string,
+    context: ScriptReference,
+    reference: AstNode
+  ) {
     // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
     // path. We should support that edge case with backslash escaping.
     const firstColonIdx = dependency.indexOf(':');
@@ -390,6 +505,7 @@ export class Analyzer {
           `Cross-package dependency must use syntax ` +
           `"<relative-path>:<script-name>", ` +
           `but there was no ":" character in "${dependency}".`,
+        astNode: reference,
       });
     }
     const scriptName = dependency.slice(firstColonIdx + 1);
@@ -402,6 +518,7 @@ export class Analyzer {
           `Cross-package dependency must use syntax ` +
           `"<relative-path>:<script-name>", ` +
           `but there was no script name in "${dependency}".`,
+        astNode: reference,
       });
     }
     const relativePackageDir = dependency.slice(0, firstColonIdx);
@@ -417,6 +534,7 @@ export class Analyzer {
         message:
           `Cross-package dependency "${dependency}" ` +
           `resolved to the same package.`,
+        astNode: reference,
       });
     }
     return {packageDir: absolutePackageDir, name: scriptName};
@@ -429,7 +547,8 @@ export class Analyzer {
 const assertNonBlankString = (
   script: ScriptReference,
   value: unknown,
-  name: string
+  name: string,
+  astNode: AstNode
 ) => {
   if (typeof value !== 'string') {
     throw new WireitError({
@@ -437,6 +556,7 @@ const assertNonBlankString = (
       reason: 'invalid-config-syntax',
       script,
       message: `${name} is not a string`,
+      astNode,
     });
   }
   if (value.match(/^\s*$/)) {
@@ -445,6 +565,7 @@ const assertNonBlankString = (
       reason: 'invalid-config-syntax',
       script,
       message: `${name} is empty or blank`,
+      astNode,
     });
   }
 };
@@ -452,13 +573,19 @@ const assertNonBlankString = (
 /**
  * Throw an error if the given value is not an Array.
  */
-const assertArray = (script: ScriptReference, value: unknown, name: string) => {
+const assertArray = (
+  script: ScriptReference,
+  value: unknown,
+  name: string,
+  astNode: AstNode
+) => {
   if (!Array.isArray(value)) {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
       script,
       message: `${name} is not an array`,
+      astNode,
     });
   }
 };
@@ -470,13 +597,15 @@ const assertArray = (script: ScriptReference, value: unknown, name: string) => {
 const assertJsonObject = (
   script: ScriptReference,
   value: unknown,
-  name: string
+  name: string,
+  astNode: AstNode
 ) => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
       script,
+      astNode,
       message: `${name} is not an object`,
     });
   }

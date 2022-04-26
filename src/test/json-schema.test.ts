@@ -10,7 +10,8 @@ import * as jsonSchema from 'jsonschema';
 import {suite} from 'uvu';
 import * as fs from 'fs';
 import * as url from 'url';
-import {PackageJson} from '../util/package-json-reader.js';
+import {astKey, PackageJson} from '../util/package-json-reader.js';
+import {addAst} from './util/add-ast';
 
 const schema = JSON.parse(
   fs.readFileSync(
@@ -27,12 +28,12 @@ const schema = JSON.parse(
 const validator = new jsonSchema.Validator();
 validator.addSchema(schema);
 
-function shouldValidate(packageJson: PackageJson) {
+function shouldValidate(packageJson: Omit<PackageJson, typeof astKey>) {
   expectValidationErrors(packageJson, []);
 }
 
-function expectValidationErrors(packageJson: unknown, errors: string[]) {
-  const validationResult = validator.validate(packageJson, schema);
+function expectValidationErrors(packageJson: object, errors: string[]) {
+  const validationResult = validator.validate(addAst(packageJson), schema);
   assert.equal(
     validationResult.errors.map((e) => e.toString()),
     errors

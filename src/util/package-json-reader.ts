@@ -6,9 +6,10 @@
 
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
-import * as jsonParser from 'jsonc-parser';
+import { AstNode, parseTree } from './ast.js';
+import { PlaceholderConfig } from '../analyzer.js';
 
-const astKey = Symbol('ast');
+export const astKey = Symbol('ast');
 
 /**
  * A raw package.json JSON object, including the special "wireit" section.
@@ -27,7 +28,7 @@ export interface PackageJson {
       packageLocks?: string[];
     };
   };
-  [astKey]: jsonParser.Node;
+  [astKey]: AstNode;
 }
 
 /**
@@ -36,7 +37,7 @@ export interface PackageJson {
 export class CachingPackageJsonReader {
   readonly #cache = new Map<string, PackageJson>();
 
-  async read(packageDir: string): Promise<PackageJson> {
+  async read(packageDir: string, placeholder: PlaceholderConfig): Promise<PackageJson> {
     let packageJson = this.#cache.get(packageDir);
     if (packageJson === undefined) {
       const packageJsonPath = pathlib.resolve(packageDir, 'package.json');
@@ -54,7 +55,11 @@ export class CachingPackageJsonReader {
       } catch (error) {
         throw new CachingPackageJsonReaderError('invalid-package-json');
       }
-      packageJson[astKey] = jsonParser.parse(packageJsonStr);
+      const ast = parseTree(packageJsonStr, placeholder);
+      if (ast === undefined) {
+        throw new CachingPackageJsonReaderError('invalid-package-json');
+      }
+      packageJson[astKey] = ast as AstNode;
       this.#cache.set(packageDir, packageJson);
     }
     return packageJson;
