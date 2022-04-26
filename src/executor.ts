@@ -462,7 +462,7 @@ class ScriptExecution {
       stateStr,
       await glob(
         [
-          ...this.#script.output.value,
+          ...this.#script.output.values,
           // Also include the "stdout" and "stderr" replay files at their
           // standard location within the ".wireit" directory for this script so
           // that we can replay them after restoring.
@@ -515,8 +515,8 @@ class ScriptExecution {
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
-    if (this.#script.files?.length) {
-      const files = await glob(this.#script.files.value, {
+    if (this.#script.files?.values.length) {
+      const files = await glob(this.#script.files.values, {
         cwd: this.#script.packageDir,
         absolute: false,
         followSymlinks: true,
@@ -576,7 +576,7 @@ class ScriptExecution {
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
       ),
-      output: this.#script.output?.value ?? [],
+      output: this.#script.output?.values ?? [],
       dependencies: Object.fromEntries(
         filteredDependencyStates.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
@@ -655,7 +655,7 @@ class ScriptExecution {
     if (this.#script.output === undefined) {
       return;
     }
-    const absFiles = await glob(this.#script.output.value, {
+    const absFiles = await glob(this.#script.output.values, {
       cwd: this.#script.packageDir,
       absolute: true,
       followSymlinks: false,
@@ -678,7 +678,7 @@ class ScriptExecution {
           type: 'failure',
           reason: 'invalid-config-syntax',
           message: `refusing to delete output file outside of package: ${absFile.path}`,
-          astNode: this.#script.output,
+          astNode: this.#script.output.node,
         });
       }
     }

@@ -15,22 +15,31 @@ import {PlaceholderConfig} from '../analyzer.js';
 import {WireitError} from '../error.js';
 export {ParseError} from 'jsonc-parser';
 
+type ValueTypes = string | number | boolean | null | undefined;
+
 /**
  * A JSON AST node.
  *
  * A safer override, preferring unknown over any.
  */
-export interface AstNode<T = unknown> extends AstNodeInternal {
+export interface AstNode<T extends ValueTypes = ValueTypes>
+  extends AstNodeInternal {
   value: T;
-  children?: AstNode<unknown>[];
-  parent?: AstNode<unknown>;
+  children?: AstNode[];
+  parent?: AstNode<undefined>;
+}
+
+export interface ArrayNode<T> {
+  readonly node: AstNode;
+  readonly values: T[];
 }
 
 /**
  * A JSON value that is inside an object literal, and that has a reference
  * to its key in that object.
  */
-export interface NamedAstNode<T = unknown> extends AstNode<T> {
+export interface NamedAstNode<T extends ValueTypes = ValueTypes>
+  extends AstNode<T> {
   /**
    * If `this` represents:
    * ```json
@@ -52,9 +61,9 @@ export function findNamedNodeAtLocation(
   path: JSONPath,
   script: PlaceholderConfig
 ): NamedAstNode | undefined {
-  const node = findNodeAtLocation(astNode, path) as NamedAstNode;
-  const parent = node.parent;
-  if (!parent) {
+  const node = findNodeAtLocation(astNode, path) as NamedAstNode | undefined;
+  const parent = node?.parent;
+  if (node === undefined || parent === undefined) {
     return undefined;
   }
   const name = parent.children?.[0];

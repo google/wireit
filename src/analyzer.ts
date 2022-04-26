@@ -17,6 +17,7 @@ import type {
   ScriptReferenceString,
 } from './script.js';
 import {
+  ArrayNode,
   AstNode,
   findNamedNodeAtLocation,
   findNodeAtLocation,
@@ -120,7 +121,10 @@ export class Analyzer {
   async #upgradePlaceholder(placeholder: PlaceholderConfig): Promise<void> {
     let packageJson;
     try {
-      packageJson = await this.#packageJsonReader.read(placeholder.packageDir, placeholder);
+      packageJson = await this.#packageJsonReader.read(
+        placeholder.packageDir,
+        placeholder
+      );
     } catch (error) {
       const reason = (error as CachingPackageJsonReaderError).reason;
       if (
@@ -139,15 +143,6 @@ export class Analyzer {
     }
 
     const packageJsonAst = packageJson[astKey];
-    const wireitConfig = findNamedNodeAtLocation(
-      packageJsonAst,
-      ['wireit', placeholder.name],
-      placeholder
-    ) as undefined | NamedAstNode<void>;
-    if (wireitConfig !== undefined) {
-      assertJsonObject(placeholder, wireitConfig.value, 'wireit', wireitConfig);
-    }
-
     const scriptsSection = findNamedNodeAtLocation(
       packageJsonAst,
       ['scripts'],
@@ -161,6 +156,11 @@ export class Analyzer {
       });
     }
 
+    const wireitSection = findNamedNodeAtLocation(
+      packageJsonAst,
+      ['wireit'],
+      placeholder
+    );
     const scriptCommand = findNamedNodeAtLocation(
       scriptsSection,
       [placeholder.name],
@@ -171,7 +171,7 @@ export class Analyzer {
         type: 'failure',
         reason: 'script-not-found',
         script: placeholder,
-        astNode: wireitConfig?.name ?? scriptsSection.name,
+        astNode: wireitSection?.name ?? scriptsSection.name,
       });
     }
     assertNonBlankString(
@@ -181,12 +181,22 @@ export class Analyzer {
       scriptCommand
     );
 
+    if (wireitSection !== undefined) {
+      assertJsonObject(placeholder, wireitSection, 'wireit');
+    }
+
+    const wireitConfig =
+      wireitSection &&
+      (findNamedNodeAtLocation(
+        wireitSection,
+        [placeholder.name],
+        placeholder
+      ) as undefined | NamedAstNode);
     if (wireitConfig !== undefined) {
       assertJsonObject(
         placeholder,
         wireitConfig,
-        `wireit[${placeholder.name}]`,
-        wireitConfig
+        `wireit[${placeholder.name}]`
       );
     }
 
@@ -214,14 +224,9 @@ export class Analyzer {
       wireitConfig &&
       (findNodeAtLocation(wireitConfig, ['dependencies']) as
         | undefined
-        | AstNode<string[]>);
+        | AstNode);
     if (dependenciesAst !== undefined) {
-      assertArray(
-        placeholder,
-        dependenciesAst.value as unknown,
-        'dependencies',
-        dependenciesAst
-      );
+      assertArray(placeholder, dependenciesAst, 'dependencies');
       // Error if the same dependency is declared multiple times. Duplicate
       // dependencies aren't necessarily a serious problem (since we already
       // prevent double-analysis here, and double-analysis in the Executor), but
@@ -270,7 +275,7 @@ export class Analyzer {
       );
       command = scriptCommand;
     } else {
-      const commandAst = findNodeAtLocation(wireitConfig, ['command']);
+      const commandAst = findNodeAtLocation(wireitConfig, ['command']) as undefined | AstNode<string>;
       if (commandAst !== undefined) {
         assertNonBlankString(
           placeholder,
@@ -278,12 +283,12 @@ export class Analyzer {
           'command',
           commandAst
         );
-        command = commandAst.value as AstNode<string>;
+        command = commandAst;
       }
     }
 
-    let files: undefined | AstNode<string[]>;
-    let output: undefined | AstNode<string[]>;
+    let files: undefined | ArrayNode<string>;
+    let output: undefined | ArrayNode<string>;
     let clean: undefined | AstNode<true | false | 'if-file-deleted'>;
     if (wireitConfig !== undefined) {
       if (command === undefined && dependencies.length === 0) {
@@ -296,32 +301,36 @@ export class Analyzer {
         });
       }
 
-      files = findNodeAtLocation(wireitConfig, ['files']) as
+      const filesNode = findNodeAtLocation(wireitConfig, ['files']) as
         | undefined
-        | AstNode<string[]>;
-      if (files !== undefined) {
-        assertArray(placeholder, files.value, 'files', files);
-        const children = files.children ?? [];
+        | AstNode;
+      if (filesNode !== undefined) {
+        files = {node: filesNode, values: []};
+        assertArray(placeholder, filesNode, 'files');
+        const children = filesNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
-          const file = children[i];
+          const file = children[i] as AstNode<string>;
           assertNonBlankString(placeholder, file.value, `files[${i}]`, file);
+          files.values.push(file.value);
         }
       }
 
-      output = findNodeAtLocation(wireitConfig, ['output']) as
+      const outputNode = findNodeAtLocation(wireitConfig, ['output']) as
         | undefined
-        | AstNode<string[]>;
-      if (output !== undefined) {
-        assertArray(placeholder, output.value, 'output', output);
-        const children = output.children ?? [];
+        | AstNode;
+      if (outputNode !== undefined) {
+        output = {node: outputNode, values: []};
+        assertArray(placeholder, outputNode, 'output');
+        const children = outputNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
-          const anOutput = children[i];
+          const anOutput = children[i] as AstNode<string>;
           assertNonBlankString(
             placeholder,
             anOutput.value,
             `output[${i}]`,
             anOutput
           );
+          output.values.push(anOutput.value);
         }
       }
       clean = findNodeAtLocation(wireitConfig, ['clean']) as
@@ -342,18 +351,14 @@ export class Analyzer {
         });
       }
 
-      const packageLocks = findNodeAtLocation(wireitConfig, [
-        'package-locks',
-      ]) as AstNode<string[]> | undefined;
-
-      if (packageLocks !== undefined) {
-        assertArray(
-          placeholder,
-          packageLocks.value,
-          'packageLocks',
-          packageLocks
-        );
-        const children = packageLocks.children ?? [];
+      const packageLocksNode = findNodeAtLocation(wireitConfig, [
+        'packageLocks',
+      ]) as AstNode | undefined;
+      let packageLocks: undefined | {node: AstNode, values: string[]};
+      if (packageLocksNode !== undefined) {
+        assertArray(placeholder, packageLocksNode, 'packageLocks');
+        packageLocks = {node: packageLocksNode, values: []};
+        const children = packageLocksNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const filename = children[i] as AstNode<string>;
           assertNonBlankString(
@@ -371,6 +376,7 @@ export class Analyzer {
               astNode: filename,
             });
           }
+          packageLocks.values.push(filename.value);
         }
       }
       if (
@@ -379,9 +385,9 @@ export class Analyzer {
         files !== undefined &&
         // An explicitly empty "packageLocks" array disables package lock checking
         // entirely.
-        packageLocks?.value?.length !== 0
+        packageLocks?.values.length !== 0
       ) {
-        const lockfileNames = packageLocks?.value ?? ['package-lock.json'];
+        const lockfileNames = packageLocks?.values ?? ['package-lock.json'];
         // Generate "package-lock.json", "../package-lock.json",
         // "../../package-lock.json" etc. all the way up to the root of the
         // filesystem, because that's how Node package resolution works.
@@ -391,7 +397,7 @@ export class Analyzer {
           // Windows.
           const prefix = Array(i + 1).join('../');
           for (const lockfileName of lockfileNames) {
-            files.value.push(prefix + lockfileName);
+            files.values.push(prefix + lockfileName);
           }
         }
       }
@@ -575,11 +581,10 @@ const assertNonBlankString = (
  */
 const assertArray = (
   script: ScriptReference,
-  value: unknown,
-  name: string,
-  astNode: AstNode
+  astNode: AstNode,
+  name: string
 ) => {
-  if (!Array.isArray(value)) {
+  if (astNode.type !== 'array') {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
@@ -596,11 +601,10 @@ const assertArray = (
  */
 const assertJsonObject = (
   script: ScriptReference,
-  value: unknown,
-  name: string,
-  astNode: AstNode
+  astNode: AstNode,
+  name: string
 ) => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (astNode.type !== 'object') {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',

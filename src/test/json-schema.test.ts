@@ -11,7 +11,7 @@ import {suite} from 'uvu';
 import * as fs from 'fs';
 import * as url from 'url';
 import {astKey, PackageJson} from '../util/package-json-reader.js';
-import {addAst} from './util/add-ast';
+import {addAst} from './util/add-ast.js';
 
 const schema = JSON.parse(
   fs.readFileSync(

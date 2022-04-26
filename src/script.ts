@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {AstNode, NamedAstNode} from './util/ast.js';
+import {ArrayNode, AstNode, NamedAstNode} from './util/ast.js';
 
 /**
  * The location on disk of an npm package.
@@ -42,7 +42,7 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: ScriptConfig[];
-  dependenciesAst: AstNode<string[]> | undefined;
+  dependenciesAst: AstNode | undefined;
 
   /**
    * Input file globs for this script.
@@ -51,12 +51,12 @@ export interface ScriptConfig extends ScriptReference {
    * be cached). If defined but empty, there are no input files (meaning the
    * script can safely be cached).
    */
-  files: AstNode<string[]> | undefined;
+  files: ArrayNode<string> | undefined;
 
   /**
    * Output file globs for this script.
    */
-  output: AstNode<string[]> | undefined;
+  output: ArrayNode<string> | undefined;
 
   /**
    * When to clean output:
@@ -91,11 +91,8 @@ export interface ScriptConfig extends ScriptReference {
    *   }
    *   ~
    * ```
-   *
-   * Typed as void to discourage looking at its value, which is better
-   * represented by `this`.
    */
-  configAstNode: NamedAstNode<void> | undefined;
+  configAstNode: NamedAstNode | undefined;
 }
 
 /**
