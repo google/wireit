@@ -57,8 +57,8 @@ test('warns on a package.json based on the schema', async () => {
     })),
     [
       {
-        start: {line: 3, character: 17},
-        end: {line: 3, character: 18},
+        start: {line: 6, character: 17},
+        end: {line: 6, character: 18},
       },
     ]
   );
@@ -78,8 +78,8 @@ test('warns on a package.json based on semantic analysis in the language server'
   assert.equal(
     diagnostics.map((d) => d.message),
     [
-      "This script is declared in the 'wireit' section, but that won't have any effect this command is just \"wireit\"",
-      "This script is declared in the 'wireit' section, but not in the 'scripts' section",
+      `This script is declared in the "wireit" section, but that won't have any effect unless this command is just "wireit"`,
+      `This script is declared in the "wireit" section, but not in the "scripts" section`,
       'Set either "command" or "dependencies", otherwise there\'s nothing for wireit to do.',
     ]
   );
@@ -90,8 +90,8 @@ test('warns on a package.json based on semantic analysis in the language server'
     })),
     [
       {start: {line: 2, character: 26}, end: {line: 2, character: 31}},
-      {start: {line: 11, character: 4}, end: {line: 11, character: 20}},
-      {start: {line: 17, character: 4}, end: {line: 17, character: 38}},
+      {start: {line: 10, character: 4}, end: {line: 10, character: 20}},
+      {start: {line: 16, character: 4}, end: {line: 16, character: 38}},
     ],
     JSON.stringify(
       diagnostics.map((d) => ({

@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "wireit"
+  },
   "wireit": {
     "build": {
       "command": 1

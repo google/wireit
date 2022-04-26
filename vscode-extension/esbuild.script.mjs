@@ -18,7 +18,7 @@ await esbuild.build({
   bundle: true,
   outfile: 'server.js',
   platform: 'node',
-  minify: true,
+  minify: false,
   target: 'es2017',
   format: 'cjs',
   color: true,

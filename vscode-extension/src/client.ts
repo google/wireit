@@ -31,7 +31,11 @@ export async function activate(context: vscode.ExtensionContext) {
     {
       documentSelector: [
         // The server will only ever be notified about package.json files.
-        {scheme: 'file', language: 'json', pattern: '**/package.json'},
+        {
+          scheme: 'file',
+          language: 'json',
+          //pattern: '**/package.json'
+        },
       ],
       traceOutputChannel: outputChannel,
     }
@@ -49,6 +53,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     )
   );
+  outputChannel.appendLine('hm');
 }
 
 export async function deactivate(): Promise<void> {

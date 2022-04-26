@@ -6,7 +6,6 @@
   },
   "wireit": {
     "not_wireit_command": {
-      "#comment": "This is wrong because the scripts section should be \"wireit\"",
       "command": "tsc"
     },
     "not_in_scripts": {
