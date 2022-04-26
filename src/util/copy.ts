@@ -88,6 +88,8 @@ const copyFileGracefully = async (src: string, dest: string): Promise<void> => {
   }
 };
 
+const IS_WINDOWS = process.platform === 'win32';
+
 /**
  * Copy a symlink verbatim without following or resolving the target. If the
  * source doesn't exist, do nothing.
@@ -98,11 +100,47 @@ const copySymlinkGracefully = async (
 ): Promise<void> => {
   try {
     const target = await fs.readlink(src, {encoding: 'buffer'});
-    await fs.symlink(target, dest);
+    // Windows symlinks need to be flagged for whether the target is a file or a
+    // directory. We can't derive that from the symlink itself, so we instead
+    // need to check the type of the target.
+    const windowsType = IS_WINDOWS
+      ? // The target could be in the source or the destination, check both.
+        (await detectWindowsSymlinkType(target, src)) ??
+        (await detectWindowsSymlinkType(target, dest)) ??
+        // It doesn't exist in either place, so there's no way to know. Just
+        // assume "file".
+        'file'
+      : undefined;
+    await fs.symlink(target, dest, windowsType);
   } catch (error) {
     const {code} = error as {code: string};
     if (code === /* does not exist */ 'ENOENT') {
       return;
+    }
+    throw error;
+  }
+};
+
+/**
+ * Resolve symlink {@link target} relative to {@link linkPath} and try to detect
+ * whether the target is a file or directory. If the target doesn't exist,
+ * returns undefined.
+ */
+const detectWindowsSymlinkType = async (
+  target: Buffer,
+  linkPath: string
+): Promise<'file' | 'dir' | undefined> => {
+  const resolved = pathlib.resolve(
+    pathlib.dirname(linkPath),
+    target.toString()
+  );
+  try {
+    const stats = await fs.stat(resolved);
+    return stats.isDirectory() ? 'dir' : 'file';
+  } catch (error) {
+    const {code} = error as {code: string};
+    if (code === /* does not exist */ 'ENOENT') {
+      return undefined;
     }
     throw error;
   }

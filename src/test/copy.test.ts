@@ -8,6 +8,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 import * as pathlib from 'path';
+import * as fs from 'fs/promises';
 import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 import {copyEntries} from '../util/copy.js';
@@ -207,18 +208,29 @@ test('directory listed twice is not an error', async ({src, dst, dir}) => {
 
 test('copies symlink to file verbatim', async ({src, dst, symlink}) => {
   await src.write('target', 'content');
-  await src.symlink('target', 'foo', 'file');
-  await copyEntries([symlink('foo')], src.temp, dst.temp);
-  assert.equal(await dst.readlink('foo'), 'target');
+  await src.symlink('target', 'symlink', 'file');
+  await copyEntries([symlink('symlink')], src.temp, dst.temp);
+  assert.equal(await dst.readlink('symlink'), 'target');
   assert.not(await dst.exists('target'));
+
+  // If we create the target file, we should now be able to read it. This is
+  // mostly to confirm we created the right kind of symlink on Windows.
+  await dst.write('target', 'content');
+  assert.equal(await dst.read('symlink'), 'content');
 });
 
 test('copies symlink to directory verbatim', async ({src, dst, symlink}) => {
   await src.mkdir('target');
-  await src.symlink('target', 'foo', 'dir');
-  await copyEntries([symlink('foo')], src.temp, dst.temp);
-  assert.equal(await dst.readlink('foo'), 'target');
+  await src.symlink('target', 'symlink', 'dir');
+  await copyEntries([symlink('symlink')], src.temp, dst.temp);
+  assert.equal(await dst.readlink('symlink'), 'target');
   assert.not(await dst.exists('target'));
+
+  // If we create the target directory, we should now be able to list it. This
+  // is mostly to confirm we created the right kind of symlink on Windows.
+  await dst.mkdir('target');
+  await dst.touch('target/child');
+  assert.equal(await fs.readdir(dst.resolve('symlink')), ['child']);
 });
 
 test('stress test', async ({src, dst, file, dir}) => {
