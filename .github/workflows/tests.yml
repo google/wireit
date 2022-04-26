@@ -20,7 +20,7 @@ jobs:
       # failures depending on the OS.
       fail-fast: false
 
-    timeout-minutes: 15
+    timeout-minutes: 20
     runs-on: ${{ matrix.os }}
 
     env:
