@@ -5,6 +5,7 @@
  */
 
 import * as pathlib from 'path';
+import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import * as cacheUtils from '@actions/cache/lib/internal/cacheUtils.js';
 import {createTar, extractTar} from '@actions/cache/lib/internal/tar.js';
@@ -17,6 +18,7 @@ import {HttpClient} from '@actions/http-client';
 import {BearerCredentialHandler} from '@actions/http-client/auth.js';
 import {isSuccessStatusCode} from '@actions/cache/lib/internal/requestUtils.js';
 import {scriptReferenceToString} from '../script.js';
+import {getScriptDataDir} from '../util/script-data-dir.js';
 
 import type {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 import type {
@@ -121,15 +123,20 @@ export class GitHubActionsCache implements Cache {
     stateStr: ScriptStateString
   ): Promise<CacheHit | undefined> {
     const compressionMethod = await GitHubActionsCache.#compressionMethod;
+    const version = this.#computeVersion(stateStr, compressionMethod);
     const location = await this.#checkForCacheEntry(
       this.#computeCacheKey(script),
-      this.#computeVersion(stateStr, compressionMethod)
+      version
     );
     if (location === undefined) {
       // No cache hit.
       return undefined;
     }
-    return new GitHubActionsCacheHit(location, compressionMethod);
+    return new GitHubActionsCacheHit(
+      location,
+      compressionMethod,
+      this.#emptyDirectoriesManifestPath(script, version)
+    );
   }
 
   async set(
@@ -137,16 +144,71 @@ export class GitHubActionsCache implements Cache {
     stateStr: ScriptStateString,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
+    // We're going to build a tarball. We do this by passing paths to the "tar"
+    // command. When we pass a directory to "tar", all of its children are
+    // implicitly included. This is a problem, because sometimes we want to add
+    // a directory, but only a subset of its children (or none of them), because
+    // of exclusion patterns in the "output" globs.
+    //
+    // To work around this problem, we never pass directories to "tar". Instead,
+    // we enumerate every specific file. This works fine, except for empty
+    // directories. If a directory was explicitly listed for inclusion, and it
+    // happens to be empty, we should cache an empty directory.
+    //
+    // So we need special handling for empty directories. If there are empty
+    // directories, we create a special "empty directories manifest" file, and
+    // include that in the tarball at a predictable location (inside the
+    // ".wireit" folder so that it won't collide with a user file). Then when we
+    // untar, we check for that manifest, create any missing directories listed
+    // inside it, and delete the manifest.
+
+    const files = new Set<string>();
+    const emptyDirs = new Set<string>();
+    {
+      const nonEmptyDirs = new Set<string>();
+      for (const {path, dirent} of relativeFiles) {
+        const absPath = pathlib.join(script.packageDir, path);
+        if (dirent.isDirectory()) {
+          // Initially assume every directory might be empty. We might see a
+          // directory entry after a file that's in it. We'll filter it down
+          // after this loop.
+          emptyDirs.add(absPath);
+        } else {
+          files.add(absPath);
+          // Add all parent directories of this file to set of non-empty
+          // directories.
+          let cur = pathlib.dirname(absPath);
+          while (!nonEmptyDirs.has(cur)) {
+            // Note if we've already added the child, we must have already added
+            // all of its parents too.
+            nonEmptyDirs.add(cur);
+            cur = pathlib.dirname(cur);
+          }
+        }
+      }
+      for (const nonEmptyDir of nonEmptyDirs) {
+        emptyDirs.delete(nonEmptyDir);
+      }
+    }
+
     const compressionMethod = await GitHubActionsCache.#compressionMethod;
-    const tarballPath = await this.#makeTarball(
-      relativeFiles
-        // TODO(aomarks) The tar command will include directories recursively,
-        // so we need to exclude them. This means we'll be missing empty
-        // directories. Find a workaround.
-        .filter((entry) => !entry.dirent.isDirectory())
-        .map((entry) => pathlib.join(script.packageDir, entry.path)),
-      compressionMethod
-    );
+    const version = this.#computeVersion(stateStr, compressionMethod);
+
+    let emptyDirsManifestPath: string | undefined;
+    if (emptyDirs.size > 0) {
+      const emptyDirsManifest = JSON.stringify([...emptyDirs]);
+      emptyDirsManifestPath = this.#emptyDirectoriesManifestPath(
+        script,
+        version
+      );
+      await fs.mkdir(pathlib.dirname(emptyDirsManifestPath), {recursive: true});
+      await fs.writeFile(emptyDirsManifestPath, emptyDirsManifest, {
+        encoding: 'utf8',
+      });
+      files.add(emptyDirsManifestPath);
+    }
+
+    const tarballPath = await this.#makeTarball([...files], compressionMethod);
     try {
       const tarBytes = cacheUtils.getArchiveFileSizeInBytes(tarballPath);
       // Reference: https://github.com/actions/toolkit/blob/f8a69bc473af4a204d0c03de61d5c9d1300dfb17/packages/cache/src/cache.ts#L174
@@ -167,7 +229,7 @@ export class GitHubActionsCache implements Cache {
       const id = await this.#reserveCacheEntry(
         this.#makeAuthenticatedHttpClient(),
         this.#computeCacheKey(script),
-        this.#computeVersion(stateStr, compressionMethod),
+        version,
         tarBytes
       );
       // It's likely that we'll occasionally fail to reserve an entry and get
@@ -180,9 +242,24 @@ export class GitHubActionsCache implements Cache {
       }
     } finally {
       // Delete the tarball.
-      await cacheUtils.unlinkFile(tarballPath);
+      const tarballDeleted = cacheUtils.unlinkFile(tarballPath);
+      // Also delete the empty directories manifest file.
+      if (emptyDirsManifestPath !== undefined) {
+        await fs.unlink(emptyDirsManifestPath);
+      }
+      await tarballDeleted;
     }
     return true;
+  }
+
+  #emptyDirectoriesManifestPath(
+    script: ScriptReference,
+    version: string
+  ): string {
+    return pathlib.join(
+      getScriptDataDir(script),
+      `github-cache-empty-directories-manifest-${version}.json`
+    );
   }
 
   #computeCacheKey(script: ScriptReference): string {
@@ -334,10 +411,16 @@ class GitHubActionsCacheHit implements CacheHit {
   #url: string;
   #compressionMethod: CompressionMethod;
   #applied = false;
+  #emptyDirectoriesManifestPath: string;
 
-  constructor(location: string, compressionMethod: CompressionMethod) {
+  constructor(
+    location: string,
+    compressionMethod: CompressionMethod,
+    emptyDirectoriesManifestPath: string
+  ) {
     this.#url = location;
     this.#compressionMethod = compressionMethod;
+    this.#emptyDirectoriesManifestPath = emptyDirectoriesManifestPath;
   }
 
   async apply(): Promise<void> {
@@ -352,9 +435,31 @@ class GitHubActionsCacheHit implements CacheHit {
     try {
       await downloadCache(this.#url, archivePath);
       await extractTar(archivePath, this.#compressionMethod);
+      await this.#createEmptyDirectories();
     } finally {
       await cacheUtils.unlinkFile(archivePath);
     }
+  }
+
+  async #createEmptyDirectories() {
+    let manifest;
+    try {
+      manifest = await fs.readFile(this.#emptyDirectoriesManifestPath, {
+        encoding: 'utf8',
+      });
+    } catch (error) {
+      const {code} = error as {code: string};
+      if (code === 'ENOENT') {
+        // No empty dirs manifest means no empty dirs which is no problem.
+        return;
+      }
+      throw error;
+    }
+    const emptyDirs = JSON.parse(manifest) as string[];
+    await Promise.all([
+      ...emptyDirs.map((dir) => fs.mkdir(dir, {recursive: true})),
+      fs.unlink(this.#emptyDirectoriesManifestPath),
+    ]);
   }
 }
 
