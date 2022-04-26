@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {Node as JsonAstNode} from 'jsonc-parser';
+
 /**
  * The location on disk of an npm package.
  */
@@ -64,6 +66,21 @@ export interface ScriptConfig extends ScriptReference {
    *   cache.
    */
   clean: boolean | 'if-file-deleted';
+
+  /**
+   * The AST node for the property in the package.json file that declared
+   * this script.
+   *
+   * Includes both the key and the value. i.e.:
+   *
+   * ```json
+   *   "scripts": {
+   *     "build": "tsc"
+   *     ~~~~~~~~~~~~~~
+   *   }
+   * ```
+   */
+  scriptAstNode: JsonAstNode | undefined;
 }
 
 /**

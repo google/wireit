@@ -6,6 +6,9 @@
 
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
+import * as jsonParser from 'jsonc-parser';
+
+const astKey = Symbol('ast');
 
 /**
  * A raw package.json JSON object, including the special "wireit" section.
@@ -24,6 +27,7 @@ export interface PackageJson {
       packageLocks?: string[];
     };
   };
+  [astKey]: jsonParser.Node;
 }
 
 /**
@@ -50,6 +54,7 @@ export class CachingPackageJsonReader {
       } catch (error) {
         throw new CachingPackageJsonReaderError('invalid-package-json');
       }
+      packageJson[astKey] = jsonParser.parse(packageJsonStr);
       this.#cache.set(packageDir, packageJson);
     }
     return packageJson;
