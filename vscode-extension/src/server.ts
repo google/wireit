@@ -43,7 +43,7 @@ connection.onInitialize(() => {
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 /**
- * A JSON property/value pair in an object literal. 
+ * A JSON property/value pair in an object literal.
  */
 class JsonProperty<T = unknown> {
   readonly key: string;
