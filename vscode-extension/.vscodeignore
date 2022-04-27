@@ -1,0 +1,10 @@
+.vscode
+.vscode-test
+.wireit
+.gitignore
+src
+lib/test
+tsconfig.json
+package-lock.json
+.tsbuildinfo
+.DS_Store

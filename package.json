@@ -27,6 +27,7 @@
     "format": "prettier . -w",
     "format:check": "prettier . -c",
     "test": "wireit",
+    "test:headless": "wireit",
     "test:basic": "wireit",
     "test:cache-github": "wireit",
     "test:cache-local": "wireit",
@@ -58,6 +59,12 @@
       "clean": "if-file-deleted"
     },
     "test": {
+      "dependencies": [
+        "test:headless",
+        "./vscode-extension:test"
+      ]
+    },
+    "test:headless": {
       "dependencies": [
         "test:basic",
         "test:cache-github",
@@ -228,5 +235,8 @@
     "@actions/cache": "=2.0.2",
     "chokidar": "^3.5.3",
     "fast-glob": "^3.2.11"
-  }
+  },
+  "workspaces": [
+    "vscode-extension"
+  ]
 }
