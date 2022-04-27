@@ -69,7 +69,6 @@ export type Failure =
   | ExitSignal
   | SpawnError
   | LaunchedIncorrectly
-  | OldNpmVersion
   | MissingPackageJson
   | InvalidPackageJson
   | ScriptNotFound
@@ -113,15 +112,6 @@ export interface SpawnError extends ErrorBase<ScriptReference> {
  */
 export interface LaunchedIncorrectly extends ErrorBase<PackageReference> {
   reason: 'launched-incorrectly';
-}
-
-/**
- * Wireit was launched with an unsupported version of npm.
- */
-export interface OldNpmVersion extends ErrorBase<PackageReference> {
-  reason: 'old-npm-version';
-  minNpmVersion: string;
-  // More info on what specifically went wrong.
   detail: string;
 }
 
