@@ -724,4 +724,207 @@ test(
   })
 );
 
+test(
+  'finds package directory without npm_package_json',
+  timeout(async ({rig}) => {
+    // This confirms that we can walk up the filesystem to find the nearest
+    // package.json when the npm_package_json environment variable isn't set.
+    // This variable isn't set by yarn, pnpm, and older versions of npm.
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+    await rig.mkdir('foo/bar/baz');
+    const exec = rig.exec(
+      IS_WINDOWS
+        ? '..\\..\\..\\node_modules\\.bin\\wireit.cmd'
+        : '../../../node_modules/.bin/wireit',
+      {
+        cwd: 'foo/bar/baz',
+        env: {
+          npm_lifecycle_event: 'a',
+        },
+      }
+    );
+    (await cmdA.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+  })
+);
+
+test(
+  'runs a script with yarn',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('yarn run a');
+    (await cmdA.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+  })
+);
+
+test(
+  'runs a script with pnpm',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('pnpm run a');
+    (await cmdA.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+  })
+);
+
+test(
+  'commands run under yarn workspaces',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        // Yarn workspaces only work when the root is private.
+        private: true,
+        // Yarn is particular about packages having names and versions.
+        name: 'root',
+        version: '1.0.0',
+        workspaces: ['foo', 'bar'],
+      },
+      'foo/package.json': {
+        name: 'foo',
+        version: '1.0.0',
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdA.command,
+          },
+        },
+      },
+      'bar/package.json': {
+        name: 'bar',
+        version: '1.0.0',
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdB.command,
+          },
+        },
+      },
+    });
+
+    // Run both from the workspaces root package.
+    {
+      const exec = rig.exec('yarn workspaces run cmd');
+      // Workspace commands run in serial.
+      (await cmdA.nextInvocation()).exit(0);
+      (await cmdB.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+
+    // Run one from the workspace package.
+    {
+      const exec = rig.exec('yarn run cmd', {cwd: 'foo'});
+      (await cmdA.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+  })
+);
+
+test(
+  'commands run under pnpm workspaces',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'pnpm-workspace.yaml': `
+        packages:
+          - foo
+          - bar
+      `,
+      'foo/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdA.command,
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdB.command,
+          },
+        },
+      },
+    });
+
+    // Run both from the workspaces root package.
+    {
+      const exec = rig.exec('pnpm run cmd --recursive');
+      // Workspace commands run in serial.
+      (await cmdA.nextInvocation()).exit(0);
+      (await cmdB.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+
+    // Run one from the workspace package.
+    {
+      const exec = rig.exec('pnpm run cmd', {cwd: 'foo'});
+      (await cmdA.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+  })
+);
+
 test.run();
