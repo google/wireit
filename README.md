@@ -579,7 +579,7 @@ Here are some things you might especially like about Wireit:
 
 - **Caching with GitHub Actions**. Wireit supports caching build artifacts and
   test results directly through GitHub Actions, without any extra third-party
-  services. Just add a single `use` line to your workflows.
+  services. Just add a single `uses:` line to your workflows.
 
 - **Watch any script**. Want to automatically re-run your build and tests
   whenever you make a change? Type `npm test watch`. Any script you've
