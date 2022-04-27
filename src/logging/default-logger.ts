@@ -98,12 +98,8 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'launched-incorrectly': {
-            console.error(`❌${prefix} wireit must be launched with "npm run"`);
-            break;
-          }
-          case 'old-npm-version': {
             console.error(
-              `❌${prefix} wireit must be run with npm at least v${event.minNpmVersion}.`
+              `❌${prefix} wireit must be launched with "npm run" or a compatible command.`
             );
             console.error(`    More info: ${event.detail}`);
             break;

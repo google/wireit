@@ -92,7 +92,8 @@ and replace the original script with the `wireit` command.
 </table>
 
 Now when you run `npm run build`, Wireit upgrades the script to be smarter and
-more efficient.
+more efficient. Wireit works with [yarn](https://yarnpkg.com/) and
+[pnpm](https://pnpm.io/), too.
 
 You should also add `.wireit` to your `.gitignore` file. Wireit uses the
 `.wireit` directory to store caches and other data for your scripts.

@@ -46,7 +46,8 @@ test(
     assert.equal(
       done.stderr.trim(),
       `
-❌ wireit must be launched with "npm run"`.trim()
+❌ wireit must be launched with "npm run" or a compatible command.
+    More info: Wireit could not identify the script to run.`.trim()
     );
   })
 );
@@ -60,7 +61,8 @@ test(
     assert.equal(
       done.stderr.trim(),
       `
-❌ wireit must be launched with "npm run"`.trim()
+❌ wireit must be launched with "npm run" or a compatible command.
+    More info: Launching Wireit with npx is not supported.`.trim()
     );
   })
 );

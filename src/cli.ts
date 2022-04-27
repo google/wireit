@@ -5,7 +5,8 @@
  */
 
 import * as os from 'os';
-import {dirname} from 'path';
+import * as fs from 'fs/promises';
+import * as pathlib from 'path';
 import {WireitError} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
@@ -15,14 +16,35 @@ import {unreachable} from './util/unreachable.js';
 
 import type {ScriptReference} from './script.js';
 
-// The "npm_package_json" environment variable gives us the path to the
-// package.json file for the current script's npm package. The similar
-// environment variable "npm_config_local_prefix" gives us the package directory
-// (i.e. without the "/package.json"), however when a package is a member of an
-// npm workspace, then "npm_config_local_prefix" is instead that of the
-// workspace root package.
-const packageJsonPath = process.env.npm_package_json;
-const packageDir = packageJsonPath ? dirname(packageJsonPath) : undefined;
+const packageDir = await (async (): Promise<string | undefined> => {
+  // Recent versions of npm set this environment variable that tells us the
+  // package.
+  const packageJsonPath = process.env.npm_package_json;
+  if (packageJsonPath) {
+    return pathlib.dirname(packageJsonPath);
+  }
+  // Older versions of npm, as well as yarn and pnpm, don't set this variable,
+  // so we have to find the nearest package.json by walking up the filesystem.
+  let maybePackageDir = process.cwd();
+  while (true) {
+    try {
+      await fs.stat(pathlib.join(maybePackageDir, 'package.json'));
+      return maybePackageDir;
+    } catch (error) {
+      const {code} = error as {code: string};
+      if (code !== 'ENOENT') {
+        throw code;
+      }
+    }
+    const parent = pathlib.dirname(maybePackageDir);
+    if (parent === maybePackageDir) {
+      // Reached the root of the filesystem, no package.json.
+      return undefined;
+    }
+    maybePackageDir = parent;
+  }
+})();
+
 const logger = new DefaultLogger(packageDir ?? process.cwd());
 
 interface Options {
@@ -33,40 +55,33 @@ interface Options {
 }
 
 const getOptions = (): Options => {
-  // These "npm_" prefixed environment variables are set by npm. We require that
-  // wireit always be launched via an npm script, so if any are missing we
-  // assume it was run directly instead of via npm.
-  //
+  // This environment variable is set by npm, yarn, and pnpm, and tells us which
+  // script is running.
+  const scriptName = process.env.npm_lifecycle_event;
   // We need to handle "npx wireit" as a special case, because it sets
-  // "npm_lifecycle_event" to "npx". The "npm_execpath" will be either
-  // "npm-cli.js" or "npx-cli.js", so we use that to detect this case.
-  if (!packageDir) {
-    const npmMajorVersion =
-      process.env.npm_config_user_agent?.match(/npm\/(\d+)/)?.[1];
-    const minimumMajorNpmVersion = 8;
-    if (
-      npmMajorVersion != null &&
-      Number(npmMajorVersion) < minimumMajorNpmVersion
-    ) {
-      throw new WireitError({
-        type: 'failure',
-        reason: 'old-npm-version',
-        minNpmVersion: `${minimumMajorNpmVersion}`,
-        script: {packageDir: process.cwd()},
-        detail: `Env variable npm_package_json was not set.`,
-      });
+  // "npm_lifecycle_event" to "npx". The "npm_execpath" will be "npx-cli.js",
+  // though, so we use that combination to detect this special case.
+  const launchedWithNpx =
+    scriptName === 'npx' && process.env.npm_execpath?.endsWith('npx-cli.js');
+  if (!packageDir || !scriptName || launchedWithNpx) {
+    const detail = [];
+    if (!packageDir) {
+      detail.push('Wireit could not find a package.json.');
     }
-  }
-  const name = process.env.npm_lifecycle_event;
-  const execPathCorrect = process.env.npm_execpath?.endsWith('npm-cli.js');
-  if (!packageDir || !name || !execPathCorrect) {
+    if (!scriptName) {
+      detail.push('Wireit could not identify the script to run.');
+    }
+    if (launchedWithNpx) {
+      detail.push('Launching Wireit with npx is not supported.');
+    }
     throw new WireitError({
       type: 'failure',
       reason: 'launched-incorrectly',
       script: {packageDir: packageDir ?? process.cwd()},
+      detail: detail.join(' '),
     });
   }
-  const script = {packageDir, name};
+  const script = {packageDir, name: scriptName};
 
   const numWorkers = (() => {
     const workerString = process.env['WIREIT_PARALLEL'] ?? '';
