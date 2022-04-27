@@ -2,7 +2,7 @@
   "name": "wireit-extension",
   "displayName": "wireit",
   "description": "For the wireit script runner",
-  "publisher": "todo-register-publisher",
+  "publisher": "google",
   "version": "0.1.0",
   "contributes": {
     "commands": [],
@@ -17,6 +17,7 @@
   "activationEvents": [
     "onLanguage:json"
   ],
+  "icon": "logo.png",
   "scripts": {
     "vscode:prepublish": "npm run build:package",
     "package": "wireit",
@@ -121,8 +122,8 @@
     }
   },
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lit/wireit.git"
+    "type": "https",
+    "url": "https://github.com/lit/wireit"
   },
   "author": "Google LLC",
   "license": "Apache-2.0",
