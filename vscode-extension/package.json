@@ -70,11 +70,12 @@
     },
     "build:bundle": {
       "files": [
-        "src/**/*ts",
+        "src/**/*.ts",
         "esbuild.script.mjs"
       ],
       "output": [
-        "client.js"
+        "client.js",
+        "server.js"
       ],
       "command": "node esbuild.script.mjs"
     },

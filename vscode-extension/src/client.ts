@@ -34,7 +34,7 @@ export async function activate(context: vscode.ExtensionContext) {
         {
           scheme: 'file',
           language: 'json',
-          //pattern: '**/package.json'
+          pattern: '**/package.json',
         },
       ],
       traceOutputChannel: outputChannel,
