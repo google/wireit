@@ -164,7 +164,7 @@ export class Analyzer {
       scriptsSection,
       [placeholder.name],
       placeholder
-    ) as undefined | NamedAstNode<string>;
+    );
     if (scriptCommand === undefined) {
       throw new WireitError({
         type: 'failure',
@@ -173,12 +173,7 @@ export class Analyzer {
         astNode: wireitSection?.name ?? scriptsSection.name,
       });
     }
-    assertNonBlankString(
-      placeholder,
-      scriptCommand.value,
-      'command',
-      scriptCommand
-    );
+    assertNonBlankString(placeholder, scriptCommand, 'command');
 
     if (wireitSection !== undefined) {
       assertJsonObject(placeholder, wireitSection, 'wireit');
@@ -227,13 +222,8 @@ export class Analyzer {
       const uniqueDependencies = new Map<string, AstNode>();
       const children = dependenciesAst.children ?? [];
       for (let i = 0; i < children.length; i++) {
-        const unresolved = children[i] as AstNode<string>;
-        assertNonBlankString(
-          placeholder,
-          unresolved.value,
-          `dependencies[${i}]`,
-          unresolved
-        );
+        const unresolved = children[i];
+        assertNonBlankString(placeholder, unresolved, `dependencies[${i}]`);
         for (const resolved of this.#resolveDependency(
           unresolved.value,
           placeholder,
@@ -259,24 +249,14 @@ export class Analyzer {
 
     let command: AstNode<string> | undefined;
     if (wireitConfig === undefined) {
-      assertNonBlankString(
-        placeholder,
-        scriptCommand.value,
-        'command',
-        scriptCommand
-      );
+      assertNonBlankString(placeholder, scriptCommand, 'command');
       command = scriptCommand;
     } else {
       const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
         | undefined
         | AstNode<string>;
       if (commandAst !== undefined) {
-        assertNonBlankString(
-          placeholder,
-          commandAst.value,
-          'command',
-          commandAst
-        );
+        assertNonBlankString(placeholder, commandAst, 'command');
         command = commandAst;
       }
     }
@@ -301,8 +281,8 @@ export class Analyzer {
         assertArray(placeholder, filesNode, 'files');
         const children = filesNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
-          const file = children[i] as AstNode<string>;
-          assertNonBlankString(placeholder, file.value, `files[${i}]`, file);
+          const file = children[i];
+          assertNonBlankString(placeholder, file, `files[${i}]`);
           files.values.push(file.value);
         }
       }
@@ -313,13 +293,8 @@ export class Analyzer {
         assertArray(placeholder, outputNode, 'output');
         const children = outputNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
-          const anOutput = children[i] as AstNode<string>;
-          assertNonBlankString(
-            placeholder,
-            anOutput.value,
-            `output[${i}]`,
-            anOutput
-          );
+          const anOutput = children[i];
+          assertNonBlankString(placeholder, anOutput, `output[${i}]`);
           output.values.push(anOutput.value);
         }
       }
@@ -350,13 +325,8 @@ export class Analyzer {
         packageLocks = {node: packageLocksNode, values: []};
         const children = packageLocksNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
-          const filename = children[i] as AstNode<string>;
-          assertNonBlankString(
-            placeholder,
-            filename.value,
-            `packageLocks[${i}]`,
-            filename
-          );
+          const filename = children[i];
+          assertNonBlankString(placeholder, filename, `packageLocks[${i}]`);
           if (filename.value !== pathlib.basename(filename.value)) {
             throw new WireitError({
               type: 'failure',
@@ -540,13 +510,22 @@ export class Analyzer {
 /**
  * Throw an error if the given value is not a string.
  */
-const assertNonBlankString = (
+function assertNonBlankString(
   script: ScriptReference,
-  value: unknown,
-  name: string,
-  astNode: AstNode
-) => {
-  if (typeof value !== 'string') {
+  astNode: AstNode,
+  name: string
+): asserts astNode is AstNode<string>;
+function assertNonBlankString(
+  script: ScriptReference,
+  astNode: NamedAstNode,
+  name: string
+): asserts astNode is NamedAstNode<string>;
+function assertNonBlankString(
+  script: ScriptReference,
+  astNode: AstNode,
+  name: string
+): asserts astNode is AstNode<string> {
+  if (typeof astNode.value !== 'string') {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
@@ -555,7 +534,7 @@ const assertNonBlankString = (
       astNode,
     });
   }
-  if (value.match(/^\s*$/)) {
+  if (astNode.value.match(/^\s*$/)) {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
@@ -564,7 +543,7 @@ const assertNonBlankString = (
       astNode,
     });
   }
-};
+}
 
 /**
  * Throw an error if the given value is not an Array.
