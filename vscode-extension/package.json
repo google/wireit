@@ -38,7 +38,7 @@
         "../schema.json"
       ],
       "output": [
-        "./schema.json"
+        "schema.json"
       ],
       "command": "cp ../schema.json ./schema.json"
     },
@@ -52,7 +52,7 @@
         ".tsbuildinfo"
       ],
       "clean": "if-file-deleted",
-      "command": "tsc --build"
+      "command": "tsc --build --pretty"
     },
     "lint": {
       "files": [

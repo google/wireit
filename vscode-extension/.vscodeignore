@@ -1,6 +1,6 @@
 .vscode
 .vscode-test
-.wireit/**
+.wireit
 .gitignore
 src
 lib/test
