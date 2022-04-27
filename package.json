@@ -23,7 +23,7 @@
   },
   "scripts": {
     "build": "wireit",
-    "lint": "eslint .",
+    "lint": "wireit",
     "format": "prettier . -w",
     "format:check": "prettier . -c",
     "test": "wireit",
@@ -213,6 +213,15 @@
       ],
       "files": [],
       "output": []
+    },
+    "lint": {
+      "files": [
+        "src/**/*.ts",
+        ".eslintignore",
+        ".eslintrc.cjs",
+        "vscode-extension/**/*.ts"
+      ],
+      "command": "eslint ."
     }
   },
   "devDependencies": {
@@ -243,4 +252,3 @@
     "vscode-extension"
   ]
 }
-
