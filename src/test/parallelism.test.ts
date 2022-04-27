@@ -8,7 +8,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout, wait} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
-import { PackageJson } from "./util/package-json";
+import {PackageJson} from './util/package-json';
 import * as os from 'os';
 
 const test = suite<{rig: WireitTestRig}>();

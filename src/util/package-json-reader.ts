@@ -6,8 +6,8 @@
 
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
-import { AstNode, parseTree } from './ast.js';
-import { PlaceholderConfig } from '../analyzer.js';
+import {AstNode, parseTree} from './ast.js';
+import {PlaceholderConfig} from '../analyzer.js';
 
 export const astKey = Symbol('ast');
 
@@ -17,7 +17,10 @@ export const astKey = Symbol('ast');
 export class CachingPackageJsonReader {
   readonly #cache = new Map<string, AstNode>();
 
-  async read(packageDir: string, placeholder: PlaceholderConfig): Promise<AstNode> {
+  async read(
+    packageDir: string,
+    placeholder: PlaceholderConfig
+  ): Promise<AstNode> {
     let ast = this.#cache.get(packageDir);
     if (ast === undefined) {
       const packageJsonPath = pathlib.resolve(packageDir, 'package.json');

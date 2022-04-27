@@ -10,7 +10,7 @@ import * as jsonSchema from 'jsonschema';
 import {suite} from 'uvu';
 import * as fs from 'fs';
 import * as url from 'url';
-import { PackageJson } from "./util/package-json";
+import {PackageJson} from './util/package-json';
 
 const schema = JSON.parse(
   fs.readFileSync(
