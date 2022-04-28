@@ -13,12 +13,7 @@ import * as fs from 'fs';
 // in a workspace.
 // TODO(rictic): repro and file that bug
 
-try {
-  fs.mkdirSync('built');
-} catch {
-  // eslint-disable-next-line no-empty
-}
-
+fs.mkdirSync('built', {recursive: true});
 fs.copyFileSync('../schema.json', './built/schema.json');
 fs.copyFileSync('../LICENSE', './built/LICENSE');
 fs.copyFileSync('./README.md', './built/README.md');

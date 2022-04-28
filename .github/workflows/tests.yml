@@ -20,7 +20,9 @@ jobs:
       # failures depending on the OS.
       fail-fast: false
 
-    timeout-minutes: 20
+    # Sometimes windows is far slower than the other OSs. Give it enough
+    # time to complete if it's going to.
+    timeout-minutes: 40
     runs-on: ${{ matrix.os }}
 
     env:
