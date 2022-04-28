@@ -102,6 +102,16 @@ You should also add `.wireit` to your `.gitignore` file. Wireit uses the
 echo .wireit >> .gitignore
 ```
 
+## VSCode Extension
+
+If you use VSCode, consider installing the `google.wireit` extension. It adds documentation on hover, autocomplete, and can diagnose a number of common mistakes.
+
+Install it [from the marketplace](https://marketplace.visualstudio.com/items?itemName=google.wireit) or on the command line like:
+
+```
+code --install-extension google.wireit
+```
+
 ## Dependencies
 
 To declare a dependency between two scripts, edit the
