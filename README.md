@@ -23,6 +23,7 @@
 - [Features](#features)
 - [Install](#install)
 - [Setup](#setup)
+- [VSCode Extension](#vscode-extension)
 - [Dependencies](#dependencies)
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
