@@ -93,16 +93,12 @@
       "files": [
         "../schema.json",
         "../LICENSE",
-        "logo.png",
-        "README.md",
-        "package-for-extension.json"
+        "README.md"
       ],
       "output": [
         "built/schema.json",
         "built/LICENSE",
-        "built/logo.png",
-        "built/README.md",
-        "built/package.json"
+        "built/README.md"
       ],
       "command": "node lib/scripts/copy-to-built.js"
     },

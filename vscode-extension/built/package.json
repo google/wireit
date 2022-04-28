@@ -1,8 +1,8 @@
 {
   "name": "wireit",
   "displayName": "wireit",
-  "description": "For the wireit script runner",
   "publisher": "google",
+  "description": "For the wireit script runner",
   "version": "0.1.0",
   "contributes": {
     "commands": [],
@@ -14,14 +14,16 @@
     ]
   },
   "main": "./client.js",
-  "activationEvents": ["onLanguage:json"],
+  "activationEvents": [
+    "onLanguage:json"
+  ],
   "icon": "logo.png",
   "engines": {
     "vscode": "^1.66.0"
   },
   "repository": {
-    "type": "https",
-    "url": "https://github.com/google/wireit"
+    "type": "git",
+    "url": "https://github.com/google/wireit.git"
   },
   "author": "Google LLC",
   "license": "Apache-2.0",

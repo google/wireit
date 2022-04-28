@@ -21,6 +21,4 @@ try {
 
 fs.copyFileSync('../schema.json', './built/schema.json');
 fs.copyFileSync('../LICENSE', './built/LICENSE');
-fs.copyFileSync('./logo.png', './built/logo.png');
 fs.copyFileSync('./README.md', './built/README.md');
-fs.copyFileSync('./package-for-extension.json', './built/package.json');
