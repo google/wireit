@@ -1157,4 +1157,36 @@ test(
   })
 );
 
+test(
+  'multiple errors',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'foo',
+            dependencies: ['b', 'c'],
+          },
+          b: {},
+          c: {},
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      done.stderr.trim(),
+      `
+❌ [b] Invalid config: script has no command and no dependencies
+❌ [c] Invalid config: script has no command and no dependencies`.trim()
+    );
+  })
+);
+
 test.run();
