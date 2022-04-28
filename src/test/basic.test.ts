@@ -927,4 +927,114 @@ test(
   })
 );
 
+test(
+  'dependency chain in one package that fails in nested dependency',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    const cmdD = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+          d: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            dependencies: ['c', 'd'],
+          },
+          c: {
+            command: cmdC.command,
+          },
+          d: {
+            command: cmdD.command,
+          },
+        },
+      },
+    });
+
+    const exec = rig.exec('npm run a');
+
+    const invD = await cmdD.nextInvocation();
+    invD.exit(808);
+
+    const invC = await cmdC.nextInvocation();
+    invC.exit(303);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 1);
+    assert.equal(cmdA.numInvocations, 0);
+    assert.equal(cmdB.numInvocations, 0);
+    assert.equal(cmdC.numInvocations, 1);
+    assert.equal(cmdD.numInvocations, 1);
+  })
+);
+
+test(
+  'multiple cross-package dependencies',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    const cmdC = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['../bar:b', '../baz:c'],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: cmdB.command,
+          },
+        },
+      },
+      'baz/package.json': {
+        scripts: {
+          c: 'wireit',
+        },
+        wireit: {
+          c: {
+            command: cmdC.command,
+          },
+        },
+      },
+    });
+
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+
+    const invC = await cmdC.nextInvocation();
+    invC.exit(0);
+
+    const invB = await cmdB.nextInvocation();
+    invB.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+    assert.equal(cmdC.numInvocations, 1);
+  })
+);
+
 test.run();

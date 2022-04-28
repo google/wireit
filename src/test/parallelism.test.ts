@@ -186,4 +186,42 @@ test(
   })
 );
 
+test(
+  'should fall back to default parallelism with empty WIREIT_PARALLEL',
+  timeout(async ({rig}) => {
+    const dep1 = await rig.newCommand();
+    const dep2 = await rig.newCommand();
+    const main = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          dep1: 'wireit',
+          dep2: 'wireit',
+          main: 'wireit',
+        },
+        wireit: {
+          dep1: {command: dep1.command},
+          dep2: {command: dep2.command},
+          main: {command: main.command, dependencies: ['dep1', 'dep2']},
+        },
+      },
+    });
+
+    const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: ''}});
+    const [inv1, inv2] = await Promise.all([
+      dep1.nextInvocation(),
+      dep2.nextInvocation(),
+    ]);
+    assert.equal(main.numInvocations, 0);
+    inv1.exit(0);
+    inv2.exit(0);
+    (await main.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(dep1.numInvocations, 1);
+    assert.equal(dep2.numInvocations, 1);
+    assert.equal(main.numInvocations, 1);
+  })
+);
+
 test.run();
