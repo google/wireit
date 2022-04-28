@@ -12,7 +12,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Added support for running scripts with [yarn](https://yarnpkg.com/),
+- Added support for running scripts with [yarn](https://classic.yarnpkg.com/),
   [pnpm](https://pnpm.io/), and older versions of npm.
 
 ## [0.2.0] - 2022-04-26
