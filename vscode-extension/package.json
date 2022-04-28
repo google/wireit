@@ -75,7 +75,8 @@
     },
     "test:actual": {
       "dependencies": [
-        "build:package"
+        "build:package",
+        "build:ts"
       ],
       "files": [
         "package.json",

@@ -14,9 +14,7 @@
     ]
   },
   "main": "./client.js",
-  "activationEvents": [
-    "onLanguage:json"
-  ],
+  "activationEvents": ["onLanguage:json"],
   "icon": "logo.png",
   "engines": {
     "vscode": "^1.66.0"
