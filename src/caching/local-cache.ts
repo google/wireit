@@ -45,7 +45,7 @@ export class LocalCache implements Cache {
     // We'll have the "clean" command to help with manual cleanup, but we'll
     // almost certainly want an automated way to limit the size of the cache
     // directory (e.g. LRU capped to some number of entries).
-    // https://github.com/lit/wireit/issues/71
+    // https://github.com/google/wireit/issues/71
     const absCacheDir = this.#getCacheDir(script, cacheKey);
     // Note fs.mkdir returns the first created directory, or undefined if no
     // directory was created.

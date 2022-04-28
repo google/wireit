@@ -6,5 +6,4 @@
 /vscode-extension/.vscode-test
 /vscode-extension/.wireit
 /vscode-extension/lib
-/vscode-extension/client.js
-/vscode-extension/server.js
+/vscode-extension/built

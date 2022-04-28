@@ -15,7 +15,7 @@ import {runTests} from '@vscode/test-electron';
  * Note that uvu-entrypoint runs in its own process, inside of electron.
  */
 async function main() {
-  const extensionDevelopmentPath = path.resolve(__dirname, '../../../');
+  const extensionDevelopmentPath = path.resolve(__dirname, '../../../built');
   const extensionTestsPath = path.resolve(__dirname, './uvu-entrypoint.js');
   await runTests({extensionDevelopmentPath, extensionTestsPath});
 }

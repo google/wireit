@@ -3,7 +3,5 @@
 /node_modules
 /temp
 /vscode-extension/lib
+/vscode-extension/built
 .wireit
-/vscode-extension/client.js
-/vscode-extension/server.js
-/vscode-extension/esbuild.script.mjs
