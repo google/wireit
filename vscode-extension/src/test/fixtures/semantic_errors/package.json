@@ -1,0 +1,21 @@
+{
+  "scripts": {
+    "not_wireit_command": "tsc",
+    "neither_dependencies_nor_command": "wireit",
+    "invalid_dependency": "wireit"
+  },
+  "wireit": {
+    "not_wireit_command": {
+      "command": "tsc"
+    },
+    "not_in_scripts": {
+      "command": "foo"
+    },
+    "invalid_dependency": {
+      "command": "bar"
+    },
+    "neither_dependencies_nor_command": {
+      "clean": true
+    }
+  }
+}

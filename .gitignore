@@ -11,5 +11,7 @@
 /vscode-extension/.vscode-test
 /vscode-extension/*.vsix
 /vscode-extension/schema.json
+/vscode-extension/client.js
+/vscode-extension/server.js
 
 .DS_Store

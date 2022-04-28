@@ -3,7 +3,7 @@
 .wireit
 .gitignore
 src
-lib/test
+lib
 tsconfig.json
 package-lock.json
 .tsbuildinfo
