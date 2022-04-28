@@ -1,0 +1,34 @@
+{
+  "name": "wireit",
+  "displayName": "wireit",
+  "description": "For the wireit script runner",
+  "publisher": "google",
+  "version": "0.1.0",
+  "contributes": {
+    "commands": [],
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "./schema.json"
+      }
+    ]
+  },
+  "main": "./client.js",
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "icon": "logo.png",
+  "engines": {
+    "vscode": "^1.66.0"
+  },
+  "repository": {
+    "type": "https",
+    "url": "https://github.com/google/wireit"
+  },
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/google/wireit/issues"
+  },
+  "homepage": "https://github.com/google/wireit#readme"
+}

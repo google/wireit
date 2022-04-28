@@ -10,8 +10,6 @@
 /vscode-extension/.tsbuildinfo
 /vscode-extension/.vscode-test
 /vscode-extension/*.vsix
-/vscode-extension/schema.json
-/vscode-extension/client.js
-/vscode-extension/server.js
+/vscode-extension/built
 
 .DS_Store

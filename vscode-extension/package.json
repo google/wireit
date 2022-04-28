@@ -1,23 +1,9 @@
 {
   "name": "wireit-extension",
-  "displayName": "wireit",
-  "description": "For the wireit script runner",
-  "publisher": "google",
-  "version": "0.1.0",
-  "contributes": {
-    "commands": [],
-    "jsonValidation": [
-      {
-        "fileMatch": "package.json",
-        "url": "./schema.json"
-      }
-    ]
-  },
-  "main": "./client.js",
-  "activationEvents": [
-    "onLanguage:json"
+  "#comment": [
+    "This file is for dependency management and scripts, the file that",
+    "is used for the actual vscode plugin is package-for-extension.json"
   ],
-  "icon": "logo.png",
   "scripts": {
     "vscode:prepublish": "npm run build:package",
     "package": "wireit",
@@ -40,12 +26,6 @@
       "dependencies": [
         "build:ts",
         "build:package"
-      ]
-    },
-    "build:package": {
-      "dependencies": [
-        "build:copy-schema",
-        "build:bundle"
       ]
     },
     "build:copy-schema": {
@@ -75,8 +55,8 @@
         "esbuild.script.mjs"
       ],
       "output": [
-        "client.js",
-        "server.js"
+        "built/client.js",
+        "built/server.js"
       ],
       "command": "node esbuild.script.mjs"
     },
@@ -95,7 +75,7 @@
     },
     "test:actual": {
       "dependencies": [
-        "build"
+        "build:package"
       ],
       "files": [
         "package.json",
@@ -104,6 +84,27 @@
       "output": [],
       "command": "node ./lib/test/scripts/runner.js"
     },
+    "build:package": {
+      "dependencies": [
+        "build:bundle",
+        "build:ts"
+      ],
+      "files": [
+        "../schema.json",
+        "../LICENSE",
+        "logo.png",
+        "README.md",
+        "package-for-extension.json"
+      ],
+      "output": [
+        "built/schema.json",
+        "built/LICENSE",
+        "built/logo.png",
+        "built/README.md",
+        "built/package.json"
+      ],
+      "command": "node lib/scripts/copy-to-built.js"
+    },
     "package": {
       "dependencies": [
         "build:package"
@@ -111,7 +112,7 @@
       "files": [
         "package.json"
       ],
-      "command": "vsce package -o wireit.vsix"
+      "command": "cd built && vsce package -o wireit.vsix"
     },
     "install-extension": {
       "dependencies": [
@@ -121,16 +122,7 @@
       "command": "code --install-extension wireit.vsix"
     }
   },
-  "repository": {
-    "type": "https",
-    "url": "https://github.com/lit/wireit"
-  },
-  "author": "Google LLC",
-  "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/lit/wireit/issues"
-  },
-  "homepage": "https://github.com/lit/wireit#readme",
+  "private": true,
   "devDependencies": {
     "@types/vscode": "^1.66.0",
     "@vscode/test-electron": "^2.1.3",

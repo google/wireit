@@ -12,7 +12,7 @@ import * as assert from 'uvu/assert';
 
 test('the extension is installed', () => {
   const extensionIds = vscode.extensions.all.map((extension) => extension.id);
-  const ourId = 'google.wireit-extension';
+  const ourId = 'google.wireit';
   assert.ok(
     extensionIds.includes(ourId),
     `Expected ${JSON.stringify(extensionIds)} to include '${ourId}'`
