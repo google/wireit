@@ -43,7 +43,7 @@
         "src/**/*.ts"
       ],
       "output": [
-        "out",
+        "lib",
         ".tsbuildinfo"
       ],
       "clean": "if-file-deleted",
