@@ -4,7 +4,7 @@
     "module": "es2022",
     "moduleResolution": "node",
     "useDefineForClassFields": true,
-    "lib": ["es2021"],
+    "lib": ["es2020"],
     "rootDir": "src",
     "outDir": "lib",
     "strict": true,
