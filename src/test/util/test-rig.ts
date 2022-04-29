@@ -13,6 +13,7 @@ import {WireitTestRigCommand} from './test-rig-command.js';
 import {Deferred} from '../../util/deferred.js';
 import {IS_WINDOWS} from './windows.js';
 import {FilesystemTestRig} from './filesystem-test-rig.js';
+import {NODE_MAJOR_VERSION} from './node-version.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -141,6 +142,26 @@ export class WireitTestRig extends FilesystemTestRig {
       WIREIT_CACHE: undefined,
       ACTIONS_CACHE_URL: undefined,
       ACTIONS_RUNTIME_TOKEN: undefined,
+      // In npm 6 (which ships with Node 14), "npm run" only includes the
+      // immediate package's "node_modules/.bin" directory in $PATH. Above npm
+      // 6, all of the parent ".bin" directories are included too.
+      //
+      // Some of our tests rely on the newer behavior, because they execute "npm
+      // run" from a child package, and assume that the "wireit" binary that we
+      // install to the root of the temp directory will be available. We also
+      // need access to "yarn" and "pnpm", which are installed as
+      // devDependencies of the root Wireit package.
+      //
+      // So, we have to add both of those "node_modules/.bin" directories to the
+      // $PATH to make those tests work.
+      PATH:
+        NODE_MAJOR_VERSION > 14
+          ? process.env.PATH
+          : [
+              pathlib.join(this.temp, 'node_modules', '.bin'),
+              pathlib.join(repoRoot, 'node_modules', '.bin'),
+              process.env.PATH ?? '',
+            ].join(pathlib.delimiter),
       // Environment variables specific to this TestRig instance.
       ...this.env,
       // Environment variables specific to this test case.
