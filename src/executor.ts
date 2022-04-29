@@ -752,4 +752,4 @@ const closeWriteStream = (stream: WriteStream): Promise<void> => {
  * -> "foo/bar").
  */
 const posixifyPathIfOnWindows = (path: string) =>
-  IS_WINDOWS ? path.replaceAll(pathlib.win32.sep, pathlib.posix.sep) : path;
+  IS_WINDOWS ? path.replace(/\\/g, '/') : path;
