@@ -136,6 +136,11 @@ export class WireitTestRig extends FilesystemTestRig {
       // GitHub Actions sets CI=true, but we want our tests to act like they are
       // running locally by default, even when they are actually running on CI.
       CI: undefined,
+      // Unset GitHub Actions caching environment variables that are set when we
+      // are running these tests in CI.
+      WIREIT_CACHE: undefined,
+      ACTIONS_CACHE_URL: undefined,
+      ACTIONS_RUNTIME_TOKEN: undefined,
       // Environment variables specific to this TestRig instance.
       ...this.env,
       // Environment variables specific to this test case.
