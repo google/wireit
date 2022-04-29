@@ -9,6 +9,7 @@ import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {IS_WINDOWS} from './util/windows.js';
+import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -671,7 +672,9 @@ test(
   })
 );
 
-test(
+// Node workspaces are only supported in npm 7+, which shipped with Node v15.
+// eslint-disable-next-line @typescript-eslint/unbound-method
+(NODE_MAJOR_VERSION > 14 ? test : test.skip)(
   'commands run under npm workspaces',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();

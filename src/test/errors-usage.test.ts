@@ -9,6 +9,7 @@ import * as assert from 'uvu/assert';
 import pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
+import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -58,11 +59,18 @@ test(
     const result = rig.exec('npx wireit');
     const done = await result.exit;
     assert.equal(done.code, 1);
+    // npx version 6, which ships with Node 14, doesn't set any "npm_"
+    // environment variables, so we don't detect it explicitly and show a
+    // slightly more general notice.
+    const detail =
+      NODE_MAJOR_VERSION > 14
+        ? 'Launching Wireit with npx is not supported.'
+        : 'Wireit could not identify the script to run.';
     assert.match(
       done.stderr,
       `
 ❌ wireit must be launched with "npm run" or a compatible command.
-    More info: Launching Wireit with npx is not supported.`.trim()
+    More info: ${detail}`.trim()
     );
   })
 );
