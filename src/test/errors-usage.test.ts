@@ -43,8 +43,8 @@ test(
     );
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ wireit must be launched with "npm run" or a compatible command.
     More info: Wireit could not identify the script to run.`.trim()
@@ -58,8 +58,8 @@ test(
     const result = rig.exec('npx wireit');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ wireit must be launched with "npm run" or a compatible command.
     More info: Launching Wireit with npx is not supported.`.trim()
@@ -83,8 +83,8 @@ test(
     const result = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '-1'}});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "-1"`.trim()
     );
@@ -107,8 +107,8 @@ test(
     const result = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '0'}});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "0"`.trim()
     );
@@ -133,8 +133,8 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "aklsdjflajsdkflj"`.trim()
     );
@@ -159,8 +159,8 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local", "github", or "none", got "aklsdjflajsdkflj"`.trim()
     );
@@ -189,8 +189,8 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: The ACTIONS_CACHE_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim()
     );
@@ -219,8 +219,8 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: The ACTIONS_CACHE_URL must end in a forward-slash, got "http://example.com".`.trim()
     );
@@ -249,8 +249,8 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [main] Invalid usage: The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim()
     );

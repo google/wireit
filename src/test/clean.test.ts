@@ -299,7 +299,7 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
+    assert.match(
       done.stderr.trim(),
       `
 ❌ [a] Invalid config: refusing to delete output file outside of package: ${pathlib.join(

@@ -49,8 +49,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: wireit is not an object`.trim()
     );
@@ -73,8 +73,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: wireit[a] is not an object`.trim()
     );
@@ -99,8 +99,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: dependencies is not an array`.trim()
     );
@@ -125,8 +125,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: dependencies[0] is not a string`.trim()
     );
@@ -151,8 +151,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: dependencies[0] is empty or blank`.trim()
     );
@@ -177,8 +177,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: command is not a string`.trim()
     );
@@ -203,8 +203,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: command is empty or blank`.trim()
     );
@@ -230,8 +230,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: files is not an array`.trim()
     );
@@ -257,8 +257,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: files[0] is not a string`.trim()
     );
@@ -284,8 +284,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: files[0] is empty or blank`.trim()
     );
@@ -311,8 +311,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: output is not an array`.trim()
     );
@@ -338,8 +338,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: output[0] is not a string`.trim()
     );
@@ -365,8 +365,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: output[0] is empty or blank`.trim()
     );
@@ -392,8 +392,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: clean must be true, false, or "if-file-deleted"`.trim()
     );
@@ -419,8 +419,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: packageLocks is not an array`.trim()
     );
@@ -446,8 +446,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: packageLocks[0] is not a string`.trim()
     );
@@ -473,8 +473,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: packageLocks[0] is empty or blank`.trim()
     );
@@ -500,8 +500,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: packageLocks[0] must be a filename, not a path`.trim()
     );
@@ -526,8 +526,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [missing] No script named "missing" was found in ${rig.temp}`.trim()
     );
@@ -553,8 +553,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] The dependency "b" was declared multiple times`.trim()
     );
@@ -583,8 +583,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [b] Script is not configured to call "wireit"
 `.trim()
@@ -606,8 +606,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: script has no wireit config`.trim()
     );
@@ -630,8 +630,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: script has no command and no dependencies`.trim()
     );
@@ -656,8 +656,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: Cross-package dependency must use syntax "<relative-path>:<script-name>", but there was no ":" character in "../foo".
 `.trim()
@@ -683,8 +683,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: Cross-package dependency must use syntax "<relative-path>:<script-name>", but there was no script name in "../foo:".
 `.trim()
@@ -710,8 +710,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: Cross-package dependency ".:b" resolved to the same package.
 `.trim()
@@ -737,8 +737,8 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Invalid config: Cross-package dependency "../foo:b" resolved to the same package.
 `.trim()
@@ -764,8 +764,8 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [../bar:b] No package.json was found in ${pathlib.resolve(rig.temp, 'bar')}
 `.trim()
@@ -792,8 +792,8 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [../bar:b] Invalid JSON in package.json file in ${pathlib.resolve(
         rig.temp,
@@ -826,8 +826,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [a] Cycle detected
 .-> a
@@ -863,8 +863,8 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assert.equal(
-      stderr.trim(),
+    assert.match(
+      stderr,
       `
 ❌ [a] Cycle detected
 .-> a
@@ -905,8 +905,8 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assert.equal(
-      stderr.trim(),
+    assert.match(
+      stderr,
       `
 ❌ [a] Cycle detected
 .-> a
@@ -944,8 +944,8 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assert.equal(
-      stderr.trim(),
+    assert.match(
+      stderr,
       `
 ❌ [a] Cycle detected
 .-> a
@@ -993,8 +993,8 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assert.equal(
-      stderr.trim(),
+    assert.match(
+      stderr,
       `
 ❌ [b] Cycle detected
     a
@@ -1045,8 +1045,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
   ❌ [b] Cycle detected
     a
@@ -1099,8 +1099,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
   ❌ [b] Cycle detected
     a
@@ -1145,8 +1145,8 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assert.equal(
-      stderr.trim(),
+    assert.match(
+      stderr,
       `
 ❌ [a] Cycle detected
 .-> a
@@ -1180,8 +1180,8 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.equal(
-      done.stderr.trim(),
+    assert.match(
+      done.stderr,
       `
 ❌ [b] Invalid config: script has no command and no dependencies
 ❌ [c] Invalid config: script has no command and no dependencies`.trim()
