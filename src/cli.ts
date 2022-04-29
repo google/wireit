@@ -14,6 +14,7 @@ import {Executor} from './executor.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {unreachable} from './util/unreachable.js';
 import {AggregateError} from './util/aggregate-error.js';
+import {Deferred} from './util/deferred.js';
 
 import type {ScriptReference} from './script.js';
 
@@ -195,9 +196,9 @@ const run = async () => {
     }
   }
 
-  const abort = new AbortController();
+  const abort = new Deferred<void>();
   process.on('SIGINT', () => {
-    abort.abort();
+    abort.resolve();
   });
 
   if (options.watch) {

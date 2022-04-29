@@ -57,7 +57,7 @@ export class Watcher {
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    abort: AbortController
+    abort: Deferred<void>
   ): Promise<void> {
     return new Watcher(script, logger, workerPool, cache, abort).#watch();
   }
@@ -67,7 +67,7 @@ export class Watcher {
   readonly #workerPool: WorkerPool;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
   readonly #cache?: Cache;
-  readonly #abort: AbortController;
+  readonly #abort: Deferred<void>;
 
   /** Whether an executor is currently running. */
   #executing = false;
@@ -77,7 +77,7 @@ export class Watcher {
 
   /** Whether the watcher has been aborted. */
   get #aborted() {
-    return this.#abort.signal.aborted;
+    return this.#abort.settled;
   }
 
   /** Notification that some state has changed. */
@@ -88,7 +88,7 @@ export class Watcher {
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    abort: AbortController
+    abort: Deferred<void>
   ) {
     this.#script = script;
     this.#logger = logger;
@@ -97,16 +97,13 @@ export class Watcher {
     this.#cache = cache;
 
     if (!this.#aborted) {
-      abort.signal.addEventListener(
-        'abort',
-        () => {
-          // TODO(aomarks) Aborting should also cause the analyzer and executors to
-          // stop if they are running. Currently we only stop after the current
-          // build entirely finishes.
-          this.#update.resolve();
-        },
-        {once: true}
-      );
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      abort.promise.then(() => {
+        // TODO(aomarks) Aborting should also cause the analyzer and executors to
+        // stop if they are running. Currently we only stop after the current
+        // build entirely finishes.
+        this.#update.resolve();
+      });
     }
   }
 
