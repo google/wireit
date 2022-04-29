@@ -17,6 +17,7 @@ import {getScriptDataDir} from './util/script-data-dir.js';
 import {unreachable} from './util/unreachable.js';
 import {glob} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
+import {AggregateError} from './util/aggregate-error.js';
 
 import type {
   ScriptConfig,
@@ -282,7 +283,7 @@ class ScriptExecution {
         const error: unknown = result.reason;
         if (error instanceof AggregateError) {
           // Flatten nested AggregateErrors.
-          errors.push(...(error.errors as unknown[]));
+          errors.push(...error.errors);
         } else {
           errors.push(error);
         }

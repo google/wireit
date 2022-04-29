@@ -13,6 +13,7 @@ import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {unreachable} from './util/unreachable.js';
+import {AggregateError} from './util/aggregate-error.js';
 
 import type {ScriptReference} from './script.js';
 

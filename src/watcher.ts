@@ -12,6 +12,7 @@ import {Deferred} from './util/deferred.js';
 import {scriptReferenceToString} from './script.js';
 import {WireitError} from './error.js';
 import {WorkerPool} from './util/worker-pool.js';
+import {AggregateError} from './util/aggregate-error.js';
 
 import type {Logger} from './logging/logger.js';
 import type {
