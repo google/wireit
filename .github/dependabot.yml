@@ -8,6 +8,11 @@ updates:
     directory: '/'
     schedule:
       interval: 'daily'
+    ignore:
+      # Since we support older Node versions, we want our types to reflect the
+      # lowest supported versions of Node APIs.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: 'github-actions'
     # Workflow files stored in the

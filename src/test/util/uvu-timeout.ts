@@ -5,29 +5,14 @@
  */
 
 import type * as uvu from 'uvu';
-import {Deferred} from '../../util/deferred.js';
 
 const DEFAULT_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 30_000);
 
 /**
  * Returns a promise that resolves after the given period of time.
- *
- * If aborted before resolution, the promise never resolves.
  */
-export const wait = async (ms: number, abort?: AbortSignal) => {
-  const deferred = new Deferred<void>();
-  const timerId = setTimeout(() => {
-    deferred.resolve();
-  }, ms);
-  function onAbort() {
-    clearTimeout(timerId);
-  }
-  if (abort?.aborted) {
-    onAbort();
-  }
-  abort?.addEventListener('abort', () => onAbort(), {once: true});
-  return deferred.promise;
-};
+export const wait = async (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Wraps an uvu test function so that it fails if the function doesn't complete
@@ -42,14 +27,16 @@ export const timeout = <T>(
   ms = DEFAULT_TIMEOUT
 ): uvu.Callback<T> => {
   return (...args) => {
-    const abort = new AbortController();
+    let timerId: ReturnType<typeof setTimeout>;
     return Promise.race([
       handler(...args),
-      wait(ms, abort.signal).then(() => {
-        throw new Error(`Test timed out after ${ms} milliseconds.`);
+      new Promise<never>((_resolve, reject) => {
+        timerId = setTimeout(() => {
+          reject(new Error(`Test timed out after ${ms} milliseconds.`));
+        }, ms);
       }),
     ]).finally(() => {
-      abort.abort();
+      clearTimeout(timerId);
     });
   };
 };

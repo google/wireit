@@ -6,14 +6,24 @@ jobs:
   tests:
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2022, macos-11]
-        # See https://nodejs.org/en/about/releases/ for latest LTS information.
-        node: [16] # Active LTS
+        # See https://nodejs.org/en/about/releases/ for Node release
+        # information.
         include:
-          # Also test latest, but just one OS should give us sufficient
-          # coverage.
+          # Most recent Node Maintenance LTS
+          - os: ubuntu-20.04
+            node: 14
+          # Node Active LTS
+          - os: ubuntu-20.04
+            node: 16
+          # Node Latest
           - os: ubuntu-20.04
             node: 18
+          # For macOS and Windows, just test Node Active LTS. We should have
+          # good enough coverage of Node variations from the Linux builds above.
+          - os: macos-11
+            node: 16
+          - os: windows-2022
+            node: 16
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
@@ -42,11 +52,25 @@ jobs:
 
       - run: npm ci
 
+      # TODO(aomarks) Remove this hack after Wireit published to npm with Node
+      # 14 support.
+      #
+      # We can't run tests for the PR that adds Node 14 support to Wireit,
+      # because we test ourselves using Wireit from npm, but the npm version
+      # doesn't support Node 14 yet.
+      #
+      # Don't bother running the vscode-extension tests on Node 14, because the
+      # minimum version of VSCode we support uses Node 16.
+      - if: matrix.node == 14
+        run: |
+          npx tsc --build --pretty
+          npx uvu lib/test "\.test\.js$"
+
       # See https://code.visualstudio.com/api/working-with-extensions/continuous-integration#github-actions for why we need xvfb-run
       - run: npm test
-        if: runner.os != 'Linux'
+        if: runner.os != 'Linux' && matrix.node != 14
       - run: xvfb-run -a npm test
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.node != 14
 
   lint-and-format:
     timeout-minutes: 5

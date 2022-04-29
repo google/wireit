@@ -19,7 +19,7 @@
     "schema.json"
   ],
   "engines": {
-    "node": ">=16.7.0"
+    "node": ">=14.14.0"
   },
   "scripts": {
     "build": "wireit",
@@ -216,7 +216,7 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^17.0.23",
+    "@types/node": "^14.0.0",
     "@typescript-eslint/eslint-plugin": "^5.17.0",
     "@typescript-eslint/parser": "^5.17.0",
     "cmd-shim": "^5.0.0",
