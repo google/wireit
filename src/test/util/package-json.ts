@@ -9,7 +9,6 @@
  *
  * Useful when writing tests with valid input.
  */
-
 export interface PackageJson {
   name?: string;
   version?: string;

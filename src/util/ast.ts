@@ -4,13 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-  Node as AstNodeInternal,
-  JSONPath,
-  findNodeAtLocation as findNodeAtLocationInternal,
-  parseTree as parseTreeInternal,
-  ParseError,
-} from 'jsonc-parser';
+import * as jsonParser from 'jsonc-parser';
+import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
 import {PlaceholderConfig} from '../analyzer.js';
 import {WireitError} from '../error.js';
 export {ParseError} from 'jsonc-parser';
@@ -22,15 +17,21 @@ type ValueTypes = string | number | boolean | null | undefined;
  *
  * A safer override, preferring unknown over any.
  */
-export interface AstNode<T extends ValueTypes = ValueTypes>
-  extends AstNodeInternal {
-  value: T;
-  children?: AstNode[];
-  parent?: AstNode<undefined>;
+export interface JsonAstNode<T extends ValueTypes = ValueTypes>
+  extends Readonly<jsonParser.Node> {
+  readonly value: T;
+  readonly children?: JsonAstNode[];
+  readonly parent?: JsonAstNode<undefined>;
 }
 
+/**
+ * An extended JSON AST node for an array of values.
+ *
+ * We do this to avoid mutating the JsonAstNodes, which are produced by the
+ * parser, and only have primitive values.
+ */
 export interface ArrayNode<T> {
-  readonly node: AstNode;
+  readonly node: JsonAstNode;
   readonly values: T[];
 }
 
@@ -39,7 +40,7 @@ export interface ArrayNode<T> {
  * to its key in that object.
  */
 export interface NamedAstNode<T extends ValueTypes = ValueTypes>
-  extends AstNode<T> {
+  extends JsonAstNode<T> {
   /**
    * If `this` represents:
    * ```json
@@ -53,12 +54,12 @@ export interface NamedAstNode<T extends ValueTypes = ValueTypes>
    *     ~~~~~
    * ```
    */
-  name: AstNode;
+  name: JsonAstNode;
 }
 
 export function findNamedNodeAtLocation(
-  astNode: AstNode,
-  path: JSONPath,
+  astNode: JsonAstNode,
+  path: jsonParser.JSONPath,
   script: PlaceholderConfig
 ): NamedAstNode | undefined {
   const node = findNodeAtLocation(astNode, path) as NamedAstNode | undefined;
@@ -81,16 +82,18 @@ export function findNamedNodeAtLocation(
 }
 
 export function findNodeAtLocation(
-  astNode: AstNode,
-  path: JSONPath
-): AstNode | undefined {
-  return findNodeAtLocationInternal(astNode, path) as AstNode;
+  astNode: JsonAstNode,
+  path: jsonParser.JSONPath
+): JsonAstNode | undefined {
+  return jsonParser.findNodeAtLocation(astNode, path) as
+    | JsonAstNode
+    | undefined;
 }
 
 export function parseTree(
   json: string,
   placeholder: PlaceholderConfig
-): AstNode {
+): JsonAstNode {
   const errors: ParseError[] = [];
   const result = parseTreeInternal(json, errors);
   if (errors.length > 0) {
@@ -101,5 +104,5 @@ export function parseTree(
       script: placeholder,
     });
   }
-  return result as AstNode;
+  return result as JsonAstNode;
 }

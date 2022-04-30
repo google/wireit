@@ -9,6 +9,7 @@ import {WireitError} from './error.js';
 import {CachingPackageJsonReader} from './util/package-json-reader.js';
 import {scriptReferenceToString, stringToScriptReference} from './script.js';
 import {AggregateError} from './util/aggregate-error.js';
+import {findNamedNodeAtLocation, findNodeAtLocation} from './util/ast.js';
 
 import type {CachingPackageJsonReaderError} from './util/package-json-reader.js';
 import type {
@@ -16,13 +17,7 @@ import type {
   ScriptReference,
   ScriptReferenceString,
 } from './script.js';
-import {
-  ArrayNode,
-  AstNode,
-  findNamedNodeAtLocation,
-  findNodeAtLocation,
-  NamedAstNode,
-} from './util/ast.js';
+import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 
 /**
  * A {@link ScriptConfig} where all fields are optional apart from `packageDir`
@@ -219,7 +214,7 @@ export class Analyzer {
       // prevent double-analysis here, and double-analysis in the Executor), but
       // they may indicate that the user has made a mistake (e.g. maybe they
       // meant a different dependency).
-      const uniqueDependencies = new Map<string, AstNode>();
+      const uniqueDependencies = new Map<string, JsonAstNode>();
       const children = dependenciesAst.children ?? [];
       for (let i = 0; i < children.length; i++) {
         const unresolved = children[i];
@@ -247,14 +242,14 @@ export class Analyzer {
       }
     }
 
-    let command: AstNode<string> | undefined;
+    let command: JsonAstNode<string> | undefined;
     if (wireitConfig === undefined) {
       assertNonBlankString(placeholder, scriptCommand, 'command');
       command = scriptCommand;
     } else {
       const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
         | undefined
-        | AstNode<string>;
+        | JsonAstNode<string>;
       if (commandAst !== undefined) {
         assertNonBlankString(placeholder, commandAst, 'command');
         command = commandAst;
@@ -263,7 +258,7 @@ export class Analyzer {
 
     let files: undefined | ArrayNode<string>;
     let output: undefined | ArrayNode<string>;
-    let clean: undefined | AstNode<true | false | 'if-file-deleted'>;
+    let clean: undefined | JsonAstNode<true | false | 'if-file-deleted'>;
     if (wireitConfig !== undefined) {
       if (command === undefined && dependencies.length === 0) {
         throw new WireitError({
@@ -277,30 +272,32 @@ export class Analyzer {
 
       const filesNode = findNodeAtLocation(wireitConfig, ['files']);
       if (filesNode !== undefined) {
-        files = {node: filesNode, values: []};
+        const values = [];
         assertArray(placeholder, filesNode, 'files');
         const children = filesNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const file = children[i];
           assertNonBlankString(placeholder, file, `files[${i}]`);
-          files.values.push(file.value);
+          values.push(file.value);
         }
+        files = {node: filesNode, values};
       }
 
       const outputNode = findNodeAtLocation(wireitConfig, ['output']);
       if (outputNode !== undefined) {
-        output = {node: outputNode, values: []};
+        const values = [];
         assertArray(placeholder, outputNode, 'output');
         const children = outputNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const anOutput = children[i];
           assertNonBlankString(placeholder, anOutput, `output[${i}]`);
-          output.values.push(anOutput.value);
+          values.push(anOutput.value);
         }
+        output = {node: outputNode, values};
       }
       clean = findNodeAtLocation(wireitConfig, ['clean']) as
         | undefined
-        | AstNode<true | false | 'if-file-deleted'>;
+        | JsonAstNode<true | false | 'if-file-deleted'>;
       if (
         clean !== undefined &&
         clean.value !== true &&
@@ -319,7 +316,7 @@ export class Analyzer {
       const packageLocksNode = findNodeAtLocation(wireitConfig, [
         'packageLocks',
       ]);
-      let packageLocks: undefined | {node: AstNode; values: string[]};
+      let packageLocks: undefined | {node: JsonAstNode; values: string[]};
       if (packageLocksNode !== undefined) {
         assertArray(placeholder, packageLocksNode, 'packageLocks');
         packageLocks = {node: packageLocksNode, values: []};
@@ -372,7 +369,7 @@ export class Analyzer {
       dependenciesAst,
       files,
       output,
-      clean,
+      clean: clean?.value ?? true,
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
     };
@@ -437,7 +434,7 @@ export class Analyzer {
   #resolveDependency(
     dependency: string,
     context: ScriptReference,
-    reference: AstNode
+    reference: JsonAstNode
   ): Array<ScriptReference> {
     // TODO(aomarks) Implement $WORKSPACES syntax.
     if (dependency.startsWith('.')) {
@@ -457,7 +454,7 @@ export class Analyzer {
   #resolveCrossPackageDependency(
     dependency: string,
     context: ScriptReference,
-    reference: AstNode
+    reference: JsonAstNode
   ) {
     // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
     // path. We should support that edge case with backslash escaping.
@@ -512,9 +509,9 @@ export class Analyzer {
  */
 function assertNonBlankString(
   script: ScriptReference,
-  astNode: AstNode,
+  astNode: JsonAstNode,
   name: string
-): asserts astNode is AstNode<string>;
+): asserts astNode is JsonAstNode<string>;
 function assertNonBlankString(
   script: ScriptReference,
   astNode: NamedAstNode,
@@ -522,9 +519,9 @@ function assertNonBlankString(
 ): asserts astNode is NamedAstNode<string>;
 function assertNonBlankString(
   script: ScriptReference,
-  astNode: AstNode,
+  astNode: JsonAstNode,
   name: string
-): asserts astNode is AstNode<string> {
+): asserts astNode is JsonAstNode<string> {
   if (typeof astNode.value !== 'string') {
     throw new WireitError({
       type: 'failure',
@@ -550,7 +547,7 @@ function assertNonBlankString(
  */
 const assertArray = (
   script: ScriptReference,
-  astNode: AstNode,
+  astNode: JsonAstNode,
   name: string
 ) => {
   if (astNode.type !== 'array') {
@@ -570,7 +567,7 @@ const assertArray = (
  */
 const assertJsonObject = (
   script: ScriptReference,
-  astNode: AstNode,
+  astNode: JsonAstNode,
   name: string
 ) => {
   if (astNode.type !== 'object') {

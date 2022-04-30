@@ -9,7 +9,8 @@ import type {
   ScriptReference,
   PackageReference,
 } from './script.js';
-import {AstNode, ParseError} from './util/ast.js';
+import type {JsonAstNode, ParseError} from './util/ast.js';
+
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -153,7 +154,7 @@ export interface NoScriptsSectionInPackageJson
  */
 export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
-  astNode: AstNode | undefined;
+  astNode: JsonAstNode | undefined;
 }
 
 /**
@@ -161,7 +162,7 @@ export interface ScriptNotFound extends ErrorBase<ScriptReference> {
  */
 export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
   reason: 'script-not-wireit';
-  astNode: AstNode | undefined;
+  astNode: JsonAstNode | undefined;
 }
 
 /**
@@ -170,7 +171,7 @@ export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
 export interface InvalidConfigSyntax extends ErrorBase<ScriptReference> {
   reason: 'invalid-config-syntax';
   message: string;
-  astNode: AstNode;
+  astNode: JsonAstNode;
 }
 
 export interface InvalidUsage extends ErrorBase<ScriptReference> {
@@ -187,8 +188,8 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
    * The dependency that is duplicated.
    */
   dependency: ScriptReference;
-  astNode: AstNode;
-  duplicate: AstNode;
+  astNode: JsonAstNode;
+  duplicate: JsonAstNode;
 }
 
 /**

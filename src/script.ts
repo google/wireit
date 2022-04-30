@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {ArrayNode, AstNode, NamedAstNode} from './util/ast.js';
+import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 
 /**
  * The location on disk of an npm package.
@@ -32,7 +32,7 @@ export interface ScriptConfig extends ScriptReference {
    * An undefined command is valid as a way to give name to a group of other
    * scripts (specified as dependencies).
    */
-  command: AstNode<string> | undefined;
+  command: JsonAstNode<string> | undefined;
 
   /**
    * Scripts that must run before this one.
@@ -42,7 +42,7 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: ScriptConfig[];
-  dependenciesAst: AstNode | undefined;
+  dependenciesAst: JsonAstNode | undefined;
 
   /**
    * Input file globs for this script.
@@ -66,7 +66,7 @@ export interface ScriptConfig extends ScriptReference {
    * - "if-file-deleted": If an input file has been deleted, and before restoring from
    *   cache.
    */
-  clean: AstNode<boolean | 'if-file-deleted'> | undefined;
+  clean: boolean | 'if-file-deleted';
 
   /**
    * The command string in the scripts section. i.e.:

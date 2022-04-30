@@ -179,7 +179,7 @@ class ScriptExecution {
         // all, so there is no way for the tool to do any cleanup.
         return true;
       }
-      const cleanValue = this.#script.clean?.value ?? true;
+      const cleanValue = this.#script.clean;
       switch (cleanValue) {
         case true: {
           return true;
@@ -572,7 +572,7 @@ class ScriptExecution {
       arch: process.arch,
       nodeVersion: process.version,
       command: this.#script.command?.value,
-      clean: this.#script.clean?.value ?? true,
+      clean: this.#script.clean,
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
       ),
