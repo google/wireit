@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [0.3.1] - 2022-04-29
+
+### Fixed
+
+- Fixed `replaceAll is not a function` errors when using Node 14 on Windows.
+
 ## [0.3.0] - 2022-04-29
 
 ### Changed

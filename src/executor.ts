@@ -18,6 +18,10 @@ import {unreachable} from './util/unreachable.js';
 import {glob} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
 import {AggregateError} from './util/aggregate-error.js';
+import {
+  augmentProcessEnvSafelyIfOnWindows,
+  posixifyPathIfOnWindows,
+} from './util/windows.js';
 
 import type {
   ScriptConfig,
@@ -52,8 +56,6 @@ const PATH_ENV_SUFFIX = (() => {
   );
   return entries.slice(endOfNodeModuleBins).join(pathlib.delimiter);
 })();
-
-const IS_WINDOWS = process.platform === 'win32';
 
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
@@ -330,10 +332,9 @@ class ScriptExecution {
         //   https://nodejs.org/api/child_process.html#default-windows-shell
         //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
         shell: true,
-        env: {
-          ...process.env,
+        env: augmentProcessEnvSafelyIfOnWindows({
           PATH: this.#pathEnvironmentVariable,
-        },
+        }),
       });
 
       // Only create the stdout/stderr replay files if we encounter anything on
@@ -746,10 +747,3 @@ const closeWriteStream = (stream: WriteStream): Promise<void> => {
     });
   });
 };
-
-/**
- * If we are on Windows, convert back slashes to forward slashes (e.g. "foo\bar"
- * -> "foo/bar").
- */
-const posixifyPathIfOnWindows = (path: string) =>
-  IS_WINDOWS ? path.replaceAll(pathlib.win32.sep, pathlib.posix.sep) : path;

@@ -67,7 +67,7 @@ test.before.each(async (ctx) => {
 
       if (pathlib.sep === '\\' && expected !== 'ERROR') {
         // On Windows we expect to get results back with "\" as the separator.
-        expected = expected.map((path) => path.replaceAll('/', '\\'));
+        expected = expected.map((path) => path.replace(/\//g, '\\'));
       }
 
       let actual, error;

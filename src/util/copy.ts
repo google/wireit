@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {optimizeMkdirs} from './optimize-fs-ops.js';
 import {constants} from 'fs';
+import {IS_WINDOWS} from '../util/windows.js';
 
 import type {RelativeEntry} from './glob.js';
 
@@ -87,8 +88,6 @@ const copyFileGracefully = async (src: string, dest: string): Promise<void> => {
     throw error;
   }
 };
-
-const IS_WINDOWS = process.platform === 'win32';
 
 /**
  * Copy a symlink verbatim without following or resolving the target. If the
