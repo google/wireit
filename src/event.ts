@@ -11,7 +11,6 @@ import type {
 } from './script.js';
 import type {JsonAstNode, ParseError} from './util/ast.js';
 
-
 /**
  * Something that happened during Wireit execution. Includes successes,
  * failures, script output, and purely informational events.
