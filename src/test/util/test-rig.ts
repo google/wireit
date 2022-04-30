@@ -11,7 +11,7 @@ import {spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import cmdShim from 'cmd-shim';
 import {WireitTestRigCommand} from './test-rig-command.js';
 import {Deferred} from '../../util/deferred.js';
-import {IS_WINDOWS} from './windows.js';
+import {IS_WINDOWS} from '../../util/windows.js';
 import {FilesystemTestRig} from './filesystem-test-rig.js';
 import {NODE_MAJOR_VERSION} from './node-version.js';
 

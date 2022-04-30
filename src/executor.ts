@@ -18,6 +18,7 @@ import {unreachable} from './util/unreachable.js';
 import {glob} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
 import {AggregateError} from './util/aggregate-error.js';
+import {posixifyPathIfOnWindows} from './util/windows.js';
 
 import type {
   ScriptConfig,
@@ -52,8 +53,6 @@ const PATH_ENV_SUFFIX = (() => {
   );
   return entries.slice(endOfNodeModuleBins).join(pathlib.delimiter);
 })();
-
-const IS_WINDOWS = process.platform === 'win32';
 
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
@@ -746,10 +745,3 @@ const closeWriteStream = (stream: WriteStream): Promise<void> => {
     });
   });
 };
-
-/**
- * If we are on Windows, convert back slashes to forward slashes (e.g. "foo\bar"
- * -> "foo/bar").
- */
-const posixifyPathIfOnWindows = (path: string) =>
-  IS_WINDOWS ? path.replace(/\\/g, '/') : path;
