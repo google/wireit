@@ -5,29 +5,11 @@ on: [push, pull_request]
 jobs:
   tests:
     strategy:
+      # We support Node Latest, Active LTS, and the most recent Maintenance LTS.
+      # See https://nodejs.org/en/about/releases/ for Node release schedule.
       matrix:
-        # See https://nodejs.org/en/about/releases/ for Node release
-        # information.
-        include:
-          # Most recent Node Maintenance LTS
-          - os: ubuntu-20.04
-            node: 14
-          # Node Active LTS
-          - os: ubuntu-20.04
-            node: 16
-          # Node Latest
-          - os: ubuntu-20.04
-            node: 18
-          # For macOS just test Active LTS. macOS is similar enough to Linux
-          # that we're unlikely to hit edge cases.
-          - os: macos-11
-            node: 16
-          # Windows has some special handling. Cover our oldest supported
-          # version in addition to Active LTS.
-          - os: windows-2022
-            node: 14
-          - os: windows-2022
-            node: 16
+        version: [14, 16, 18]
+        os: [ubuntu-20.04, macos-11, windows-2022]
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
