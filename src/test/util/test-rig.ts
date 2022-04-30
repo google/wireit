@@ -11,7 +11,10 @@ import {spawn, type ChildProcessWithoutNullStreams} from 'child_process';
 import cmdShim from 'cmd-shim';
 import {WireitTestRigCommand} from './test-rig-command.js';
 import {Deferred} from '../../util/deferred.js';
-import {IS_WINDOWS} from '../../util/windows.js';
+import {
+  IS_WINDOWS,
+  augmentProcessEnvSafelyIfOnWindows,
+} from '../../util/windows.js';
 import {FilesystemTestRig} from './filesystem-test-rig.js';
 import {NODE_MAJOR_VERSION} from './node-version.js';
 
@@ -222,24 +225,25 @@ class ExecResult {
     cwd: string,
     env: Record<string, string | undefined>
   ) {
+    // Remove any environment variables that start with "npm_", because those
+    // will have been set by the "npm test" or similar command that launched
+    // this test itself, and we want a more pristine simulation of running
+    // wireit directly when we're testing.
+    //
+    // In particular, this lets us test for the case where wireit was not
+    // launched through npm at all.
+    const unsetNpmVariables = Object.fromEntries(
+      Object.keys(process.env)
+        .filter((name) => /^npm_/i.test(name))
+        .map((name) => [name, undefined])
+    );
     this.#child = spawn(command, {
       cwd,
       shell: true,
-      // Remove any environment variables that start with "npm_", because those
-      // will have been set by the "npm test" or similar command that launched
-      // this test itself, and we want a more pristine simulation of running
-      // wireit directly when we're testing.
-      //
-      // In particular, this lets us test for the case where wireit was not
-      // launched through npm at all.
-      env: {
-        ...Object.fromEntries(
-          Object.entries(process.env).filter(
-            ([name]) => !name.startsWith('npm_')
-          )
-        ),
+      env: augmentProcessEnvSafelyIfOnWindows({
+        ...unsetNpmVariables,
         ...env,
-      },
+      }),
       // Set "detached" on Linux and macOS so that we create a new process
       // group, instead of inheriting the parent process group. We need a new
       // process group so that we can use a "kill(-pid)" command to kill all of

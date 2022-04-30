@@ -18,7 +18,10 @@ import {unreachable} from './util/unreachable.js';
 import {glob} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
 import {AggregateError} from './util/aggregate-error.js';
-import {posixifyPathIfOnWindows} from './util/windows.js';
+import {
+  augmentProcessEnvSafelyIfOnWindows,
+  posixifyPathIfOnWindows,
+} from './util/windows.js';
 
 import type {
   ScriptConfig,
@@ -329,10 +332,9 @@ class ScriptExecution {
         //   https://nodejs.org/api/child_process.html#default-windows-shell
         //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
         shell: true,
-        env: {
-          ...process.env,
+        env: augmentProcessEnvSafelyIfOnWindows({
           PATH: this.#pathEnvironmentVariable,
-        },
+        }),
       });
 
       // Only create the stdout/stderr replay files if we encounter anything on
