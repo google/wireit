@@ -38,19 +38,10 @@ jobs:
 
       - run: npm ci
 
-      # TODO(aomarks) Remove this hack after Wireit published to npm with Node
-      # 14 support.
-      #
-      # We can't run tests for the PR that adds Node 14 support to Wireit,
-      # because we test ourselves using Wireit from npm, but the npm version
-      # doesn't support Node 14 yet.
-      #
       # Don't bother running the vscode-extension tests on Node 14, because the
       # minimum version of VSCode we support uses Node 16.
       - if: matrix.node == 14
-        run: |
-          npx tsc --build --pretty
-          npx uvu lib/test "\.test\.js$"
+        run: npm run test:headless
 
       # See https://code.visualstudio.com/api/working-with-extensions/continuous-integration#github-actions for why we need xvfb-run
       - run: npm test
