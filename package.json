@@ -23,7 +23,7 @@
   },
   "scripts": {
     "build": "wireit",
-    "lint": "eslint .",
+    "lint": "wireit",
     "format": "prettier . -w",
     "format:check": "prettier . -c",
     "test": "wireit",
@@ -213,6 +213,15 @@
       ],
       "files": [],
       "output": []
+    },
+    "lint": {
+      "files": [
+        "src/**/*.ts",
+        ".eslintignore",
+        ".eslintrc.cjs",
+        "vscode-extension/**/*.ts"
+      ],
+      "command": "eslint ."
     }
   },
   "devDependencies": {
@@ -236,7 +245,8 @@
   "dependencies": {
     "@actions/cache": "=2.0.2",
     "chokidar": "^3.5.3",
-    "fast-glob": "^3.2.11"
+    "fast-glob": "^3.2.11",
+    "jsonc-parser": "^3.0.0"
   },
   "workspaces": [
     "vscode-extension"

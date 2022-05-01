@@ -110,9 +110,22 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
+          case 'invalid-json-syntax': {
+            console.error(
+              `❌${prefix} Invalid JSON syntax in package.json file in ${event.script.packageDir}`
+            );
+            break;
+          }
           case 'invalid-package-json': {
             console.error(
               `❌${prefix} Invalid JSON in package.json file in ${event.script.packageDir}`
+            );
+            break;
+          }
+
+          case 'no-scripts-in-package-json': {
+            console.error(
+              `❌${prefix} No "scripts" section defined in package.json in ${event.script.packageDir}`
             );
             break;
           }
@@ -218,7 +231,9 @@ export class DefaultLogger implements Logger {
           }
           case 'running': {
             console.log(
-              `🏃${prefix} Running command "${event.script.command ?? ''}"`
+              `🏃${prefix} Running command "${
+                event.script.command?.value ?? ''
+              }"`
             );
             break;
           }

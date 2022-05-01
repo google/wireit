@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
+
 /**
  * The location on disk of an npm package.
  */
@@ -30,7 +32,7 @@ export interface ScriptConfig extends ScriptReference {
    * An undefined command is valid as a way to give name to a group of other
    * scripts (specified as dependencies).
    */
-  command: string | undefined;
+  command: JsonAstNode<string> | undefined;
 
   /**
    * Scripts that must run before this one.
@@ -40,6 +42,7 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: ScriptConfig[];
+  dependenciesAst: JsonAstNode | undefined;
 
   /**
    * Input file globs for this script.
@@ -48,12 +51,12 @@ export interface ScriptConfig extends ScriptReference {
    * be cached). If defined but empty, there are no input files (meaning the
    * script can safely be cached).
    */
-  files: string[] | undefined;
+  files: ArrayNode<string> | undefined;
 
   /**
    * Output file globs for this script.
    */
-  output: string[] | undefined;
+  output: ArrayNode<string> | undefined;
 
   /**
    * When to clean output:
@@ -64,6 +67,32 @@ export interface ScriptConfig extends ScriptReference {
    *   cache.
    */
   clean: boolean | 'if-file-deleted';
+
+  /**
+   * The command string in the scripts section. i.e.:
+   *
+   * ```json
+   *   "scripts": {
+   *     "build": "tsc"
+   *              ~~~~
+   *   }
+   * ```
+   */
+  scriptAstNode: NamedAstNode<string> | undefined;
+
+  /**
+   * The entire config in the wireit section. i.e.:
+   *
+   * ```json
+   *   "build": {
+   *            ~
+   *     "command": "tsc"
+   *   ~~~~~~~~~~~~~~~~~~
+   *   }
+   *   ~
+   * ```
+   */
+  configAstNode: NamedAstNode | undefined;
 }
 
 /**

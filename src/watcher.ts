@@ -260,7 +260,7 @@ export class Watcher {
         // "files" array**. A simple solution could be that if a "files" array
         // has any "!"-prefixed entry, then it gets its own watcher, otherwise
         // we can group watchers by packageDir.
-        groups.push({patterns: script.files, cwd: script.packageDir});
+        groups.push({patterns: script.files.values, cwd: script.packageDir});
       }
       for (const dependency of script.dependencies) {
         visit(dependency);

@@ -10,7 +10,8 @@ import * as jsonSchema from 'jsonschema';
 import {suite} from 'uvu';
 import * as fs from 'fs';
 import * as url from 'url';
-import {PackageJson} from '../util/package-json-reader.js';
+
+import type {PackageJson} from './util/package-json.js';
 
 const schema = JSON.parse(
   fs.readFileSync(
@@ -31,7 +32,7 @@ function shouldValidate(packageJson: PackageJson) {
   expectValidationErrors(packageJson, []);
 }
 
-function expectValidationErrors(packageJson: unknown, errors: string[]) {
+function expectValidationErrors(packageJson: object, errors: string[]) {
   const validationResult = validator.validate(packageJson, schema);
   assert.equal(
     validationResult.errors.map((e) => e.toString()),
