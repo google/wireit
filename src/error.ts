@@ -27,3 +27,39 @@ export class WireitError extends Error {
     this.event = event;
   }
 }
+
+export interface Range {
+  readonly offset: number;
+  readonly length: number;
+}
+
+// Exported for testing
+export function drawSquiggleUnderRange(
+  range: Range,
+  fileContents: string,
+  indent: number
+): string {
+  let {offset, length} = range;
+  const startOfInitialLine =
+    fileContents.slice(0, offset).lastIndexOf('\n') + 1;
+  const uncorrectedFirstNewlineIndexAfter = fileContents
+    .slice(offset + length)
+    .indexOf('\n');
+  const endOfLastLine =
+    uncorrectedFirstNewlineIndexAfter === -1
+      ? undefined
+      : offset + length + uncorrectedFirstNewlineIndexAfter;
+  offset = offset - startOfInitialLine;
+
+  const sectionToPrint = fileContents.slice(startOfInitialLine, endOfLastLine);
+  let result = '';
+  for (const line of sectionToPrint.split('\n')) {
+    result += `${' '.repeat(indent)}${line}\n`;
+    const squiggleLength = Math.min(line.length - offset, length);
+    result += ' '.repeat(offset + indent) + '~'.repeat(squiggleLength) + '\n';
+    offset = 0;
+    length -= squiggleLength + 1; // +1 to account for the newline
+  }
+  // Drop the last newline.
+  return result.slice(0, -1);
+}
