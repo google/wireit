@@ -8,7 +8,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggleUnderRange} from '../error.js';
 
-const test = suite<{}>();
+const test = suite();
 
 test('drawing squiggles under ranges in single-line files', () => {
   assert.equal(drawSquiggleUnderRange({offset: 0, length: 0}, 'H', 0), 'H\n');
