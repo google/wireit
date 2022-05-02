@@ -8,7 +8,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
-## [0.3.1] - 2022-04-29
+## [0.3.1] - 2022-04-30
 
 ### Fixed
 
