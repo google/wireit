@@ -910,7 +910,7 @@ test(
 
     // Run both from the workspaces root package.
     {
-      const exec = rig.exec('pnpm run cmd --recursive');
+      const exec = rig.exec('pnpm run --recursive cmd');
       // Workspace commands run in serial.
       (await cmdA.nextInvocation()).exit(0);
       (await cmdB.nextInvocation()).exit(0);
