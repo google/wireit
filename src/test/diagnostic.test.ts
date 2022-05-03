@@ -4,11 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
+import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggleUnderRange} from '../error.js';
-
-const test = suite();
 
 test('drawing squiggles under ranges in single-line files', () => {
   assert.equal(drawSquiggleUnderRange({offset: 0, length: 0}, 'H', 0), 'H\n');
@@ -56,7 +54,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles under multi-line ranges', () => {
+test('drawing squiggles under one line of a multi-line input', () => {
   assert.equal(
     drawSquiggleUnderRange({offset: 0, length: 0}, 'H\nabc', 0),
     'H\n'
