@@ -84,6 +84,15 @@
         "test:watch"
       ]
     },
+    "lint": {
+      "command": "eslint --color --cache --cache-location .eslintcache .",
+      "files": [
+        ".eslintignore",
+        ".eslintrc.cjs",
+        "src/**/*.ts"
+      ],
+      "output": []
+    },
     "test:basic": {
       "command": "uvu lib/test \"basic\\.test\\.js$\"",
       "dependencies": [

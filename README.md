@@ -38,6 +38,7 @@
 - [Package locks](#package-locks)
 - [Recipes](#recipes)
   - [TypeScript](#typescript)
+  - [ESLint](#eslint)
 - [Reference](#reference)
   - [Configuration](#configuration)
   - [Dependency syntax](#dependency-syntax)
@@ -417,55 +418,6 @@ This section contains advice about integrating specific build tools with Wireit.
 
 ### TypeScript
 
-#### Use incremental build
-
-Set [`"incremental": true`](https://www.typescriptlang.org/tsconfig#incremental)
-in your `tsconfig.json`, and use the
-[`--build`](https://www.typescriptlang.org/docs/handbook/project-references.html#build-mode-for-typescript)
-(or `-b`) flag in your `tsc` command. This enables TypeScript's incremental
-compilation mode, which significantly reduces compile times.
-
-#### Use clean if-file-deleted
-
-The [`"clean": "if-file-deleted"`](#cleaning-output) setting provides the best
-balance between fast and correct output, giving you an incremental build when a
-`.ts` source file is added or modified, and a clean build when a `.ts` source
-file is deleted.
-
-`"clean": true` (the default) is not a good option, because it either eliminates
-the benefits of incremental compilation, or causes your `.tsbuildinfo` to get
-out of sync, depending on whether you include your `.tsbuildinfo` file in the
-`output` array.
-
-`"clean": false` is also not a good option, because it causes stale outputs to
-accumulate. This is because when you delete or rename a `.ts` source file, `tsc`
-itself does not automatically delete the corresponding `.js` file emitted by
-previous compiles.
-
-#### Include .tsbuildinfo in output.
-
-Include your
-[`.tsbuildinfo`](https://www.typescriptlang.org/tsconfig#tsBuildInfoFile) file
-in your `output` array. Otherwise, when Wireit performs a clean build, the
-`.tsbuildinfo` file will get out-of-sync with the output, and `tsc` will wrongly
-skip emit because it believes the output is already up-to-date.
-
-#### Include tsconfig.json in files.
-
-Include your `tsconfig.json` file in your `files` array so that Wireit knows to
-re-run when you change a setting that affects compilation.
-
-#### Use the --pretty flag
-
-By default, `tsc` only shows colorful stylized output when it detects that it is
-attached to an interactive (TTY) terminal. The processes spawned by Wireit do
-not perceive themselves to be attached to an interactive terminal, because of
-the way Wireit captures `stdout` and `stderr` for replays. The
-[`--pretty`](https://www.typescriptlang.org/tsconfig#pretty) flag forces `tsc`
-to emit colorful stylized output even on non-interactive terminals.
-
-#### Example
-
 ```json
 {
   "scripts": {
@@ -481,6 +433,49 @@ to emit colorful stylized output even on non-interactive terminals.
   }
 }
 ```
+
+- Set [`"incremental": true`](https://www.typescriptlang.org/tsconfig#incremental) and use
+  [`--build`](https://www.typescriptlang.org/docs/handbook/project-references.html#build-mode-for-typescript)
+  to enable incremental compilation, which significantly improves performance.
+- Include
+  [`.tsbuildinfo`](https://www.typescriptlang.org/tsconfig#tsBuildInfoFile) in
+  `output` so that it is reset on clean builds. Otherwise `tsc` will get out of
+  sync and produce incorrect output.
+- Set [`"clean": "if-file-deleted"`](#cleaning-output) so that you get fast
+  incremental compilation when sources are changed/added, but also stale outputs
+  are cleaned up when a source is deleted (`tsc` does not clean up stale outputs
+  by itself).
+- Include `tsconfig.json` in `files` so that changing your configuration re-runs
+  `tsc`.
+- Use [`--pretty`](https://www.typescriptlang.org/tsconfig#pretty) to get
+  colorful output despite not being attached to a TTY.
+
+### ESLint
+
+```json
+{
+  "scripts": {
+    "lint": "wireit"
+  },
+  "wireit": {
+    "lint": {
+      "command": "eslint --color --cache --cache-location .eslintcache .",
+      "files": ["src/**/*.ts", ".eslintignore", ".eslintrc.cjs"],
+      "output": []
+    }
+  }
+}
+```
+
+- Use
+  [`--cache`](https://eslint.org/docs/user-guide/command-line-interface#caching)
+  so that `eslint` only lints the files that were added or changed since the
+  last run, which significantly improves performance.
+- Use
+  [`--color`](https://eslint.org/docs/user-guide/command-line-interface#--color---no-color)
+  to get colorful output despite not being attached to a TTY.
+- Include config and ignore files in `files` so that changing your configuration
+  re-runs `eslint`.
 
 ## Reference
 
