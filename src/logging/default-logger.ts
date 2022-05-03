@@ -10,12 +10,14 @@ import {unreachable} from '../util/unreachable.js';
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
 import type {PackageReference, ScriptReference} from '../script.js';
+import {DiagnosticPrinter} from '../error.js';
 
 /**
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
   readonly #rootPackageDir: string;
+  readonly #diagnosticPrinter: DiagnosticPrinter;
 
   /**
    * @param rootPackage The npm package directory that the root script being
@@ -23,6 +25,7 @@ export class DefaultLogger implements Logger {
    */
   constructor(rootPackage: string) {
     this.#rootPackageDir = rootPackage;
+    this.#diagnosticPrinter = new DiagnosticPrinter(this.#rootPackageDir);
   }
 
   /**
@@ -136,9 +139,7 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'script-not-wireit': {
-            console.error(
-              `❌${prefix} Script is not configured to call "wireit"`
-            );
+            console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
           case 'invalid-config-syntax': {
