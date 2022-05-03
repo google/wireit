@@ -5,6 +5,7 @@
  */
 
 import type {Failure} from './event.js';
+import {JsonFile} from './util/package-json-reader.js';
 
 /**
  * A known Wireit error.
@@ -33,13 +34,55 @@ export interface Range {
   readonly length: number;
 }
 
+export interface Location {
+  readonly file: JsonFile;
+  readonly range: Range;
+}
+
+export interface Position {
+  /** 1 indexed */
+  line: number;
+  /** 1 indexed */
+  column: number;
+}
+
+export class OffsetToPositionConverter {
+  readonly newlineIndexes: readonly number[];
+
+  constructor(contents: string) {
+    const indexes = [];
+    for (let i = 0; i < contents.length; i++) {
+      if (contents[i] === '\n') {
+        indexes.push(i);
+      }
+    }
+    this.newlineIndexes = indexes;
+  }
+
+  toPosition(offset: number): {line: number; column: number} {
+    if (this.newlineIndexes.length === 0) {
+      return {line: 1, column: offset + 1};
+    }
+    const line = this.newlineIndexes.findIndex((index) => index >= offset);
+    if (line === 0) {
+      return {line: 1, column: offset + 1};
+    }
+    if (line === -1) {
+      return {
+        line: this.newlineIndexes.length + 1,
+        column: offset - this.newlineIndexes[this.newlineIndexes.length - 1],
+      };
+    }
+    return {line: line + 1, column: offset - this.newlineIndexes[line - 1]};
+  }
+}
+
 // Exported for testing
-export function drawSquiggleUnderRange(
-  range: Range,
-  fileContents: string,
-  indent: number
-): string {
-  let {offset, length} = range;
+export function drawSquiggle(location: Location, indent: number): string {
+  let {
+    range: {offset, length},
+  } = location;
+  const fileContents = location.file.contents;
   const startOfInitialLine =
     fileContents.slice(0, offset).lastIndexOf('\n') + 1;
   const uncorrectedFirstNewlineIndexAfter = fileContents

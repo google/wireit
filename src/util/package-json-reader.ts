@@ -13,32 +13,39 @@ import type {JsonAstNode} from './ast.js';
 
 export const astKey = Symbol('ast');
 
+export interface JsonFile {
+  path: string;
+  ast: JsonAstNode;
+  contents: string;
+}
+
 /**
  * Reads package.json files and caches them.
  */
 export class CachingPackageJsonReader {
-  readonly #cache = new Map<string, JsonAstNode>();
+  readonly #cache = new Map<string, JsonFile>();
 
   async read(
     packageDir: string,
     placeholder: PlaceholderConfig
-  ): Promise<JsonAstNode> {
-    let ast = this.#cache.get(packageDir);
-    if (ast === undefined) {
-      const packageJsonPath = pathlib.resolve(packageDir, 'package.json');
-      let packageJsonStr: string;
+  ): Promise<JsonFile> {
+    let file = this.#cache.get(packageDir);
+    if (file === undefined) {
+      const path = pathlib.resolve(packageDir, 'package.json');
+      let contents;
       try {
-        packageJsonStr = await fs.readFile(packageJsonPath, 'utf8');
+        contents = await fs.readFile(path, 'utf8');
       } catch (error) {
         if ((error as {code?: string}).code === 'ENOENT') {
           throw new CachingPackageJsonReaderError('missing-package-json');
         }
         throw error;
       }
-      ast = parseTree(packageJsonStr, placeholder);
-      this.#cache.set(packageDir, ast);
+      const ast = parseTree(contents, placeholder);
+      file = {path, ast, contents};
+      this.#cache.set(packageDir, file);
     }
-    return ast;
+    return file;
   }
 }
 

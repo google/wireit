@@ -114,9 +114,9 @@ export class Analyzer {
    * upgraded; dependencies are upgraded asynchronously.
    */
   async #upgradePlaceholder(placeholder: PlaceholderConfig): Promise<void> {
-    let packageJsonAst;
+    let packageJson;
     try {
-      packageJsonAst = await this.#packageJsonReader.read(
+      packageJson = await this.#packageJsonReader.read(
         placeholder.packageDir,
         placeholder
       );
@@ -138,7 +138,7 @@ export class Analyzer {
     }
 
     const scriptsSection = findNamedNodeAtLocation(
-      packageJsonAst,
+      packageJson.ast,
       ['scripts'],
       placeholder
     );
@@ -151,7 +151,7 @@ export class Analyzer {
     }
 
     const wireitSection = findNamedNodeAtLocation(
-      packageJsonAst,
+      packageJson.ast,
       ['wireit'],
       placeholder
     );
