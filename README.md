@@ -468,14 +468,14 @@ This section contains advice about integrating specific build tools with Wireit.
 ```
 
 - Use
-  [`--cache`](https://eslint.org/docs/user-guide/command-line-interface#cache)
+  [`--cache`](https://eslint.org/docs/user-guide/command-line-interface#caching)
   so that `eslint` only lints the files that were added or changed since the
   last run, which significantly improves performance.
 - Use
   [`--color`](https://eslint.org/docs/user-guide/command-line-interface#--color---no-color)
   to get colorful output despite not being attached to a TTY.
-- Include config and ignore files so that changing your configuration re-runs
-  `eslint`.
+- Include config and ignore files in `files` so that changing your configuration
+  re-runs `eslint`.
 
 ## Reference
 
