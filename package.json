@@ -23,7 +23,7 @@
   },
   "scripts": {
     "build": "wireit",
-    "lint": "eslint .",
+    "lint": "wireit",
     "format": "prettier . -w",
     "format:check": "prettier . -c",
     "test": "wireit",
@@ -83,6 +83,15 @@
         "test:stdio-replay",
         "test:watch"
       ]
+    },
+    "lint": {
+      "command": "eslint --color --cache --cache-location .eslintcache .",
+      "files": [
+        ".eslintignore",
+        ".eslintrc.cjs",
+        "src/**/*.ts"
+      ],
+      "output": []
     },
     "test:basic": {
       "command": "uvu lib/test \"basic\\.test\\.js$\"",
