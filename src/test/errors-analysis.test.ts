@@ -601,8 +601,14 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [b] Script is not configured to call "wireit"
-`
+❌ package.json:4:10 This command should just be "wireit", as this script is configured in the wireit section.
+        "b": "not-wireit"
+             ~~~~~~~~~~~~
+
+    package.json:12:5 the wireit config is here
+            "b": {
+            ~~~
+`.trimStart()
     );
   })
 );

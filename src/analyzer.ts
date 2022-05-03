@@ -186,11 +186,28 @@ export class Analyzer {
     }
 
     if (wireitConfig !== undefined && scriptCommand.value !== 'wireit') {
+      const configName = wireitConfig.name;
       throw new WireitError({
         type: 'failure',
         reason: 'script-not-wireit',
         script: placeholder,
-        astNode: scriptCommand,
+        diagnostic: {
+          message: `This command should just be "wireit", as this script is configured in the wireit section.`,
+          severity: 'warning',
+          location: {
+            file: packageJson,
+            range: {length: scriptCommand.length, offset: scriptCommand.offset},
+          },
+          supplementalLocations: [
+            {
+              message: `the wireit config is here`,
+              location: {
+                file: packageJson,
+                range: {length: configName.length, offset: configName.offset},
+              },
+            },
+          ],
+        },
       });
     }
 

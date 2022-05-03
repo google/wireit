@@ -6,6 +6,7 @@
 
 import type {Failure} from './event.js';
 import {JsonFile} from './util/package-json-reader.js';
+import * as pathLib from 'path';
 
 /**
  * A known Wireit error.
@@ -37,6 +38,74 @@ export interface Range {
 export interface Location {
   readonly file: JsonFile;
   readonly range: Range;
+}
+
+export interface MessageLocation {
+  readonly message: string;
+  readonly location: Location;
+}
+
+export interface Diagnostic {
+  readonly severity: string;
+  readonly message: string;
+  readonly location: Location;
+  readonly supplementalLocations?: MessageLocation[];
+}
+
+export class DiagnosticPrinter {
+  #cwd: string;
+  #offsetConverterCache = new WeakMap<JsonFile, OffsetToPositionConverter>();
+
+  /**
+   * @param workingDir Paths are printed relative to this directory.
+   */
+  constructor(workingDir: string) {
+    this.#cwd = workingDir;
+  }
+
+  print(diagnostic: Diagnostic) {
+    const path = this.#formatPath(diagnostic.location);
+    let result = `❌ ${path} ${diagnostic.message}
+${drawSquiggle(diagnostic.location, 4)}`;
+    if (diagnostic.supplementalLocations) {
+      for (const supplementalLocation of diagnostic.supplementalLocations) {
+        result += '\n\n' + this.#printSupplemental(supplementalLocation);
+      }
+    }
+    return result;
+  }
+
+  #printSupplemental(supplemental: MessageLocation) {
+    const squiggle = drawSquiggle(supplemental.location, 8);
+    const path = this.#formatPath(supplemental.location);
+    return `    ${path} ${supplemental.message}\n${squiggle}`;
+  }
+
+  #formatPath(location: Location) {
+    const relPath = pathLib.relative(this.#cwd, location.file.path);
+    const {line, column} = this.#offsetToPosition(
+      location.file,
+      location.range.offset
+    );
+    return `${relPath}:${line}:${column}`;
+  }
+
+  #offsetToPosition(
+    file: JsonFile,
+    offset: number
+  ): {line: number; column: number} {
+    const indexes = this.#getNewlineIndexes(file);
+    return indexes.toPosition(offset);
+  }
+
+  #getNewlineIndexes(file: JsonFile): OffsetToPositionConverter {
+    let converter = this.#offsetConverterCache.get(file);
+    if (converter === undefined) {
+      converter = new OffsetToPositionConverter(file.contents);
+      this.#offsetConverterCache.set(file, converter);
+    }
+    return converter;
+  }
 }
 
 export interface Position {

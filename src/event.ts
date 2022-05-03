@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
   ScriptReference,
@@ -161,7 +162,7 @@ export interface ScriptNotFound extends ErrorBase<ScriptReference> {
  */
 export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
   reason: 'script-not-wireit';
-  astNode: JsonAstNode | undefined;
+  diagnostic: Diagnostic;
 }
 
 /**
