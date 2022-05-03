@@ -34,6 +34,7 @@
     "test:clean": "wireit",
     "test:copy": "wireit",
     "test:delete": "wireit",
+    "test:diagnostic": "wireit",
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
     "test:freshness": "wireit",
@@ -72,6 +73,7 @@
         "test:clean",
         "test:copy",
         "test:delete",
+        "test:diagnostic",
         "test:errors-analysis",
         "test:errors-usage",
         "test:freshness",
@@ -135,6 +137,14 @@
     },
     "test:delete": {
       "command": "uvu lib/test \"delete\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:diagnostic": {
+      "command": "uvu lib/test \"diagnostic\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
