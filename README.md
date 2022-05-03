@@ -38,6 +38,7 @@
 - [Package locks](#package-locks)
 - [Recipes](#recipes)
   - [TypeScript](#typescript)
+  - [ESLint](#eslint)
 - [Reference](#reference)
   - [Configuration](#configuration)
   - [Dependency syntax](#dependency-syntax)
@@ -448,6 +449,33 @@ This section contains advice about integrating specific build tools with Wireit.
   `tsc`.
 - Use [`--pretty`](https://www.typescriptlang.org/tsconfig#pretty) to get
   colorful output despite not being attached to a TTY.
+
+### ESLint
+
+```json
+{
+  "scripts": {
+    "lint": "wireit"
+  },
+  "wireit": {
+    "lint": {
+      "command": "eslint --color --cache --cache-location .eslintcache .",
+      "files": ["src/**/*.ts", ".eslintignore", ".eslintrc.cjs"],
+      "output": []
+    }
+  }
+}
+```
+
+- Use
+  [`--cache`](https://eslint.org/docs/user-guide/command-line-interface#cache)
+  so that `eslint` only lints the files that were added or changed since the
+  last run, which significantly improves performance.
+- Use
+  [`--color`](https://eslint.org/docs/user-guide/command-line-interface#--color---no-color)
+  to get colorful output despite not being attached to a TTY.
+- Include config and ignore files so that changing your configuration re-runs
+  `eslint`.
 
 ## Reference
 
