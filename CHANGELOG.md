@@ -8,7 +8,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Improved
+### Changed
 
 - Starting to improve error messages by drawing squiggles underneith the
   specific part of the package.json file that's in error.
