@@ -116,7 +116,7 @@
         "package"
       ],
       "#comment": "Useful when manually testing, you can run this in watch mode, and do a > Developer: Reload Window in vscode to pick up the new version of the extension.",
-      "command": "code --install-extension wireit.vsix"
+      "command": "code --install-extension built/wireit.vsix"
     }
   },
   "private": true,
