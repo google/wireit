@@ -497,11 +497,9 @@ class ScriptExecution {
       );
     } catch (error) {
       if (error instanceof GlobOutsideCwdError) {
-        // TODO(aomarks) It would be better to do this in the Analyzer by looking
-        // at the output glob patterns, so that we catch errors earlier and can
-        // provide a more useful message, but we need to be certain that we are
-        // parsing glob patterns correctly (e.g. negations and other syntax make
-        // it slightly tricky to detect).
+        // TODO(aomarks) It would be better to do this in the Analyzer by
+        // looking at the output glob patterns. See
+        // https://github.com/google/wireit/issues/64.
         throw new WireitError({
           script: this.#script,
           type: 'failure',
@@ -689,11 +687,9 @@ class ScriptExecution {
       });
     } catch (error) {
       if (error instanceof GlobOutsideCwdError) {
-        // TODO(aomarks) It would be better to do this in the Analyzer by looking
-        // at the output glob patterns, so that we catch errors earlier and can
-        // provide a more useful message, but we need to be certain that we are
-        // parsing glob patterns correctly (e.g. negations and other syntax make
-        // it slightly tricky to detect).
+        // TODO(aomarks) It would be better to do this in the Analyzer by
+        // looking at the output glob patterns. See
+        // https://github.com/google/wireit/issues/64.
         throw new WireitError({
           script: this.#script,
           type: 'failure',

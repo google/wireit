@@ -543,7 +543,7 @@ test('braces can be escaped', ({check}) =>
     rerootToCwd: true,
   }));
 
-test('disallows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
+test('disallows path outside cwd when throwIfOutsideCwd=true', ({check}) =>
   check({
     cwd: 'subdir',
     files: ['foo', 'subdir/'],

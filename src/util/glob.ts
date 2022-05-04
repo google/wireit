@@ -216,7 +216,7 @@ export async function glob(
         cwd: normalizedCwd,
         dot: true,
         onlyFiles: !opts.includeDirectories,
-        // Return absolute paths, even if we ultimately return relative one, so
+        // Return absolute paths, even if we ultimately return relative ones, so
         // that we can do path string comparisons.
         absolute: true,
         followSymbolicLinks: opts.followSymlinks,
