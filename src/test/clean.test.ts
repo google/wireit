@@ -524,4 +524,39 @@ test(
   })
 );
 
+test(
+  'leading slash on output glob is package relative',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            output: ['/output'],
+          },
+        },
+      },
+      output: 'foo',
+    });
+
+    // Output should exist before we run the script.
+    assert.ok(await rig.exists('output'));
+
+    // Output should be deleted between running the script and executing the
+    // command.
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+    assert.not(await rig.exists('output'));
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+  })
+);
+
 test.run();

@@ -1654,4 +1654,48 @@ test(
   })
 );
 
+test(
+  'leading slash on files glob is package relative',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['/input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    // Initially stale, so command is invoked.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Input file changed, so script is stale, and command is invoked.
+    {
+      await rig.write({
+        'input.txt': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
 test.run();
