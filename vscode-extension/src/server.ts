@@ -36,6 +36,11 @@ import {inspect} from 'util';
 
 const connection = createConnection(ProposedFeatures.all);
 
+interface Modification {
+  path: jsonParser.JSONPath;
+  value: unknown;
+}
+
 connection.onInitialize(() => {
   const result: InitializeResult = {
     capabilities: {
@@ -53,6 +58,7 @@ connection.onInitialize(() => {
   return result;
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function log(...values: unknown[]) {
   for (const value of values) {
     let message;
@@ -63,6 +69,9 @@ function log(...values: unknown[]) {
     }
     connection.console.log(message);
   }
+}
+if (false as boolean) {
+  log(`Log is useful when developing, even if we don't use it currently.`);
 }
 
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -157,7 +166,6 @@ class Analysis {
 
   getCodeActions(range: Range): CodeAction[] {
     const propAndKind = this.#getPropertyByRange(range);
-    log(propAndKind);
     if (propAndKind == null) {
       return [];
     }
@@ -178,18 +186,31 @@ class Analysis {
           property.valueAst,
           'command'
         );
+        const edits: Modification[] = [
+          {path: ['scripts', property.key], value: 'wireit'},
+        ];
+        if (wireitCommand == null) {
+          edits.push({
+            path: ['wireit', property.key, 'command'],
+            value: scriptProp.value,
+          });
+        } else if (wireitCommand.value !== scriptProp.value) {
+          edits.push({
+            path: ['wireit', property.key, '[the script command was]'],
+            value: scriptProp.value,
+          });
+        }
         return [
           {
             kind: CodeActionKind.QuickFix,
             title: 'Update the script to run wireit',
             isPreferred: wireitCommand?.value === scriptProp.value,
-            edit: this.#modify(['scripts', property.key], 'wireit'),
+            edit: this.#modifyMultiple(edits),
           },
         ];
       }
-    } else {
+    } else if (kind === 'script') {
       const wireitProp = this.#wireitConfigsByKey.get(property.key);
-      log(`wireitProp: `, wireitProp);
       if (wireitProp == null) {
         return [
           {
@@ -218,13 +239,14 @@ class Analysis {
           },
         ];
       }
+    } else {
+      const never: never = kind;
+      throw new Error(`Unexpected kind: ${String(never)}`);
     }
     return [];
   }
 
-  #modifyMultiple(
-    modifications: Array<{path: jsonParser.JSONPath; value: unknown}>
-  ): WorkspaceEdit {
+  #modifyMultiple(modifications: Array<Modification>): WorkspaceEdit {
     const edits = [];
     for (const {path, value} of modifications) {
       edits.push(
@@ -260,7 +282,6 @@ class Analysis {
     range: Range
   ): {kind: 'wireit' | 'script'; property: JsonProperty} | undefined {
     if (this.#contains(range, this.#wireitProperty?.propertyAst)) {
-      log(`inside the wireit section`);
       // it's inside the wireit range
       for (const prop of this.#wireitConfigsByKey.values()) {
         if (this.#contains(range, prop.propertyAst)) {
@@ -268,7 +289,6 @@ class Analysis {
         }
       }
     } else if (this.#contains(range, this.#scriptProperty?.propertyAst)) {
-      log(`inside the script section`);
       // it's inside the script range
       for (const prop of this.#scriptsByKey.values()) {
         if (this.#contains(range, prop.propertyAst)) {
