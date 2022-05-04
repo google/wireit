@@ -512,8 +512,8 @@ test('re-rooting handles /./foo', ({check}) =>
   check({
     files: ['foo'],
     patterns: ['/./foo'],
-    // TODO(aomarks) Normalize this.
-    expected: ['./foo'],
+    // TODO(aomarks) This should be normalized to to "foo".
+    expected: [`.${pathlib.sep}foo`],
   }));
 
 test('re-rooting handles /../foo', ({check}) =>
