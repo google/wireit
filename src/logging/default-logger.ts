@@ -132,14 +132,9 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
-          case 'script-not-found': {
-            console.error(this.#diagnosticPrinter.print(event.diagnostic));
-            break;
-          }
-          case 'script-not-wireit': {
-            console.error(this.#diagnosticPrinter.print(event.diagnostic));
-            break;
-          }
+          case 'script-not-found':
+          case 'duplicate-dependency':
+          case 'script-not-wireit':
           case 'invalid-config-syntax': {
             console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
@@ -154,12 +149,7 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
-          case 'duplicate-dependency': {
-            console.error(
-              `❌${prefix} The dependency "${event.dependency.name}" was declared multiple times`
-            );
-            break;
-          }
+
           case 'signal': {
             console.error(`❌${prefix} Failed with signal ${event.signal}`);
             break;

@@ -612,7 +612,13 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] The dependency "b" was declared multiple times`
+❌ package.json:10:9 This dependency is listed multiple times
+            "b"
+            ~~~
+
+    package.json:9:9 The dependency was first listed here.
+                "b",
+                ~~~`
     );
   })
 );

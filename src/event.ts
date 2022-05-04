@@ -10,7 +10,7 @@ import type {
   ScriptReference,
   PackageReference,
 } from './script.js';
-import type {JsonAstNode, ParseError} from './util/ast.js';
+import type {ParseError} from './util/ast.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -187,8 +187,7 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
    * The dependency that is duplicated.
    */
   dependency: ScriptReference;
-  astNode: JsonAstNode;
-  duplicate: JsonAstNode;
+  diagnostic: Diagnostic;
 }
 
 /**

@@ -181,7 +181,7 @@ export class Analyzer {
               length: scriptsSection.name.length,
             },
           },
-        }
+        },
       });
     }
     assertNonBlankString(placeholder, scriptCommand, packageJson);
@@ -272,8 +272,26 @@ export class Analyzer {
               reason: 'duplicate-dependency',
               script: placeholder,
               dependency: resolved,
-              astNode: unresolved,
-              duplicate,
+              diagnostic: {
+                severity: 'error',
+                message: `This dependency is listed multiple times`,
+                location: {
+                  file: packageJson,
+                  range: {offset: unresolved.offset, length: unresolved.length},
+                },
+                supplementalLocations: [
+                  {
+                    message: `The dependency was first listed here.`,
+                    location: {
+                      file: packageJson,
+                      range: {
+                        offset: duplicate.offset,
+                        length: duplicate.length,
+                      },
+                    },
+                  },
+                ],
+              },
             });
           }
           uniqueDependencies.set(uniqueKey, unresolved);
