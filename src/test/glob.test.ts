@@ -508,6 +508,22 @@ test('re-rooting allows ../', ({check}) =>
     expected: ['../foo'],
   }));
 
+test('re-rooting handles /./foo', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['/./foo'],
+    // TODO(aomarks) Normalize this.
+    expected: ['./foo'],
+  }));
+
+test('re-rooting handles /../foo', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['/../foo'],
+    expected: ['../foo'],
+  }));
+
 test('re-roots to cwd with braces', ({check}) =>
   check({
     files: ['foo', 'bar'],
