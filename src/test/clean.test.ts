@@ -8,7 +8,6 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
-import * as pathlib from 'path';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -280,7 +279,6 @@ test(
 test(
   'errors if cleaning output outside of the package',
   timeout(async ({rig}) => {
-    const cmdA = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
         scripts: {
@@ -288,7 +286,7 @@ test(
         },
         wireit: {
           a: {
-            command: cmdA.command,
+            command: 'true',
             output: ['../outside'],
           },
         },
@@ -296,18 +294,14 @@ test(
       outside: 'bad',
     });
 
-    const result = rig.exec('npm run a', {cwd: 'foo'});
-    const done = await result.exit;
-    assert.equal(done.code, 1);
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+    const res = await exec.exit;
+    assert.equal(res.code, 1);
     assert.match(
-      done.stderr.trim(),
-      `
-❌ [a] Invalid config: refusing to delete output file outside of package: ${pathlib.join(
-        rig.temp,
-        'outside'
-      )}`.trim()
+      res.stderr,
+      /❌ \[a\] Invalid config: Output files must be within the package: ".+outside" was outside ".+foo"/,
+      res.stderr
     );
-    assert.equal(cmdA.numInvocations, 0);
 
     // The outside file should not have been deleted.
     assert.ok(await rig.exists('outside'));

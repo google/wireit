@@ -1074,4 +1074,37 @@ export const registerCommonCacheTests = (
       }
     })
   );
+
+  test(
+    'errors if caching output outside of the package',
+    timeout(async ({rig}) => {
+      await rig.write({
+        'foo/package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: 'true',
+              files: [],
+              output: ['../outside'],
+              // Turn off cleaning so we get past the similar error that occurs
+              // on clean.
+              clean: false,
+            },
+          },
+        },
+        outside: 'bad',
+      });
+
+      const exec = rig.exec('npm run a', {cwd: 'foo'});
+      const res = await exec.exit;
+      assert.equal(res.code, 1);
+      assert.match(
+        res.stderr,
+        /❌ \[a\] Invalid config: Output files must be within the package: ".+outside" was outside ".+foo"/,
+        res.stderr
+      );
+    })
+  );
 };

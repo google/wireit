@@ -29,6 +29,7 @@ interface TestCase {
   includeDirectories?: boolean;
   expandDirectories?: boolean;
   rerootToCwd?: boolean;
+  throwIfOutsideCwd?: boolean;
 }
 
 const test = suite<{
@@ -51,6 +52,7 @@ test.before.each(async (ctx) => {
       includeDirectories = false,
       expandDirectories = false,
       rerootToCwd = false,
+      throwIfOutsideCwd = false,
     }: TestCase): Promise<void> => {
       for (const file of files) {
         if (typeof file === 'string') {
@@ -81,6 +83,7 @@ test.before.each(async (ctx) => {
           includeDirectories,
           expandDirectories,
           rerootToCwd,
+          throwIfOutsideCwd,
         });
       } catch (e) {
         error = e;
@@ -412,6 +415,7 @@ test('dirent tags files', async ({rig}) => {
     includeDirectories: true,
     expandDirectories: false,
     rerootToCwd: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -429,6 +433,7 @@ test('dirent tags directories', async ({rig}) => {
     includeDirectories: true,
     expandDirectories: false,
     rerootToCwd: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -446,6 +451,7 @@ test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
     includeDirectories: true,
     expandDirectories: false,
     rerootToCwd: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -466,6 +472,7 @@ test('dirent tags symlinks to files as files when followSymlinks=true', async ({
     includeDirectories: true,
     expandDirectories: false,
     rerootToCwd: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -486,6 +493,7 @@ test('dirent tags symlinks to directories as directories when followSymlinks=tru
     includeDirectories: true,
     expandDirectories: false,
     rerootToCwd: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -533,6 +541,24 @@ test('braces can be escaped', ({check}) =>
     patterns: ['\\{foo,bar\\}'],
     expected: ['{foo,bar}'],
     rerootToCwd: true,
+  }));
+
+test('disallows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: 'ERROR',
+    throwIfOutsideCwd: true,
+  }));
+
+test('allows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: ['../foo'],
+    throwIfOutsideCwd: false,
   }));
 
 test.run();
