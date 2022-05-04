@@ -9,6 +9,7 @@ import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import * as pathlib from 'path';
+import {removeAciiColors} from './util/colors.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -299,13 +300,19 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr.trim(),
+    assert.equal(
+      removeAciiColors(done.stderr.trim()),
       `
-❌ [a] Invalid config: refusing to delete output file outside of package: ${pathlib.join(
+❌ package.json:8:17 refusing to delete output file outside of package: ${pathlib.join(
         rig.temp,
         'outside'
-      )}`.trim()
+      )}
+          "output": [
+                    ~
+            "../outside"
+    ~~~~~~~~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`.trim()
     );
     assert.equal(cmdA.numInvocations, 0);
 

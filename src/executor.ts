@@ -678,8 +678,17 @@ class ScriptExecution {
           script: this.#script,
           type: 'failure',
           reason: 'invalid-config-syntax',
-          message: `refusing to delete output file outside of package: ${absFile.path}`,
-          astNode: this.#script.output.node,
+          diagnostic: {
+            severity: 'error',
+            message: `refusing to delete output file outside of package: ${absFile.path}`,
+            location: {
+              file: this.#script.declaringFile,
+              range: {
+                offset: this.#script.output.node.offset,
+                length: this.#script.output.node.length,
+              },
+            },
+          },
         });
       }
     }

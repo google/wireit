@@ -5,6 +5,7 @@
  */
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
+import {JsonFile} from './util/package-json-reader.js';
 
 /**
  * The location on disk of an npm package.
@@ -93,6 +94,9 @@ export interface ScriptConfig extends ScriptReference {
    * ```
    */
   configAstNode: NamedAstNode | undefined;
+
+  /** The parsed JSON file that declared this script. */
+  declaringFile: JsonFile;
 }
 
 /**
