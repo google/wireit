@@ -80,7 +80,7 @@
       ],
       "files": [
         "package.json",
-        "schema.json"
+        "built/"
       ],
       "output": [],
       "command": "node ./lib/test/scripts/runner.js"
