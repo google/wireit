@@ -14,7 +14,6 @@ import {scriptReferenceToString} from './script.js';
 import {AggregateError} from './util/aggregate-error.js';
 import {findNamedNodeAtLocation, findNodeAtLocation} from './util/ast.js';
 
-import type {CachingPackageJsonReaderError} from './util/package-json-reader.js';
 import type {
   ScriptConfig,
   ScriptReference,
@@ -117,28 +116,10 @@ export class Analyzer {
    * upgraded; dependencies are upgraded asynchronously.
    */
   async #upgradePlaceholder(placeholder: PlaceholderConfig): Promise<void> {
-    let packageJson;
-    try {
-      packageJson = await this.#packageJsonReader.read(
-        placeholder.packageDir,
-        placeholder
-      );
-    } catch (error) {
-      const reason = (error as CachingPackageJsonReaderError).reason;
-      if (
-        reason === 'missing-package-json' ||
-        reason === 'invalid-package-json'
-      ) {
-        // Add extra context to make this exception a full WireitError.
-        throw new WireitError({
-          type: 'failure',
-          reason,
-          script: placeholder,
-        });
-      } else {
-        throw error;
-      }
-    }
+    const packageJson = await this.#packageJsonReader.read(
+      placeholder.packageDir,
+      placeholder
+    );
 
     const scriptsSection = findNamedNodeAtLocation(
       packageJson.ast,

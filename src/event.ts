@@ -71,7 +71,6 @@ export type Failure =
   | SpawnError
   | LaunchedIncorrectly
   | MissingPackageJson
-  | InvalidPackageJson
   | NoScriptsSectionInPackageJson
   | PackageJsonParseError
   | ScriptNotFound
@@ -131,13 +130,6 @@ export interface MissingPackageJson extends ErrorBase<ScriptReference> {
 export interface PackageJsonParseError extends ErrorBase<ScriptReference> {
   reason: 'invalid-json-syntax';
   diagnostics: Diagnostic[];
-}
-
-/**
- * A package.json file was invalid.
- */
-export interface InvalidPackageJson extends ErrorBase<ScriptReference> {
-  reason: 'invalid-package-json';
 }
 
 /**
