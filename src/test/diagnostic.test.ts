@@ -8,6 +8,7 @@ import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggle, OffsetToPositionConverter, Position} from '../error.js';
 import {JsonAstNode} from '../util/ast.js';
+import {removeAciiColors} from './util/colors.js';
 
 function assertSquiggleAndPosition(
   {
@@ -36,7 +37,7 @@ function assertSquiggleAndPosition(
       `Test authoring error: write the expected squiggle as a template string with a leading newline.`
     );
   }
-  assert.equal(squiggle, expectedSquiggle.slice(1));
+  assert.equal(removeAciiColors(squiggle), expectedSquiggle.slice(1));
   assert.equal(position, expectedPosition);
 }
 

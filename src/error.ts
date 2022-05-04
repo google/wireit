@@ -87,7 +87,7 @@ ${drawSquiggle(diagnostic.location, 4)}`;
       location.file,
       location.range.offset
     );
-    return `${relPath}:${line}:${column}`;
+    return `${CYAN}${relPath}${RESET}:${YELLOW}${line}${RESET}:${YELLOW}${column}${RESET}`;
   }
 
   #offsetToPosition(
@@ -146,6 +146,11 @@ export class OffsetToPositionConverter {
   }
 }
 
+const CYAN = '\x1b[36m';
+const YELLOW = '\x1b[33m';
+const RED = '\x1b[31m';
+const RESET = '\x1b[0m';
+
 // Exported for testing
 export function drawSquiggle(location: Location, indent: number): string {
   let {
@@ -168,7 +173,9 @@ export function drawSquiggle(location: Location, indent: number): string {
   for (const line of sectionToPrint.split('\n')) {
     result += `${' '.repeat(indent)}${line}\n`;
     const squiggleLength = Math.min(line.length - offset, length);
-    result += ' '.repeat(offset + indent) + '~'.repeat(squiggleLength) + '\n';
+    result +=
+      ' '.repeat(offset + indent) +
+      `${RED}${'~'.repeat(squiggleLength)}${RESET}\n`;
     offset = 0;
     length -= squiggleLength + 1; // +1 to account for the newline
   }
