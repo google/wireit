@@ -5,6 +5,7 @@
  */
 
 import fastGlob from 'fast-glob';
+import braces from 'braces';
 import * as pathlib from 'path';
 
 import type {Entry} from 'fast-glob';
@@ -44,6 +45,13 @@ export interface GlobOptions {
    * Note this works even if includeDirectories is false.
    */
   expandDirectories: boolean;
+
+  /**
+   * If true, interpret `/` as the `cwd`, but still allow `../` for referring
+   * outside of `cwd` (for example, `/foo` is interpreted as `<cwd>/foo`). If
+   * false, `/` refers to the root of the filesystem.
+   */
+  rerootToCwd: boolean;
 }
 
 interface GlobGroup {
@@ -85,17 +93,22 @@ export async function glob(
     return [];
   }
 
-  let expandedPatterns = patterns;
-  if (opts.expandDirectories) {
-    expandedPatterns = []; // New array so we don't mutate input patterns array.
-    for (const pattern of patterns) {
-      expandedPatterns.push(pattern);
-      // Also include a recursive-children version of every pattern, in case the
-      // pattern refers to a directory. This gives us behavior similar to the
-      // npm package.json "files" array, where matching a directory implicitly
-      // includes all transitive children.
-      if (!isRecursive(pattern)) {
-        expandedPatterns.push(pattern + '/**');
+  const expandedPatterns = []; // New array so we don't mutate input patterns array.
+  for (const pattern of patterns) {
+    // We need to expand `{foo,bar}` style brace patterns ourselves so that we
+    // can reliably interpret the syntax of the pattern. For example, for
+    // re-rooting we need to check for a leading `/`, but we can't do that
+    // directly on `{/foo,/bar}`.
+    for (const expanded of braces(pattern, {expand: true})) {
+      expandedPatterns.push(expanded);
+      if (opts.expandDirectories) {
+        // Also include a recursive-children version of every pattern, in case
+        // the pattern refers to a directory. This gives us behavior similar to
+        // the npm package.json "files" array, where matching a directory
+        // implicitly includes all transitive children.
+        if (!isRecursive(expanded)) {
+          expandedPatterns.push(expanded + '/**');
+        }
       }
     }
   }
@@ -131,8 +144,14 @@ export async function glob(
   // We want each group to include all subsequent negated patterns. The simplest
   // way to do that is to build the groups backwards.
   for (let i = expandedPatterns.length - 1; i >= 0; i--) {
-    const pattern = expandedPatterns[i];
+    let pattern = expandedPatterns[i];
     const isExclusive = pattern[0] === '!';
+    if (isExclusive) {
+      pattern = pattern.slice(1); // Remove the "!"
+    }
+    if (opts.rerootToCwd) {
+      pattern = pattern.replace(/^\/+/, '');
+    }
     if (isExclusive) {
       if (prevWasInclusive) {
         // A new group is needed because this exclusion comes before an
@@ -151,8 +170,7 @@ export async function glob(
         }
         groups.push(currentGroup);
       }
-      const inverted = pattern.slice(1); // Remove the "!"
-      currentGroup.exclude.push(inverted);
+      currentGroup.exclude.push(pattern);
     } else if (pattern.match(/^\s*$/)) {
       // fast-glob already throws on empty strings, but we also throw on
       // only-whitespace patterns.
@@ -189,6 +207,9 @@ export async function glob(
         // ENOTDIR errors when the path we appended to was not a directory. We
         // can't know in advance which patterns refer to directories.
         suppressErrors: true,
+        // We already do brace expansion ourselves. Doing it again would be
+        // inefficient and would also break brace escaping.
+        braceExpansion: false,
       });
       for (const match of matches) {
         combinedMap.set(match.path, match);
