@@ -28,6 +28,7 @@ interface TestCase {
   followSymlinks?: boolean;
   includeDirectories?: boolean;
   expandDirectories?: boolean;
+  rerootToCwd?: boolean;
 }
 
 const test = suite<{
@@ -44,11 +45,12 @@ test.before.each(async (ctx) => {
       files,
       patterns,
       expected,
-      cwd = rig.temp,
+      cwd = '.',
       absolute = false,
       followSymlinks = true,
       includeDirectories = false,
       expandDirectories = false,
+      rerootToCwd = false,
     }: TestCase): Promise<void> => {
       for (const file of files) {
         if (typeof file === 'string') {
@@ -73,11 +75,12 @@ test.before.each(async (ctx) => {
       let actual, error;
       try {
         actual = await glob(patterns, {
-          cwd,
+          cwd: rig.resolve(cwd),
           absolute,
           followSymlinks,
           includeDirectories,
           expandDirectories,
+          rerootToCwd,
         });
       } catch (e) {
         error = e;
@@ -408,6 +411,7 @@ test('dirent tags files', async ({rig}) => {
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    rerootToCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -424,6 +428,7 @@ test('dirent tags directories', async ({rig}) => {
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    rerootToCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -440,6 +445,7 @@ test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
     followSymlinks: false,
     includeDirectories: true,
     expandDirectories: false,
+    rerootToCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -459,6 +465,7 @@ test('dirent tags symlinks to files as files when followSymlinks=true', async ({
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    rerootToCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -478,6 +485,7 @@ test('dirent tags symlinks to directories as directories when followSymlinks=tru
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    rerootToCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -485,5 +493,46 @@ test('dirent tags symlinks to directories as directories when followSymlinks=tru
   assert.ok(actual[0].dirent.isDirectory());
   assert.not(actual[0].dirent.isSymbolicLink());
 });
+
+test('re-roots to cwd', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['/foo'],
+    expected: ['foo'],
+    rerootToCwd: true,
+  }));
+
+test('re-roots to cwd with exclusion', ({check}) =>
+  check({
+    files: ['foo', 'bar', 'baz'],
+    patterns: ['/*', '!/bar'],
+    expected: ['foo', 'baz'],
+    rerootToCwd: true,
+  }));
+
+test('re-rooting allows ../', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: ['../foo'],
+    rerootToCwd: true,
+  }));
+
+test('re-roots to cwd with braces', ({check}) =>
+  check({
+    files: ['foo', 'bar'],
+    patterns: ['{/foo,/bar}'],
+    expected: ['foo', 'bar'],
+    rerootToCwd: true,
+  }));
+
+test('braces can be escaped', ({check}) =>
+  check({
+    files: ['{foo,bar}'],
+    patterns: ['\\{foo,bar\\}'],
+    expected: ['{foo,bar}'],
+    rerootToCwd: true,
+  }));
 
 test.run();
