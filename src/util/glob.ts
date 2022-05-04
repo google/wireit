@@ -14,6 +14,16 @@ export type AbsoluteEntry = Entry & {_AbsoluteEntryBrand_: never};
 export type RelativeEntry = Entry & {_RelativeEntryBrand_: never};
 
 /**
+ * The error raised when {@link glob} matches a path that is outside of
+ * {@link GlobOptions.cwd} when {@link GlobOptions.throwIfOutsideCwd} is `true`.
+ */
+export class GlobOutsideCwdError extends Error {
+  constructor(path: string, cwd: string) {
+    super(`${JSON.stringify(path)} was outside ${JSON.stringify(cwd)}`);
+  }
+}
+
+/**
  * Options for {@link glob}.
  */
 export interface GlobOptions {
@@ -52,6 +62,11 @@ export interface GlobOptions {
    * false, `/` refers to the root of the filesystem.
    */
   rerootToCwd: boolean;
+
+  /**
+   * If true, throw an exception if a file matches which is not under the cwd.
+   */
+  throwIfOutsideCwd: boolean;
 }
 
 interface GlobGroup {
@@ -190,14 +205,20 @@ export async function glob(
   // Pass each group to fast-glob to match in parallel, and combine into a
   // single set.
   const combinedMap = new Map<string, Entry>();
+  // Ensure the cwd is absolute and normalized so that we can do path string
+  // comparisons.
+  const normalizedCwd = pathlib.resolve(opts.cwd);
+  const normalizedCwdWithTrailingSep = normalizedCwd + pathlib.sep;
   await Promise.all(
     groups.map(async ({include, exclude}) => {
       const matches = await fastGlob(include, {
         ignore: exclude,
-        cwd: opts.cwd,
+        cwd: normalizedCwd,
         dot: true,
         onlyFiles: !opts.includeDirectories,
-        absolute: opts.absolute,
+        // Return absolute paths, even if we ultimately return relative one, so
+        // that we can do path string comparisons.
+        absolute: true,
         followSymbolicLinks: opts.followSymlinks,
         // This should have no overhead because fast-glob already uses these
         // objects for its internal representation:
@@ -212,20 +233,44 @@ export async function glob(
         braceExpansion: false,
       });
       for (const match of matches) {
-        combinedMap.set(match.path, match);
+        // Normalize the path so that:
+        //
+        // 1. We have native path separators. fast-glob returns "/" even on
+        //    Windows.
+        //
+        // 2. Trailing slashes and other remnants of the input patterns like
+        //    ".." are normalized away. fast-glob tends to preserve these in the
+        //    results. Note that `fs.resolve` trims trailing slashes, but
+        //    `fs.normalize` does not.
+        let path = pathlib.resolve(match.path);
+        if (
+          opts.throwIfOutsideCwd &&
+          !path.startsWith(normalizedCwdWithTrailingSep) &&
+          path !== normalizedCwd
+        ) {
+          // TODO(aomarks) This check could in theory be done before we execute
+          // the globs, but we'd need to be really sure we account for special
+          // glob syntax, which could make it not 100% straightforward to do
+          // path checking. Checking the resulting paths is straightforward
+          // because we know they don't contain special syntax.
+          throw new GlobOutsideCwdError(path, opts.cwd);
+        }
+        if (!opts.absolute) {
+          path = pathlib.relative(normalizedCwd, path);
+          if (path === '') {
+            // Sometimes we exactly match the cwd. The normalized form of that
+            // is the empty string, but `.` is a little more clear and will
+            // always resolve to the same thing.
+            path = '.';
+          }
+        }
+        match.path = path;
+        combinedMap.set(path, match);
       }
     })
   );
 
-  const combinedArr = [...combinedMap.values()];
-  if (pathlib.sep === '\\') {
-    for (const entry of combinedArr) {
-      // fast-glob always returns "/" separated paths, even on Windows. Convert
-      // to the OS-native separator.
-      entry.path = pathlib.normalize(entry.path);
-    }
-  }
-  return combinedArr as AbsoluteEntry[] | RelativeEntry[];
+  return [...combinedMap.values()] as AbsoluteEntry[] | RelativeEntry[];
 }
 
 const isRecursive = (pattern: string): boolean =>
