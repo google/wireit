@@ -10,6 +10,7 @@ import * as pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
+import {removeAciiColors} from './util/colors.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -24,7 +25,11 @@ const assertScriptOutputEquals = (
   const assertOutputEqualish =
     NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
 
-  assertOutputEqualish(actual.trim(), expected.trim(), message);
+  assertOutputEqualish(
+    removeAciiColors(actual.trim()),
+    expected.trim(),
+    message
+  );
 };
 
 test.before.each(async (ctx) => {
