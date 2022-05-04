@@ -114,9 +114,9 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'invalid-json-syntax': {
-            console.error(
-              `❌${prefix} Invalid JSON syntax in package.json file in ${event.script.packageDir}`
-            );
+            for (const diagnostic of event.diagnostics) {
+              console.error(this.#diagnosticPrinter.print(diagnostic));
+            }
             break;
           }
           case 'invalid-package-json': {

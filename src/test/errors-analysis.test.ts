@@ -868,7 +868,7 @@ test(
           },
         },
       },
-      'bar/package.json': 'THIS IS NOT VALID JSON',
+      'bar/package.json': '{"scripts": {},}',
     });
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
@@ -876,10 +876,12 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [../bar:b] Invalid JSON syntax in package.json file in ${pathlib.resolve(
-        rig.temp,
-        'bar'
-      )}
+❌ ../bar/package.json:1:16 JSON syntax error
+    {"scripts": {},}
+                   ~
+❌ ../bar/package.json:1:16 JSON syntax error
+    {"scripts": {},}
+                   ~
 `
     );
   })

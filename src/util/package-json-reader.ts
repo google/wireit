@@ -41,7 +41,7 @@ export class CachingPackageJsonReader {
         }
         throw error;
       }
-      const ast = parseTree(contents, placeholder);
+      const ast = parseTree(path, contents, placeholder);
       file = {path, ast, contents};
       this.#cache.set(packageDir, file);
     }

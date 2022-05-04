@@ -10,7 +10,6 @@ import type {
   ScriptReference,
   PackageReference,
 } from './script.js';
-import type {ParseError} from './util/ast.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -131,7 +130,7 @@ export interface MissingPackageJson extends ErrorBase<ScriptReference> {
  */
 export interface PackageJsonParseError extends ErrorBase<ScriptReference> {
   reason: 'invalid-json-syntax';
-  errors: ParseError[];
+  diagnostics: Diagnostic[];
 }
 
 /**
