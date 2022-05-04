@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Diagnostic, Location} from './error.js';
+import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
   ScriptReference,
@@ -154,7 +154,7 @@ export interface NoScriptsSectionInPackageJson
  */
 export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
-  locationOfScriptsSection: Location;
+  diagnostic: Diagnostic;
 }
 
 /**

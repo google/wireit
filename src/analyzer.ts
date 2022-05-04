@@ -171,13 +171,17 @@ export class Analyzer {
         type: 'failure',
         reason: 'script-not-found',
         script: placeholder,
-        locationOfScriptsSection: {
-          file: packageJson,
-          range: {
-            offset: scriptsSection.offset,
-            length: scriptsSection.length,
+        diagnostic: {
+          severity: 'error',
+          message: `Script "${placeholder.name}" not found in the scripts section of this package.json.`,
+          location: {
+            file: packageJson,
+            range: {
+              offset: scriptsSection.name.offset,
+              length: scriptsSection.name.length,
+            },
           },
-        },
+        }
       });
     }
     assertNonBlankString(placeholder, scriptCommand, packageJson);

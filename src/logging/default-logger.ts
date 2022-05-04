@@ -133,9 +133,7 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'script-not-found': {
-            console.error(
-              `❌${prefix} No script named "${event.script.name}" was found in ${event.script.packageDir}`
-            );
+            console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
           case 'script-not-wireit': {

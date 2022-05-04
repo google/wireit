@@ -583,7 +583,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [missing] No script named "missing" was found in ${rig.temp}`
+❌ package.json:2:3 Script "missing" not found in the scripts section of this package.json.
+      "scripts": {
+      ~~~~~~~~~`
     );
   })
 );
