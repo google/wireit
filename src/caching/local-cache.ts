@@ -93,7 +93,6 @@ class LocalCacheHit implements CacheHit {
       followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,
-      rerootToCwd: true,
     });
     await copyEntries(entries, this.#source, this.#destination);
   }

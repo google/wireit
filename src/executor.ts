@@ -492,7 +492,6 @@ class ScriptExecution {
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
-          rerootToCwd: true,
         }
       )
     );
@@ -531,7 +530,6 @@ class ScriptExecution {
         // We must expand directories here, because we need the complete
         // explicit list of files to hash.
         expandDirectories: true,
-        rerootToCwd: true,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
       // build, use inode/mtime/ctime/size metadata (which is much faster to
@@ -664,7 +662,6 @@ class ScriptExecution {
       followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,
-      rerootToCwd: true,
     });
     if (absFiles.length === 0) {
       return;
