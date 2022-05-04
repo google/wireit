@@ -4,7 +4,7 @@ All notable changes to the "wireit" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## Unreleased
+## [0.2.0] - 2022-05-04
 
 - Add code actions to fix some common mistakes, as well as to convert a script
   to use wireit.

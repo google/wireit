@@ -80,7 +80,7 @@
       ],
       "files": [
         "package.json",
-        "schema.json"
+        "built/"
       ],
       "output": [],
       "command": "node ./lib/test/scripts/runner.js"
@@ -93,12 +93,14 @@
       "files": [
         "../schema.json",
         "../LICENSE",
-        "README.md"
+        "README.md",
+        "CHANGELOG.md"
       ],
       "output": [
         "built/schema.json",
         "built/LICENSE",
-        "built/README.md"
+        "built/README.md",
+        "built/CHANGELOG.md"
       ],
       "command": "node lib/scripts/copy-to-built.js"
     },
@@ -107,7 +109,7 @@
         "build:package"
       ],
       "files": [
-        "package.json"
+        "built"
       ],
       "command": "cd built && vsce package -o wireit.vsix"
     },

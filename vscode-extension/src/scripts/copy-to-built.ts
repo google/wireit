@@ -17,3 +17,4 @@ fs.mkdirSync('built', {recursive: true});
 fs.copyFileSync('../schema.json', './built/schema.json');
 fs.copyFileSync('../LICENSE', './built/LICENSE');
 fs.copyFileSync('./README.md', './built/README.md');
+fs.copyFileSync('./CHANGELOG.md', './built/CHANGELOG.md');
