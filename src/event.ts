@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Diagnostic} from './error.js';
+import {Diagnostic, Location} from './error.js';
 import type {
   ScriptConfig,
   ScriptReference,
@@ -154,7 +154,7 @@ export interface NoScriptsSectionInPackageJson
  */
 export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
-  astNode: JsonAstNode | undefined;
+  locationOfScriptsSection: Location;
 }
 
 /**
@@ -170,8 +170,7 @@ export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
  */
 export interface InvalidConfigSyntax extends ErrorBase<ScriptReference> {
   reason: 'invalid-config-syntax';
-  message: string;
-  astNode: JsonAstNode;
+  diagnostic: Diagnostic;
 }
 
 export interface InvalidUsage extends ErrorBase<ScriptReference> {

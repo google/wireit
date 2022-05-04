@@ -6,7 +6,10 @@
 
 import * as pathlib from 'path';
 import {WireitError} from './error.js';
-import {CachingPackageJsonReader} from './util/package-json-reader.js';
+import {
+  CachingPackageJsonReader,
+  JsonFile,
+} from './util/package-json-reader.js';
 import {scriptReferenceToString, stringToScriptReference} from './script.js';
 import {AggregateError} from './util/aggregate-error.js';
 import {findNamedNodeAtLocation, findNodeAtLocation} from './util/ast.js';
@@ -140,7 +143,8 @@ export class Analyzer {
     const scriptsSection = findNamedNodeAtLocation(
       packageJson.ast,
       ['scripts'],
-      placeholder
+      placeholder,
+      packageJson
     );
     if (scriptsSection === undefined) {
       throw new WireitError({
@@ -153,36 +157,45 @@ export class Analyzer {
     const wireitSection = findNamedNodeAtLocation(
       packageJson.ast,
       ['wireit'],
-      placeholder
+      placeholder,
+      packageJson
     );
     const scriptCommand = findNamedNodeAtLocation(
       scriptsSection,
       [placeholder.name],
-      placeholder
+      placeholder,
+      packageJson
     );
     if (scriptCommand === undefined) {
       throw new WireitError({
         type: 'failure',
         reason: 'script-not-found',
         script: placeholder,
-        astNode: wireitSection?.name ?? scriptsSection.name,
+        locationOfScriptsSection: {
+          file: packageJson,
+          range: {
+            offset: scriptsSection.offset,
+            length: scriptsSection.length,
+          },
+        },
       });
     }
-    assertNonBlankString(placeholder, scriptCommand, 'command');
+    assertNonBlankString(placeholder, scriptCommand, packageJson);
 
     if (wireitSection !== undefined) {
-      assertJsonObject(placeholder, wireitSection, 'wireit');
+      assertJsonObject(placeholder, wireitSection, packageJson);
     }
 
     const wireitConfig =
       wireitSection &&
-      findNamedNodeAtLocation(wireitSection, [placeholder.name], placeholder);
-    if (wireitConfig !== undefined) {
-      assertJsonObject(
+      findNamedNodeAtLocation(
+        wireitSection,
+        [placeholder.name],
         placeholder,
-        wireitConfig,
-        `wireit[${placeholder.name}]`
+        packageJson
       );
+    if (wireitConfig !== undefined) {
+      assertJsonObject(placeholder, wireitConfig, packageJson);
     }
 
     if (wireitConfig !== undefined && scriptCommand.value !== 'wireit') {
@@ -216,8 +229,14 @@ export class Analyzer {
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: placeholder,
-        message: `script has no wireit config`,
-        astNode: scriptCommand,
+        diagnostic: {
+          severity: 'error',
+          message: `This script is configured to run wireit but it has no config in the wireit section of this package.json file`,
+          location: {
+            file: packageJson,
+            range: {length: scriptCommand.length, offset: scriptCommand.offset},
+          },
+        },
       });
     }
 
@@ -225,7 +244,7 @@ export class Analyzer {
     const dependenciesAst =
       wireitConfig && findNodeAtLocation(wireitConfig, ['dependencies']);
     if (dependenciesAst !== undefined) {
-      assertArray(placeholder, dependenciesAst, 'dependencies');
+      assertArray(placeholder, dependenciesAst, packageJson);
       // Error if the same dependency is declared multiple times. Duplicate
       // dependencies aren't necessarily a serious problem (since we already
       // prevent double-analysis here, and double-analysis in the Executor), but
@@ -235,11 +254,11 @@ export class Analyzer {
       const children = dependenciesAst.children ?? [];
       for (let i = 0; i < children.length; i++) {
         const unresolved = children[i];
-        assertNonBlankString(placeholder, unresolved, `dependencies[${i}]`);
+        assertNonBlankString(placeholder, unresolved, packageJson);
         for (const resolved of this.#resolveDependency(
-          unresolved.value,
+          unresolved,
           placeholder,
-          unresolved
+          packageJson
         )) {
           const uniqueKey = scriptReferenceToString(resolved);
           const duplicate = uniqueDependencies.get(uniqueKey);
@@ -261,14 +280,14 @@ export class Analyzer {
 
     let command: JsonAstNode<string> | undefined;
     if (wireitConfig === undefined) {
-      assertNonBlankString(placeholder, scriptCommand, 'command');
+      assertNonBlankString(placeholder, scriptCommand, packageJson);
       command = scriptCommand;
     } else {
       const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
         | undefined
         | JsonAstNode<string>;
       if (commandAst !== undefined) {
-        assertNonBlankString(placeholder, commandAst, 'command');
+        assertNonBlankString(placeholder, commandAst, packageJson);
         command = commandAst;
       }
     }
@@ -282,19 +301,28 @@ export class Analyzer {
           type: 'failure',
           reason: 'invalid-config-syntax',
           script: placeholder,
-          message: `script has no command and no dependencies`,
-          astNode: wireitConfig.name,
+          diagnostic: {
+            severity: 'error',
+            message: `A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.`,
+            location: {
+              file: packageJson,
+              range: {
+                length: wireitConfig.name.length,
+                offset: wireitConfig.name.offset,
+              },
+            },
+          },
         });
       }
 
       const filesNode = findNodeAtLocation(wireitConfig, ['files']);
       if (filesNode !== undefined) {
         const values = [];
-        assertArray(placeholder, filesNode, 'files');
+        assertArray(placeholder, filesNode, packageJson);
         const children = filesNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const file = children[i];
-          assertNonBlankString(placeholder, file, `files[${i}]`);
+          assertNonBlankString(placeholder, file, packageJson);
           values.push(file.value);
         }
         files = {node: filesNode, values};
@@ -303,11 +331,11 @@ export class Analyzer {
       const outputNode = findNodeAtLocation(wireitConfig, ['output']);
       if (outputNode !== undefined) {
         const values = [];
-        assertArray(placeholder, outputNode, 'output');
+        assertArray(placeholder, outputNode, packageJson);
         const children = outputNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const anOutput = children[i];
-          assertNonBlankString(placeholder, anOutput, `output[${i}]`);
+          assertNonBlankString(placeholder, anOutput, packageJson);
           values.push(anOutput.value);
         }
         output = {node: outputNode, values};
@@ -325,8 +353,14 @@ export class Analyzer {
           script: placeholder,
           type: 'failure',
           reason: 'invalid-config-syntax',
-          message: `clean must be true, false, or "if-file-deleted"`,
-          astNode: clean,
+          diagnostic: {
+            severity: 'error',
+            message: `The "clean" property must be either true, false, or "if-file-deleted".`,
+            location: {
+              file: packageJson,
+              range: {length: clean.length, offset: clean.offset},
+            },
+          },
         });
       }
 
@@ -335,19 +369,25 @@ export class Analyzer {
       ]);
       let packageLocks: undefined | {node: JsonAstNode; values: string[]};
       if (packageLocksNode !== undefined) {
-        assertArray(placeholder, packageLocksNode, 'packageLocks');
+        assertArray(placeholder, packageLocksNode, packageJson);
         packageLocks = {node: packageLocksNode, values: []};
         const children = packageLocksNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const filename = children[i];
-          assertNonBlankString(placeholder, filename, `packageLocks[${i}]`);
+          assertNonBlankString(placeholder, filename, packageJson);
           if (filename.value !== pathlib.basename(filename.value)) {
             throw new WireitError({
               type: 'failure',
               reason: 'invalid-config-syntax',
               script: placeholder,
-              message: `packageLocks[${i}] must be a filename, not a path`,
-              astNode: filename,
+              diagnostic: {
+                severity: 'error',
+                message: `A package lock must be a filename, not a path`,
+                location: {
+                  file: packageJson,
+                  range: {length: filename.length, offset: filename.offset},
+                },
+              },
             });
           }
           packageLocks.values.push(filename.value);
@@ -389,6 +429,7 @@ export class Analyzer {
       clean: clean?.value ?? true,
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
+      declaringFile: packageJson,
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -449,19 +490,23 @@ export class Analyzer {
    * Note this can return 0, 1, or >1 script references.
    */
   #resolveDependency(
-    dependency: string,
+    dependency: JsonAstNode<string>,
     context: ScriptReference,
-    reference: JsonAstNode
+    referencingFile: JsonFile
   ): Array<ScriptReference> {
     // TODO(aomarks) Implement $WORKSPACES syntax.
-    if (dependency.startsWith('.')) {
+    if (dependency.value.startsWith('.')) {
       // TODO(aomarks) It is technically valid for an npm script to start with a
       // ".". We should support that edge case with backslash escaping.
       return [
-        this.#resolveCrossPackageDependency(dependency, context, reference),
+        this.#resolveCrossPackageDependency(
+          dependency,
+          context,
+          referencingFile
+        ),
       ];
     }
-    return [{packageDir: context.packageDir, name: dependency}];
+    return [{packageDir: context.packageDir, name: dependency.value}];
   }
 
   /**
@@ -469,39 +514,51 @@ export class Analyzer {
    * Cross-package dependencies always start with a ".".
    */
   #resolveCrossPackageDependency(
-    dependency: string,
+    dependency: JsonAstNode<string>,
     context: ScriptReference,
-    reference: JsonAstNode
+    referencingFile: JsonFile
   ) {
     // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
     // path. We should support that edge case with backslash escaping.
-    const firstColonIdx = dependency.indexOf(':');
+    const firstColonIdx = dependency.value.indexOf(':');
     if (firstColonIdx === -1) {
       throw new WireitError({
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: context,
-        message:
-          `Cross-package dependency must use syntax ` +
-          `"<relative-path>:<script-name>", ` +
-          `but there was no ":" character in "${dependency}".`,
-        astNode: reference,
+        diagnostic: {
+          severity: 'error',
+          message:
+            `Cross-package dependency must use syntax ` +
+            `"<relative-path>:<script-name>", ` +
+            `but there's no ":" character in "${dependency.value}".`,
+          location: {
+            file: referencingFile,
+            range: {offset: dependency.offset, length: dependency.length},
+          },
+        },
       });
     }
-    const scriptName = dependency.slice(firstColonIdx + 1);
+    const scriptName = dependency.value.slice(firstColonIdx + 1);
     if (!scriptName) {
       throw new WireitError({
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: context,
-        message:
-          `Cross-package dependency must use syntax ` +
-          `"<relative-path>:<script-name>", ` +
-          `but there was no script name in "${dependency}".`,
-        astNode: reference,
+        diagnostic: {
+          severity: 'error',
+          message:
+            `Cross-package dependency must use syntax ` +
+            `"<relative-path>:<script-name>", ` +
+            `but there's no script name in "${dependency.value}".`,
+          location: {
+            file: referencingFile,
+            range: {offset: dependency.offset, length: dependency.length},
+          },
+        },
       });
     }
-    const relativePackageDir = dependency.slice(0, firstColonIdx);
+    const relativePackageDir = dependency.value.slice(0, firstColonIdx);
     const absolutePackageDir = pathlib.resolve(
       context.packageDir,
       relativePackageDir
@@ -511,10 +568,16 @@ export class Analyzer {
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: context,
-        message:
-          `Cross-package dependency "${dependency}" ` +
-          `resolved to the same package.`,
-        astNode: reference,
+        diagnostic: {
+          severity: 'error',
+          message:
+            `Cross-package dependency "${dependency.value}" ` +
+            `resolved to the same package.`,
+          location: {
+            file: referencingFile,
+            range: {offset: dependency.offset, length: dependency.length},
+          },
+        },
       });
     }
     return {packageDir: absolutePackageDir, name: scriptName};
@@ -527,34 +590,52 @@ export class Analyzer {
 function assertNonBlankString(
   script: ScriptReference,
   astNode: JsonAstNode,
-  name: string
+  file: JsonFile
 ): asserts astNode is JsonAstNode<string>;
 function assertNonBlankString(
   script: ScriptReference,
   astNode: NamedAstNode,
-  name: string
+  file: JsonFile
 ): asserts astNode is NamedAstNode<string>;
 function assertNonBlankString(
   script: ScriptReference,
   astNode: JsonAstNode,
-  name: string
+  file: JsonFile
 ): asserts astNode is JsonAstNode<string> {
-  if (typeof astNode.value !== 'string') {
+  if (astNode.type !== 'string') {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
       script,
-      message: `${name} is not a string`,
-      astNode,
+      diagnostic: {
+        severity: 'error',
+        message: `Expected a string, but was ${astNode.type}.`,
+        location: {
+          file,
+          range: {
+            offset: astNode.offset,
+            length: astNode.length,
+          },
+        },
+      },
     });
   }
-  if (astNode.value.match(/^\s*$/)) {
+  if ((astNode.value as string).match(/^\s*$/)) {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
       script,
-      message: `${name} is empty or blank`,
-      astNode,
+      diagnostic: {
+        severity: 'error',
+        message: `Expected this field to be nonempty`,
+        location: {
+          file,
+          range: {
+            offset: astNode.offset,
+            length: astNode.length,
+          },
+        },
+      },
     });
   }
 }
@@ -565,15 +646,24 @@ function assertNonBlankString(
 const assertArray = (
   script: ScriptReference,
   astNode: JsonAstNode,
-  name: string
+  file: JsonFile
 ) => {
   if (astNode.type !== 'array') {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
       script,
-      message: `${name} is not an array`,
-      astNode,
+      diagnostic: {
+        severity: 'error',
+        message: `Expected an array, but was ${astNode.type}.`,
+        location: {
+          file: file,
+          range: {
+            offset: astNode.offset,
+            length: astNode.length,
+          },
+        },
+      },
     });
   }
 };
@@ -585,15 +675,24 @@ const assertArray = (
 const assertJsonObject = (
   script: ScriptReference,
   astNode: JsonAstNode,
-  name: string
+  file: JsonFile
 ) => {
   if (astNode.type !== 'object') {
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
       script,
-      astNode,
-      message: `${name} is not an object`,
+      diagnostic: {
+        severity: 'error',
+        message: `Expected an object, but was ${astNode.type}.`,
+        location: {
+          file: file,
+          range: {
+            offset: astNode.offset,
+            length: astNode.length,
+          },
+        },
+      },
     });
   }
 };

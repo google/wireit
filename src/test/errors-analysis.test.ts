@@ -25,11 +25,9 @@ const assertScriptOutputEquals = (
   const assertOutputEqualish =
     NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
 
-  assertOutputEqualish(
-    removeAciiColors(actual.trim()),
-    expected.trim(),
-    message
-  );
+  actual = removeAciiColors(actual.trim());
+  expected = expected.trim();
+  assertOutputEqualish(actual, expected, message);
 };
 
 test.before.each(async (ctx) => {
@@ -72,7 +70,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: wireit is not an object\n`
+❌ package.json:5:13 Expected an object, but was array.
+      "wireit": []
+                ~~`
     );
   })
 );
@@ -96,7 +96,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: wireit[a] is not an object`
+❌ package.json:6:10 Expected an object, but was array.
+        "a": []
+             ~~`
     );
   })
 );
@@ -122,7 +124,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: dependencies is not an array`
+❌ package.json:7:23 Expected an array, but was object.
+          "dependencies": {}
+                          ~~`
     );
   })
 );
@@ -148,7 +152,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: dependencies[0] is not a string`
+❌ package.json:8:9 Expected a string, but was array.
+            []
+            ~~`
     );
   })
 );
@@ -174,7 +180,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: dependencies[0] is empty or blank`
+❌ package.json:8:9 Expected this field to be nonempty
+            " "
+            ~~~`
     );
   })
 );
@@ -200,7 +208,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: command is not a string`
+❌ package.json:7:18 Expected a string, but was array.
+          "command": []
+                     ~~`
     );
   })
 );
@@ -226,7 +236,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: command is empty or blank`
+❌ package.json:7:18 Expected this field to be nonempty
+          "command": ""
+                     ~~`
     );
   })
 );
@@ -253,7 +265,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: files is not an array`
+❌ package.json:8:16 Expected an array, but was object.
+          "files": {}
+                   ~~`
     );
   })
 );
@@ -280,7 +294,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: files[0] is not a string`
+❌ package.json:9:9 Expected a string, but was number.
+            0
+            ~`
     );
   })
 );
@@ -307,7 +323,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: files[0] is empty or blank`
+❌ package.json:9:9 Expected this field to be nonempty
+            ""
+            ~~`
     );
   })
 );
@@ -334,7 +352,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: output is not an array`
+❌ package.json:8:17 Expected an array, but was object.
+          "output": {}
+                    ~~`
     );
   })
 );
@@ -361,7 +381,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: output[0] is not a string`
+❌ package.json:9:9 Expected a string, but was number.
+            0
+            ~`
     );
   })
 );
@@ -388,7 +410,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: output[0] is empty or blank`
+❌ package.json:9:9 Expected this field to be nonempty
+            " \\t\\n "
+            ~~~~~~~~`
     );
   })
 );
@@ -415,7 +439,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: clean must be true, false, or "if-file-deleted"`
+❌ package.json:8:16 The "clean" property must be either true, false, or "if-file-deleted".
+          "clean": 0
+                   ~`
     );
   })
 );
@@ -442,7 +468,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: packageLocks is not an array`
+❌ package.json:8:23 Expected an array, but was number.
+          "packageLocks": 0
+                          ~`
     );
   })
 );
@@ -469,7 +497,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: packageLocks[0] is not a string`
+❌ package.json:9:9 Expected a string, but was number.
+            0
+            ~`
     );
   })
 );
@@ -496,7 +526,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: packageLocks[0] is empty or blank`
+❌ package.json:9:9 Expected this field to be nonempty
+            " "
+            ~~~`
     );
   })
 );
@@ -523,7 +555,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: packageLocks[0] must be a filename, not a path`
+❌ package.json:9:9 A package lock must be a filename, not a path
+            "../package-lock.json"
+            ~~~~~~~~~~~~~~~~~~~~~~`
     );
   })
 );
@@ -635,7 +669,10 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: script has no wireit config`
+❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
+        "a": "wireit"
+             ~~~~~~~~
+`
     );
   })
 );
@@ -659,7 +696,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: script has no command and no dependencies`
+❌ package.json:6:5 A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.
+        "a": {}
+        ~~~`
     );
   })
 );
@@ -685,7 +724,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: Cross-package dependency must use syntax "<relative-path>:<script-name>", but there was no ":" character in "../foo".
+❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no ":" character in "../foo".
+            "../foo"
+            ~~~~~~~~
 `
     );
   })
@@ -712,7 +753,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: Cross-package dependency must use syntax "<relative-path>:<script-name>", but there was no script name in "../foo:".
+❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no script name in "../foo:".
+            "../foo:"
+            ~~~~~~~~~
 `
     );
   })
@@ -739,7 +782,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: Cross-package dependency ".:b" resolved to the same package.
+❌ package.json:8:9 Cross-package dependency ".:b" resolved to the same package.
+            ".:b"
+            ~~~~~
 `
     );
   })
@@ -766,7 +811,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Invalid config: Cross-package dependency "../foo:b" resolved to the same package.
+❌ package.json:8:9 Cross-package dependency "../foo:b" resolved to the same package.
+            "../foo:b"
+            ~~~~~~~~~~
 `
     );
   })
@@ -1209,8 +1256,12 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [b] Invalid config: script has no command and no dependencies
-❌ [c] Invalid config: script has no command and no dependencies`
+❌ package.json:15:5 A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.
+        "b": {},
+        ~~~
+❌ package.json:16:5 A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.
+        "c": {}
+        ~~~`
     );
   })
 );
