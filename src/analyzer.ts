@@ -200,7 +200,7 @@ export class Analyzer {
           },
           supplementalLocations: [
             {
-              message: `the wireit config is here`,
+              message: `The wireit config is here.`,
               location: {
                 file: packageJson,
                 range: {length: configName.length, offset: configName.offset},

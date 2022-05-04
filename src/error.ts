@@ -6,7 +6,7 @@
 
 import type {Failure} from './event.js';
 import {JsonFile} from './util/package-json-reader.js';
-import * as pathLib from 'path';
+import * as pathlib from 'path';
 
 /**
  * A known Wireit error.
@@ -82,7 +82,7 @@ ${drawSquiggle(diagnostic.location, 4)}`;
   }
 
   #formatPath(location: Location) {
-    const relPath = pathLib.relative(this.#cwd, location.file.path);
+    const relPath = pathlib.relative(this.#cwd, location.file.path);
     const {line, column} = this.#offsetToPosition(
       location.file,
       location.range.offset
