@@ -879,10 +879,10 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ ../bar/package.json:1:16 JSON syntax error
+❌ ..${pathlib.sep}bar${pathlib.sep}package.json:1:16 JSON syntax error
     {"scripts": {},}
                    ~
-❌ ../bar/package.json:1:16 JSON syntax error
+❌ ..${pathlib.sep}bar${pathlib.sep}package.json:1:16 JSON syntax error
     {"scripts": {},}
                    ~
 `
@@ -1293,7 +1293,7 @@ test(
                 "../bar:b"
                 ~~~~~~~~~~
 
-    ../bar/package.json:8:9 "b" points back to "../foo:a"
+    ..${pathlib.sep}bar${pathlib.sep}package.json:8:9 "b" points back to "../foo:a"
                 "../foo:a"
                 ~~~~~~~~~~
 `
