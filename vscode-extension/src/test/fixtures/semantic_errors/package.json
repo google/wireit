@@ -3,8 +3,7 @@
     "not_wireit_command": "tsc",
     "neither_dependencies_nor_command": "wireit",
     "invalid_dependency": "wireit",
-    "unrelated": "foo bar baz",
-    "foo": "bar baz blah"
+    "unrelated": "foo bar baz"
   },
   "wireit": {
     "not_wireit_command": {
@@ -18,8 +17,6 @@
     },
     "neither_dependencies_nor_command": {
       "clean": true
-    },
-    "foo": {
     }
   }
 }

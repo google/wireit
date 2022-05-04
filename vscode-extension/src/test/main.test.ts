@@ -81,7 +81,8 @@ test('warns on a package.json based on semantic analysis in the language server'
       `This script is declared in the "wireit" section, but that won't have any effect unless this command is just "wireit"`,
       `This script is declared in the "wireit" section, but not in the "scripts" section`,
       'Set either "command" or "dependencies", otherwise there\'s nothing for wireit to do.',
-    ]
+    ],
+    JSON.stringify(diagnostics.map((d) => d.message))
   );
   assert.equal(
     diagnostics.map((d) => ({
