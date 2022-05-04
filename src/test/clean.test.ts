@@ -8,6 +8,8 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
+import * as pathlib from 'path';
+import {removeAciiColors} from './util/colors.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -279,6 +281,7 @@ test(
 test(
   'errors if cleaning output outside of the package',
   timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
         scripts: {
@@ -286,7 +289,7 @@ test(
         },
         wireit: {
           a: {
-            command: 'true',
+            command: cmdA.command,
             output: ['../outside'],
           },
         },
@@ -294,14 +297,23 @@ test(
       outside: 'bad',
     });
 
-    const exec = rig.exec('npm run a', {cwd: 'foo'});
-    const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.match(
-      res.stderr,
-      /❌ \[a\] Invalid config: Output files must be within the package: ".+outside" was outside ".+foo"/,
-      res.stderr
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.equal(
+      removeAciiColors(done.stderr.trim()),
+      `
+❌ package.json:8:17 Output files must be within the package: ${JSON.stringify(
+        pathlib.join(rig.temp, 'outside')
+      )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
+          "output": [
+                    ~
+            "../outside"
+    ~~~~~~~~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`.trim()
     );
+    assert.equal(cmdA.numInvocations, 0);
 
     // The outside file should not have been deleted.
     assert.ok(await rig.exists('outside'));

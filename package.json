@@ -92,7 +92,7 @@
         ".eslintignore",
         ".eslintrc.cjs",
         "src/**/*.ts",
-        "vscode-extension/**/*.ts"
+        "vscode-extension/src/**/*.ts"
       ],
       "output": []
     },

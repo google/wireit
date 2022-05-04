@@ -106,7 +106,7 @@ echo .wireit >> .gitignore
 
 ## VSCode Extension
 
-If you use VSCode, consider installing the `google.wireit` extension. It adds documentation on hover, autocomplete, and can diagnose a number of common mistakes.
+If you use VSCode, consider installing the `google.wireit` extension. It adds documentation on hover, autocomplete, can diagnose a number of common mistakes, and even suggest a refactoring to convert an npm script to use wireit.
 
 Install it [from the marketplace](https://marketplace.visualstudio.com/items?itemName=google.wireit) or on the command line like:
 

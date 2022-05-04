@@ -57,13 +57,6 @@ export interface GlobOptions {
   expandDirectories: boolean;
 
   /**
-   * If true, interpret `/` as the `cwd`, but still allow `../` for referring
-   * outside of `cwd` (for example, `/foo` is interpreted as `<cwd>/foo`). If
-   * false, `/` refers to the root of the filesystem.
-   */
-  rerootToCwd: boolean;
-
-  /**
    * If true, throw an exception if a file matches which is not under the cwd.
    */
   throwIfOutsideCwd: boolean;
@@ -79,6 +72,8 @@ interface GlobGroup {
  *
  * - Input patterns must be / separated.
  * - Matches are returned with the OS-specific separator.
+ * - Leading `/`s are interpreted as relative to the `cwd`, instead of the root
+ *   of the filesystem.
  * - Dot (aka hidden) files are always matched.
  * - Empty or blank patterns throw.
  * - The order of "!exclusion" patterns matter (i.e. files can be "re-included"
@@ -164,9 +159,10 @@ export async function glob(
     if (isExclusive) {
       pattern = pattern.slice(1); // Remove the "!"
     }
-    if (opts.rerootToCwd) {
-      pattern = pattern.replace(/^\/+/, '');
-    }
+    // Ignore leading `/`s so that e.g. "/foo" is interpreted relative to the
+    // cwd, instead of relative to the root of the filesystem. We want to include
+    // >1 leading slashes, since those are technically valid paths too.
+    pattern = pattern.replace(/^\/+/, '');
     if (isExclusive) {
       if (prevWasInclusive) {
         // A new group is needed because this exclusion comes before an

@@ -8,6 +8,7 @@ import * as jsonParser from 'jsonc-parser';
 import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
 import {PlaceholderConfig} from '../analyzer.js';
 import {WireitError} from '../error.js';
+import {JsonFile} from './package-json-reader.js';
 export {ParseError} from 'jsonc-parser';
 
 type ValueTypes = string | number | boolean | null | undefined;
@@ -60,7 +61,8 @@ export interface NamedAstNode<T extends ValueTypes = ValueTypes>
 export function findNamedNodeAtLocation(
   astNode: JsonAstNode,
   path: jsonParser.JSONPath,
-  script: PlaceholderConfig
+  script: PlaceholderConfig,
+  file: JsonFile
 ): NamedAstNode | undefined {
   const node = findNodeAtLocation(astNode, path) as NamedAstNode | undefined;
   const parent = node?.parent;
@@ -72,9 +74,15 @@ export function findNamedNodeAtLocation(
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-config-syntax',
-      message: `Expected a property, but got a ${parent.type}`,
-      astNode: parent,
       script,
+      diagnostic: {
+        severity: 'error',
+        message: `Expected a property, but got a ${parent.type}`,
+        location: {
+          file,
+          range: {offset: astNode.offset, length: astNode.length},
+        },
+      },
     });
   }
   node.name = name;

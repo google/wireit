@@ -93,7 +93,6 @@ class LocalCacheHit implements CacheHit {
       followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,
-      rerootToCwd: true,
       // Shouldn't ever happen, but would be really weird.
       throwIfOutsideCwd: true,
     });

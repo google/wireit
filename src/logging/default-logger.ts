@@ -143,7 +143,7 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'invalid-config-syntax': {
-            console.error(`❌${prefix} Invalid config: ${event.message}`);
+            console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
           case 'invalid-usage': {

@@ -491,7 +491,6 @@ class ScriptExecution {
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
-          rerootToCwd: true,
           throwIfOutsideCwd: true,
         }
       );
@@ -504,8 +503,17 @@ class ScriptExecution {
           script: this.#script,
           type: 'failure',
           reason: 'invalid-config-syntax',
-          message: `Output files must be within the package: ${error.message}`,
-          astNode: this.#script.output.node,
+          diagnostic: {
+            severity: 'error',
+            message: `Output files must be within the package: ${error.message}`,
+            location: {
+              file: this.#script.declaringFile,
+              range: {
+                offset: this.#script.output.node.offset,
+                length: this.#script.output.node.length,
+              },
+            },
+          },
         });
       }
       throw error;
@@ -546,7 +554,6 @@ class ScriptExecution {
         // We must expand directories here, because we need the complete
         // explicit list of files to hash.
         expandDirectories: true,
-        rerootToCwd: true,
         throwIfOutsideCwd: false,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
@@ -682,7 +689,6 @@ class ScriptExecution {
         followSymlinks: false,
         includeDirectories: true,
         expandDirectories: true,
-        rerootToCwd: true,
         throwIfOutsideCwd: true,
       });
     } catch (error) {
@@ -694,8 +700,17 @@ class ScriptExecution {
           script: this.#script,
           type: 'failure',
           reason: 'invalid-config-syntax',
-          message: `Output files must be within the package: ${error.message}`,
-          astNode: this.#script.output.node,
+          diagnostic: {
+            severity: 'error',
+            message: `Output files must be within the package: ${error.message}`,
+            location: {
+              file: this.#script.declaringFile,
+              range: {
+                offset: this.#script.output.node.offset,
+                length: this.#script.output.node.length,
+              },
+            },
+          },
         });
       }
       throw error;
