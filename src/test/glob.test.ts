@@ -124,11 +124,34 @@ test('empty patterns', ({check}) =>
     expected: [],
   }));
 
-test('explicit file', ({check}) =>
+test('normalizes trailing / in pattern (relative)', ({check}) =>
   check({
     files: ['foo'],
-    patterns: ['foo'],
+    patterns: ['foo/'],
     expected: ['foo'],
+  }));
+
+test('normalizes ../ in pattern (relative)', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['bar/../foo'],
+    expected: ['foo'],
+  }));
+
+test('normalizes trailing / in pattern (absolute)', ({check, rig}) =>
+  check({
+    files: ['foo'],
+    patterns: ['foo/'],
+    expected: [rig.resolve('foo')],
+    absolute: true,
+  }));
+
+test('normalizes ../ in pattern (absolute)', ({check, rig}) =>
+  check({
+    files: ['foo'],
+    patterns: ['bar/../foo'],
+    expected: [rig.resolve('foo')],
+    absolute: true,
   }));
 
 test('explicit file that does not exist', ({check}) =>
@@ -516,13 +539,11 @@ test('re-rooting allows ../', ({check}) =>
     expected: ['../foo'],
   }));
 
-// TODO(aomarks) This should be normalized to "foo" consistently. It currently
-// differs on Windows between Node 14 and 16.
-test.skip('re-rooting handles /./foo', ({check}) =>
+test('re-rooting handles /./foo', ({check}) =>
   check({
     files: ['foo'],
     patterns: ['/./foo'],
-    expected: [`.${pathlib.sep}foo`],
+    expected: ['foo'],
   }));
 
 test('re-rooting handles /../foo', ({check}) =>
@@ -531,6 +552,13 @@ test('re-rooting handles /../foo', ({check}) =>
     files: ['foo', 'subdir/'],
     patterns: ['/../foo'],
     expected: ['../foo'],
+  }));
+
+test('re-rooting handles /bar/../foo/', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['/bar/../foo/'],
+    expected: ['foo'],
   }));
 
 test('re-roots to cwd with braces', ({check}) =>
