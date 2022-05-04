@@ -526,10 +526,17 @@ The following glob syntaxes are supported in the `files` and `output` arrays:
 
 Also note these details:
 
+- Paths should always use `/` (forward-slash) delimiters, even on Windows.
+- Paths are interpreted relative to the current package even if there is a
+  leading `/` (e.g. `/foo` is the same as `foo`).
 - Whenever a directory is matched, all recursive children of that directory are
   included.
+- `files` are allowed to reach outside of the current package using e.g.
+  `../foo`. `output` files cannot reference files outside of the current
+  package.
 - Symlinks in input `files` are followed, so that they are identified by their content.
-- Symlinks in `output` files are cached as symlinks, so that restoring from cache doesn't create unnecessary copies.
+- Symlinks in `output` files are cached as symlinks, so that restoring from
+  cache doesn't create unnecessary copies.
 - The order of `!exclude` patterns is significant.
 - Hidden/dot files are matched by `*` and `**`.
 - Patterns are case-sensitive (if supported by the filesystem).

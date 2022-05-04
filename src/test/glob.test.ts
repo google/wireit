@@ -44,7 +44,7 @@ test.before.each(async (ctx) => {
       files,
       patterns,
       expected,
-      cwd = rig.temp,
+      cwd = '.',
       absolute = false,
       followSymlinks = true,
       includeDirectories = false,
@@ -73,7 +73,7 @@ test.before.each(async (ctx) => {
       let actual, error;
       try {
         actual = await glob(patterns, {
-          cwd,
+          cwd: rig.resolve(cwd),
           absolute,
           followSymlinks,
           includeDirectories,
@@ -485,5 +485,58 @@ test('dirent tags symlinks to directories as directories when followSymlinks=tru
   assert.ok(actual[0].dirent.isDirectory());
   assert.not(actual[0].dirent.isSymbolicLink());
 });
+
+test('re-roots to cwd', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['/foo'],
+    expected: ['foo'],
+  }));
+
+test('re-roots to cwd with exclusion', ({check}) =>
+  check({
+    files: ['foo', 'bar', 'baz'],
+    patterns: ['/*', '!/bar'],
+    expected: ['foo', 'baz'],
+  }));
+
+test('re-rooting allows ../', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: ['../foo'],
+  }));
+
+// TODO(aomarks) This should be normalized to "foo" consistently. It currently
+// differs on Windows between Node 14 and 16.
+test.skip('re-rooting handles /./foo', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['/./foo'],
+    expected: [`.${pathlib.sep}foo`],
+  }));
+
+test('re-rooting handles /../foo', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['/../foo'],
+    expected: ['../foo'],
+  }));
+
+test('re-roots to cwd with braces', ({check}) =>
+  check({
+    files: ['foo', 'bar'],
+    patterns: ['{/foo,/bar}'],
+    expected: ['foo', 'bar'],
+  }));
+
+test('braces can be escaped', ({check}) =>
+  check({
+    files: ['{foo,bar}'],
+    patterns: ['\\{foo,bar\\}'],
+    expected: ['{foo,bar}'],
+  }));
 
 test.run();

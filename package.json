@@ -236,6 +236,7 @@
     }
   },
   "devDependencies": {
+    "@types/braces": "^3.0.1",
     "@types/node": "^14.0.0",
     "@typescript-eslint/eslint-plugin": "^5.17.0",
     "@typescript-eslint/parser": "^5.17.0",
@@ -255,6 +256,7 @@
   },
   "dependencies": {
     "@actions/cache": "=2.0.2",
+    "braces": "^3.0.2",
     "chokidar": "^3.5.3",
     "fast-glob": "^3.2.11",
     "jsonc-parser": "^3.0.0"

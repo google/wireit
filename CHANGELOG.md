@@ -10,8 +10,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Starting to improve error messages by drawing squiggles underneith the
-  specific part of the package.json file that's in error.
+- [**Breaking**] A leading `/` on a `files` or `output` glob pattern is now
+  interpreted relative to the current package directory. Previously it was
+  interpreted relative to the root of the filesystem. In the case of `files`
+  (but not `output`), it is still possible to reference files outside of the
+  current package with a pattern like `../foo`.
+
+- Starting to improve error messages by drawing squiggles underneath the
+  specific part of the `package.json` file that's in error.
 
 ## [0.3.1] - 2022-04-30
 
