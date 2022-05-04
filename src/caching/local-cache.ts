@@ -94,6 +94,8 @@ class LocalCacheHit implements CacheHit {
       includeDirectories: true,
       expandDirectories: true,
       rerootToCwd: true,
+      // Shouldn't ever happen, but would be really weird.
+      throwIfOutsideCwd: true,
     });
     await copyEntries(entries, this.#source, this.#destination);
   }
