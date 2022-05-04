@@ -145,7 +145,8 @@ export async function glob(
       pattern = pattern.slice(1); // Remove the "!"
     }
     // Ignore leading `/`s so that e.g. "/foo" is interpreted relative to the
-    // cwd, instead of relative to the root of the filesystem.
+    // cwd, instead of relative to the root of the filesystem. We want to include
+    // >1 leading slashes, since those are technically valid paths too.
     pattern = pattern.replace(/^\/+/, '');
     if (isExclusive) {
       if (prevWasInclusive) {
