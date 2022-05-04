@@ -195,16 +195,7 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
 export interface Cycle extends ErrorBase<ScriptReference> {
   reason: 'cycle';
 
-  /**
-   * The number of edges in the cycle (e.g. "A -> B -> A" is 2).
-   */
-  length: number;
-
-  /**
-   * The walk that was taken that resulted in the cycle being detected, starting
-   * from the root script.
-   */
-  trail: ScriptReference[];
+  diagnostic: Diagnostic;
 }
 
 // -------------------------------

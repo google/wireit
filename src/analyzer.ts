@@ -5,12 +5,12 @@
  */
 
 import * as pathlib from 'path';
-import {WireitError} from './error.js';
+import {Diagnostic, MessageLocation, WireitError} from './error.js';
 import {
   CachingPackageJsonReader,
   JsonFile,
 } from './util/package-json-reader.js';
-import {scriptReferenceToString, stringToScriptReference} from './script.js';
+import {scriptReferenceToString} from './script.js';
 import {AggregateError} from './util/aggregate-error.js';
 import {findNamedNodeAtLocation, findNodeAtLocation} from './util/ast.js';
 
@@ -88,7 +88,7 @@ export class Analyzer {
     // We can safely assume all placeholders have now been upgraded to full
     // configs.
     const rootConfig = rootPlaceholder as ScriptConfig;
-    this.#checkForCyclesAndSortDependencies(rootConfig, new Set());
+    this.#checkForCyclesAndSortDependencies(rootConfig, new Map());
     return rootConfig;
   }
 
@@ -458,30 +458,83 @@ export class Analyzer {
 
   #checkForCyclesAndSortDependencies(
     config: ScriptConfig,
-    trail: Set<ScriptReferenceString>
+    trail: Map<ScriptReferenceString, ScriptConfig>
   ) {
     const trailKey = scriptReferenceToString(config);
+    const supplementalLocations: MessageLocation[] = [];
     if (trail.has(trailKey)) {
       // Found a cycle.
-      const trailArray = [];
       let cycleStart = 0;
-      // Trail is in graph traversal order because JavaScript Set iteration
+      // Trail is in graph traversal order because JavaScript Map iteration
       // order matches insertion order.
       let i = 0;
-      for (const visited of trail) {
-        trailArray.push(stringToScriptReference(visited));
-        if (visited === trailKey) {
+      for (const visitedKey of trail.keys()) {
+        if (visitedKey === trailKey) {
           cycleStart = i;
         }
         i++;
       }
-      trailArray.push({packageDir: config.packageDir, name: config.name});
+      const trailArray = [...trail.values()];
+      trailArray.push(config);
+      const cycleEnd = trailArray.length - 1;
+      for (let i = cycleStart; i < cycleEnd; i++) {
+        const current = trailArray[i];
+        const next = trailArray[i + 1];
+        const nextIdx = current.dependencies.indexOf(next);
+        const dependencyNode = current.dependenciesAst?.children?.[nextIdx];
+        // Use the actual value in the array, because this could refer to
+        // a script in another package.
+        const nextName =
+          dependencyNode?.value ?? next?.name ?? trailArray[cycleStart].name;
+        const message =
+          next == trailArray[cycleStart]
+            ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
+                nextName
+              )}`
+            : `${JSON.stringify(current.name)} points to ${JSON.stringify(
+                nextName
+              )}`;
+
+        const culpritNode =
+          // This should always be present
+          dependencyNode ??
+          // But failing that, fall back to the best node we have.
+          current.configAstNode?.name ??
+          current.scriptAstNode?.name;
+        supplementalLocations.push({
+          message,
+          location: {
+            file: current.declaringFile,
+            range: {
+              offset: culpritNode.offset,
+              length: culpritNode.length,
+            },
+          },
+        });
+      }
+      const diagnostic: Diagnostic = {
+        severity: 'error',
+        message: `Cycle detected in dependencies of ${JSON.stringify(
+          config.name
+        )}.`,
+        location: {
+          file: config.declaringFile,
+          range: {
+            length:
+              config.configAstNode?.name.length ??
+              config.scriptAstNode?.name.length,
+            offset:
+              config.configAstNode?.name.offset ??
+              config.scriptAstNode?.name.length,
+          },
+        },
+        supplementalLocations,
+      };
       throw new WireitError({
         type: 'failure',
         reason: 'cycle',
         script: config,
-        length: trail.size - cycleStart,
-        trail: trailArray,
+        diagnostic,
       });
     }
     if (config.dependencies.length > 0) {
@@ -496,7 +549,7 @@ export class Analyzer {
         }
         return a.name.localeCompare(b.name);
       });
-      trail.add(trailKey);
+      trail.set(trailKey, config);
       for (const dependency of config.dependencies) {
         this.#checkForCyclesAndSortDependencies(dependency, trail);
       }

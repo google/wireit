@@ -135,7 +135,8 @@ export class DefaultLogger implements Logger {
           case 'script-not-found':
           case 'duplicate-dependency':
           case 'script-not-wireit':
-          case 'invalid-config-syntax': {
+          case 'invalid-config-syntax':
+          case 'cycle': {
             console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
@@ -156,32 +157,6 @@ export class DefaultLogger implements Logger {
           }
           case 'spawn-error': {
             console.error(`❌${prefix} Process spawn error: ${event.message}`);
-            break;
-          }
-          case 'cycle': {
-            console.error(`❌${prefix} Cycle detected`);
-            // Display the trail of scripts and indicate where the loop is, like
-            // this:
-            //
-            //     a
-            // .-> b
-            // |   c
-            // `-- b
-            const cycleEnd = event.trail.length - 1;
-            const cycleStart = cycleEnd - event.length;
-            for (let i = 0; i < event.trail.length; i++) {
-              if (i < cycleStart) {
-                process.stderr.write('    ');
-              } else if (i === cycleStart) {
-                process.stderr.write(`.-> `);
-              } else if (i !== cycleEnd) {
-                process.stderr.write('|   ');
-              } else {
-                process.stderr.write('`-- ');
-              }
-              process.stderr.write(this.#label(event.trail[i]));
-              process.stderr.write('\n');
-            }
             break;
           }
         }

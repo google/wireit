@@ -27,6 +27,9 @@ const assertScriptOutputEquals = (
 
   actual = removeAciiColors(actual.trim());
   expected = expected.trim();
+  if (actual !== expected) {
+    console.log(`Copy-pastable output:\n${actual}`);
+  }
   assertOutputEqualish(actual, expected, message);
 };
 
@@ -912,9 +915,13 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [a] Cycle detected
-.-> a
-\`-- a
+❌ package.json:6:5 Cycle detected in dependencies of "a".
+        "a": {
+        ~~~
+
+    package.json:8:9 "a" points back to "a"
+                "a"
+                ~~~
 `
     );
   })
@@ -949,10 +956,17 @@ test(
     assertScriptOutputEquals(
       stderr,
       `
-❌ [a] Cycle detected
-.-> a
-|   b
-\`-- a
+❌ package.json:7:5 Cycle detected in dependencies of "a".
+        "a": {
+        ~~~
+
+    package.json:9:9 "a" points to "b"
+                "b"
+                ~~~
+
+    package.json:14:9 "b" points back to "a"
+                "a"
+                ~~~
 `
     );
   })
@@ -991,11 +1005,21 @@ test(
     assertScriptOutputEquals(
       stderr,
       `
-❌ [a] Cycle detected
-.-> a
-|   b
-|   c
-\`-- a
+❌ package.json:8:5 Cycle detected in dependencies of "a".
+        "a": {
+        ~~~
+
+    package.json:10:9 "a" points to "b"
+                "b"
+                ~~~
+
+    package.json:15:9 "b" points to "c"
+                "c"
+                ~~~
+
+    package.json:20:9 "c" points back to "a"
+                "a"
+                ~~~
 `
     );
   })
@@ -1030,9 +1054,13 @@ test(
     assertScriptOutputEquals(
       stderr,
       `
-❌ [a] Cycle detected
-.-> a
-\`-- a
+❌ package.json:7:5 Cycle detected in dependencies of "a".
+        "a": {
+        ~~~
+
+    package.json:9:9 "a" points back to "a"
+                "a",
+                ~~~
     `
     );
   })
@@ -1079,13 +1107,21 @@ test(
     assertScriptOutputEquals(
       stderr,
       `
-❌ [b] Cycle detected
-    a
-.-> b
-|   c
-|   d
-\`-- b
-`
+❌ package.json:15:5 Cycle detected in dependencies of "b".
+        "b": {
+        ~~~
+
+    package.json:17:9 "b" points to "c"
+                "c"
+                ~~~
+
+    package.json:22:9 "c" points to "d"
+                "d"
+                ~~~
+
+    package.json:27:9 "d" points back to "e"
+                "e",
+                ~~~`
     );
   })
 );
@@ -1131,12 +1167,21 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-  ❌ [b] Cycle detected
-    a
-.-> b
-|   c
-|   d
-\`-- b
+❌ package.json:16:5 Cycle detected in dependencies of "b".
+        "b": {
+        ~~~
+
+    package.json:18:9 "b" points to "c"
+                "c"
+                ~~~
+
+    package.json:23:9 "c" points to "d"
+                "d"
+                ~~~
+
+    package.json:28:9 "d" points back to "b"
+                "b"
+                ~~~
       `
     );
   })
@@ -1185,12 +1230,21 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-  ❌ [b] Cycle detected
-    a
-.-> b
-|   c
-|   d
-\`-- b
+  ❌ package.json:16:5 Cycle detected in dependencies of "b".
+        "b": {
+        ~~~
+
+    package.json:18:9 "b" points to "c"
+                "c"
+                ~~~
+
+    package.json:23:9 "c" points to "d"
+                "d"
+                ~~~
+
+    package.json:28:9 "d" points back to "b"
+                "b"
+                ~~~
       `
     );
   })
@@ -1231,10 +1285,17 @@ test(
     assertScriptOutputEquals(
       stderr,
       `
-❌ [a] Cycle detected
-.-> a
-|   ../bar:b
-\`-- a
+❌ package.json:6:5 Cycle detected in dependencies of "a".
+        "a": {
+        ~~~
+
+    package.json:8:9 "a" points to "../bar:b"
+                "../bar:b"
+                ~~~~~~~~~~
+
+    ../bar/package.json:8:9 "b" points back to "../foo:a"
+                "../foo:a"
+                ~~~~~~~~~~
 `
     );
   })
