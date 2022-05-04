@@ -610,7 +610,7 @@ test(
         "b": "not-wireit"
              ~~~~~~~~~~~~
 
-    package.json:12:5 the wireit config is here
+    package.json:12:5 The wireit config is here.
             "b": {
             ~~~
 `.trimStart()
