@@ -16,6 +16,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   (but not `output`), it is still possible to reference files outside of the
   current package with a pattern like `../foo`.
 
+- [**Breaking**] It is now an error to try and cache an `output` file that is
+  not contained within the current package.
+
 - Starting to improve error messages by drawing squiggles underneath the
   specific part of the `package.json` file that's in error.
 
