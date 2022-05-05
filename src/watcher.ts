@@ -143,8 +143,6 @@ export class Watcher {
     // package.json file changed.
     const analyzer = new Analyzer();
 
-    // TODO(aomarks) Add support for recovering from analysis errors. We'll need
-    // to track the package.json files that we encountered, and watch them.
     const analysisResult = await analyzer.analyze(this.#script);
     await this.#clearWatchers();
     if (

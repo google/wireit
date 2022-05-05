@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as os from 'os';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
+
 import {WireitTestRig} from './util/test-rig.js';
+import {removeAciiColors} from './util/colors.js';
+import {timeout, wait} from './util/uvu-timeout.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -56,18 +59,18 @@ test(
     const inv = await cmdA.nextInvocation();
     inv.exit(0);
 
-    // It's important in these test cases that after we tell a script process to
-    // exit, we wait for its socket to close, indicating that it received the
-    // message and has exited (or is in the process of exiting). Otherwise, when
-    // we then send a kill signal to the parent Wireit process, the Wireit
-    // process might kill the script child process before our message has been
-    // transferred, which will raise an uncaught ECONNRESET error in these
-    // tests.
+    // It's important in these test cases that after we tell a script process
+    // to exit, we wait for its socket to close, indicating that it received
+    // the message and has exited (or is in the process of exiting).
+    // Otherwise, when we then send a kill signal to the parent Wireit
+    // process, the Wireit process might kill the script child process before
+    // our message has been transferred, which will raise an uncaught
+    // ECONNRESET error in these tests.
     //
-    // TODO(aomarks) Waiting for the socket write callback seems like it should
-    // be sufficient to prevent this error, but it isn't. Investigate why that
-    // is, and consider instead sending explicit ACK messages back from the
-    // child process.
+    // TODO(aomarks) Waiting for the socket write callback seems like it
+    // should be sufficient to prevent this error, but it isn't. Investigate
+    // why that is, and consider instead sending explicit ACK messages back
+    // from the child process.
     await inv.closed;
 
     // Wait a while to check that the Wireit process remains running, waiting
@@ -498,7 +501,7 @@ test(
 );
 
 test(
-  'error from analysis is fatal (temporary)',
+  'error from analysis is not fatal',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -517,12 +520,59 @@ test(
       'a.txt': 'v0',
     });
 
-    // TODO(aomarks) Update this test when analysis error recovery is
-    // implemented.
     const exec = rig.exec('npm run a watch');
-    const res = await exec.exit;
-    assert.equal(res.code, 1);
+    const initialOutput = await exec.waitForLog(/Watching for file changes\n/);
     assert.equal(cmdA.numInvocations, 0);
+    assert.equal(
+      initialOutput.stdout,
+      `
+> a
+> wireit "watch"
+
+👀 [a] Watching for file changes
+`
+    );
+
+    assert.equal(
+      removeAciiColors(initialOutput.stderr),
+      `❌ package.json:2:3 Script "does-not-exist" not found in the scripts section of this package.json.
+      "scripts": {
+      ~~~~~~~~~\n`
+    );
+    if (os.platform() === 'linux' || os.platform() === 'win32') {
+      // On Linux and Windows, chokidar seems not to immediately watch
+      // files.
+      await wait(100);
+    }
+    // Now write a correct package.json file.
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['a.txt'],
+            dependencies: [],
+          },
+        },
+      },
+    });
+    const invok = await cmdA.nextInvocation();
+    invok.exit(0);
+    await invok.closed;
+    assert.equal(cmdA.numInvocations, 1);
+    exec.terminate();
+    const done = await exec.exit;
+    assert.equal(done.stderr, ``);
+    assert.equal(
+      done.stdout,
+      `
+🏃 [a] Running command "${cmdA.command}"
+✅ [a] Executed successfully
+👀 [a] Watching for file changes\n`.trimStart()
+    );
   })
 );
 
@@ -562,11 +612,11 @@ test(
       });
       // Wait a while to ensure the command doesn't run.
       await new Promise((resolve) => setTimeout(resolve, 100));
-      // TODO(aomarks) This would fail if the command runs, but it wouldn't fail
-      // if the executor ran. The watcher could be triggering the executor too
-      // often, but the executor would be smart enough not to actually execute
-      // the command. To confirm that the executor is not running too often, we
-      // will need to test for some logged output.
+      // TODO(aomarks) This would fail if the command runs, but it wouldn't
+      // fail if the executor ran. The watcher could be triggering the
+      // executor too often, but the executor would be smart enough not to
+      // actually execute the command. To confirm that the executor is not
+      // running too often, we will need to test for some logged output.
       assert.equal(cmdA.numInvocations, 1);
     }
 

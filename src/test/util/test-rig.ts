@@ -82,15 +82,15 @@ export class WireitTestRig extends FilesystemTestRig {
 
     binaryPath = this.#resolve(binaryPath);
     installPath = this.#resolve(installPath);
-    const binaryContent = IS_WINDOWS
-      ? // This incantation works on Windows but not Linux, because real "env"
-        // requires an "-S" flag to pass arguments to a binary, but cmd-shim
-        // doesn't handle that correctly (see
+    const binaryContent = IS_WINDOWS // This incantation works on Windows but not Linux,
+      ? // because real "env" requires an "-S" flag to pass
+        // arguments to a binary, but cmd-shim doesn't handle that
+        // correctly (see
         // https://github.com/npm/cmd-shim/issues/54).
-        `#!/usr/bin/env ${command}`
-      : // This incantation works on Linux and macOS, but not Windows.
-        // "#!/usr/bin/env -S <command>" also works on Linux, but not macOS
-        // (unsure why).
+        `#!/usr/bin/env ${command}` // This incantation works on Linux and
+      : // macOS, but not Windows.
+        // "#!/usr/bin/env -S <command>" also works on Linux,
+        // but not macOS (unsure why).
         `#!/bin/sh\n${command}`;
 
     await fs.mkdir(pathlib.dirname(binaryPath), {recursive: true});
@@ -128,7 +128,10 @@ export class WireitTestRig extends FilesystemTestRig {
    */
   exec(
     command: string,
-    opts?: {cwd?: string; env?: Record<string, string | undefined>}
+    opts?: {
+      cwd?: string;
+      env?: Record<string, string | undefined>;
+    }
   ): ExecResult {
     this.assertState('running');
     const cwd = this.#resolve(opts?.cwd ?? '.');
@@ -321,11 +324,41 @@ class ExecResult {
     }
   }
 
+  readonly #logMatchers: Array<{re: RegExp; deferred: Deferred<void>}> = [];
+
+  /**
+   * Waits for the given content to be logged to either stdout or stderr.
+   *
+   * When it does, it consumes all the stdout and stderr that's been emitted
+   * so far and returns it.
+   */
+  async waitForLog(matcher: RegExp): Promise<{stdout: string; stderr: string}> {
+    const deferred = new Deferred<void>();
+    this.#logMatchers.push({re: matcher, deferred});
+    // In case we've already received the log we're watching for
+    this.#checkMatchersAgainstLogs();
+    await deferred.promise;
+    const stdout = this.#stdout;
+    const stderr = this.#stderr;
+    this.#stdout = '';
+    this.#stderr = '';
+    return {stdout, stderr};
+  }
+
+  #checkMatchersAgainstLogs() {
+    for (const matcher of this.#logMatchers) {
+      if (matcher.re.test(this.#stdout) || matcher.re.test(this.#stderr)) {
+        matcher.deferred.resolve();
+      }
+    }
+  }
+
   readonly #onStdout = (chunk: string | Buffer) => {
     this.#stdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
+    this.#checkMatchersAgainstLogs();
   };
 
   readonly #onStderr = (chunk: string | Buffer) => {
@@ -333,6 +366,7 @@ class ExecResult {
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
+    this.#checkMatchersAgainstLogs();
   };
 }
 
@@ -344,6 +378,8 @@ export interface ExitResult {
   stderr: string;
   /** The exit code, or null if the child process exited with a signal. */
   code: number | null;
-  /** The exit signal, or null if the child process did not exit with a signal. */
+  /**
+   * The exit signal, or null if the child process did not exit with a signal.
+   */
   signal: NodeJS.Signals | null;
 }

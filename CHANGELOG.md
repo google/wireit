@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+- All configuration errors will draw squiggles to show the part of the package.json file that's in error.
+
+### Fixed
+
+- An invalid configuration doesn't cause watch mode to exit.
 
 - If two or more scripts depend on the same invalid config, we only log the issue once.
 

@@ -242,7 +242,9 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       return {ok: false, error: analyzedResult.failures};
     }
     if (analyzedResult.scriptConfig == null) {
-      throw new Error('Internal error: analyzedResult.scriptConfig is null, but no failures were returned.');
+      throw new Error(
+        'Internal error: analyzedResult.scriptConfig is null, but no failures were returned.'
+      );
     }
     const executor = new Executor(logger, workerPool, cache);
     const result = await executor.execute(analyzedResult.scriptConfig);
