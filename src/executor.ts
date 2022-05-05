@@ -15,7 +15,7 @@ import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {getScriptDataDir} from './util/script-data-dir.js';
 import {unreachable} from './util/unreachable.js';
-import {glob} from './util/glob.js';
+import {glob, GlobOutsideCwdError} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
 import {AggregateError} from './util/aggregate-error.js';
 import {
@@ -458,10 +458,9 @@ class ScriptExecution {
     if (this.#cache === undefined || this.#script.output === undefined) {
       return;
     }
-    await this.#cache.set(
-      this.#script,
-      stateStr,
-      await glob(
+    let paths;
+    try {
+      paths = await glob(
         [
           ...this.#script.output.values,
           // Also include the "stdout" and "stderr" replay files at their
@@ -492,9 +491,34 @@ class ScriptExecution {
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
+          throwIfOutsideCwd: true,
         }
-      )
-    );
+      );
+    } catch (error) {
+      if (error instanceof GlobOutsideCwdError) {
+        // TODO(aomarks) It would be better to do this in the Analyzer by
+        // looking at the output glob patterns. See
+        // https://github.com/google/wireit/issues/64.
+        throw new WireitError({
+          script: this.#script,
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          diagnostic: {
+            severity: 'error',
+            message: `Output files must be within the package: ${error.message}`,
+            location: {
+              file: this.#script.declaringFile,
+              range: {
+                offset: this.#script.output.node.offset,
+                length: this.#script.output.node.length,
+              },
+            },
+          },
+        });
+      }
+      throw error;
+    }
+    await this.#cache.set(this.#script, stateStr, paths);
   }
 
   /**
@@ -530,6 +554,7 @@ class ScriptExecution {
         // We must expand directories here, because we need the complete
         // explicit list of files to hash.
         expandDirectories: true,
+        throwIfOutsideCwd: false,
       });
       // TODO(aomarks) Instead of reading and hashing every input file on every
       // build, use inode/mtime/ctime/size metadata (which is much faster to
@@ -656,31 +681,28 @@ class ScriptExecution {
     if (this.#script.output === undefined) {
       return;
     }
-    const absFiles = await glob(this.#script.output.values, {
-      cwd: this.#script.packageDir,
-      absolute: true,
-      followSymlinks: false,
-      includeDirectories: true,
-      expandDirectories: true,
-    });
-    if (absFiles.length === 0) {
-      return;
-    }
-    const insidePackagePrefix = this.#script.packageDir + pathlib.sep;
-    for (const absFile of absFiles) {
-      // TODO(aomarks) It would be better to do this in the Analyzer by looking
-      // at the output glob patterns, so that we catch errors earlier and can
-      // provide a more useful message, but we need to be certain that we are
-      // parsing glob patterns correctly (e.g. negations and other syntax make
-      // it slightly tricky to detect).
-      if (!absFile.path.startsWith(insidePackagePrefix)) {
+    let absFiles;
+    try {
+      absFiles = await glob(this.#script.output.values, {
+        cwd: this.#script.packageDir,
+        absolute: true,
+        followSymlinks: false,
+        includeDirectories: true,
+        expandDirectories: true,
+        throwIfOutsideCwd: true,
+      });
+    } catch (error) {
+      if (error instanceof GlobOutsideCwdError) {
+        // TODO(aomarks) It would be better to do this in the Analyzer by
+        // looking at the output glob patterns. See
+        // https://github.com/google/wireit/issues/64.
         throw new WireitError({
           script: this.#script,
           type: 'failure',
           reason: 'invalid-config-syntax',
           diagnostic: {
             severity: 'error',
-            message: `refusing to delete output file outside of package: ${absFile.path}`,
+            message: `Output files must be within the package: ${error.message}`,
             location: {
               file: this.#script.declaringFile,
               range: {
@@ -691,6 +713,10 @@ class ScriptExecution {
           },
         });
       }
+      throw error;
+    }
+    if (absFiles.length === 0) {
+      return;
     }
     await deleteEntries(absFiles);
   }

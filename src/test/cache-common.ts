@@ -5,8 +5,10 @@
  */
 
 import * as assert from 'uvu/assert';
+import * as pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {sep} from 'path';
+import {removeAciiColors} from './util/colors.js';
 
 import type {Test} from 'uvu';
 import type {WireitTestRig} from './util/test-rig.js';
@@ -1072,6 +1074,52 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output'), 'v1');
       }
+    })
+  );
+
+  test(
+    'errors if caching output outside of the package',
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'foo/package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: 'true',
+              files: [],
+              output: ['../outside'],
+              // Turn off cleaning so we get past the similar error that occurs
+              // on clean.
+              clean: false,
+            },
+          },
+        },
+        outside: 'bad',
+      });
+
+      const exec = rig.exec('npm run a', {cwd: 'foo'});
+      const res = await exec.exit;
+      assert.equal(res.code, 1);
+      assert.equal(
+        removeAciiColors(res.stderr.trim()),
+        `
+❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(
+          pathlib.join(rig.temp, 'outside')
+        )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
+          "output": [
+                    ~
+            "../outside"
+    ~~~~~~~~~~~~~~~~~~~~
+          ],
+    ~~~~~~~`.trim()
+      );
+      assert.equal(cmdA.numInvocations, 0);
+
+      // The outside file should not have been deleted.
+      assert.ok(await rig.exists('outside'));
     })
   );
 };

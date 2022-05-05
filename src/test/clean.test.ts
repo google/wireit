@@ -303,10 +303,9 @@ test(
     assert.equal(
       removeAciiColors(done.stderr.trim()),
       `
-❌ package.json:8:17 refusing to delete output file outside of package: ${pathlib.join(
-        rig.temp,
-        'outside'
-      )}
+❌ package.json:8:17 Output files must be within the package: ${JSON.stringify(
+        pathlib.join(rig.temp, 'outside')
+      )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
           "output": [
                     ~
             "../outside"

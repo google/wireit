@@ -14,6 +14,16 @@ export type AbsoluteEntry = Entry & {_AbsoluteEntryBrand_: never};
 export type RelativeEntry = Entry & {_RelativeEntryBrand_: never};
 
 /**
+ * The error raised when {@link glob} matches a path that is outside of
+ * {@link GlobOptions.cwd} when {@link GlobOptions.throwIfOutsideCwd} is `true`.
+ */
+export class GlobOutsideCwdError extends Error {
+  constructor(path: string, cwd: string) {
+    super(`${JSON.stringify(path)} was outside ${JSON.stringify(cwd)}`);
+  }
+}
+
+/**
  * Options for {@link glob}.
  */
 export interface GlobOptions {
@@ -45,6 +55,11 @@ export interface GlobOptions {
    * Note this works even if includeDirectories is false.
    */
   expandDirectories: boolean;
+
+  /**
+   * If true, throw an exception if a file matches which is not under the cwd.
+   */
+  throwIfOutsideCwd: boolean;
 }
 
 interface GlobGroup {
@@ -186,11 +201,15 @@ export async function glob(
   // Pass each group to fast-glob to match in parallel, and combine into a
   // single set.
   const combinedMap = new Map<string, Entry>();
+  // Ensure the cwd is absolute and normalized so that we can do path string
+  // comparisons.
+  const normalizedCwd = pathlib.resolve(opts.cwd);
+  const normalizedCwdWithTrailingSep = normalizedCwd + pathlib.sep;
   await Promise.all(
     groups.map(async ({include, exclude}) => {
       const matches = await fastGlob(include, {
         ignore: exclude,
-        cwd: opts.cwd,
+        cwd: normalizedCwd,
         dot: true,
         onlyFiles: !opts.includeDirectories,
         absolute: opts.absolute,
@@ -208,20 +227,40 @@ export async function glob(
         braceExpansion: false,
       });
       for (const match of matches) {
+        // Normalize the path so that:
+        //
+        // 1. We have native path separators. fast-glob returns "/" even on
+        //    Windows.
+        //
+        // 2. Remnants of input pattern syntax like ".." and trailing "/"s are
+        //    removed (which fast-glob preserves in the results). Note that
+        //    `fs.normalize` does not trim trailing "/"s, so we do that
+        //    ourselves (`fs.resolve` does, but that also makes the path
+        //    absolute).
+        match.path = pathlib.normalize(match.path.replace(/\/+$/g, ''));
+        if (opts.throwIfOutsideCwd) {
+          const absPath = opts.absolute
+            ? match.path
+            : pathlib.resolve(normalizedCwd, match.path);
+          if (
+            // Match "parent/child" and "parent", but not "parentx".
+            !absPath.startsWith(normalizedCwdWithTrailingSep) &&
+            absPath !== normalizedCwd
+          ) {
+            // TODO(aomarks) This check could in theory be done before we execute
+            // the globs, but we'd need to be really sure we account for special
+            // glob syntax, which could make it not 100% straightforward to do
+            // path checking. Checking the resulting paths is straightforward
+            // because we know they don't contain special syntax.
+            throw new GlobOutsideCwdError(absPath, opts.cwd);
+          }
+        }
         combinedMap.set(match.path, match);
       }
     })
   );
 
-  const combinedArr = [...combinedMap.values()];
-  if (pathlib.sep === '\\') {
-    for (const entry of combinedArr) {
-      // fast-glob always returns "/" separated paths, even on Windows. Convert
-      // to the OS-native separator.
-      entry.path = pathlib.normalize(entry.path);
-    }
-  }
-  return combinedArr as AbsoluteEntry[] | RelativeEntry[];
+  return [...combinedMap.values()] as AbsoluteEntry[] | RelativeEntry[];
 }
 
 const isRecursive = (pattern: string): boolean =>

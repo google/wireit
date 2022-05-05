@@ -28,6 +28,7 @@ interface TestCase {
   followSymlinks?: boolean;
   includeDirectories?: boolean;
   expandDirectories?: boolean;
+  throwIfOutsideCwd?: boolean;
 }
 
 const test = suite<{
@@ -49,6 +50,7 @@ test.before.each(async (ctx) => {
       followSymlinks = true,
       includeDirectories = false,
       expandDirectories = false,
+      throwIfOutsideCwd = false,
     }: TestCase): Promise<void> => {
       for (const file of files) {
         if (typeof file === 'string') {
@@ -78,6 +80,7 @@ test.before.each(async (ctx) => {
           followSymlinks,
           includeDirectories,
           expandDirectories,
+          throwIfOutsideCwd,
         });
       } catch (e) {
         error = e;
@@ -121,11 +124,34 @@ test('empty patterns', ({check}) =>
     expected: [],
   }));
 
-test('explicit file', ({check}) =>
+test('normalizes trailing / in pattern (relative)', ({check}) =>
   check({
     files: ['foo'],
-    patterns: ['foo'],
+    patterns: ['foo/'],
     expected: ['foo'],
+  }));
+
+test('normalizes ../ in pattern (relative)', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['bar/../foo'],
+    expected: ['foo'],
+  }));
+
+test('normalizes trailing / in pattern (absolute)', ({check, rig}) =>
+  check({
+    files: ['foo'],
+    patterns: ['foo/'],
+    expected: [rig.resolve('foo')],
+    absolute: true,
+  }));
+
+test('normalizes ../ in pattern (absolute)', ({check, rig}) =>
+  check({
+    files: ['foo'],
+    patterns: ['bar/../foo'],
+    expected: [rig.resolve('foo')],
+    absolute: true,
   }));
 
 test('explicit file that does not exist', ({check}) =>
@@ -408,6 +434,7 @@ test('dirent tags files', async ({rig}) => {
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -424,6 +451,7 @@ test('dirent tags directories', async ({rig}) => {
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -440,6 +468,7 @@ test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
     followSymlinks: false,
     includeDirectories: true,
     expandDirectories: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -459,6 +488,7 @@ test('dirent tags symlinks to files as files when followSymlinks=true', async ({
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -478,6 +508,7 @@ test('dirent tags symlinks to directories as directories when followSymlinks=tru
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
+    throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
   assert.equal(actual[0].path, 'foo');
@@ -508,13 +539,11 @@ test('re-rooting allows ../', ({check}) =>
     expected: ['../foo'],
   }));
 
-// TODO(aomarks) This should be normalized to "foo" consistently. It currently
-// differs on Windows between Node 14 and 16.
-test.skip('re-rooting handles /./foo', ({check}) =>
+test('re-rooting handles /./foo', ({check}) =>
   check({
     files: ['foo'],
     patterns: ['/./foo'],
-    expected: [`.${pathlib.sep}foo`],
+    expected: ['foo'],
   }));
 
 test('re-rooting handles /../foo', ({check}) =>
@@ -523,6 +552,13 @@ test('re-rooting handles /../foo', ({check}) =>
     files: ['foo', 'subdir/'],
     patterns: ['/../foo'],
     expected: ['../foo'],
+  }));
+
+test('re-rooting handles /bar/../foo/', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['/bar/../foo/'],
+    expected: ['foo'],
   }));
 
 test('re-roots to cwd with braces', ({check}) =>
@@ -537,6 +573,56 @@ test('braces can be escaped', ({check}) =>
     files: ['{foo,bar}'],
     patterns: ['\\{foo,bar\\}'],
     expected: ['{foo,bar}'],
+  }));
+
+test('disallows path outside cwd when throwIfOutsideCwd=true', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: 'ERROR',
+    throwIfOutsideCwd: true,
+  }));
+
+test('disallows path outside cwd when throwIfOutsideCwd=true and absolute=true', ({
+  check,
+}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: 'ERROR',
+    throwIfOutsideCwd: true,
+    absolute: true,
+  }));
+
+test('allows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: ['../foo'],
+    throwIfOutsideCwd: false,
+  }));
+
+test('allows path inside cwd when throwIfOutsideCwd=true', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['foo'],
+    expected: ['foo'],
+    throwIfOutsideCwd: true,
+  }));
+
+test('allows path inside cwd when throwIfOutsideCwd=true and absolute=true', ({
+  check,
+  rig,
+}) =>
+  check({
+    files: ['foo'],
+    patterns: ['foo'],
+    expected: [rig.resolve('foo')],
+    throwIfOutsideCwd: true,
+    absolute: true,
   }));
 
 test.run();
