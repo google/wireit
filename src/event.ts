@@ -238,7 +238,12 @@ export interface Stderr extends OutputBase {
 // Informational events
 // -------------------------------
 
-type Info = ScriptRunning | WatchRunStart | WatchRunEnd | GenericInfo;
+type Info =
+  | ScriptRunning
+  | ScriptLocked
+  | WatchRunStart
+  | WatchRunEnd
+  | GenericInfo;
 
 interface InfoBase<T extends ScriptReference> extends EventBase<T> {
   type: 'info';
@@ -249,6 +254,14 @@ interface InfoBase<T extends ScriptReference> extends EventBase<T> {
  */
 export interface ScriptRunning extends InfoBase<ScriptConfig> {
   detail: 'running';
+}
+
+/**
+ * A script can't run right now because a system-wide lock is being held by
+ * another process.
+ */
+export interface ScriptLocked extends InfoBase<ScriptConfig> {
+  detail: 'locked';
 }
 
 /**

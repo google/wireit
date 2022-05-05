@@ -238,6 +238,12 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
+          case 'locked': {
+            console.log(
+              `💤 ${prefix} Waiting for another process which is already running this script.`
+            );
+            break;
+          }
           case 'watch-run-start': {
             if (process.stdout.isTTY) {
               // If we are in an interactive terminal (TTY), reset it before

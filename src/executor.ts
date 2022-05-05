@@ -171,6 +171,7 @@ class ScriptExecution {
     const lockFile = pathlib.join(this.#dataDir, 'lock');
     await fs.mkdir(pathlib.dirname(lockFile), {recursive: true});
     await fs.writeFile(lockFile, '');
+    let loggedLocked = false;
     while (true) {
       try {
         return await lockfile.lock(lockFile, {
@@ -187,6 +188,15 @@ class ScriptExecution {
         });
       } catch (error) {
         if ((error as {code: string}).code === 'ELOCKED') {
+          if (!loggedLocked) {
+            // Only log this once.
+            this.#logger.log({
+              script: this.#script,
+              type: 'info',
+              detail: 'locked',
+            });
+            loggedLocked = true;
+          }
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
         } else {
