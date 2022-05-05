@@ -198,6 +198,12 @@ export WIREIT_PARALLEL=1
 npm run build
 ```
 
+If two or more seperate `npm run` commands are run for the same Wireit script
+simultaneously, then only one version will be allowed to run at a time, while
+the others wait their turn. This prevents coordination problems that can result
+in incorrect output files being produced. If `output` is set to an empty array,
+then this restriction is removed.
+
 ## Input and output files
 
 The `files` and `output` properties of `wireit.<script>` tell Wireit what your

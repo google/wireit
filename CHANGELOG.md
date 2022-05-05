@@ -22,6 +22,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Starting to improve error messages by drawing squiggles underneath the
   specific part of the `package.json` file that's in error.
 
+### Fixed
+
+- [**Breaking**] If two or more entirely separate `npm run` commands are run for
+  the same Wireit script, only one of them will now be allowed to run at a time,
+  while the others wait their turn. This restriction is removed if `output` is
+  set to an empty array.
+
 ## [0.3.1] - 2022-04-30
 
 ### Fixed
