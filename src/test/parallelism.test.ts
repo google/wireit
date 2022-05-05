@@ -225,4 +225,80 @@ test(
   })
 );
 
+test(
+  'scripts acquire exclusive locks across wireit processes',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+
+    // Start up <concurrency> simultaneous Wireit invocations for the same
+    // script.
+    const concurrency = 25;
+    const wireits = [];
+    for (let i = 0; i < concurrency; i++) {
+      wireits.push(rig.exec('npm run a'));
+    }
+
+    // Wait a moment to give a chance for scripts to start up.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Wait for each command invocation to start, and check that only one starts
+    // at a time.
+    for (let i = 0; i < concurrency; i++) {
+      const inv = await cmdA.nextInvocation();
+      // Note that numInvocations is incremented as soon as the script starts,
+      // even if we haven't called nextInvocation yet.
+      assert.equal(cmdA.numInvocations, i + 1);
+      inv.exit(0);
+    }
+
+    for (const exec of wireits) {
+      assert.equal((await exec.exit).code, 0);
+    }
+
+    assert.equal(cmdA.numInvocations, concurrency);
+  })
+);
+
+test(
+  "scripts don't need exclusive locks when output=[]",
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            output: [],
+          },
+        },
+      },
+    });
+
+    const exec1 = rig.exec('npm run a');
+    const exec2 = rig.exec('npm run a');
+    const inv1 = await cmdA.nextInvocation();
+    const inv2 = await cmdA.nextInvocation();
+    inv1.exit(0);
+    inv2.exit(0);
+    assert.equal((await exec1.exit).code, 0);
+    assert.equal((await exec2.exit).code, 0);
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
 test.run();
