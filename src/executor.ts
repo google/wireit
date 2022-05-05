@@ -608,7 +608,6 @@ class ScriptExecution {
         return {
           ok: false,
           error: {
-            script: this.#script,
             type: 'failure',
             reason: 'invalid-config-syntax',
             diagnostic: {
@@ -809,7 +808,6 @@ class ScriptExecution {
         return {
           ok: false,
           error: {
-            script: this.#script,
             type: 'failure',
             reason: 'invalid-config-syntax',
             diagnostic: {

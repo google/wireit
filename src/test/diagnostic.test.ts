@@ -7,7 +7,6 @@
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggle, OffsetToPositionConverter, Position} from '../error.js';
-import {JsonAstNode} from '../util/ast.js';
 import {removeAciiColors} from './util/colors.js';
 
 function assertSquiggleAndPosition(
@@ -25,7 +24,6 @@ function assertSquiggleAndPosition(
       range: {offset, length},
       file: {
         path: 'package.json',
-        ast: null as unknown as JsonAstNode,
         contents,
       },
     },

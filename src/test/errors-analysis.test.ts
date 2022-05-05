@@ -851,7 +851,7 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [../bar:b] No package.json was found in ${pathlib.resolve(rig.temp, 'bar')}
+❌ [../bar] No package.json was found in ${pathlib.resolve(rig.temp, 'bar')}
 `
     );
   })
