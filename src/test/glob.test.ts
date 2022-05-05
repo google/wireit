@@ -584,6 +584,18 @@ test('disallows path outside cwd when throwIfOutsideCwd=true', ({check}) =>
     throwIfOutsideCwd: true,
   }));
 
+test('disallows path outside cwd when throwIfOutsideCwd=true and absolute=true', ({
+  check,
+}) =>
+  check({
+    cwd: 'subdir',
+    files: ['foo', 'subdir/'],
+    patterns: ['../foo'],
+    expected: 'ERROR',
+    throwIfOutsideCwd: true,
+    absolute: true,
+  }));
+
 test('allows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
   check({
     cwd: 'subdir',
@@ -591,6 +603,26 @@ test('allows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
     patterns: ['../foo'],
     expected: ['../foo'],
     throwIfOutsideCwd: false,
+  }));
+
+test('allows path inside cwd when throwIfOutsideCwd=true', ({check}) =>
+  check({
+    files: ['foo'],
+    patterns: ['foo'],
+    expected: ['foo'],
+    throwIfOutsideCwd: true,
+  }));
+
+test('allows path inside cwd when throwIfOutsideCwd=true and absolute=true', ({
+  check,
+  rig,
+}) =>
+  check({
+    files: ['foo'],
+    patterns: ['foo'],
+    expected: [rig.resolve('foo')],
+    throwIfOutsideCwd: true,
+    absolute: true,
   }));
 
 test.run();

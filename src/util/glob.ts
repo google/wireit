@@ -241,7 +241,7 @@ export async function glob(
         if (opts.throwIfOutsideCwd) {
           const absPath = opts.absolute
             ? match.path
-            : pathlib.resolve(match.path);
+            : pathlib.resolve(normalizedCwd, match.path);
           if (
             // Match "parent/child" and "parent", but not "parentx".
             !absPath.startsWith(normalizedCwdWithTrailingSep) &&
