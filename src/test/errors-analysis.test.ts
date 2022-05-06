@@ -1337,4 +1337,139 @@ test(
   })
 );
 
+test(`we don't produce a duplicate analysis error for the same dependency`, async ({
+  rig,
+}) => {
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+        b: 'wireit',
+        c: 'wireit',
+        errors: 'wireit',
+      },
+      wireit: {
+        a: {
+          dependencies: ['b', 'c'],
+        },
+        b: {
+          dependencies: ['errors'],
+        },
+        c: {
+          dependencies: ['errors'],
+        },
+        errors: {
+          command: {},
+        },
+      },
+    },
+  });
+  const result = rig.exec('npm run a');
+  const done = await result.exit;
+  assert.equal(done.code, 1);
+  assertScriptOutputEquals(
+    done.stderr,
+    `
+❌ package.json:26:18 Expected a string, but was object.
+          "command": {}
+                     ~~`
+  );
+});
+
+test(`we don't produce a duplicate not found error when there's multiple deps into the same file`, async ({
+  rig,
+}) => {
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          dependencies: ['./child:error1', './child:error2'],
+        },
+      },
+    },
+  });
+  const result = rig.exec('npm run a');
+  const done = await result.exit;
+  assert.equal(done.code, 1);
+  assertScriptOutputEquals(
+    done.stderr,
+    `
+❌ [child] No package.json was found in ${pathlib.join(rig.temp, 'child')}`
+  );
+});
+
+test(`we don't produce a duplicate error when there's multiple deps into the same invalid file`, async ({
+  rig,
+}) => {
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          dependencies: ['./child:error1', './child:error2'],
+        },
+      },
+    },
+    'child/package.json': {
+      scripts: 'bad',
+    },
+  });
+  const result = rig.exec('npm run a');
+  const done = await result.exit;
+  assert.equal(done.code, 1);
+  assertScriptOutputEquals(
+    done.stderr,
+    `
+❌ child/package.json:2:14 Expected an object, but was string.
+      "scripts": "bad"
+                 ~~~~~`
+  );
+});
+
+test(`we don't produce a duplicate error when there's multiple deps on a script that fails`, async ({
+  rig,
+}) => {
+  const willFail = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+        b: 'wireit',
+        c: 'wireit',
+        errors: 'wireit',
+      },
+      wireit: {
+        a: {
+          dependencies: ['b', 'c'],
+        },
+        b: {
+          dependencies: ['errors'],
+        },
+        c: {
+          dependencies: ['errors'],
+        },
+        errors: {
+          command: willFail.command,
+        },
+      },
+    },
+  });
+  const result = rig.exec('npm run a');
+  const invok = await willFail.nextInvocation();
+  invok.exit(1);
+  await invok.closed;
+  const done = await result.exit;
+  assert.equal(done.code, 1);
+  assertScriptOutputEquals(
+    done.stderr,
+    `
+❌ [errors] Failed with exit status 1`
+  );
+});
+
 test.run();

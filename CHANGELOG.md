@@ -8,6 +8,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+- If two or more scripts depend on the same invalid config, we only log the issue once.
+
+- If two or more scripts depend on a script that fails, we only log that failure once.
+
 ## [0.4.0] - 2022-05-06
 
 ### Changed

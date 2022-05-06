@@ -11,7 +11,7 @@ import {
   JsonFile,
 } from './util/package-json-reader.js';
 import {scriptReferenceToString} from './script.js';
-import {findNamedNodeAtLocation, findNodeAtLocation} from './util/ast.js';
+import {findNodeAtLocation} from './util/ast.js';
 
 import type {
   ScriptConfig,
@@ -20,171 +20,13 @@ import type {
 } from './script.js';
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 import {Failure} from './event.js';
+import {PackageJson} from './util/package-json.js';
 
 /**
  * A {@link ScriptConfig} where all fields are optional apart from `packageDir`
  * and `name`, used temporarily while package.json files are still loading.
  */
 export type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
-
-interface ScriptSyntaxInfo {
-  name: string;
-  /** The node for this script in the scripts section of the package.json */
-  scriptNode?: NamedAstNode<string>;
-  /** The node for this script in the wireit section of the package.json */
-  wireitConfigNode?: NamedAstNode;
-}
-/**
- * A parsed and minimally analyzed package.json file.
- *
- * This does some very basic syntactic analysis of the package.json file,
- * finding issues like "the scripts section isn't an object mapping strings to
- * strings" and "the wireit section isn't an object mapping strings to objects".
- *
- * Makes it easy to find the syntax nodes for a script.
- *
- * Does not do any validation or analysis of the wirit script configs.
- *
- * This class exists in part so that we walk the package.json file only once,
- * and in part so that we generate file-level syntactic diagnostics only once,
- * so that we can do better deduplication of errors.
- */
-class PackageJson {
-  readonly jsonFile: JsonFile;
-  // We keep the file level AST node private to represent the invariant that
-  // we only walk the file once, in this class, and nowhere else.
-  readonly #fileAstNode: JsonAstNode;
-  readonly #scripts: Map<string, ScriptSyntaxInfo> = new Map();
-  readonly failures: readonly Failure[];
-  readonly scriptsSection: NamedAstNode | undefined = undefined;
-  readonly wireitSection: NamedAstNode | undefined = undefined;
-  constructor(jsonFile: JsonFile, fileAstNode: JsonAstNode) {
-    this.jsonFile = jsonFile;
-    this.#fileAstNode = fileAstNode;
-    const failures: Failure[] = [];
-    this.scriptsSection = this.#analyzeScriptsSection(failures);
-    this.wireitSection = this.#analyzeWireitSection(failures);
-    this.failures = failures;
-  }
-
-  getScriptInfo(name: string): ScriptSyntaxInfo | undefined {
-    return this.#scripts.get(name);
-  }
-
-  #getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
-    let info = this.#scripts.get(name);
-    if (info == null) {
-      info = {name};
-      this.#scripts.set(name, info);
-    }
-    return info;
-  }
-
-  /**
-   * Do some basic structural validation of the "scripts" section of this
-   * package.json file. Create placeholders for each of the declared scripts and
-   * add them to this.#scripts.
-   */
-  #analyzeScriptsSection(failures: Failure[]): undefined | NamedAstNode {
-    const scriptsSectionResult = findNamedNodeAtLocation(
-      this.#fileAstNode,
-      ['scripts'],
-      this.jsonFile
-    );
-    if (!scriptsSectionResult.ok) {
-      failures.push(scriptsSectionResult.error);
-      return;
-    }
-    const scriptsSection = scriptsSectionResult.value;
-    if (scriptsSection == null) {
-      return;
-    }
-    const fail = failIfNotJsonObject(scriptsSection, this.jsonFile);
-    if (fail != null) {
-      failures.push(fail);
-      return;
-    }
-    for (const child of scriptsSection.children ?? []) {
-      if (child.type !== 'property') {
-        continue;
-      }
-      const [rawName, rawValue] = child.children ?? [];
-      if (rawName == null || rawValue == null) {
-        continue;
-      }
-      const nameResult = assertNonBlankString(rawName, this.jsonFile);
-      if (!nameResult.ok) {
-        failures.push(nameResult.error);
-        continue;
-      }
-      const valueResult = assertNonBlankString(rawValue, this.jsonFile);
-      if (!valueResult.ok) {
-        failures.push(valueResult.error);
-        continue;
-      }
-      const scriptAstNode = valueResult.value as NamedAstNode<string>;
-      scriptAstNode.name = nameResult.value;
-      this.#getOrMakeScriptInfo(nameResult.value.value).scriptNode =
-        scriptAstNode;
-    }
-    return scriptsSectionResult.value;
-  }
-
-  /**
-   * Do some basic structural validation of the "wireit" section of this
-   * package.json file.
-   *
-   * Create placeholders for each of the declared scripts and
-   * add them to this.#scripts.
-   *
-   * Does not do any validation of any wireit configs themselves, that's done
-   * on demand when executing, or all at once when finding all diagnostics.
-   */
-  #analyzeWireitSection(failures: Failure[]): undefined | NamedAstNode {
-    const wireitSectionResult = findNamedNodeAtLocation(
-      this.#fileAstNode,
-      ['wireit'],
-      this.jsonFile
-    );
-    if (!wireitSectionResult.ok) {
-      failures.push(wireitSectionResult.error);
-      return;
-    }
-    const wireitSection = wireitSectionResult.value;
-    if (wireitSection == null) {
-      return;
-    }
-    const fail = failIfNotJsonObject(wireitSection, this.jsonFile);
-    if (fail != null) {
-      failures.push(fail);
-      return;
-    }
-    for (const child of wireitSection.children ?? []) {
-      if (child.type !== 'property') {
-        continue;
-      }
-      const [rawName, rawValue] = child.children ?? [];
-      if (rawName == null || rawValue == null) {
-        continue;
-      }
-      const nameResult = assertNonBlankString(rawName, this.jsonFile);
-      if (!nameResult.ok) {
-        failures.push(nameResult.error);
-        continue;
-      }
-      const fail = failIfNotJsonObject(rawValue, this.jsonFile);
-      if (fail != null) {
-        failures.push(fail);
-        continue;
-      }
-      const wireitConfigNode = rawValue as NamedAstNode;
-      wireitConfigNode.name = nameResult.value;
-      this.#getOrMakeScriptInfo(nameResult.value.value).wireitConfigNode =
-        wireitConfigNode;
-    }
-    return wireitSectionResult.value;
-  }
-}
 
 /**
  * Analyzes and validates a script along with all of its transitive
@@ -233,15 +75,17 @@ export class Analyzer {
 
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
-    const errors: Failure[] = [];
+    const errors = new Set<Failure>();
     while (this.#placeholderUpgradePromises.length > 0) {
       const result = await this.#placeholderUpgradePromises.shift();
       if (result?.ok === false) {
-        errors.push(...result.error);
+        for (const error of result.error) {
+          errors.add(error);
+        }
       }
     }
-    if (errors.length > 0) {
-      return {ok: false, error: errors};
+    if (errors.size > 0) {
+      return {ok: false, error: [...errors]};
     }
 
     // We can safely assume all placeholders have now been upgraded to full
@@ -258,13 +102,7 @@ export class Analyzer {
   }
 
   async #readPackageJson(packageDir: string): Promise<Result<PackageJson>> {
-    const result = await this.#packageJsonReader.read(packageDir);
-    if (!result.ok) {
-      return {ok: false, error: result.error};
-    }
-    const [fileAstNode, jsonFile] = result.value;
-    const packageJsonFile = new PackageJson(jsonFile, fileAstNode);
-    return {ok: true, value: packageJsonFile};
+    return this.#packageJsonReader.read(packageDir);
   }
 
   /**
@@ -906,15 +744,15 @@ export class Analyzer {
 /**
  * Throw an error if the given value is not a string.
  */
-function assertNonBlankString(
+export function assertNonBlankString(
   astNode: NamedAstNode,
   file: JsonFile
 ): Result<NamedAstNode<string>, Failure>;
-function assertNonBlankString(
+export function assertNonBlankString(
   astNode: JsonAstNode,
   file: JsonFile
 ): Result<JsonAstNode<string>, Failure>;
-function assertNonBlankString(
+export function assertNonBlankString(
   astNode: JsonAstNode,
   file: JsonFile
 ): Result<JsonAstNode<string>, Failure> {
@@ -995,7 +833,7 @@ const assertArray = (
  * Throw an error if it was an object literal ({...}), assuming it was parsed
  * from JSON.
  */
-const failIfNotJsonObject = (
+export const failIfNotJsonObject = (
   astNode: JsonAstNode,
   file: JsonFile
 ): Failure | void => {

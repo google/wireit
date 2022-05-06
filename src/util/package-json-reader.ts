@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {Result} from '../error.js';
+import {AsyncCache} from './async-cache.js';
+import {PackageJson} from './package-json.js';
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import {parseTree} from './ast.js';
-
-import type {JsonAstNode} from './ast.js';
-import {Failure} from '../event.js';
-import {Result} from '../error.js';
 
 export const astKey = Symbol('ast');
 
@@ -23,13 +22,10 @@ export interface JsonFile {
  * Reads package.json files and caches them.
  */
 export class CachingPackageJsonReader {
-  readonly #cache = new Map<string, [JsonAstNode, JsonFile]>();
+  readonly #cache = new AsyncCache<string, Result<PackageJson>>();
 
-  async read(
-    packageDir: string
-  ): Promise<Result<[JsonAstNode, JsonFile], Failure>> {
-    let file = this.#cache.get(packageDir);
-    if (file === undefined) {
+  async read(packageDir: string): Promise<Result<PackageJson>> {
+    return this.#cache.getOrCompute(packageDir, async () => {
       const path = pathlib.resolve(packageDir, 'package.json');
       let contents;
       try {
@@ -51,9 +47,11 @@ export class CachingPackageJsonReader {
       if (!astResult.ok) {
         return astResult;
       }
-      file = [astResult.value, {path, contents}];
-      this.#cache.set(packageDir, file);
-    }
-    return {ok: true, value: file};
+      const packageJsonFile = new PackageJson(
+        {contents, path},
+        astResult.value
+      );
+      return {ok: true, value: packageJsonFile};
+    });
   }
 }

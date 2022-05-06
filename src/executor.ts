@@ -366,13 +366,13 @@ class ScriptExecution {
         this.#executor.execute(dependency)
       )
     );
-    const errors: Failure[] = [];
+    const errors = new Set<Failure>();
     const results: Array<[ScriptReference, ScriptState]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
         const error: unknown = result.reason;
-        errors.push({
+        errors.add({
           type: 'failure',
           reason: 'unknown-error-thrown',
           script: this.#script.dependencies[i],
@@ -380,14 +380,16 @@ class ScriptExecution {
         });
       } else {
         if (!result.value.ok) {
-          errors.push(...result.value.error);
+          for (const error of result.value.error) {
+            errors.add(error);
+          }
         } else {
           results.push([this.#script.dependencies[i], result.value.value]);
         }
       }
     }
-    if (errors.length > 0) {
-      return {ok: false, error: errors};
+    if (errors.size > 0) {
+      return {ok: false, error: [...errors]};
     }
     return {ok: true, value: results};
   }
