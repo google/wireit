@@ -563,6 +563,9 @@ test(
     invok.exit(0);
     await invok.closed;
     assert.equal(cmdA.numInvocations, 1);
+    // Give wireit a chance to notice that its child has died, so it doesn't
+    // send it a signal and emit more error logs about that signal.
+    await wait(100);
     exec.terminate();
     const done = await exec.exit;
     assert.equal(done.stderr, ``);
