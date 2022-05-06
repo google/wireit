@@ -87,7 +87,7 @@ export class Analyzer {
     // We can safely assume all placeholders have now been upgraded to full
     // configs.
     const rootConfig = rootPlaceholder as ScriptConfig;
-    this.#checkForCyclesAndSortDependencies(rootConfig, new Map());
+    this.#checkForCyclesAndSortDependencies(rootConfig, new Set());
     return rootConfig;
   }
 
@@ -439,7 +439,7 @@ export class Analyzer {
 
   #checkForCyclesAndSortDependencies(
     config: ScriptConfig,
-    trail: Map<ScriptReferenceString, ScriptConfig>
+    trail: Set<ScriptReferenceString>
   ) {
     const trailKey = scriptReferenceToString(config);
     const supplementalLocations: MessageLocation[] = [];
@@ -449,13 +449,21 @@ export class Analyzer {
       // Trail is in graph traversal order because JavaScript Map iteration
       // order matches insertion order.
       let i = 0;
-      for (const visitedKey of trail.keys()) {
+      for (const visitedKey of trail) {
         if (visitedKey === trailKey) {
           cycleStart = i;
         }
         i++;
       }
-      const trailArray = [...trail.values()];
+      const trailArray = [...trail].map((key) => {
+        const placeholder = this.#placeholders.get(key);
+        if (placeholder == null) {
+          throw new Error(
+            `Internal error: placeholder not found for ${key} during cycle detection`
+          );
+        }
+        return placeholder as ScriptConfig;
+      });
       trailArray.push(config);
       const cycleEnd = trailArray.length - 1;
       for (let i = cycleStart; i < cycleEnd; i++) {
@@ -468,7 +476,7 @@ export class Analyzer {
         const nextName =
           dependencyNode?.value ?? next?.name ?? trailArray[cycleStart].name;
         const message =
-          next == trailArray[cycleStart]
+          next === trailArray[cycleStart]
             ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
                 nextName
               )}`
@@ -530,7 +538,7 @@ export class Analyzer {
         }
         return a.name.localeCompare(b.name);
       });
-      trail.set(trailKey, config);
+      trail.add(trailKey);
       for (const dependency of config.dependencies) {
         this.#checkForCyclesAndSortDependencies(dependency, trail);
       }
