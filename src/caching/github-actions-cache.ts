@@ -31,6 +31,7 @@ import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
 import type {Logger} from '../logging/logger.js';
 import type {RelativeEntry} from '../util/glob.js';
+import {Result} from '../error.js';
 
 // TODO(aomarks) Consider dropping the dependency on @actions/cache by writing
 // our own implementation. See https://github.com/google/wireit/issues/107 for
@@ -76,7 +77,15 @@ export class GitHubActionsCache implements Cache {
   readonly #authToken: string;
   readonly #logger: Logger;
 
-  constructor(logger: Logger) {
+  private constructor(logger: Logger, baseUrl: string, authToken: string) {
+    this.#baseUrl = baseUrl;
+    this.#authToken = authToken;
+    this.#logger = logger;
+  }
+
+  static create(
+    logger: Logger
+  ): Result<GitHubActionsCache, {reason: 'invalid-usage'; message: string}> {
     // The ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN environment variables are
     // automatically provided to GitHub Actions re-usable workflows. However,
     // they are _not_ provided to regular "run" scripts. For this reason, we
@@ -84,38 +93,50 @@ export class GitHubActionsCache implements Cache {
     // the "google/wireit@setup-github-actions-caching/v1" re-usable workflow.
     const baseUrl = process.env['ACTIONS_CACHE_URL'];
     if (!baseUrl) {
-      throw new GitHubActionsCacheError(
-        'invalid-usage',
-        'The ACTIONS_CACHE_URL variable was not set, but is required when ' +
-          'WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 ' +
-          'action to automatically set environment variables.'
-      );
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            'The ACTIONS_CACHE_URL variable was not set, but is required when ' +
+            'WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 ' +
+            'action to automatically set environment variables.',
+        },
+      };
     }
     if (!baseUrl.endsWith('/')) {
       // Internally, the @actions/cache library expects the URL to end with a
       // slash. While we could be more lenient, we want to match the behavior of
       // any other calls happening inside that library which we don't control.
-      throw new GitHubActionsCacheError(
-        'invalid-usage',
-        `The ACTIONS_CACHE_URL must end in a forward-slash, got ${JSON.stringify(
-          baseUrl
-        )}.`
-      );
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message: `The ACTIONS_CACHE_URL must end in a forward-slash, got ${JSON.stringify(
+            baseUrl
+          )}.`,
+        },
+      };
     }
-    this.#baseUrl = baseUrl;
 
     const authToken = process.env['ACTIONS_RUNTIME_TOKEN'];
     if (!authToken) {
-      throw new GitHubActionsCacheError(
-        'invalid-usage',
-        'The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when ' +
-          'WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 ' +
-          'action to automatically set environment variables.'
-      );
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            'The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when ' +
+            'WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 ' +
+            'action to automatically set environment variables.',
+        },
+      };
     }
-    this.#authToken = authToken;
 
-    this.#logger = logger;
+    return {
+      ok: true,
+      value: new GitHubActionsCache(logger, baseUrl, authToken),
+    };
   }
 
   async get(
@@ -460,20 +481,5 @@ class GitHubActionsCacheHit implements CacheHit {
       ...emptyDirs.map((dir) => fs.mkdir(dir, {recursive: true})),
       fs.unlink(this.#emptyDirectoriesManifestPath),
     ]);
-  }
-}
-
-/**
- * An exception thrown by {@link GitHubActionsCache}.
- *
- * Note we don't use {@link WireitError} here because we don't have the full
- * context of the script we're trying to evaluate.
- */
-export class GitHubActionsCacheError extends Error {
-  reason: 'invalid-usage';
-
-  constructor(reason: GitHubActionsCacheError['reason'], message: string) {
-    super(message);
-    this.reason = reason;
   }
 }

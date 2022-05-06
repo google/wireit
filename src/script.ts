@@ -75,7 +75,7 @@ export interface ScriptConfig extends ScriptReference {
    * ```json
    *   "scripts": {
    *     "build": "tsc"
-   *              ~~~~
+   *              ~~~~~
    *   }
    * ```
    */
