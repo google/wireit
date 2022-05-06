@@ -7,7 +7,7 @@
 import * as jsonParser from 'jsonc-parser';
 import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
 import {PlaceholderConfig} from '../analyzer.js';
-import {WireitError} from '../error.js';
+import {Diagnostic, WireitError} from '../error.js';
 import {JsonFile} from './package-json-reader.js';
 export {ParseError} from 'jsonc-parser';
 
@@ -99,16 +99,32 @@ export function findNodeAtLocation(
 }
 
 export function parseTree(
+  filePath: string,
   json: string,
   placeholder: PlaceholderConfig
 ): JsonAstNode {
   const errors: ParseError[] = [];
   const result = parseTreeInternal(json, errors);
   if (errors.length > 0) {
+    const diagnostics: Diagnostic[] = errors.map((error) => ({
+      severity: 'error',
+      message: `JSON syntax error`,
+      location: {
+        file: {
+          path: filePath,
+          contents: json,
+          ast: result as JsonAstNode,
+        },
+        range: {
+          offset: error.offset,
+          length: error.length,
+        },
+      },
+    }));
     throw new WireitError({
       type: 'failure',
       reason: 'invalid-json-syntax',
-      errors,
+      diagnostics,
       script: placeholder,
     });
   }

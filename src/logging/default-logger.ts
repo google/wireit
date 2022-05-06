@@ -114,15 +114,9 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'invalid-json-syntax': {
-            console.error(
-              `❌${prefix} Invalid JSON syntax in package.json file in ${event.script.packageDir}`
-            );
-            break;
-          }
-          case 'invalid-package-json': {
-            console.error(
-              `❌${prefix} Invalid JSON in package.json file in ${event.script.packageDir}`
-            );
+            for (const diagnostic of event.diagnostics) {
+              console.error(this.#diagnosticPrinter.print(diagnostic));
+            }
             break;
           }
 
@@ -132,17 +126,11 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
-          case 'script-not-found': {
-            console.error(
-              `❌${prefix} No script named "${event.script.name}" was found in ${event.script.packageDir}`
-            );
-            break;
-          }
-          case 'script-not-wireit': {
-            console.error(this.#diagnosticPrinter.print(event.diagnostic));
-            break;
-          }
-          case 'invalid-config-syntax': {
+          case 'script-not-found':
+          case 'duplicate-dependency':
+          case 'script-not-wireit':
+          case 'invalid-config-syntax':
+          case 'cycle': {
             console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
@@ -156,44 +144,13 @@ export class DefaultLogger implements Logger {
             );
             break;
           }
-          case 'duplicate-dependency': {
-            console.error(
-              `❌${prefix} The dependency "${event.dependency.name}" was declared multiple times`
-            );
-            break;
-          }
+
           case 'signal': {
             console.error(`❌${prefix} Failed with signal ${event.signal}`);
             break;
           }
           case 'spawn-error': {
             console.error(`❌${prefix} Process spawn error: ${event.message}`);
-            break;
-          }
-          case 'cycle': {
-            console.error(`❌${prefix} Cycle detected`);
-            // Display the trail of scripts and indicate where the loop is, like
-            // this:
-            //
-            //     a
-            // .-> b
-            // |   c
-            // `-- b
-            const cycleEnd = event.trail.length - 1;
-            const cycleStart = cycleEnd - event.length;
-            for (let i = 0; i < event.trail.length; i++) {
-              if (i < cycleStart) {
-                process.stderr.write('    ');
-              } else if (i === cycleStart) {
-                process.stderr.write(`.-> `);
-              } else if (i !== cycleEnd) {
-                process.stderr.write('|   ');
-              } else {
-                process.stderr.write('`-- ');
-              }
-              process.stderr.write(this.#label(event.trail[i]));
-              process.stderr.write('\n');
-            }
             break;
           }
         }

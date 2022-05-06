@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Diagnostic, Location} from './error.js';
+import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
   ScriptReference,
   PackageReference,
 } from './script.js';
-import type {JsonAstNode, ParseError} from './util/ast.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -72,7 +71,6 @@ export type Failure =
   | SpawnError
   | LaunchedIncorrectly
   | MissingPackageJson
-  | InvalidPackageJson
   | NoScriptsSectionInPackageJson
   | PackageJsonParseError
   | ScriptNotFound
@@ -131,14 +129,7 @@ export interface MissingPackageJson extends ErrorBase<ScriptReference> {
  */
 export interface PackageJsonParseError extends ErrorBase<ScriptReference> {
   reason: 'invalid-json-syntax';
-  errors: ParseError[];
-}
-
-/**
- * A package.json file was invalid.
- */
-export interface InvalidPackageJson extends ErrorBase<ScriptReference> {
-  reason: 'invalid-package-json';
+  diagnostics: Diagnostic[];
 }
 
 /**
@@ -154,7 +145,7 @@ export interface NoScriptsSectionInPackageJson
  */
 export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
-  locationOfScriptsSection: Location;
+  diagnostic: Diagnostic;
 }
 
 /**
@@ -187,8 +178,7 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
    * The dependency that is duplicated.
    */
   dependency: ScriptReference;
-  astNode: JsonAstNode;
-  duplicate: JsonAstNode;
+  diagnostic: Diagnostic;
 }
 
 /**
@@ -197,16 +187,7 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
 export interface Cycle extends ErrorBase<ScriptReference> {
   reason: 'cycle';
 
-  /**
-   * The number of edges in the cycle (e.g. "A -> B -> A" is 2).
-   */
-  length: number;
-
-  /**
-   * The walk that was taken that resulted in the cycle being detected, starting
-   * from the root script.
-   */
-  trail: ScriptReference[];
+  diagnostic: Diagnostic;
 }
 
 // -------------------------------

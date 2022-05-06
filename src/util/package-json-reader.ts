@@ -10,6 +10,7 @@ import {parseTree} from './ast.js';
 
 import type {PlaceholderConfig} from '../analyzer.js';
 import type {JsonAstNode} from './ast.js';
+import {WireitError} from '../error.js';
 
 export const astKey = Symbol('ast');
 
@@ -37,32 +38,18 @@ export class CachingPackageJsonReader {
         contents = await fs.readFile(path, 'utf8');
       } catch (error) {
         if ((error as {code?: string}).code === 'ENOENT') {
-          throw new CachingPackageJsonReaderError('missing-package-json');
+          throw new WireitError({
+            type: 'failure',
+            reason: 'missing-package-json',
+            script: placeholder,
+          });
         }
         throw error;
       }
-      const ast = parseTree(contents, placeholder);
+      const ast = parseTree(path, contents, placeholder);
       file = {path, ast, contents};
       this.#cache.set(packageDir, file);
     }
     return file;
   }
 }
-
-/**
- * An exception thrown by {@link CachingPackageJsonReader}.
- *
- * Note we don't use {@link WireitError} here because we don't have the full
- * context of the script we're trying to evaluate.
- */
-class CachingPackageJsonReaderError extends Error {
-  reason: 'missing-package-json' | 'invalid-package-json';
-
-  constructor(reason: CachingPackageJsonReaderError['reason']) {
-    super(reason);
-    this.reason = reason;
-  }
-}
-
-// Export the interface of this class, but not the class itself.
-export type {CachingPackageJsonReaderError};

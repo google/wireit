@@ -5,16 +5,15 @@
  */
 
 import * as pathlib from 'path';
-import {WireitError} from './error.js';
+import {Diagnostic, MessageLocation, WireitError} from './error.js';
 import {
   CachingPackageJsonReader,
   JsonFile,
 } from './util/package-json-reader.js';
-import {scriptReferenceToString, stringToScriptReference} from './script.js';
+import {scriptReferenceToString} from './script.js';
 import {AggregateError} from './util/aggregate-error.js';
 import {findNamedNodeAtLocation, findNodeAtLocation} from './util/ast.js';
 
-import type {CachingPackageJsonReaderError} from './util/package-json-reader.js';
 import type {
   ScriptConfig,
   ScriptReference,
@@ -117,28 +116,10 @@ export class Analyzer {
    * upgraded; dependencies are upgraded asynchronously.
    */
   async #upgradePlaceholder(placeholder: PlaceholderConfig): Promise<void> {
-    let packageJson;
-    try {
-      packageJson = await this.#packageJsonReader.read(
-        placeholder.packageDir,
-        placeholder
-      );
-    } catch (error) {
-      const reason = (error as CachingPackageJsonReaderError).reason;
-      if (
-        reason === 'missing-package-json' ||
-        reason === 'invalid-package-json'
-      ) {
-        // Add extra context to make this exception a full WireitError.
-        throw new WireitError({
-          type: 'failure',
-          reason,
-          script: placeholder,
-        });
-      } else {
-        throw error;
-      }
-    }
+    const packageJson = await this.#packageJsonReader.read(
+      placeholder.packageDir,
+      placeholder
+    );
 
     const scriptsSection = findNamedNodeAtLocation(
       packageJson.ast,
@@ -171,11 +152,15 @@ export class Analyzer {
         type: 'failure',
         reason: 'script-not-found',
         script: placeholder,
-        locationOfScriptsSection: {
-          file: packageJson,
-          range: {
-            offset: scriptsSection.offset,
-            length: scriptsSection.length,
+        diagnostic: {
+          severity: 'error',
+          message: `Script "${placeholder.name}" not found in the scripts section of this package.json.`,
+          location: {
+            file: packageJson,
+            range: {
+              offset: scriptsSection.name.offset,
+              length: scriptsSection.name.length,
+            },
           },
         },
       });
@@ -268,8 +253,26 @@ export class Analyzer {
               reason: 'duplicate-dependency',
               script: placeholder,
               dependency: resolved,
-              astNode: unresolved,
-              duplicate,
+              diagnostic: {
+                severity: 'error',
+                message: `This dependency is listed multiple times`,
+                location: {
+                  file: packageJson,
+                  range: {offset: unresolved.offset, length: unresolved.length},
+                },
+                supplementalLocations: [
+                  {
+                    message: `The dependency was first listed here.`,
+                    location: {
+                      file: packageJson,
+                      range: {
+                        offset: duplicate.offset,
+                        length: duplicate.length,
+                      },
+                    },
+                  },
+                ],
+              },
             });
           }
           uniqueDependencies.set(uniqueKey, unresolved);
@@ -439,27 +442,88 @@ export class Analyzer {
     trail: Set<ScriptReferenceString>
   ) {
     const trailKey = scriptReferenceToString(config);
+    const supplementalLocations: MessageLocation[] = [];
     if (trail.has(trailKey)) {
       // Found a cycle.
-      const trailArray = [];
       let cycleStart = 0;
-      // Trail is in graph traversal order because JavaScript Set iteration
+      // Trail is in graph traversal order because JavaScript Map iteration
       // order matches insertion order.
       let i = 0;
-      for (const visited of trail) {
-        trailArray.push(stringToScriptReference(visited));
-        if (visited === trailKey) {
+      for (const visitedKey of trail) {
+        if (visitedKey === trailKey) {
           cycleStart = i;
         }
         i++;
       }
-      trailArray.push({packageDir: config.packageDir, name: config.name});
+      const trailArray = [...trail].map((key) => {
+        const placeholder = this.#placeholders.get(key);
+        if (placeholder == null) {
+          throw new Error(
+            `Internal error: placeholder not found for ${key} during cycle detection`
+          );
+        }
+        return placeholder as ScriptConfig;
+      });
+      trailArray.push(config);
+      const cycleEnd = trailArray.length - 1;
+      for (let i = cycleStart; i < cycleEnd; i++) {
+        const current = trailArray[i];
+        const next = trailArray[i + 1];
+        const nextIdx = current.dependencies.indexOf(next);
+        const dependencyNode = current.dependenciesAst?.children?.[nextIdx];
+        // Use the actual value in the array, because this could refer to
+        // a script in another package.
+        const nextName =
+          dependencyNode?.value ?? next?.name ?? trailArray[cycleStart].name;
+        const message =
+          next === trailArray[cycleStart]
+            ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
+                nextName
+              )}`
+            : `${JSON.stringify(current.name)} points to ${JSON.stringify(
+                nextName
+              )}`;
+
+        const culpritNode =
+          // This should always be present
+          dependencyNode ??
+          // But failing that, fall back to the best node we have.
+          current.configAstNode?.name ??
+          current.scriptAstNode?.name;
+        supplementalLocations.push({
+          message,
+          location: {
+            file: current.declaringFile,
+            range: {
+              offset: culpritNode.offset,
+              length: culpritNode.length,
+            },
+          },
+        });
+      }
+      const diagnostic: Diagnostic = {
+        severity: 'error',
+        message: `Cycle detected in dependencies of ${JSON.stringify(
+          config.name
+        )}.`,
+        location: {
+          file: config.declaringFile,
+          range: {
+            length:
+              config.configAstNode?.name.length ??
+              config.scriptAstNode?.name.length,
+            offset:
+              config.configAstNode?.name.offset ??
+              config.scriptAstNode?.name.length,
+          },
+        },
+        supplementalLocations,
+      };
       throw new WireitError({
         type: 'failure',
         reason: 'cycle',
         script: config,
-        length: trail.size - cycleStart,
-        trail: trailArray,
+        diagnostic,
       });
     }
     if (config.dependencies.length > 0) {

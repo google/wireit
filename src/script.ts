@@ -79,7 +79,7 @@ export interface ScriptConfig extends ScriptReference {
    *   }
    * ```
    */
-  scriptAstNode: NamedAstNode<string> | undefined;
+  scriptAstNode: NamedAstNode<string>;
 
   /**
    * The entire config in the wireit section. i.e.:
