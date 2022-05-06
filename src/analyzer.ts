@@ -28,6 +28,12 @@ import {PackageJson} from './util/package-json.js';
  */
 export type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
 
+interface AnalyzedScriptReference {
+  failures: Failure[];
+  referencedPackageDirs: readonly string[];
+  scriptConfig: ScriptConfig | undefined;
+}
+
 /**
  * Analyzes and validates a script along with all of its transitive
  * dependencies, producing a build graph that is ready to be executed.
@@ -38,6 +44,7 @@ export class Analyzer {
   readonly #placeholderUpgradePromises: Array<
     Promise<Result<void, Failure[]>>
   > = [];
+  readonly #referencedPackageDirs = new Set<string>();
 
   /**
    * Load the Wireit configuration from the `package.json` corresponding to the
@@ -48,9 +55,7 @@ export class Analyzer {
    * dependencies don't exist, are configured in an invalid way, or if there is
    * a cycle in the dependency graph.
    */
-  async analyze(
-    root: ScriptReference
-  ): Promise<Result<ScriptConfig, Failure[]>> {
+  async analyze(root: ScriptReference): Promise<AnalyzedScriptReference> {
     // We do 2 walks through the dependency graph:
     //
     // 1. A non-deterministically ordered walk, where we traverse edges as soon
@@ -84,8 +89,13 @@ export class Analyzer {
         }
       }
     }
+    const referencedPackageDirs = [...this.#referencedPackageDirs];
     if (errors.size > 0) {
-      return {ok: false, error: [...errors]};
+      return {
+        failures: [...errors],
+        referencedPackageDirs,
+        scriptConfig: undefined,
+      };
     }
 
     // We can safely assume all placeholders have now been upgraded to full
@@ -96,12 +106,17 @@ export class Analyzer {
       new Set()
     );
     if (!cycleResult.ok) {
-      return {ok: false, error: [cycleResult.error]};
+      return {
+        failures: [cycleResult.error],
+        referencedPackageDirs,
+        scriptConfig: undefined,
+      };
     }
-    return {ok: true, value: rootConfig};
+    return {failures: [], referencedPackageDirs, scriptConfig: rootConfig};
   }
 
   async #readPackageJson(packageDir: string): Promise<Result<PackageJson>> {
+    this.#referencedPackageDirs.add(packageDir);
     return this.#packageJsonReader.read(packageDir);
   }
 

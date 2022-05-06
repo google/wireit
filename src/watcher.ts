@@ -147,14 +147,25 @@ export class Watcher {
     // to track the package.json files that we encountered, and watch them.
     const analysisResult = await analyzer.analyze(this.#script);
     await this.#clearWatchers();
-    if (!analysisResult.ok) {
-      for (const failure of analysisResult.error) {
+    if (
+      analysisResult.failures.length > 0 ||
+      analysisResult.scriptConfig == null
+    ) {
+      for (const failure of analysisResult.failures) {
         this.#logger.log(failure);
       }
-      process.exit(1);
+      if (analysisResult.failures.length === 0) {
+        throw new Error(
+          'Internal error: analyzedResult.scriptConfig is null, but no failures were returned.'
+        );
+      }
+      const packageJsonFiles = analysisResult.referencedPackageDirs.map((dir) =>
+        pathlib.join(dir, 'package.json')
+      );
+      this.#watchPatterns(packageJsonFiles, process.cwd());
     } else {
-      const analysis = analysisResult.value;
-      for (const {patterns, cwd} of this.#getWatchPathGroups(analysis)) {
+      const script = analysisResult.scriptConfig;
+      for (const {patterns, cwd} of this.#getWatchPathGroups(script)) {
         this.#watchPatterns(patterns, cwd);
       }
       const executor = new Executor(
@@ -162,7 +173,7 @@ export class Watcher {
         this.#workerPool,
         this.#cache
       );
-      const result = await executor.execute(analysis);
+      const result = await executor.execute(script);
       if (!result.ok) {
         for (const error of result.error) {
           this.#logger.log(error);

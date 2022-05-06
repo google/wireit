@@ -238,11 +238,14 @@ const run = async (): Promise<Result<void, Failure[]>> => {
   } else {
     const analyzer = new Analyzer();
     const analyzedResult = await analyzer.analyze(options.script);
-    if (!analyzedResult.ok) {
-      return analyzedResult;
+    if (analyzedResult.failures.length > 0) {
+      return {ok: false, error: analyzedResult.failures};
+    }
+    if (analyzedResult.scriptConfig == null) {
+      throw new Error('Internal error: analyzedResult.scriptConfig is null, but no failures were returned.');
     }
     const executor = new Executor(logger, workerPool, cache);
-    const result = await executor.execute(analyzedResult.value);
+    const result = await executor.execute(analyzedResult.scriptConfig);
     if (!result.ok) {
       return result;
     }
