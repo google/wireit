@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import 'source-map-support/register.js';
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {optimizeMkdirs} from '../util/optimize-fs-ops.js';
