@@ -79,7 +79,7 @@ export type Failure =
   | InvalidUsage
   | DuplicateDependency
   | Cycle
-  | UnknownErrorsThrown;
+  | UnknownErrorThrown;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -194,7 +194,7 @@ export interface Cycle extends ErrorBase<ScriptReference> {
 /**
  * For when we catch an error not handled by any of the other types.
  */
-export interface UnknownErrorsThrown extends ErrorBase<ScriptReference> {
+export interface UnknownErrorThrown extends ErrorBase<ScriptReference> {
   reason: 'unknown-error-thrown';
   error: unknown;
 }

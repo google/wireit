@@ -58,14 +58,13 @@ const PATH_ENV_SUFFIX = (() => {
   return entries.slice(endOfNodeModuleBins).join(pathlib.delimiter);
 })();
 
+type ExecutionResult = Result<ScriptState, Failure[]>;
+
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #executions = new Map<
-    string,
-    Promise<Result<ScriptState, Failure[]>>
-  >();
+  readonly #executions = new Map<string, Promise<ExecutionResult>>();
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
@@ -80,7 +79,7 @@ export class Executor {
     this.#cache = cache;
   }
 
-  async execute(script: ScriptConfig): Promise<Result<ScriptState, Failure[]>> {
+  async execute(script: ScriptConfig): Promise<ExecutionResult> {
     const executionKey = scriptReferenceToString(script);
     let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
@@ -107,7 +106,7 @@ class ScriptExecution {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
-  ): Promise<Result<ScriptState, Failure[]>> {
+  ): Promise<ExecutionResult> {
     return new ScriptExecution(
       script,
       executor,
@@ -137,7 +136,7 @@ class ScriptExecution {
     this.#logger = logger;
   }
 
-  async #execute(): Promise<Result<ScriptState, Failure[]>> {
+  async #execute(): Promise<ExecutionResult> {
     const dependencyStatesResult = await this.#executeDependencies();
     if (!dependencyStatesResult.ok) {
       return dependencyStatesResult;
@@ -214,7 +213,7 @@ class ScriptExecution {
 
   async #executeScript(
     dependencyStates: Array<[ScriptReference, ScriptState]>
-  ): Promise<Result<ScriptState, Failure[]>> {
+  ): Promise<ExecutionResult> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
