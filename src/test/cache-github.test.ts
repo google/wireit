@@ -126,7 +126,10 @@ test(
           a: {
             command: cmdA.command,
             files: [],
-            output: ['output'],
+            // Set empty output so that Wireit doesn't try to serialize all of
+            // our "npm run" commands. Note that we *do* cache empty output, so
+            // this is still covering the important part of this test.
+            output: [],
           },
         },
       },
@@ -143,9 +146,6 @@ test(
 
     // Wait for all script invocations to start.
     const started = await Promise.all(invs);
-
-    // Write some output that we expect to get cached.
-    await rig.write({output: 'v0'});
 
     // Have all scripts exit at approximately the same time. This will trigger
     // the race condition, because every script has already called "get" and saw
@@ -174,12 +174,10 @@ test(
     // fresh, and the "output" file so that we can be sure it gets restored from
     // cache.
     await rig.delete('.wireit');
-    await rig.delete('output');
 
     // Do a final run to confirm that one of the scripts saved the cache.
     const exec = rig.exec('npm run a');
     assert.equal((await exec.exit).code, 0);
-    assert.equal(await rig.read('output'), 'v0');
     assert.equal(cmdA.numInvocations, n);
     assert.equal(server.metrics, {
       check: n + 1,

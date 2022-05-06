@@ -22,6 +22,7 @@ import {
   augmentProcessEnvSafelyIfOnWindows,
   posixifyPathIfOnWindows,
 } from './util/windows.js';
+import lockfile from 'proper-lockfile';
 
 import type {
   ScriptConfig,
@@ -135,6 +136,79 @@ class ScriptExecution {
 
   async #execute(): Promise<ScriptState> {
     const dependencyStates = await this.#executeDependencies();
+    if (this.#script.output?.values.length === 0) {
+      // If there are explicitly no output files, then it's not actually
+      // important to maintain an exclusive lock.
+      return this.#executeScript(dependencyStates);
+    }
+    const releaseLock = await this.#acquireLock();
+    try {
+      return await this.#executeScript(dependencyStates);
+    } finally {
+      await releaseLock();
+    }
+  }
+
+  /**
+   * Acquire a system-wide lock on the execution of this script.
+   */
+  async #acquireLock(): Promise<() => Promise<void>> {
+    // The proper-lockfile library is designed to give an exclusive lock for a
+    // *file*. That's slightly misaligned with our use-case, because there's no
+    // particular file we need a lock for -- our lock is for the execution of
+    // this script.
+    //
+    // We can still use the library, we just need to pick some arbitrary file to
+    // ask it to lock for us. It actually errors if the file doesn't exist. So
+    // we end up with a mostly pointless file, and an adjacent "<file>.lock"
+    // directory that manages the lock (to acquire a lock, it does a mkdir for
+    // "<file>.lock", which will atomically succeed or fail depending on whether
+    // it already existed).
+    //
+    // TODO(aomarks) We could make our own implementation that directly takes a
+    // directory to mkdir and doesn't care about the file. There are some nice
+    // details proper-lockfile handles.
+    const lockFile = pathlib.join(this.#dataDir, 'lock');
+    await fs.mkdir(pathlib.dirname(lockFile), {recursive: true});
+    await fs.writeFile(lockFile, '');
+    let loggedLocked = false;
+    while (true) {
+      try {
+        return await lockfile.lock(lockFile, {
+          // If this many milliseconds has elapsed since the lock mtime was last
+          // updated, proper-lockfile will delete it and attempt to acquire the
+          // lock again. This handles the case where a process holding the lock
+          // hard-crashed.
+          stale: 10_000,
+          // How frequently the mtime for the lock will be updated while it is
+          // being held. This should be some smallish factor of "stale" so that
+          // we're unlikely to appear stale when we're actually still working on
+          // the script.
+          update: 2000,
+        });
+      } catch (error) {
+        if ((error as {code: string}).code === 'ELOCKED') {
+          if (!loggedLocked) {
+            // Only log this once.
+            this.#logger.log({
+              script: this.#script,
+              type: 'info',
+              detail: 'locked',
+            });
+            loggedLocked = true;
+          }
+          // Wait a moment before attempting to acquire the lock again.
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
+  async #executeScript(
+    dependencyStates: Array<[ScriptReference, ScriptState]>
+  ): Promise<ScriptState> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
