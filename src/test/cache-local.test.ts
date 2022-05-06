@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import 'source-map-support/register.js';
 import {suite} from 'uvu';
 import {WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';

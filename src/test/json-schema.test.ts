@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import 'source-map-support/register.js';
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
 import * as jsonSchema from 'jsonschema';

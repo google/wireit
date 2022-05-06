@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import 'source-map-support/register.js';
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggle, OffsetToPositionConverter, Position} from '../error.js';

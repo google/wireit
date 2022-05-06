@@ -245,7 +245,6 @@
     "jsonschema": "^1.4.0",
     "pnpm": "^7.0.0",
     "prettier": "^2.6.2",
-    "source-map-support": "^0.5.21",
     "typescript": "^4.6.3",
     "uvu": "^0.5.3",
     "wireit": "^0.3.1",
