@@ -1425,7 +1425,7 @@ test(`we don't produce a duplicate error when there's multiple deps into the sam
   assertScriptOutputEquals(
     done.stderr,
     `
-❌ child/package.json:2:14 Expected an object, but was string.
+❌ child${pathlib.sep}package.json:2:14 Expected an object, but was string.
       "scripts": "bad"
                  ~~~~~`
   );
