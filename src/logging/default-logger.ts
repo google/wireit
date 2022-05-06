@@ -153,6 +153,18 @@ export class DefaultLogger implements Logger {
             console.error(`❌${prefix} Process spawn error: ${event.message}`);
             break;
           }
+          case 'unknown-error-thrown': {
+            console.error(
+              `❌${prefix} Internal error! Unknown error thrown: ${String(
+                event.error
+              )}`
+            );
+            const maybeError = event.error as Partial<Error> | undefined;
+            if (maybeError?.stack) {
+              console.error(maybeError.stack);
+            }
+            break;
+          }
         }
         break;
       }

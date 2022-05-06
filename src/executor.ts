@@ -9,7 +9,7 @@ import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import {createReadStream, createWriteStream} from 'fs';
 import {spawn} from 'child_process';
-import {WireitError} from './error.js';
+import {Result} from './error.js';
 import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
 import {WorkerPool} from './util/worker-pool.js';
@@ -17,7 +17,6 @@ import {getScriptDataDir} from './util/script-data-dir.js';
 import {unreachable} from './util/unreachable.js';
 import {glob, GlobOutsideCwdError} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
-import {AggregateError} from './util/aggregate-error.js';
 import {
   augmentProcessEnvSafelyIfOnWindows,
   posixifyPathIfOnWindows,
@@ -35,6 +34,7 @@ import type {
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
+import {Failure} from './event.js';
 
 /**
  * The PATH environment variable of this process, minus all of the leading
@@ -62,7 +62,10 @@ const PATH_ENV_SUFFIX = (() => {
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #executions = new Map<string, Promise<ScriptState>>();
+  readonly #executions = new Map<
+    string,
+    Promise<Result<ScriptState, Failure[]>>
+  >();
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
@@ -77,7 +80,7 @@ export class Executor {
     this.#cache = cache;
   }
 
-  async execute(script: ScriptConfig): Promise<ScriptState> {
+  async execute(script: ScriptConfig): Promise<Result<ScriptState, Failure[]>> {
     const executionKey = scriptReferenceToString(script);
     let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
@@ -104,7 +107,7 @@ class ScriptExecution {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
-  ): Promise<ScriptState> {
+  ): Promise<Result<ScriptState, Failure[]>> {
     return new ScriptExecution(
       script,
       executor,
@@ -134,16 +137,19 @@ class ScriptExecution {
     this.#logger = logger;
   }
 
-  async #execute(): Promise<ScriptState> {
-    const dependencyStates = await this.#executeDependencies();
+  async #execute(): Promise<Result<ScriptState, Failure[]>> {
+    const dependencyStatesResult = await this.#executeDependencies();
+    if (!dependencyStatesResult.ok) {
+      return dependencyStatesResult;
+    }
     if (this.#script.output?.values.length === 0) {
       // If there are explicitly no output files, then it's not actually
       // important to maintain an exclusive lock.
-      return this.#executeScript(dependencyStates);
+      return this.#executeScript(dependencyStatesResult.value);
     }
     const releaseLock = await this.#acquireLock();
     try {
-      return await this.#executeScript(dependencyStates);
+      return await this.#executeScript(dependencyStatesResult.value);
     } finally {
       await releaseLock();
     }
@@ -208,7 +214,7 @@ class ScriptExecution {
 
   async #executeScript(
     dependencyStates: Array<[ScriptReference, ScriptState]>
-  ): Promise<ScriptState> {
+  ): Promise<Result<ScriptState, Failure[]>> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
@@ -231,7 +237,7 @@ class ScriptExecution {
         type: 'success',
         reason: 'fresh',
       });
-      return state;
+      return {ok: true, value: state};
     }
 
     // It's important that we delete any previous state before running the
@@ -283,7 +289,10 @@ class ScriptExecution {
       }
     })();
     if (shouldClean) {
-      await this.#cleanOutput();
+      const result = await this.#cleanOutput();
+      if (!result.ok) {
+        return {ok: false, error: [result.error]};
+      }
     }
 
     if (cacheHit !== undefined) {
@@ -302,7 +311,10 @@ class ScriptExecution {
         reason: 'cached',
       });
     } else {
-      await this.#executeCommandIfNeeded();
+      const result = await this.#executeCommandIfNeeded();
+      if (!result.ok) {
+        return {ok: false, error: [result.error]};
+      }
     }
 
     // TODO(aomarks) We don't technically need to wait for these to finish to
@@ -310,10 +322,13 @@ class ScriptExecution {
     // will go for saving output to the cache.
     await this.#writeStateFile(stateStr);
     if (cacheHit === undefined && state.cacheable) {
-      await this.#saveToCacheIfPossible(stateStr);
+      const result = await this.#saveToCacheIfPossible(stateStr);
+      if (!result.ok) {
+        return {ok: false, error: [result.error]};
+      }
     }
 
-    return state;
+    return {ok: true, value: state};
   }
 
   /**
@@ -338,7 +353,9 @@ class ScriptExecution {
     return false;
   }
 
-  async #executeDependencies(): Promise<Array<[ScriptReference, ScriptState]>> {
+  async #executeDependencies(): Promise<
+    Result<Array<[ScriptReference, ScriptState]>, Failure[]>
+  > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
@@ -350,29 +367,33 @@ class ScriptExecution {
         this.#executor.execute(dependency)
       )
     );
-    const errors: unknown[] = [];
+    const errors: Failure[] = [];
     const results: Array<[ScriptReference, ScriptState]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
         const error: unknown = result.reason;
-        if (error instanceof AggregateError) {
-          // Flatten nested AggregateErrors.
-          errors.push(...error.errors);
-        } else {
-          errors.push(error);
-        }
+        errors.push({
+          type: 'failure',
+          reason: 'unknown-error-thrown',
+          script: this.#script.dependencies[i],
+          error: error,
+        });
       } else {
-        results.push([this.#script.dependencies[i], result.value]);
+        if (!result.value.ok) {
+          errors.push(...result.value.error);
+        } else {
+          results.push([this.#script.dependencies[i], result.value.value]);
+        }
       }
     }
     if (errors.length > 0) {
-      throw errors.length === 1 ? errors[0] : new AggregateError(errors);
+      return {ok: false, error: errors};
     }
-    return results;
+    return {ok: true, value: results};
   }
 
-  async #executeCommandIfNeeded(): Promise<void> {
+  async #executeCommandIfNeeded(): Promise<Result<void>> {
     // It's valid to not have a command defined, since thats a useful way to
     // alias a group of dependency scripts. In this case, we can return early.
     if (!this.#script.command) {
@@ -381,7 +402,7 @@ class ScriptExecution {
         type: 'success',
         reason: 'no-command',
       });
-      return;
+      return {ok: true, value: undefined};
     }
 
     this.#logger.log({
@@ -391,114 +412,124 @@ class ScriptExecution {
     });
 
     const command = this.#script.command;
-    await this.#workerPool.run(async () => {
-      // TODO(aomarks) Update npm_ environment variables to reflect the new
-      // package.
-      const child = spawn(command.value, {
-        cwd: this.#script.packageDir,
-        // Conveniently, "shell:true" has the same shell-selection behavior as
-        // "npm run", where on macOS and Linux it is "sh", and on Windows it is
-        // %COMSPEC% || "cmd.exe".
-        //
-        // References:
-        //   https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
-        //   https://nodejs.org/api/child_process.html#default-windows-shell
-        //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
-        shell: true,
-        env: augmentProcessEnvSafelyIfOnWindows({
-          PATH: this.#pathEnvironmentVariable,
-        }),
-      });
-
-      // Only create the stdout/stderr replay files if we encounter anything on
-      // this streams.
-      let stdoutReplay: WriteStream | undefined;
-      let stderrReplay: WriteStream | undefined;
-
-      child.stdout.on('data', (data: string | Buffer) => {
-        this.#logger.log({
-          script: this.#script,
-          type: 'output',
-          stream: 'stdout',
-          data,
-        });
-        if (stdoutReplay === undefined) {
-          stdoutReplay = createWriteStream(this.#stdoutReplayPath);
-        }
-        stdoutReplay.write(data);
-      });
-
-      child.stderr.on('data', (data: string | Buffer) => {
-        this.#logger.log({
-          script: this.#script,
-          type: 'output',
-          stream: 'stderr',
-          data,
-        });
-        if (stderrReplay === undefined) {
-          stderrReplay = createWriteStream(this.#stderrReplayPath);
-        }
-        stderrReplay.write(data);
-      });
-
-      const completed = new Promise<void>((resolve, reject) => {
-        child.on('error', (error) => {
-          reject(
-            new WireitError({
-              script: this.#script,
-              type: 'failure',
-              reason: 'spawn-error',
-              message: error.message,
-            })
-          );
+    const result = await this.#workerPool.run(
+      async (): Promise<Result<void>> => {
+        // TODO(aomarks) Update npm_ environment variables to reflect the new
+        // package.
+        const child = spawn(command.value, {
+          cwd: this.#script.packageDir,
+          // Conveniently, "shell:true" has the same shell-selection behavior as
+          // "npm run", where on macOS and Linux it is "sh", and on Windows it is
+          // %COMSPEC% || "cmd.exe".
+          //
+          // References:
+          //   https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
+          //   https://nodejs.org/api/child_process.html#default-windows-shell
+          //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
+          shell: true,
+          env: augmentProcessEnvSafelyIfOnWindows({
+            PATH: this.#pathEnvironmentVariable,
+          }),
         });
 
-        child.on('close', (status, signal) => {
-          if (signal !== null) {
-            reject(
-              new WireitError({
-                script: this.#script,
-                type: 'failure',
-                reason: 'signal',
-                signal,
-              })
-            );
-          } else if (status !== 0) {
-            reject(
-              new WireitError({
-                script: this.#script,
-                type: 'failure',
-                reason: 'exit-non-zero',
-                // status should only ever be null if signal was not null, but
-                // this isn't reflected in the TypeScript types. Just in case, and
-                // to make TypeScript happy, fall back to -1 (which is a
-                // conventional exit status used for "exited with signal").
-                status: status ?? -1,
-              })
-            );
-          } else {
-            resolve();
+        // Only create the stdout/stderr replay files if we encounter anything on
+        // this streams.
+        let stdoutReplay: WriteStream | undefined;
+        let stderrReplay: WriteStream | undefined;
+
+        child.stdout.on('data', (data: string | Buffer) => {
+          this.#logger.log({
+            script: this.#script,
+            type: 'output',
+            stream: 'stdout',
+            data,
+          });
+          if (stdoutReplay === undefined) {
+            stdoutReplay = createWriteStream(this.#stdoutReplayPath);
           }
+          stdoutReplay.write(data);
         });
-      });
 
-      try {
-        await completed;
-      } finally {
-        if (stdoutReplay !== undefined) {
-          await closeWriteStream(stdoutReplay);
+        child.stderr.on('data', (data: string | Buffer) => {
+          this.#logger.log({
+            script: this.#script,
+            type: 'output',
+            stream: 'stderr',
+            data,
+          });
+          if (stderrReplay === undefined) {
+            stderrReplay = createWriteStream(this.#stderrReplayPath);
+          }
+          stderrReplay.write(data);
+        });
+
+        const completed = new Promise<Result<void>>((resolve) => {
+          child.on('error', (error) => {
+            resolve({
+              ok: false,
+              error: {
+                script: this.#script,
+                type: 'failure',
+                reason: 'spawn-error',
+                message: error.message,
+              },
+            });
+          });
+
+          child.on('close', (status, signal) => {
+            if (signal !== null) {
+              resolve({
+                ok: false,
+                error: {
+                  script: this.#script,
+                  type: 'failure',
+                  reason: 'signal',
+                  signal,
+                },
+              });
+            } else if (status !== 0) {
+              resolve({
+                ok: false,
+                error: {
+                  script: this.#script,
+                  type: 'failure',
+                  reason: 'exit-non-zero',
+                  // status should only ever be null if signal was not null, but
+                  // this isn't reflected in the TypeScript types. Just in case, and
+                  // to make TypeScript happy, fall back to -1 (which is a
+                  // conventional exit status used for "exited with signal").
+                  status: status ?? -1,
+                },
+              });
+            } else {
+              resolve({ok: true, value: undefined});
+            }
+          });
+        });
+
+        let result;
+        try {
+          result = await completed;
+        } finally {
+          if (stdoutReplay !== undefined) {
+            await closeWriteStream(stdoutReplay);
+          }
+          if (stderrReplay !== undefined) {
+            await closeWriteStream(stderrReplay);
+          }
         }
-        if (stderrReplay !== undefined) {
-          await closeWriteStream(stderrReplay);
-        }
+        return result;
       }
-    });
+    );
 
-    this.#logger.log({
-      script: this.#script,
-      type: 'success',
-      reason: 'exit-zero',
-    });
+    if (result.ok) {
+      this.#logger.log({
+        script: this.#script,
+        type: 'success',
+        reason: 'exit-zero',
+      });
+    }
+    return result;
   }
 
   /**
@@ -528,9 +559,11 @@ class ScriptExecution {
   /**
    * Save the current output files to the configured cache if possible.
    */
-  async #saveToCacheIfPossible(stateStr: ScriptStateString): Promise<void> {
+  async #saveToCacheIfPossible(
+    stateStr: ScriptStateString
+  ): Promise<Result<void>> {
     if (this.#cache === undefined || this.#script.output === undefined) {
-      return;
+      return {ok: true, value: undefined};
     }
     let paths;
     try {
@@ -573,26 +606,30 @@ class ScriptExecution {
         // TODO(aomarks) It would be better to do this in the Analyzer by
         // looking at the output glob patterns. See
         // https://github.com/google/wireit/issues/64.
-        throw new WireitError({
-          script: this.#script,
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          diagnostic: {
-            severity: 'error',
-            message: `Output files must be within the package: ${error.message}`,
-            location: {
-              file: this.#script.declaringFile,
-              range: {
-                offset: this.#script.output.node.offset,
-                length: this.#script.output.node.length,
+        return {
+          ok: false,
+          error: {
+            script: this.#script,
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            diagnostic: {
+              severity: 'error',
+              message: `Output files must be within the package: ${error.message}`,
+              location: {
+                file: this.#script.declaringFile,
+                range: {
+                  offset: this.#script.output.node.offset,
+                  length: this.#script.output.node.length,
+                },
               },
             },
           },
-        });
+        };
       }
       throw error;
     }
     await this.#cache.set(this.#script, stateStr, paths);
+    return {ok: true, value: undefined};
   }
 
   /**
@@ -751,9 +788,9 @@ class ScriptExecution {
   /**
    * Delete all files matched by this script's "output" glob patterns.
    */
-  async #cleanOutput(): Promise<void> {
+  async #cleanOutput(): Promise<Result<void>> {
     if (this.#script.output === undefined) {
-      return;
+      return {ok: true, value: undefined};
     }
     let absFiles;
     try {
@@ -770,29 +807,33 @@ class ScriptExecution {
         // TODO(aomarks) It would be better to do this in the Analyzer by
         // looking at the output glob patterns. See
         // https://github.com/google/wireit/issues/64.
-        throw new WireitError({
-          script: this.#script,
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          diagnostic: {
-            severity: 'error',
-            message: `Output files must be within the package: ${error.message}`,
-            location: {
-              file: this.#script.declaringFile,
-              range: {
-                offset: this.#script.output.node.offset,
-                length: this.#script.output.node.length,
+        return {
+          ok: false,
+          error: {
+            script: this.#script,
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            diagnostic: {
+              severity: 'error',
+              message: `Output files must be within the package: ${error.message}`,
+              location: {
+                file: this.#script.declaringFile,
+                range: {
+                  offset: this.#script.output.node.offset,
+                  length: this.#script.output.node.length,
+                },
               },
             },
           },
-        });
+        };
       }
       throw error;
     }
     if (absFiles.length === 0) {
-      return;
+      return {ok: true, value: undefined};
     }
     await deleteEntries(absFiles);
+    return {ok: true, value: undefined};
   }
 
   /**

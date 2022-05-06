@@ -10,9 +10,7 @@ import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
 import {Deferred} from './util/deferred.js';
 import {scriptReferenceToString} from './script.js';
-import {WireitError} from './error.js';
 import {WorkerPool} from './util/worker-pool.js';
-import {AggregateError} from './util/aggregate-error.js';
 
 import type {Logger} from './logging/logger.js';
 import type {
@@ -147,57 +145,38 @@ export class Watcher {
 
     // TODO(aomarks) Add support for recovering from analysis errors. We'll need
     // to track the package.json files that we encountered, and watch them.
-    const analysis = await analyzer.analyze(this.#script);
+    const analysisResult = await analyzer.analyze(this.#script);
     await this.#clearWatchers();
-    for (const {patterns, cwd} of this.#getWatchPathGroups(analysis)) {
-      this.#watchPatterns(patterns, cwd);
-    }
-
-    try {
+    if (!analysisResult.ok) {
+      for (const failure of analysisResult.error) {
+        this.#logger.log(failure);
+      }
+      process.exit(1);
+    } else {
+      const analysis = analysisResult.value;
+      for (const {patterns, cwd} of this.#getWatchPathGroups(analysis)) {
+        this.#watchPatterns(patterns, cwd);
+      }
       const executor = new Executor(
         this.#logger,
         this.#workerPool,
         this.#cache
       );
-      await executor.execute(analysis);
-    } catch (error) {
-      this.#triageErrors(error);
+      const result = await executor.execute(analysis);
+      if (!result.ok) {
+        for (const error of result.error) {
+          this.#logger.log(error);
+        }
+      }
     }
+
     this.#executing = false;
     this.#update.resolve();
-
     this.#logger.log({
       script: this.#script,
       type: 'info',
       detail: 'watch-run-end',
     });
-  }
-
-  /**
-   * Handle errors from analysis or execution.
-   *
-   * Known errors are logged and ignored. They are recoverable because the user
-   * can update the config or input files and we'll try again.
-   *
-   * Other errors throw, aborting the watch process, because they indicate a bug
-   * in Wireit, so we can no longer trust the state of the program.
-   */
-  #triageErrors(error: unknown): void {
-    const errors = error instanceof AggregateError ? error.errors : [error];
-    const unexpected = [];
-    for (const error of errors) {
-      if (error instanceof WireitError) {
-        this.#logger.log(error.event);
-      } else {
-        unexpected.push(error);
-      }
-    }
-    if (unexpected.length > 0) {
-      if (unexpected.length === 1) {
-        throw unexpected[0];
-      }
-      throw new AggregateError(unexpected);
-    }
   }
 
   /**

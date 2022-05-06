@@ -7,7 +7,8 @@
 import * as jsonParser from 'jsonc-parser';
 import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
 import {PlaceholderConfig} from '../analyzer.js';
-import {Diagnostic, WireitError} from '../error.js';
+import {Result, Diagnostic} from '../error.js';
+import {Failure} from '../event.js';
 import {JsonFile} from './package-json-reader.js';
 export {ParseError} from 'jsonc-parser';
 
@@ -63,30 +64,33 @@ export function findNamedNodeAtLocation(
   path: jsonParser.JSONPath,
   script: PlaceholderConfig,
   file: JsonFile
-): NamedAstNode | undefined {
+): Result<NamedAstNode | undefined> {
   const node = findNodeAtLocation(astNode, path) as NamedAstNode | undefined;
   const parent = node?.parent;
   if (node === undefined || parent === undefined) {
-    return undefined;
+    return {ok: true, value: undefined};
   }
   const name = parent.children?.[0];
   if (parent.type !== 'property' || name == null) {
-    throw new WireitError({
-      type: 'failure',
-      reason: 'invalid-config-syntax',
-      script,
-      diagnostic: {
-        severity: 'error',
-        message: `Expected a property, but got a ${parent.type}`,
-        location: {
-          file,
-          range: {offset: astNode.offset, length: astNode.length},
+    return {
+      ok: false,
+      error: {
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script,
+        diagnostic: {
+          severity: 'error',
+          message: `Expected a property, but got a ${parent.type}`,
+          location: {
+            file,
+            range: {offset: astNode.offset, length: astNode.length},
+          },
         },
       },
-    });
+    };
   }
   node.name = name;
-  return node;
+  return {ok: true, value: node};
 }
 
 export function findNodeAtLocation(
@@ -102,7 +106,7 @@ export function parseTree(
   filePath: string,
   json: string,
   placeholder: PlaceholderConfig
-): JsonAstNode {
+): Result<JsonAstNode, Failure> {
   const errors: ParseError[] = [];
   const result = parseTreeInternal(json, errors);
   if (errors.length > 0) {
@@ -121,12 +125,15 @@ export function parseTree(
         },
       },
     }));
-    throw new WireitError({
-      type: 'failure',
-      reason: 'invalid-json-syntax',
-      diagnostics,
-      script: placeholder,
-    });
+    return {
+      ok: false,
+      error: {
+        type: 'failure',
+        reason: 'invalid-json-syntax',
+        diagnostics,
+        script: placeholder,
+      },
+    };
   }
-  return result as JsonAstNode;
+  return {ok: true, value: result as JsonAstNode};
 }

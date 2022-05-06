@@ -7,16 +7,16 @@
 import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
-import {WireitError} from './error.js';
+import {Result} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {unreachable} from './util/unreachable.js';
-import {AggregateError} from './util/aggregate-error.js';
 import {Deferred} from './util/deferred.js';
 
 import type {ScriptReference} from './script.js';
+import {Failure} from './event.js';
 
 const packageDir = await (async (): Promise<string | undefined> => {
   // Recent versions of npm set this environment variable that tells us the
@@ -56,7 +56,7 @@ interface Options {
   cache: 'local' | 'github' | 'none';
 }
 
-const getOptions = (): Options => {
+const getOptions = (): Result<Options> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
   const scriptName = process.env.npm_lifecycle_event;
@@ -76,41 +76,50 @@ const getOptions = (): Options => {
     if (launchedWithNpx) {
       detail.push('Launching Wireit with npx is not supported.');
     }
-    throw new WireitError({
-      type: 'failure',
-      reason: 'launched-incorrectly',
-      script: {packageDir: packageDir ?? process.cwd()},
-      detail: detail.join(' '),
-    });
+    return {
+      ok: false,
+      error: {
+        type: 'failure',
+        reason: 'launched-incorrectly',
+        script: {packageDir: packageDir ?? process.cwd()},
+        detail: detail.join(' '),
+      },
+    };
   }
   const script = {packageDir, name: scriptName};
 
-  const numWorkers = (() => {
+  const numWorkersResult = ((): Result<number> => {
     const workerString = process.env['WIREIT_PARALLEL'] ?? '';
     // Many scripts will be IO blocked rather than CPU blocked, so running
     // multiple scripts per CPU will help keep things moving.
     const defaultValue = os.cpus().length * 4;
     if (workerString.match(/^infinity$/i)) {
-      return Infinity;
+      return {ok: true, value: Infinity};
     }
     if (workerString == null || workerString === '') {
-      return defaultValue;
+      return {ok: true, value: defaultValue};
     }
     const parsedInt = parseInt(workerString, 10);
     if (Number.isNaN(parsedInt) || parsedInt <= 0) {
-      throw new WireitError({
-        reason: 'invalid-usage',
-        message:
-          `Expected the WIREIT_PARALLEL env variable to be ` +
-          `a positive integer, got ${JSON.stringify(workerString)}`,
-        script,
-        type: 'failure',
-      });
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            `Expected the WIREIT_PARALLEL env variable to be ` +
+            `a positive integer, got ${JSON.stringify(workerString)}`,
+          script,
+          type: 'failure',
+        },
+      };
     }
-    return parsedInt;
+    return {ok: true, value: parsedInt};
   })();
+  if (!numWorkersResult.ok) {
+    return numWorkersResult;
+  }
 
-  const cache = (() => {
+  const cacheResult = ((): Result<'none' | 'local' | 'github'> => {
     const str = process.env['WIREIT_CACHE'];
     if (str === undefined) {
       // The CI variable is a convention that is automatically set by GitHub
@@ -127,31 +136,45 @@ const getOptions = (): Options => {
       // we're specifically on GitHub) we should be cautious about using up
       // storage quota, and instead require opt-in via WIREIT_CACHE=github.
       const ci = process.env['CI'] === 'true';
-      return ci ? 'none' : 'local';
+      return {ok: true, value: ci ? 'none' : 'local'};
     }
     if (str === 'local' || str === 'github' || str === 'none') {
-      return str;
+      return {ok: true, value: str};
     }
-    throw new WireitError({
-      reason: 'invalid-usage',
-      message:
-        `Expected the WIREIT_CACHE env variable to be ` +
-        `"local", "github", or "none", got ${JSON.stringify(str)}`,
-      script,
-      type: 'failure',
-    });
+    return {
+      ok: false,
+      error: {
+        reason: 'invalid-usage',
+        message:
+          `Expected the WIREIT_CACHE env variable to be ` +
+          `"local", "github", or "none", got ${JSON.stringify(str)}`,
+        script,
+        type: 'failure',
+      },
+    };
   })();
 
+  if (!cacheResult.ok) {
+    return cacheResult;
+  }
+
   return {
-    script,
-    watch: process.argv[2] === 'watch',
-    numWorkers,
-    cache,
+    ok: true,
+    value: {
+      script,
+      watch: process.argv[2] === 'watch',
+      numWorkers: numWorkersResult.value,
+      cache: cacheResult.value,
+    },
   };
 };
 
-const run = async () => {
-  const options = getOptions();
+const run = async (): Promise<Result<void, Failure[]>> => {
+  const optionsResult = getOptions();
+  if (!optionsResult.ok) {
+    return {ok: false, error: [optionsResult.error]};
+  }
+  const options = optionsResult.value;
 
   const workerPool = new WorkerPool(options.numWorkers);
 
@@ -164,25 +187,33 @@ const run = async () => {
       break;
     }
     case 'github': {
-      const {GitHubActionsCache, GitHubActionsCacheError} = await import(
+      const {GitHubActionsCache} = await import(
         './caching/github-actions-cache.js'
       );
-      try {
-        cache = new GitHubActionsCache(logger);
-      } catch (error) {
-        if (
-          error instanceof GitHubActionsCacheError &&
-          error.reason === 'invalid-usage'
-        ) {
-          throw new WireitError({
-            script: options.script,
-            type: 'failure',
-            reason: 'invalid-usage',
-            message: error.message,
-          });
+      const cacheResult = GitHubActionsCache.create(logger);
+      if (!cacheResult.ok) {
+        if (cacheResult.error.reason === 'invalid-usage') {
+          return {
+            ok: false,
+            error: [
+              {
+                script: options.script,
+                type: 'failure',
+                reason: 'invalid-usage',
+                message: cacheResult.error.message,
+              },
+            ],
+          };
+        } else {
+          const never: never = cacheResult.error.reason;
+          throw new Error(
+            `Internal error: unexpected cache result error reason: ${String(
+              never
+            )}`
+          );
         }
-        throw error;
       }
+      cache = cacheResult.value;
       break;
     }
     case 'none': {
@@ -206,24 +237,23 @@ const run = async () => {
     await Watcher.watch(options.script, logger, workerPool, cache, abort);
   } else {
     const analyzer = new Analyzer();
-    const analyzed = await analyzer.analyze(options.script);
+    const analyzedResult = await analyzer.analyze(options.script);
+    if (!analyzedResult.ok) {
+      return analyzedResult;
+    }
     const executor = new Executor(logger, workerPool, cache);
-    await executor.execute(analyzed);
+    const result = await executor.execute(analyzedResult.value);
+    if (!result.ok) {
+      return result;
+    }
   }
+  return {ok: true, value: undefined};
 };
 
-try {
-  await run();
-} catch (error) {
-  const errors = error instanceof AggregateError ? error.errors : [error];
-  for (const e of errors) {
-    if (e instanceof WireitError) {
-      logger.log(e.event);
-    } else {
-      // Only print a stack trace if we get an unexpected error.
-      console.error(`Unexpected error: ${(e as Error).toString()}}`);
-      console.error((e as Error).stack);
-    }
+const result = await run();
+if (!result.ok) {
+  for (const failure of result.error) {
+    logger.log(failure);
   }
   process.exitCode = 1;
 }
