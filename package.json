@@ -265,6 +265,7 @@
     "proper-lockfile": "^4.1.2"
   },
   "workspaces": [
-    "vscode-extension"
+    "vscode-extension",
+    "website"
   ]
 }

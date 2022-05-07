@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} | Wireit</title>
+    <link rel="stylesheet" href="{{ '/style.css' | url }}">
+    <link rel="stylesheet" href="{{ '/prism-light.css' | url }}" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="{{ '/prism-dark.css' | url }}" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+      <img src="{{ '/wireit.svg' | url }}" alt="Wireit" width="160" height="44">
+      <div id="badges">
+        <span id="githubStarsBadge">
+          <a
+            class="github-button"
+            href="https://github.com/google/wireit"
+            data-color-scheme="no-preference: light; light: light; dark: dark;"
+            data-icon="octicon-star"
+            data-size="medium"
+            data-show-count="true"
+            aria-label="Star google/wireit on GitHub">Star</a>
+        </span>
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src="">
+        </a>
+      </div>
+      {{ collections.all
+         | eleventyNavigation
+         | eleventyNavigationToHtml({
+             activeKey: eleventyNavigation.key,
+             activeListItemClass: "active"
+           })
+         | safe }}
+    </nav>
+    <main id="content">
+      <article>
+        {{ content | safe }}
+      </article>
+    </main>
+    <script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>

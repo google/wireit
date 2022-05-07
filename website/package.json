@@ -1,0 +1,45 @@
+{
+  "name": "wireit-website",
+  "description": "The website for wireit",
+  "private": true,
+  "version": "0.0.0",
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "wireit",
+    "serve": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "eleventy --config=.eleventy.cjs",
+      "files": [
+        ".eleventy.cjs",
+        "content/**"
+      ],
+      "output": [
+        "_site/**"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "serve": {
+      "command": "wds --root-dir=_site --base-path=/wireit/ --watch --open",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "@11ty/eleventy": "^1.0.1",
+    "@11ty/eleventy-plugin-syntaxhighlight": "^4.0.0",
+    "markdown-it": "^13.0.1",
+    "markdown-it-anchor": "^8.6.3",
+    "prism-themes": "^1.9.0"
+  },
+  "devDependencies": {
+    "@11ty/eleventy-navigation": "^0.3.3",
+    "@web/dev-server": "^0.1.31"
+  }
+}
