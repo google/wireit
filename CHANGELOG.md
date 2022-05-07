@@ -28,6 +28,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - We continue analyzing package.json files past the first error so that we
   can show as many potential issues as we can find.
 
+- Added an IDE analyzer interface, so that the VSCode extension can use the
+  same logic as the CLI for finding diagnostics.
+
 ## [0.4.0] - 2022-05-06
 
 ### Changed

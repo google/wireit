@@ -13,18 +13,26 @@ import {parseTree} from './ast.js';
 
 export const astKey = Symbol('ast');
 
+export interface FileSystem {
+  readFile(path: string, options: 'utf8'): Promise<string>;
+}
+
 /**
  * Reads package.json files and caches them.
  */
 export class CachingPackageJsonReader {
   readonly #cache = new AsyncCache<string, Result<PackageJson>>();
+  readonly #fs;
+  constructor(filesystem: FileSystem = fs) {
+    this.#fs = filesystem;
+  }
 
   async read(packageDir: string): Promise<Result<PackageJson>> {
     return this.#cache.getOrCompute(packageDir, async () => {
       const path = pathlib.resolve(packageDir, 'package.json');
       let contents;
       try {
-        contents = await fs.readFile(path, 'utf8');
+        contents = await this.#fs.readFile(path, 'utf8');
       } catch (error) {
         if ((error as {code?: string}).code === 'ENOENT') {
           return {

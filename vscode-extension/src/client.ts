@@ -50,10 +50,10 @@ export async function activate(context: vscode.ExtensionContext) {
       'window/logMessage',
       ({message}: {message: string}) => {
         outputChannel.appendLine(`languageServer: ${message}`);
+        console.error(`languageServer: ${message}`);
       }
     )
   );
-  outputChannel.appendLine('hm');
 }
 
 export async function deactivate(): Promise<void> {

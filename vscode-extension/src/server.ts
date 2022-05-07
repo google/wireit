@@ -16,9 +16,7 @@
 import {
   createConnection,
   TextDocuments,
-  Diagnostic,
   ProposedFeatures,
-  DiagnosticSeverity,
   InitializeResult,
   TextDocumentSyncKind,
   CodeAction,
@@ -26,6 +24,7 @@ import {
   WorkspaceEdit,
 } from 'vscode-languageserver/node';
 import * as jsonParser from 'jsonc-parser';
+import * as url from 'url';
 
 import {
   Range,
@@ -33,8 +32,14 @@ import {
   TextEdit,
 } from 'vscode-languageserver-textdocument';
 import {inspect} from 'util';
+import {IdeAnalyzer} from '../../src/ide.js';
 
-const connection = createConnection(ProposedFeatures.all);
+const ideAnalyzer = new IdeAnalyzer();
+const connection = createConnection(
+  ProposedFeatures.all
+  // process.stdin,
+  // process.stdout
+);
 
 interface Modification {
   path: jsonParser.JSONPath;
@@ -155,13 +160,6 @@ class Analysis {
         this.#scriptsByKey.set(property.key, property);
       }
     });
-  }
-
-  getDiagnostics(): Diagnostic[] {
-    return [
-      ...this.#checkThatWireitScriptsDeclaredInScriptsSection(),
-      ...this.#checkThatWireitScriptHasAtLeastOneOfCommandOrDependencies(),
-    ];
   }
 
   getCodeActions(range: Range): CodeAction[] {
@@ -307,79 +305,55 @@ class Analysis {
     const end = this.#textDocument.offsetAt(range.end);
     return node.offset < start && node.offset + node.length > end;
   }
-
-  *#checkThatWireitScriptsDeclaredInScriptsSection(): IterableIterator<Diagnostic> {
-    for (const prop of this.#wireitConfigsByKey.values()) {
-      const scriptProp = this.#scriptsByKey.get(prop.key);
-      if (scriptProp == null) {
-        yield {
-          severity: DiagnosticSeverity.Error,
-          message: `This script is declared in the "wireit" section, but not in the "scripts" section`,
-          source: 'wireit',
-          range: {
-            start: this.#textDocument.positionAt(prop.keyAst.offset),
-            end: this.#textDocument.positionAt(
-              prop.keyAst.offset + prop.keyAst.length
-            ),
-          },
-        };
-      } else {
-        if (
-          typeof scriptProp.value === 'string' &&
-          scriptProp.value.trim() !== 'wireit'
-        ) {
-          yield {
-            severity: DiagnosticSeverity.Error,
-            message: `This script is declared in the "wireit" section, but that won't have any effect unless this command is just "wireit"`,
-            source: 'wireit',
-            range: {
-              start: this.#textDocument.positionAt(scriptProp.valueAst.offset),
-              end: this.#textDocument.positionAt(
-                scriptProp.valueAst.offset + scriptProp.valueAst.length
-              ),
-            },
-          };
-        }
-      }
-    }
-  }
-
-  *#checkThatWireitScriptHasAtLeastOneOfCommandOrDependencies(): IterableIterator<Diagnostic> {
-    for (const prop of this.#wireitConfigsByKey.values()) {
-      if (prop.valueAst.type !== 'object') {
-        continue;
-      }
-      const command = getPropertyByKeyName(prop.valueAst, 'command');
-      const dependencies = getPropertyByKeyName(prop.valueAst, 'dependencies');
-      if (command == null && dependencies == null) {
-        yield {
-          severity: DiagnosticSeverity.Error,
-          message: `Set either "command" or "dependencies", otherwise there's nothing for wireit to do.`,
-          source: 'wireit',
-          range: {
-            start: this.#textDocument.positionAt(prop.keyAst.offset),
-            end: this.#textDocument.positionAt(
-              prop.keyAst.offset + prop.keyAst.length
-            ),
-          },
-        };
-      }
-    }
-  }
 }
 
-documents.onDidChangeContent((change) => {
-  try {
-    const analysis = new Analysis(change.document);
-    connection.sendDiagnostics({
-      uri: change.document.uri,
-      diagnostics: analysis.getDiagnostics(),
-    });
-  } catch (e) {
-    connection.console.log(
-      `Error trying to get and send diagnostics: ${String(e)}`
-    );
+let requestIdCounter = 0;
+const getAndSendDiagnostics = async () => {
+  requestIdCounter++;
+  const requestId = requestIdCounter;
+  const diagnosticsByFile = await ideAnalyzer.getDiagnostics();
+  if (requestId !== requestIdCounter) {
+    return; // another request has been made since this one
   }
+  for (const path of ideAnalyzer.openFiles) {
+    const diagnostics = diagnosticsByFile.get(path) ?? [];
+    connection.sendDiagnostics({
+      uri: url.pathToFileURL(path).toString(),
+      diagnostics: [...diagnostics],
+    });
+  }
+};
+
+const updateOpenFile = (document: TextDocument) => {
+  if (document.languageId !== 'json') {
+    return;
+  }
+  const path = url.fileURLToPath(document.uri);
+  if (!path.endsWith('package.json')) {
+    return;
+  }
+  const contents = document.getText();
+  ideAnalyzer.setOpenFileContents(path, contents);
+  void getAndSendDiagnostics();
+};
+
+documents.onDidOpen((event) => {
+  updateOpenFile(event.document);
+});
+
+documents.onDidChangeContent((change) => {
+  updateOpenFile(change.document);
+});
+
+documents.onDidClose((change) => {
+  const path = url.fileURLToPath(change.document.uri);
+  ideAnalyzer.closeFile(path);
+  void getAndSendDiagnostics();
+  // Clear diagnostics for closed file.
+  connection.sendDiagnostics({
+    uri: change.document.uri,
+    diagnostics: [],
+  });
 });
 
 connection.onCodeAction((params) => {

@@ -38,6 +38,7 @@
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
     "test:freshness": "wireit",
+    "test:ide": "wireit",
     "test:glob": "wireit",
     "test:json-schema": "wireit",
     "test:optimize-cprms": "wireit",
@@ -78,6 +79,7 @@
         "test:errors-usage",
         "test:freshness",
         "test:glob",
+        "test:ide",
         "test:json-schema",
         "test:optimize-cprms",
         "test:optimize-mkdirs",
@@ -87,6 +89,10 @@
       ]
     },
     "lint": {
+      "dependencies": [
+        "build"
+      ],
+      "#comment": "Need to build first so that the vscode-extension lint can see our types.",
       "command": "eslint --color --cache --cache-location .eslintcache .",
       "files": [
         ".eslintignore",
@@ -178,6 +184,14 @@
     },
     "test:glob": {
       "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"glob\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:ide": {
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"ide\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],

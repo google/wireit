@@ -14,9 +14,9 @@
     "build:copy-schema": "wireit",
     "build:bundle": "wireit",
     "watch": "npm run build watch",
-    "lint": "wireit",
     "install-extension": "wireit",
-    "build:package": "wireit"
+    "build:package": "wireit",
+    "test:compile": "wireit"
   },
   "engines": {
     "vscode": "^1.66.0"
@@ -38,20 +38,34 @@
       "command": "cp ../schema.json ./schema.json"
     },
     "build:ts": {
+      "dependencies": [
+        "..:build"
+      ],
       "files": [
         "tsconfig.json",
         "src/**/*.ts"
       ],
       "output": [
-        "lib",
-        ".tsbuildinfo"
+        "lib"
       ],
       "clean": "if-file-deleted",
-      "command": "tsc --build --pretty"
+      "command": "tsc --skipLibCheck > /dev/null || echo ''"
+    },
+    "test:compile": {
+      "dependencies": [
+        "..:build"
+      ],
+      "files": [
+        "tsconfig.json",
+        "src/**/*.ts"
+      ],
+      "output": [],
+      "command": "tsc --noEmit"
     },
     "build:bundle": {
       "files": [
         "src/**/*.ts",
+        "../src/**/*.ts",
         "esbuild.script.mjs"
       ],
       "output": [
@@ -60,17 +74,10 @@
       ],
       "command": "node esbuild.script.mjs"
     },
-    "lint": {
-      "files": [
-        "src/**/*.ts"
-      ],
-      "output": [],
-      "command": "eslint src --ext ts"
-    },
     "test": {
       "dependencies": [
-        "test:actual",
-        "lint"
+        "test:compile",
+        "test:actual"
       ]
     },
     "test:actual": {

@@ -5,9 +5,12 @@
  */
 
 import * as pathlib from 'path';
-import {CachingPackageJsonReader} from './util/package-json-reader.js';
-import {findNodeAtLocation, JsonFile} from './util/ast.js';
+import {
+  CachingPackageJsonReader,
+  FileSystem,
+} from './util/package-json-reader.js';
 import {scriptReferenceToString} from './script.js';
+import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 import type {Diagnostic, MessageLocation, Result} from './error.js';
@@ -71,9 +74,34 @@ interface PlaceholderInfo {
  * dependencies, producing a build graph that is ready to be executed.
  */
 export class Analyzer {
-  readonly #packageJsonReader = new CachingPackageJsonReader();
+  readonly #packageJsonReader;
   readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
   readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
+
+  constructor(filesystem?: FileSystem) {
+    this.#packageJsonReader = new CachingPackageJsonReader(filesystem);
+  }
+
+  /**
+   * Analyze every script in each given file and return all diagnostics found.
+   */
+  async analyzeFiles(files: string[]): Promise<Set<Failure>> {
+    await Promise.all(
+      files.map(async (f) => {
+        const packageDir = pathlib.dirname(f);
+        const fileResult = await this.#readPackageJson(packageDir);
+        if (!fileResult.ok) {
+          return; // will get this error below.
+        }
+        for (const script of fileResult.value.scripts.values()) {
+          // This starts analysis of each of the scripts in our root files.
+          this.#getPlaceholder({name: script.name, packageDir});
+        }
+      })
+    );
+    await this.#waitForAnalysisToComplete();
+    return this.#getDiagnostics();
+  }
 
   /**
    * Load the Wireit configuration from the `package.json` corresponding to the
