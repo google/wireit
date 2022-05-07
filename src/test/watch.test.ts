@@ -539,11 +539,8 @@ test(
       "scripts": {
       ~~~~~~~~~\n`
     );
-    if (os.platform() === 'linux' || os.platform() === 'win32') {
-      // On Linux and Windows, chokidar seems not to immediately watch
-      // files.
-      await wait(100);
-    }
+    // chokidar seems to occasionally not immediately watch files.
+    await wait(300);
     // Now write a correct package.json file.
     await rig.write({
       'package.json': {
@@ -565,7 +562,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     // Give wireit a chance to notice that its child has died, so it doesn't
     // send it a signal and emit more error logs about that signal.
-    await wait(100);
+    await wait(300);
     exec.terminate();
     const done = await exec.exit;
     assert.equal(done.stderr, ``);
