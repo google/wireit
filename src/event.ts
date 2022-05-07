@@ -191,6 +191,11 @@ export interface DependencyOnMissingPackageJson
   extends ErrorBase<ScriptReference> {
   reason: 'dependency-on-missing-package-json';
   diagnostic: Diagnostic;
+  /**
+   * This is a better error message than the missing-package-json error,
+   * so if we'd be going to display both, we should only display this one.
+   */
+  supercedes: Failure;
 }
 
 /**

@@ -935,7 +935,6 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [../bar] No package.json was found in ${pathlib.resolve(rig.temp, 'bar')}
 ❌ package.json:8:10 Package json file missing: "${pathlib.resolve(
         rig.temp,
         'bar',
@@ -968,10 +967,6 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ [../b\t\\ ar] No package.json was found in ${pathlib.join(
-        rig.temp,
-        'b\t\\ ar'
-      )}
 ❌ package.json:8:10 Package json file missing: ${JSON.stringify(
         pathlib.join(rig.temp, 'b\t\\ ar', 'package.json')
       )}
@@ -1523,7 +1518,6 @@ test(`we don't produce a duplicate not found error when there's multiple deps in
   assertScriptOutputEquals(
     done.stderr,
     `
-❌ [child] No package.json was found in ${pathlib.join(rig.temp, 'child')}
 ❌ package.json:8:10 Package json file missing: "${pathlib.join(
       rig.temp,
       'child',

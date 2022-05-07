@@ -16,7 +16,7 @@ import type {
   ScriptReferenceString,
 } from './script.js';
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
-import {Failure} from './event.js';
+import {DependencyOnMissingPackageJson, Failure} from './event.js';
 import {PackageJson} from './util/package-json.js';
 
 /**
@@ -87,6 +87,13 @@ export class Analyzer {
       }
     }
     if (errors.size > 0) {
+      for (const error of errors) {
+        const supercedes = (error as Partial<DependencyOnMissingPackageJson>)
+          .supercedes;
+        if (supercedes != null) {
+          errors.delete(supercedes);
+        }
+      }
       return {ok: false, error: [...errors]};
     }
 
@@ -371,6 +378,7 @@ export class Analyzer {
                         type: 'failure',
                         reason: 'dependency-on-missing-package-json',
                         script: placeholder,
+                        supercedes: failure,
                         diagnostic: {
                           severity: 'error',
                           message: `Package json file missing: ${JSON.stringify(
