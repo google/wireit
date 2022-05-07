@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as os from 'os';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 
