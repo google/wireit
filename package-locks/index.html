@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Package locks | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li class="active"><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Package locks</h2>
+<p>By default, Wireit automatically treats
+<a href="https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json"><code>package-lock.json</code></a>
+files in the package directory, plus all parent directories, as input files.
+This is useful because installing or upgrading your dependencies can affect the
+behavior of your scripts, so it's important to re-run them whenever your
+dependencies change.</p>
+<p>If you are using an alternative package manager instead of npm, then your
+package lock files might be named something else. Some examples are:</p>
+<ul>
+<li>Yarn: <a href="https://yarnpkg.com/configuration/yarnrc#lockfileFilename"><code>yarn.lock</code></a> (configurable)</li>
+<li>pnpm: <a href="https://pnpm.io/git#lockfiles"><code>pnpm-lock.yaml</code></a></li>
+</ul>
+<p>To change the name of the package lock files Wireit should look for, specify it
+in the <code>wireit.&lt;script&gt;.packageLocks</code> array. Wireit will look for the given
+filenames in the script's directory, as well as in all of its parent
+directories. You can specify multiple filenames here, if needed.</p>
+<pre class="language-json"><code class="language-json"><span class="token punctuation">{</span><br>  <span class="token property">"scripts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><br>  <span class="token punctuation">}</span><span class="token punctuation">,</span><br>  <span class="token property">"wireit"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"tsc"</span><span class="token punctuation">,</span><br>      <span class="token property">"files"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"src/**/*.ts"</span><span class="token punctuation">,</span> <span class="token string">"tsconfig.json"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"output"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"lib/**"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"packageLocks"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"yarn.lock"</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><br>  <span class="token punctuation">}</span><br><span class="token punctuation">}</span></code></pre>
+<p>If you're sure that a script isn't affected by dependencies at all, you can turn
+off this behavior entirely to improve your cache hit rate by setting
+<code>wireit.&lt;script&gt;.packageLocks</code> to <code>[]</code>.</p>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

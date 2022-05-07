@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dependencies | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li class="active"><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Dependencies</h2>
+<p>To declare a dependency between two scripts, edit the
+<code>wireit.&lt;script&gt;.dependencies</code> list:</p>
+<pre class="language-json"><code class="language-json"><span class="token punctuation">{</span><br>  <span class="token property">"scripts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><span class="token punctuation">,</span><br>    <span class="token property">"bundle"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><br>  <span class="token punctuation">}</span><span class="token punctuation">,</span><br>  <span class="token property">"wireit"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"tsc"</span><br>    <span class="token punctuation">}</span><span class="token punctuation">,</span><br>    <span class="token property">"bundle"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"rollup -c"</span><span class="token punctuation">,</span><br>      <span class="token property">"dependencies"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"build"</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><br>  <span class="token punctuation">}</span><br><span class="token punctuation">}</span></code></pre>
+<p>Now when you run <code>npm run bundle</code>, the <code>build</code> script will automatically run
+first.</p>
+<h3 id="vanilla-scripts" tabindex="-1"><a class="header-anchor" href="#vanilla-scripts">Vanilla scripts</a></h3>
+<p>The scripts you depend on don't need to be configured for Wireit, they can be
+vanilla <code>npm</code> scripts. This lets you only use Wireit for some of your scripts,
+or to upgrade incrementally. Scripts that haven't been configured for Wireit are
+always safe to use as dependencies; they just won't be fully optimized.</p>
+<h3 id="cross-package-dependencies" tabindex="-1"><a class="header-anchor" href="#cross-package-dependencies">Cross-package dependencies</a></h3>
+<p>Dependencies can refer to scripts in other npm packages by using a relative path
+with the syntax <code>&lt;relative-path&gt;:&lt;script-name&gt;</code>. All cross-package dependencies
+should start with a <code>&quot;.&quot;</code>. Cross-package dependencies work well for npm
+workspaces, as well as in other kinds of monorepos.</p>
+<pre class="language-json"><code class="language-json"><span class="token punctuation">{</span><br>  <span class="token property">"scripts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><br>  <span class="token punctuation">}</span><span class="token punctuation">,</span><br>  <span class="token property">"wireit"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"tsc"</span><span class="token punctuation">,</span><br>      <span class="token property">"dependencies"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"../other-package:build"</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><br>  <span class="token punctuation">}</span><br><span class="token punctuation">}</span></code></pre>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Files | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li class="active"><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Input and output files</h2>
+<p>The <code>files</code> and <code>output</code> properties of <code>wireit.&lt;script&gt;</code> tell Wireit what your
+script's input and output files are, respectively. They should be arrays of
+<a href="/reference/#glob-patterns">glob patterns</a>, where paths are interpreted relative to the
+package directory. They can be set on some, all, or none of your scripts.</p>
+<p>Setting these properties allow you to use more features of Wireit:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:right"></th>
+<th style="text-align:center">Requires<br><code>files</code></th>
+<th style="text-align:center">Requires<br><code>output</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right"><a href="/dependencies/"><strong>Dependency graph</strong></a></td>
+<td style="text-align:center">-</td>
+<td style="text-align:center">-</td>
+</tr>
+<tr>
+<td style="text-align:right"><a href="/incremental-build/"><strong>Incremental build</strong></a></td>
+<td style="text-align:center">☑️</td>
+<td style="text-align:center">-</td>
+</tr>
+<tr>
+<td style="text-align:right"><a href="/watch/"><strong>Watch mode</strong></a></td>
+<td style="text-align:center">☑️</td>
+<td style="text-align:center">-</td>
+</tr>
+<tr>
+<td style="text-align:right"><a href="/cleaning/"><strong>Clean build</strong></a></td>
+<td style="text-align:center">-</td>
+<td style="text-align:center">☑️</td>
+</tr>
+<tr>
+<td style="text-align:right"><a href="/caching/"><strong>Caching</strong></a></td>
+<td style="text-align:center">☑️</td>
+<td style="text-align:center">☑️</td>
+</tr>
+</tbody>
+</table>
+<h4 id="example-configuration" tabindex="-1"><a class="header-anchor" href="#example-configuration">Example configuration</a></h4>
+<pre class="language-json"><code class="language-json"><span class="token punctuation">{</span><br>  <span class="token property">"scripts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><span class="token punctuation">,</span><br>    <span class="token property">"bundle"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><br>  <span class="token punctuation">}</span><span class="token punctuation">,</span><br>  <span class="token property">"wireit"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"build"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"tsc"</span><span class="token punctuation">,</span><br>      <span class="token property">"files"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"src/**/*.ts"</span><span class="token punctuation">,</span> <span class="token string">"tsconfig.json"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"output"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"lib/**"</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><span class="token punctuation">,</span><br>    <span class="token property">"bundle"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"rollup -c"</span><span class="token punctuation">,</span><br>      <span class="token property">"dependencies"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"build"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"files"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"rollup.config.json"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"output"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"dist/bundle.js"</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><br>  <span class="token punctuation">}</span><br><span class="token punctuation">}</span></code></pre>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

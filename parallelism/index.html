@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallelism | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li class="active"><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Parallelism</h2>
+<p>Wireit will run scripts in parallel whenever it is safe to do so according to
+the dependency graph.</p>
+<p>For example, in this diagram, the <code>B</code> and <code>C</code> scripts will run in parallel,
+while the <code>A</code> script won't start until both <code>B</code> and <code>C</code> finish.</p>
+<img src ="/images/parallel-diagram.svg" height="204" width="198">
+<p>By default, Wireit will run up to 4 scripts in parallel for every CPU core
+detected on your system. To change this default, set the <code>WIREIT_PARALLEL</code>
+<a href="/reference/#environment-variables">environment variable</a> to a positive integer, or
+<code>infinity</code> to run without a limit. You may want to lower this number if you
+experience resource starvation in large builds. For example, to run only one
+script at a time:</p>
+<pre class="language-bash"><code class="language-bash"><span class="token builtin class-name">export</span> <span class="token assign-left variable">WIREIT_PARALLEL</span><span class="token operator">=</span><span class="token number">1</span><br><span class="token function">npm</span> run build</code></pre>
+<p>If two or more seperate <code>npm run</code> commands are run for the same Wireit script
+simultaneously, then only one instance will be allowed to run at a time, while
+the others wait their turn. This prevents coordination problems that can result
+in incorrect output files being produced. If <code>output</code> is set to an empty array,
+then this restriction is removed.</p>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

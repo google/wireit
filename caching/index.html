@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caching | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li class="active"><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Caching</h2>
+<p>If a script has previously succeeded with the same configuration and input
+files, then Wireit can copy the output from a cache, instead of running the
+command. This can significantly improve build and test time. When a script is
+restored from cache, any <code>stdout</code> or <code>stderr</code> is replayed.</p>
+<p>To enable caching for a script, ensure you have defined both the <a href="/files/"><code>files</code> and
+<code>output</code></a> arrays.</p>
+<blockquote>
+<p>ℹ️ If a script doesn't produce any output files, it can still be cached by
+setting <code>output</code> to an empty array (<code>&quot;output&quot;: []</code>). Empty output is common for
+tests, and is useful because it allows you to skip running tests if they
+previously passed with the exact same inputs.</p>
+</blockquote>
+<h3 id="local-caching" tabindex="-1"><a class="header-anchor" href="#local-caching">Local caching</a></h3>
+<p>In <em>local</em> mode, Wireit caches <code>output</code> files to the <code>.wireit</code> folder inside
+each of your packages.</p>
+<p>Local caching is enabled by default, unless the
+<a href="https://docs.github.com/en/enterprise-cloud@latest/actions/learn-github-actions/environment-variables#default-environment-variables"><code>CI=true</code></a>
+environment variable is detected. To force local caching, set
+<code>WIREIT_CACHE=local</code>. To disable local caching, set <code>WIREIT_CACHE=none</code>.</p>
+<blockquote>
+<p>⚠️ Wireit does not currently limit the size of local caches. To free up this
+space, use <code>rm -rf .wireit/*/cache</code>. Automatic cache size limits will be added
+in an upcoming release, tracked at
+<a href="https://github.com/google/wireit/issues/71">wireit#71</a>.</p>
+</blockquote>
+<h3 id="github-actions-caching" tabindex="-1"><a class="header-anchor" href="#github-actions-caching">GitHub Actions caching</a></h3>
+<p>In <em><a href="https://github.com/features/actions">GitHub Actions</a></em> mode, Wireit caches
+<code>output</code> files to the <a href="https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows">GitHub Actions
+cache</a>
+service. This service is available whenever running in GitHub Actions, and is
+free for all GitHub users.</p>
+<blockquote>
+<p>ℹ️ GitHub Actions cache entries are automatically deleted after 7 days, or if
+total usage exceeds 10 GB (the least recently used cache entry is deleted
+first). See the <a href="https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#usage-limits-and-eviction-policy">GitHub Actions
+documentation</a>
+for more details.</p>
+</blockquote>
+<p>To enable caching on GitHub Actions, add the following
+<a href="https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsuses"><code>uses</code></a>
+clause to your workflow. It can appear anywhere before the first <code>npm run</code> or
+<code>npm test</code> command:</p>
+<pre class="language-yaml"><code class="language-yaml"><span class="token punctuation">-</span> <span class="token key atrule">uses</span><span class="token punctuation">:</span> google/wireit@setup<span class="token punctuation">-</span>github<span class="token punctuation">-</span>actions<span class="token punctuation">-</span>caching/v1</code></pre>
+<h4 id="example-workflow" tabindex="-1"><a class="header-anchor" href="#example-workflow">Example workflow</a></h4>
+<pre class="language-yaml"><code class="language-yaml"><span class="token comment"># File: .github/workflows/tests.yml</span><br><br><span class="token key atrule">name</span><span class="token punctuation">:</span> Tests<br><span class="token key atrule">on</span><span class="token punctuation">:</span> <span class="token punctuation">[</span>push<span class="token punctuation">,</span> pull_request<span class="token punctuation">]</span><br><span class="token key atrule">jobs</span><span class="token punctuation">:</span><br>  <span class="token key atrule">tests</span><span class="token punctuation">:</span><br>    <span class="token key atrule">os</span><span class="token punctuation">:</span> ubuntu<span class="token punctuation">-</span><span class="token number">20.04</span><br>    <span class="token key atrule">steps</span><span class="token punctuation">:</span><br>      <span class="token punctuation">-</span> <span class="token key atrule">uses</span><span class="token punctuation">:</span> actions/checkout@v3<br>      <span class="token punctuation">-</span> <span class="token key atrule">uses</span><span class="token punctuation">:</span> actions/setup<span class="token punctuation">-</span>node@v3<br>        <span class="token key atrule">with</span><span class="token punctuation">:</span><br>          <span class="token key atrule">node-version</span><span class="token punctuation">:</span> <span class="token number">16</span><br>          <span class="token key atrule">cache</span><span class="token punctuation">:</span> <span class="token boolean important">true</span><br><br>      <span class="token comment"># Set up GitHub Actions caching for Wireit.</span><br>      <span class="token punctuation">-</span> <span class="token key atrule">uses</span><span class="token punctuation">:</span> google/wireit@setup<span class="token punctuation">-</span>github<span class="token punctuation">-</span>actions<span class="token punctuation">-</span>caching/v1<br><br>      <span class="token comment"># Install npm dependencies.</span><br>      <span class="token punctuation">-</span> <span class="token key atrule">run</span><span class="token punctuation">:</span> npm ci<br><br>      <span class="token comment"># Run tests. Wireit will automatically use</span><br>      <span class="token comment"># the GitHub Actions cache whenever possible.</span><br>      <span class="token punctuation">-</span> <span class="token key atrule">run</span><span class="token punctuation">:</span> npm test</code></pre>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

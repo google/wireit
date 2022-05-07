@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Related tools | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li class="active"><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Related tools</h2>
+<p>Wireit shares a number of features with these other great tools, and we highly
+recommend you check them out too:</p>
+<ul>
+<li><a href="https://nx.dev/">Nx</a></li>
+<li><a href="https://turborepo.org/">Turborepo</a></li>
+<li><a href="https://chompbuild.com/">Chomp</a></li>
+<li><a href="https://bazel.build/">Bazel</a></li>
+</ul>
+<p>Here are some things you might especially like about Wireit:</p>
+<ul>
+<li>
+<p><strong>Feels like npm</strong>. When you use Wireit, you'll continue typing the same npm
+commands you already use, like <code>npm run build</code> and <code>npm test</code>. There are no
+new command-line tools to learn, and there's only one way to run each script.
+Your script config stays in your <code>package.json</code>, too. Wireit is designed to be
+the minimal addition to npm needed to get script dependencies and incremental
+build.</p>
+</li>
+<li>
+<p><strong>Caching with GitHub Actions</strong>. Wireit supports caching build artifacts and
+test results directly through GitHub Actions, without any extra third-party
+services. Just add a single <code>uses:</code> line to your workflows.</p>
+</li>
+<li>
+<p><strong>Watch any script</strong>. Want to automatically re-run your build and tests
+whenever you make a change? Type <code>npm test watch</code>. Any script you've
+configured using Wireit can be watched by typing <code>watch</code> after it.</p>
+</li>
+<li>
+<p><strong>Great for single packages and monorepos</strong>. Wireit has no opinion about how
+your packages are arranged. It works great with single packages, because you
+can link together scripts within the same package. It also works great with
+any kind of monorepo, because you can link together scripts across different
+packages using relative paths.</p>
+</li>
+<li>
+<p><strong>Complements npm workspaces</strong>. We think Wireit could be the missing tool that
+unlocks the potential for <a href="https://docs.npmjs.com/cli/v8/using-npm/workspaces">npm
+workspaces</a> to become the
+best way to set up monorepos. To use Wireit with npm workspaces, you'll just
+use standard npm workspace commands like <code>npm run build -ws</code>.</p>
+</li>
+<li>
+<p><strong>Adopt incrementally</strong>. Wireit scripts can depend on plain npm scripts, so
+they can be freely mixed. This means you can use Wireit only for the parts of
+your build that need it most, or you can try it out on a script-by-script
+basis without changing too much at the same time.</p>
+</li>
+</ul>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

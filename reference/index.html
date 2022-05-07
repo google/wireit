@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li><a href="/recipes/">Recipes</a></li>
+<li class="active"><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Reference</h2>
+<h3 id="configuration" tabindex="-1"><a class="header-anchor" href="#configuration">Configuration</a></h3>
+<p>The following properties can be set inside <code>wireit.&lt;script&gt;</code> objects in
+<code>package.json</code> files:</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command</code></td>
+<td><code>string</code></td>
+<td><code>undefined</code></td>
+<td>The shell command to run.</td>
+</tr>
+<tr>
+<td><code>dependencies</code></td>
+<td><code>string[]</code></td>
+<td><code>undefined</code></td>
+<td><a href="/dependencies/">Scripts that must run before this one</a>.</td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td><code>string[]</code></td>
+<td><code>undefined</code></td>
+<td>Input file <a href="#glob-patterns">glob patterns</a>, used to determine the <a href="#cache-key">cache key</a>.</td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td><code>string[]</code></td>
+<td><code>undefined</code></td>
+<td>Output file <a href="#glob-patterns">glob patterns</a>, used for <a href="/caching/">caching</a> and <a href="/cleaning/">cleaning</a>.</td>
+</tr>
+<tr>
+<td><code>clean</code></td>
+<td><code>boolean | &quot;if-file-deleted&quot;</code></td>
+<td><code>true</code></td>
+<td><a href="/cleaning/">Delete output files before running</a>.</td>
+</tr>
+<tr>
+<td><code>packageLocks</code></td>
+<td><code>string[]</code></td>
+<td><code>['package-lock.json']</code></td>
+<td><a href="/package-locks/">Names of package lock files</a>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dependency-syntax" tabindex="-1"><a class="header-anchor" href="#dependency-syntax">Dependency syntax</a></h3>
+<p>The following syntaxes can be used in the <code>wireit.&lt;script&gt;.dependencies</code> array:</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>foo</code></td>
+<td>Script named <code>&quot;foo&quot;</code> in the same package.</td>
+</tr>
+<tr>
+<td><code>../foo:bar</code></td>
+<td>Script named <code>&quot;bar&quot;</code> in the package found at <code>../foo</code> (<a href="/dependencies/#cross-package-dependencies">details</a>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="environment-variables" tabindex="-1"><a class="header-anchor" href="#environment-variables">Environment variables</a></h3>
+<p>The following environment variables affect the behavior of Wireit:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WIREIT_PARALLEL</code></td>
+<td><a href="/parallelism/">Maximum number of scripts to run at one time</a>.<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or <code>infinity</code>.</td>
+</tr>
+<tr>
+<td><code>WIREIT_CACHE</code></td>
+<td><a href="/caching/">Caching mode</a>.<br><br>Defaults to <code>local</code> unless <code>CI</code> is <code>true</code>, in which case defaults to <code>none</code>.<br><br>Automatically set to <code>github</code> by the <a href="/caching/#github-actions-caching"><code>google/wireit@setup-github-actions-caching/v1</code></a> action.<br><br>Options:<ul><li><a href="/caching/#local-caching"><code>local</code></a>: Cache to local disk.</li><li><a href="/caching/#github-actions-caching"><code>github</code></a>: Cache to GitHub Actions.</li><li><code>none</code>: Disable caching.</li></ul></td>
+</tr>
+<tr>
+<td><code>CI</code></td>
+<td>Affects the default value of <code>WIREIT_CACHE</code>.<br><br>Automatically set to <code>true</code> by <a href="https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables">GitHub Actions</a> and most other CI (continuous integration) services.<br><br>Must be exactly <code>true</code>. If unset or any other value, interpreted as <code>false</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="glob-patterns" tabindex="-1"><a class="header-anchor" href="#glob-patterns">Glob patterns</a></h3>
+<p>The following glob syntaxes are supported in the <code>files</code> and <code>output</code> arrays:</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>foo</code></td>
+<td>The file named <code>foo</code>, or if <code>foo</code> is a directory, all recursive children of <code>foo</code>.</td>
+</tr>
+<tr>
+<td><code>foo/*.js</code></td>
+<td>All files directly in the <code>foo/</code> directory which end in <code>.js</code>.</td>
+</tr>
+<tr>
+<td><code>foo/**/*.js</code></td>
+<td>All files in the <code>foo/</code> directory, and all recursive subdirectories, which end in <code>.js</code>.</td>
+</tr>
+<tr>
+<td><code>foo.{html,js}</code></td>
+<td>Files named <code>foo.html</code> or <code>foo.js</code>.</td>
+</tr>
+<tr>
+<td><code>!foo</code></td>
+<td>Exclude the file or directory <code>foo</code> from previous matches.</td>
+</tr>
+</tbody>
+</table>
+<p>Also note these details:</p>
+<ul>
+<li>Paths should always use <code>/</code> (forward-slash) delimiters, even on Windows.</li>
+<li>Paths are interpreted relative to the current package even if there is a
+leading <code>/</code> (e.g. <code>/foo</code> is the same as <code>foo</code>).</li>
+<li>Whenever a directory is matched, all recursive children of that directory are
+included.</li>
+<li><code>files</code> are allowed to reach outside of the current package using e.g.
+<code>../foo</code>. <code>output</code> files cannot reference files outside of the current
+package.</li>
+<li>Symlinks in input <code>files</code> are followed, so that they are identified by their content.</li>
+<li>Symlinks in <code>output</code> files are cached as symlinks, so that restoring from
+cache doesn't create unnecessary copies.</li>
+<li>The order of <code>!exclude</code> patterns is significant.</li>
+<li>Hidden/dot files are matched by <code>*</code> and <code>**</code>.</li>
+<li>Patterns are case-sensitive (if supported by the filesystem).</li>
+</ul>
+<h3 id="cache-key" tabindex="-1"><a class="header-anchor" href="#cache-key">Cache key</a></h3>
+<p>The following inputs determine the <em>cache key</em> for a script. This key is used to
+determine whether a script can be skipped for <a href="/incremental-build/">incremental
+build</a>, and whether its output can be <a href="/caching/">restored from
+cache</a>.</p>
+<ul>
+<li>The <code>command</code> setting.</li>
+<li>The <code>clean</code> setting.</li>
+<li>The <code>output</code> glob patterns.</li>
+<li>The SHA256 content hashes of all files matching <code>files</code>.</li>
+<li>The SHA256 content hashes of all files matching <code>packageLocks</code> in the current
+package and all parent directories.</li>
+<li>The system platform (e.g. <code>linux</code>, <code>win32</code>).</li>
+<li>The system CPU architecture (e.g. <code>x64</code>).</li>
+<li>The system Node version (e.g. <code>16.7.0</code>).</li>
+<li>The cache key of all transitive dependencies.</li>
+</ul>
+<p>When using <a href="/caching/#github-actions-caching">GitHub Actions caching</a>, the following
+input also affects the cache key:</p>
+<ul>
+<li>The <code>ImageOS</code> environment variable (e.g. <code>ubuntu20</code>, <code>macos11</code>).</li>
+</ul>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+

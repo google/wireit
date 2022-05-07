@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipes | Wireit</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+  </head>
+  <body>
+    <nav>
+      <a id="skipnav" href="#content">Skip to main content</a>
+
+      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
+
+      <div id="badges">
+        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
+
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+      </div>
+
+      <ul><li><a href="/">Introduction</a></li>
+<li><a href="/setup/">Setup</a></li>
+<li><a href="/dependencies/">Dependencies</a></li>
+<li><a href="/parallelism/">Parallelism</a></li>
+<li><a href="/files/">Files</a></li>
+<li><a href="/incremental-build/">Incremental build</a></li>
+<li><a href="/caching/">Caching</a></li>
+<li><a href="/cleaning/">Cleaning</a></li>
+<li><a href="/watch/">Watch</a></li>
+<li><a href="/package-locks/">Package locks</a></li>
+<li class="active"><a href="/recipes/">Recipes</a></li>
+<li><a href="/reference/">Reference</a></li>
+<li><a href="/requirements/">Requirements</a></li>
+<li><a href="/related-tools/">Related tools</a></li></ul>
+
+    </nav>
+    <main id="content">
+      <article>
+        <h2>Recipes</h2>
+<p>This section contains advice about integrating specific build tools with Wireit.</p>
+<h3 id="typescript" tabindex="-1"><a class="header-anchor" href="#typescript">TypeScript</a></h3>
+<pre class="language-json"><code class="language-json"><span class="token punctuation">{</span><br>  <span class="token property">"scripts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"ts"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><br>  <span class="token punctuation">}</span><span class="token punctuation">,</span><br>  <span class="token property">"wireit"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"ts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"tsc --build --pretty"</span><span class="token punctuation">,</span><br>      <span class="token property">"clean"</span><span class="token operator">:</span> <span class="token string">"if-file-deleted"</span><span class="token punctuation">,</span><br>      <span class="token property">"files"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"src/**/*.ts"</span><span class="token punctuation">,</span> <span class="token string">"tsconfig.json"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"output"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"lib/**"</span><span class="token punctuation">,</span> <span class="token string">".tsbuildinfo"</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><br>  <span class="token punctuation">}</span><br><span class="token punctuation">}</span></code></pre>
+<ul>
+<li>Set <a href="https://www.typescriptlang.org/tsconfig#incremental"><code>&quot;incremental&quot;: true</code></a> and use
+<a href="https://www.typescriptlang.org/docs/handbook/project-references.html#build-mode-for-typescript"><code>--build</code></a>
+to enable incremental compilation, which significantly improves performance.</li>
+<li>Include
+<a href="https://www.typescriptlang.org/tsconfig#tsBuildInfoFile"><code>.tsbuildinfo</code></a> in
+<code>output</code> so that it is reset on clean builds. Otherwise <code>tsc</code> will get out of
+sync and produce incorrect output.</li>
+<li>Set <a href="/cleaning/"><code>&quot;clean&quot;: &quot;if-file-deleted&quot;</code></a> so that you get fast
+incremental compilation when sources are changed/added, but also stale outputs
+are cleaned up when a source is deleted (<code>tsc</code> does not clean up stale outputs
+by itself).</li>
+<li>Include <code>tsconfig.json</code> in <code>files</code> so that changing your configuration re-runs
+<code>tsc</code>.</li>
+<li>Use <a href="https://www.typescriptlang.org/tsconfig#pretty"><code>--pretty</code></a> to get
+colorful output despite not being attached to a TTY.</li>
+</ul>
+<h3 id="eslint" tabindex="-1"><a class="header-anchor" href="#eslint">ESLint</a></h3>
+<pre class="language-json"><code class="language-json"><span class="token punctuation">{</span><br>  <span class="token property">"scripts"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"lint"</span><span class="token operator">:</span> <span class="token string">"wireit"</span><br>  <span class="token punctuation">}</span><span class="token punctuation">,</span><br>  <span class="token property">"wireit"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>    <span class="token property">"lint"</span><span class="token operator">:</span> <span class="token punctuation">{</span><br>      <span class="token property">"command"</span><span class="token operator">:</span> <span class="token string">"eslint --color --cache --cache-location .eslintcache ."</span><span class="token punctuation">,</span><br>      <span class="token property">"files"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token string">"src/**/*.ts"</span><span class="token punctuation">,</span> <span class="token string">".eslintignore"</span><span class="token punctuation">,</span> <span class="token string">".eslintrc.cjs"</span><span class="token punctuation">]</span><span class="token punctuation">,</span><br>      <span class="token property">"output"</span><span class="token operator">:</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><br>    <span class="token punctuation">}</span><br>  <span class="token punctuation">}</span><br><span class="token punctuation">}</span></code></pre>
+<ul>
+<li>Use
+<a href="https://eslint.org/docs/user-guide/command-line-interface#caching"><code>--cache</code></a>
+so that <code>eslint</code> only lints the files that were added or changed since the
+last run, which significantly improves performance.</li>
+<li>Use
+<a href="https://eslint.org/docs/user-guide/command-line-interface#--color---no-color"><code>--color</code></a>
+to get colorful output despite not being attached to a TTY.</li>
+<li>Include config and ignore files in <code>files</code> so that changing your configuration
+re-runs <code>eslint</code>.</li>
+</ul>
+
+      </article>
+    </main>
+    <!-- Place this tag in your head or just before your close body tag. -->
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+  </body>
+</html>
+
