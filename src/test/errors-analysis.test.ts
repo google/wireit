@@ -29,6 +29,12 @@ const assertScriptOutputEquals = (
   expected = expected.trim();
   if (actual !== expected) {
     console.log(`Copy-pastable output:\n${actual}`);
+    for (let i = 0; i < actual.length; i++) {
+      if (actual[i] !== expected[i]) {
+        console.log(`${i}: ${actual[i]} !== ${expected[i]}`);
+        break;
+      }
+    }
   }
   assertOutputEqualish(actual, expected, message);
 };
@@ -588,7 +594,85 @@ test(
       `
 ❌ package.json:2:3 Script "missing" not found in the scripts section of this package.json.
       "scripts": {
-      ~~~~~~~~~`
+      ~~~~~~~~~
+❌ package.json:8:9 Cannot find script named "missing" in package "${rig.temp}"
+            "missing"
+            ~~~~~~~~~`
+    );
+  })
+);
+
+test(
+  'missing cross package dependency',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:missing'],
+          },
+        },
+      },
+      'child/package.json': {
+        scripts: {},
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ child/package.json:2:3 Script "missing" not found in the scripts section of this package.json.
+      "scripts": {}
+      ~~~~~~~~~
+❌ package.json:8:18 Cannot find script named "missing" in package "${pathlib.join(
+        rig.temp,
+        'child'
+      )}"
+            "./child:missing"
+                     ~~~~~~~`
+    );
+  })
+);
+
+test(
+  'missing cross package dependency with complicated escaped names',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./ch\t\\ ild:mis\t\\ sing'],
+          },
+        },
+      },
+      'ch\t\\ ild/package.json': {
+        scripts: {},
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ ch\t\\ ild/package.json:2:3 Script "mis\t\\ sing" not found in the scripts section of this package.json.
+      "scripts": {}
+      ~~~~~~~~~
+❌ package.json:8:23 Cannot find script named "mis\\t\\\\ sing" in package ${JSON.stringify(
+        pathlib.join(rig.temp, 'ch\t\\ ild')
+      )}
+            "./ch\\t\\\\ ild:mis\\t\\\\ sing"
+                          ~~~~~~~~~~~~`
+      // This doesn't look right, because this is itself a string with escapes,
+      // but the squiggle is in the correct location.
     );
   })
 );
@@ -852,7 +936,49 @@ test(
       done.stderr,
       `
 ❌ [../bar] No package.json was found in ${pathlib.resolve(rig.temp, 'bar')}
-`
+❌ package.json:8:10 Package json file missing: "${pathlib.resolve(
+        rig.temp,
+        'bar',
+        'package.json'
+      )}"
+            "../bar:b"
+             ~~~~~~`
+    );
+  })
+);
+
+test(
+  'cross-package dependency with complicated escaped name leads to directory without package.json',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../b\t\\ ar:b'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ [../b\t\\ ar] No package.json was found in ${pathlib.join(
+        rig.temp,
+        'b\t\\ ar'
+      )}
+❌ package.json:8:10 Package json file missing: ${JSON.stringify(
+        pathlib.join(rig.temp, 'b\t\\ ar', 'package.json')
+      )}
+            "../b\\t\\\\ ar:b"
+             ~~~~~~~~~~~`
+      // This doesn't look right, because the string itself contains escapes,
+      // but it is.
     );
   })
 );
@@ -1397,7 +1523,21 @@ test(`we don't produce a duplicate not found error when there's multiple deps in
   assertScriptOutputEquals(
     done.stderr,
     `
-❌ [child] No package.json was found in ${pathlib.join(rig.temp, 'child')}`
+❌ [child] No package.json was found in ${pathlib.join(rig.temp, 'child')}
+❌ package.json:8:10 Package json file missing: "${pathlib.join(
+      rig.temp,
+      'child',
+      'package.json'
+    )}"
+            "./child:error1",
+             ~~~~~~~
+❌ package.json:9:10 Package json file missing: "${pathlib.join(
+      rig.temp,
+      'child',
+      'package.json'
+    )}"
+            "./child:error2"
+             ~~~~~~~`
   );
 });
 

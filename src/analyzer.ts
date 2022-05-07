@@ -25,14 +25,19 @@ import {PackageJson} from './util/package-json.js';
  */
 export type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
 
+interface PlaceholderInfo {
+  placeholder: PlaceholderConfig;
+  resolutionPromise: Promise<Result<void, Failure[]>>;
+}
+
 /**
  * Analyzes and validates a script along with all of its transitive
  * dependencies, producing a build graph that is ready to be executed.
  */
 export class Analyzer {
   readonly #packageJsonReader = new CachingPackageJsonReader();
-  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderConfig>();
-  readonly #placeholderUpgradePromises: Array<
+  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
+  readonly placeholderUpgradeWorkQueue: Array<
     Promise<Result<void, Failure[]>>
   > = [];
 
@@ -73,8 +78,8 @@ export class Analyzer {
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
     const errors = new Set<Failure>();
-    while (this.#placeholderUpgradePromises.length > 0) {
-      const result = await this.#placeholderUpgradePromises.shift();
+    while (this.placeholderUpgradeWorkQueue.length > 0) {
+      const result = await this.placeholderUpgradeWorkQueue.shift();
       if (result?.ok === false) {
         for (const error of result.error) {
           errors.add(error);
@@ -87,7 +92,7 @@ export class Analyzer {
 
     // We can safely assume all placeholders have now been upgraded to full
     // configs.
-    const rootConfig = rootPlaceholder as ScriptConfig;
+    const rootConfig = rootPlaceholder.placeholder as ScriptConfig;
     const cycleResult = this.#checkForCyclesAndSortDependencies(
       rootConfig,
       new Set()
@@ -106,17 +111,19 @@ export class Analyzer {
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */
-  #getPlaceholder(reference: ScriptReference): PlaceholderConfig {
+  #getPlaceholder(reference: ScriptReference): PlaceholderInfo {
     const cacheKey = scriptReferenceToString(reference);
-    let placeholder = this.#placeholders.get(cacheKey);
-    if (placeholder === undefined) {
-      placeholder = {...reference};
-      this.#placeholders.set(cacheKey, placeholder);
-      this.#placeholderUpgradePromises.push(
-        this.#upgradePlaceholder(placeholder)
-      );
+    let placeholderInfo = this.#placeholders.get(cacheKey);
+    if (placeholderInfo === undefined) {
+      const placeholder = {...reference};
+      placeholderInfo = {
+        placeholder: placeholder,
+        resolutionPromise: this.#upgradePlaceholder(placeholder),
+      };
+      this.#placeholders.set(cacheKey, placeholderInfo);
+      this.placeholderUpgradeWorkQueue.push(placeholderInfo?.resolutionPromise);
     }
-    return placeholder;
+    return placeholderInfo;
   }
 
   /**
@@ -302,7 +309,83 @@ export class Analyzer {
             };
           }
           uniqueDependencies.set(uniqueKey, unresolved);
-          dependencies.push(this.#getPlaceholder(resolved));
+          const placeHolderInfo = this.#getPlaceholder(resolved);
+          dependencies.push(placeHolderInfo.placeholder);
+          this.placeholderUpgradeWorkQueue.push(
+            (async () => {
+              const res = await placeHolderInfo.resolutionPromise;
+              if (res.ok) {
+                return {ok: true, value: undefined};
+              }
+              for (const failure of res.error) {
+                if (failure.reason === 'script-not-found') {
+                  const colonOffsetInString = packageJson.jsonFile.contents
+                    .slice(unresolved.offset)
+                    .indexOf(':');
+                  let offset;
+                  let length;
+                  if (colonOffsetInString === -1) {
+                    offset = unresolved.offset;
+                    length = unresolved.length;
+                  } else {
+                    // Skip past the colon
+                    offset = unresolved.offset + colonOffsetInString + 1;
+                    length = unresolved.length - colonOffsetInString - 2;
+                  }
+                  return {
+                    ok: false,
+                    error: [
+                      {
+                        type: 'failure',
+                        reason: 'dependency-on-missing-script',
+                        script: placeholder,
+                        diagnostic: {
+                          severity: 'error',
+                          message: `Cannot find script named ${JSON.stringify(
+                            resolved.name
+                          )} in package ${JSON.stringify(resolved.packageDir)}`,
+                          location: {
+                            file: packageJson.jsonFile,
+                            range: {offset, length},
+                          },
+                        },
+                      },
+                    ],
+                  };
+                }
+                if (failure.reason === 'missing-package-json') {
+                  // Skip the opening "
+                  const offset = unresolved.offset + 1;
+                  // Take everything up to the first colon, but look in
+                  // the original source, to avoid getting confused by escape
+                  // sequences, which have a different length before and after
+                  // encoding.
+                  const length = packageJson.jsonFile.contents
+                    .slice(offset)
+                    .indexOf(':');
+                  const range = {offset, length};
+                  return {
+                    ok: false,
+                    error: [
+                      {
+                        type: 'failure',
+                        reason: 'dependency-on-missing-package-json',
+                        script: placeholder,
+                        diagnostic: {
+                          severity: 'error',
+                          message: `Package json file missing: ${JSON.stringify(
+                            pathlib.join(resolved.packageDir, 'package.json')
+                          )}`,
+                          location: {file: packageJson.jsonFile, range},
+                        },
+                      },
+                    ],
+                  };
+                }
+              }
+              return {ok: true, value: undefined};
+            })()
+          );
         }
       }
     }
@@ -541,7 +624,7 @@ export class Analyzer {
             `Internal error: placeholder not found for ${key} during cycle detection`
           );
         }
-        return placeholder as ScriptConfig;
+        return placeholder.placeholder as ScriptConfig;
       });
       trailArray.push(config);
       const cycleEnd = trailArray.length - 1;

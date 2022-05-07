@@ -78,6 +78,8 @@ export type Failure =
   | InvalidConfigSyntax
   | InvalidUsage
   | DuplicateDependency
+  | DependencyOnMissingPackageJson
+  | DependencyOnMissingScript
   | Cycle
   | UnknownErrorThrown;
 
@@ -179,6 +181,23 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
    * The dependency that is duplicated.
    */
   dependency: ScriptReference;
+  diagnostic: Diagnostic;
+}
+
+/**
+ * A script depends on another in a package that isn't there.
+ */
+export interface DependencyOnMissingPackageJson
+  extends ErrorBase<ScriptReference> {
+  reason: 'dependency-on-missing-package-json';
+  diagnostic: Diagnostic;
+}
+
+/**
+ * A script's dependency doesn't exist.
+ */
+export interface DependencyOnMissingScript extends ErrorBase<ScriptReference> {
+  reason: 'dependency-on-missing-script';
   diagnostic: Diagnostic;
 }
 

@@ -130,7 +130,9 @@ export class DefaultLogger implements Logger {
           case 'duplicate-dependency':
           case 'script-not-wireit':
           case 'invalid-config-syntax':
-          case 'cycle': {
+          case 'cycle':
+          case 'dependency-on-missing-package-json':
+          case 'dependency-on-missing-script': {
             console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
