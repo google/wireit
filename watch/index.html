@@ -4,37 +4,42 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Watch | Wireit</title>
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
-    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+    <link rel="stylesheet" href="/wireit/style.css">
+    <link rel="stylesheet" href="/wireit/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/wireit/prism-dark.css" media="(prefers-color-scheme:dark)">
   </head>
   <body>
     <nav>
       <a id="skipnav" href="#content">Skip to main content</a>
-
-      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
-
+      <img src="/wireit/wireit.svg" alt="Wireit" width="160" height="44">
       <div id="badges">
-        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
-
-        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+        <span id="githubStarsBadge">
+          <a
+            class="github-button"
+            href="https://github.com/google/wireit"
+            data-color-scheme="no-preference: light; light: light; dark: dark;"
+            data-icon="octicon-star"
+            data-size="medium"
+            data-show-count="true"
+            aria-label="Star google/wireit on GitHub">Star</a>
+        </span>
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src="">
+        </a>
       </div>
-
-      <ul><li><a href="/">Introduction</a></li>
-<li><a href="/setup/">Setup</a></li>
-<li><a href="/dependencies/">Dependencies</a></li>
-<li><a href="/parallelism/">Parallelism</a></li>
-<li><a href="/files/">Files</a></li>
-<li><a href="/incremental-build/">Incremental build</a></li>
-<li><a href="/caching/">Caching</a></li>
-<li><a href="/cleaning/">Cleaning</a></li>
-<li class="active"><a href="/watch/">Watch</a></li>
-<li><a href="/package-locks/">Package locks</a></li>
-<li><a href="/recipes/">Recipes</a></li>
-<li><a href="/reference/">Reference</a></li>
-<li><a href="/requirements/">Requirements</a></li>
-<li><a href="/related-tools/">Related tools</a></li></ul>
-
+      <ul><li><a href="/wireit/">Introduction</a></li>
+<li><a href="/wireit/setup/">Setup</a></li>
+<li><a href="/wireit/dependencies/">Dependencies</a></li>
+<li><a href="/wireit/parallelism/">Parallelism</a></li>
+<li><a href="/wireit/files/">Files</a></li>
+<li><a href="/wireit/incremental-build/">Incremental build</a></li>
+<li><a href="/wireit/caching/">Caching</a></li>
+<li><a href="/wireit/cleaning/">Cleaning</a></li>
+<li class="active"><a href="/wireit/watch/">Watch</a></li>
+<li><a href="/wireit/package-locks/">Package locks</a></li>
+<li><a href="/wireit/recipes/">Recipes</a></li>
+<li><a href="/wireit/reference/">Reference</a></li>
+<li><a href="/wireit/requirements/">Requirements</a></li>
+<li><a href="/wireit/related-tools/">Related tools</a></li></ul>
     </nav>
     <main id="content">
       <article>
@@ -42,7 +47,7 @@
 <p>In <em>watch</em> mode, Wireit monitors all <code>files</code> of a script, and all <code>files</code> of its
 transitive dependencies, and when there is a change, it re-runs only the
 affected scripts. To enable watch mode, ensure that the
-<a href="/files/"><code>files</code></a> array is defined, and add the <code>watch</code>
+<a href="../files/"><code>files</code></a> array is defined, and add the <code>watch</code>
 argument:</p>
 <pre class="language-bash"><code class="language-bash"><span class="token function">npm</span> run <span class="token operator">&lt;</span>script<span class="token operator">></span> <span class="token function">watch</span></code></pre>
 <p>The benefit of Wireit's watch mode over built-in watch modes are:</p>
@@ -57,7 +62,6 @@ have finished.</li>
       </article>
     </main>
     <!-- Place this tag in your head or just before your close body tag. -->
-<script async defer src="https://buttons.github.io/buttons.js"></script>
+    <script async defer src="https://buttons.github.io/buttons.js"></script>
   </body>
 </html>
-

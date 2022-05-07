@@ -4,37 +4,42 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reference | Wireit</title>
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/prism-light.css" media="(prefers-color-scheme:light)">
-    <link rel="stylesheet" href="/prism-dark.css" media="(prefers-color-scheme:dark)">
+    <link rel="stylesheet" href="/wireit/style.css">
+    <link rel="stylesheet" href="/wireit/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="/wireit/prism-dark.css" media="(prefers-color-scheme:dark)">
   </head>
   <body>
     <nav>
       <a id="skipnav" href="#content">Skip to main content</a>
-
-      <img src="/wireit.svg" alt="Wireit" width="160" height="44">
-
+      <img src="/wireit/wireit.svg" alt="Wireit" width="160" height="44">
       <div id="badges">
-        <span id="githubStarsBadge"> <a class="github-button" href="https://github.com/google/wireit" data-color-scheme="no-preference: light; light: light; dark: dark;" data-icon="octicon-star" data-size="medium" data-show-count="true" aria-label="Star google/wireit on GitHub">Star</a></span>
-
-        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src=""></a>
+        <span id="githubStarsBadge">
+          <a
+            class="github-button"
+            href="https://github.com/google/wireit"
+            data-color-scheme="no-preference: light; light: light; dark: dark;"
+            data-icon="octicon-star"
+            data-size="medium"
+            data-show-count="true"
+            aria-label="Star google/wireit on GitHub">Star</a>
+        </span>
+        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src="">
+        </a>
       </div>
-
-      <ul><li><a href="/">Introduction</a></li>
-<li><a href="/setup/">Setup</a></li>
-<li><a href="/dependencies/">Dependencies</a></li>
-<li><a href="/parallelism/">Parallelism</a></li>
-<li><a href="/files/">Files</a></li>
-<li><a href="/incremental-build/">Incremental build</a></li>
-<li><a href="/caching/">Caching</a></li>
-<li><a href="/cleaning/">Cleaning</a></li>
-<li><a href="/watch/">Watch</a></li>
-<li><a href="/package-locks/">Package locks</a></li>
-<li><a href="/recipes/">Recipes</a></li>
-<li class="active"><a href="/reference/">Reference</a></li>
-<li><a href="/requirements/">Requirements</a></li>
-<li><a href="/related-tools/">Related tools</a></li></ul>
-
+      <ul><li><a href="/wireit/">Introduction</a></li>
+<li><a href="/wireit/setup/">Setup</a></li>
+<li><a href="/wireit/dependencies/">Dependencies</a></li>
+<li><a href="/wireit/parallelism/">Parallelism</a></li>
+<li><a href="/wireit/files/">Files</a></li>
+<li><a href="/wireit/incremental-build/">Incremental build</a></li>
+<li><a href="/wireit/caching/">Caching</a></li>
+<li><a href="/wireit/cleaning/">Cleaning</a></li>
+<li><a href="/wireit/watch/">Watch</a></li>
+<li><a href="/wireit/package-locks/">Package locks</a></li>
+<li><a href="/wireit/recipes/">Recipes</a></li>
+<li class="active"><a href="/wireit/reference/">Reference</a></li>
+<li><a href="/wireit/requirements/">Requirements</a></li>
+<li><a href="/wireit/related-tools/">Related tools</a></li></ul>
     </nav>
     <main id="content">
       <article>
@@ -62,7 +67,7 @@
 <td><code>dependencies</code></td>
 <td><code>string[]</code></td>
 <td><code>undefined</code></td>
-<td><a href="/dependencies/">Scripts that must run before this one</a>.</td>
+<td><a href="../dependencies/">Scripts that must run before this one</a>.</td>
 </tr>
 <tr>
 <td><code>files</code></td>
@@ -74,19 +79,19 @@
 <td><code>output</code></td>
 <td><code>string[]</code></td>
 <td><code>undefined</code></td>
-<td>Output file <a href="#glob-patterns">glob patterns</a>, used for <a href="/caching/">caching</a> and <a href="/cleaning/">cleaning</a>.</td>
+<td>Output file <a href="#glob-patterns">glob patterns</a>, used for <a href="../caching/">caching</a> and <a href="../cleaning/">cleaning</a>.</td>
 </tr>
 <tr>
 <td><code>clean</code></td>
 <td><code>boolean | &quot;if-file-deleted&quot;</code></td>
 <td><code>true</code></td>
-<td><a href="/cleaning/">Delete output files before running</a>.</td>
+<td><a href="../cleaning/">Delete output files before running</a>.</td>
 </tr>
 <tr>
 <td><code>packageLocks</code></td>
 <td><code>string[]</code></td>
 <td><code>['package-lock.json']</code></td>
-<td><a href="/package-locks/">Names of package lock files</a>.</td>
+<td><a href="../package-locks/">Names of package lock files</a>.</td>
 </tr>
 </tbody>
 </table>
@@ -106,7 +111,7 @@
 </tr>
 <tr>
 <td><code>../foo:bar</code></td>
-<td>Script named <code>&quot;bar&quot;</code> in the package found at <code>../foo</code> (<a href="/dependencies/#cross-package-dependencies">details</a>).</td>
+<td>Script named <code>&quot;bar&quot;</code> in the package found at <code>../foo</code> (<a href="../dependencies/#cross-package-dependencies">details</a>).</td>
 </tr>
 </tbody>
 </table>
@@ -122,11 +127,11 @@
 <tbody>
 <tr>
 <td><code>WIREIT_PARALLEL</code></td>
-<td><a href="/parallelism/">Maximum number of scripts to run at one time</a>.<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or <code>infinity</code>.</td>
+<td><a href="../parallelism/">Maximum number of scripts to run at one time</a>.<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or <code>infinity</code>.</td>
 </tr>
 <tr>
 <td><code>WIREIT_CACHE</code></td>
-<td><a href="/caching/">Caching mode</a>.<br><br>Defaults to <code>local</code> unless <code>CI</code> is <code>true</code>, in which case defaults to <code>none</code>.<br><br>Automatically set to <code>github</code> by the <a href="/caching/#github-actions-caching"><code>google/wireit@setup-github-actions-caching/v1</code></a> action.<br><br>Options:<ul><li><a href="/caching/#local-caching"><code>local</code></a>: Cache to local disk.</li><li><a href="/caching/#github-actions-caching"><code>github</code></a>: Cache to GitHub Actions.</li><li><code>none</code>: Disable caching.</li></ul></td>
+<td><a href="../caching/">Caching mode</a>.<br><br>Defaults to <code>local</code> unless <code>CI</code> is <code>true</code>, in which case defaults to <code>none</code>.<br><br>Automatically set to <code>github</code> by the <a href="../caching/#github-actions-caching"><code>google/wireit@setup-github-actions-caching/v1</code></a> action.<br><br>Options:<ul><li><a href="../caching/#local-caching"><code>local</code></a>: Cache to local disk.</li><li><a href="../caching/#github-actions-caching"><code>github</code></a>: Cache to GitHub Actions.</li><li><code>none</code>: Disable caching.</li></ul></td>
 </tr>
 <tr>
 <td><code>CI</code></td>
@@ -185,8 +190,8 @@ cache doesn't create unnecessary copies.</li>
 </ul>
 <h3 id="cache-key" tabindex="-1"><a class="header-anchor" href="#cache-key">Cache key</a></h3>
 <p>The following inputs determine the <em>cache key</em> for a script. This key is used to
-determine whether a script can be skipped for <a href="/incremental-build/">incremental
-build</a>, and whether its output can be <a href="/caching/">restored from
+determine whether a script can be skipped for <a href="../incremental-build/">incremental
+build</a>, and whether its output can be <a href="../caching/">restored from
 cache</a>.</p>
 <ul>
 <li>The <code>command</code> setting.</li>
@@ -200,7 +205,7 @@ package and all parent directories.</li>
 <li>The system Node version (e.g. <code>16.7.0</code>).</li>
 <li>The cache key of all transitive dependencies.</li>
 </ul>
-<p>When using <a href="/caching/#github-actions-caching">GitHub Actions caching</a>, the following
+<p>When using <a href="../caching/#github-actions-caching">GitHub Actions caching</a>, the following
 input also affects the cache key:</p>
 <ul>
 <li>The <code>ImageOS</code> environment variable (e.g. <code>ubuntu20</code>, <code>macos11</code>).</li>
@@ -209,7 +214,6 @@ input also affects the cache key:</p>
       </article>
     </main>
     <!-- Place this tag in your head or just before your close body tag. -->
-<script async defer src="https://buttons.github.io/buttons.js"></script>
+    <script async defer src="https://buttons.github.io/buttons.js"></script>
   </body>
 </html>
-
