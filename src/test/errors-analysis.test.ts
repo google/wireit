@@ -11,6 +11,7 @@ import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {removeAciiColors} from './util/colors.js';
+import {IS_WINDOWS} from '../util/windows.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -643,6 +644,10 @@ test(
 test(
   'missing cross package dependency with complicated escaped names',
   timeout(async ({rig}) => {
+    // This test writes a file with a name that windows can't handle.
+    if (IS_WINDOWS) {
+      return;
+    }
     await rig.write({
       'package.json': {
         scripts: {
