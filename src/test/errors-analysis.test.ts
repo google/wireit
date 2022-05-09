@@ -668,19 +668,17 @@ test(
     assert.equal(done.code, 1);
     assertScriptOutputEquals(
       done.stderr,
-      `
-❌ ch\t\\ ild${
+      String.raw`
+❌ ch${'\t'}\ ild${
         pathlib.sep
-      }package.json:2:3 Script "mis\t\\ sing" not found in the scripts section of this package.json.
+      }package.json:2:3 Script "mis${'\t'}\ sing" not found in the scripts section of this package.json.
       "scripts": {}
       ~~~~~~~~~
-❌ package.json:8:23 Cannot find script named "mis\\t\\\\ sing" in package "${rig.resolve(
+❌ package.json:8:23 Cannot find script named "mis\t\\ sing" in package "${rig.resolve(
         'ch\t\\ ild'
       )}"
-            "./ch\\t\\\\ ild:mis\\t\\\\ sing"
+            "./ch\t\\ ild:mis\t\\ sing"
                           ~~~~~~~~~~~~`
-      // This doesn't look right, because this is itself a string with escapes,
-      // but the squiggle is in the correct location.
     );
   })
 );
@@ -972,14 +970,12 @@ test(
     assert.equal(done.code, 1);
     assertScriptOutputEquals(
       done.stderr,
-      `
+      String.raw`
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
         'b\t\\ ar/package.json'
       )}"
-            "../b\\t\\\\ ar:b"
+            "../b\t\\ ar:b"
              ~~~~~~~~~~~`
-      // This doesn't look right, because the string itself contains escapes,
-      // but it is.
     );
   })
 );
