@@ -13,7 +13,6 @@ import {parseTree} from './ast.js';
 
 export const astKey = Symbol('ast');
 
-
 /**
  * Reads package.json files and caches them.
  */

@@ -6,9 +6,7 @@
 
 import * as pathlib from 'path';
 import {Diagnostic, MessageLocation, Result} from './error.js';
-import {
-  CachingPackageJsonReader,
-} from './util/package-json-reader.js';
+import {CachingPackageJsonReader} from './util/package-json-reader.js';
 import {scriptReferenceToString} from './script.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
