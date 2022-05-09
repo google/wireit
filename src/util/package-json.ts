@@ -25,7 +25,7 @@ export interface ScriptSyntaxInfo {
  *
  * Makes it easy to find the syntax nodes for a script.
  *
- * Does not do any validation or analysis of the wirit script configs.
+ * Does not do any validation or analysis of the wireit script configs.
  *
  * This class exists in part so that we walk the package.json file only once,
  * and in part so that we generate file-level syntactic diagnostics only once,
