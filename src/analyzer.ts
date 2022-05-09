@@ -111,7 +111,7 @@ export class Analyzer {
     await Promise.all(
       files.map(async (f) => {
         const packageDir = pathlib.dirname(f);
-        const fileResult = await this.#readPackageJson(packageDir);
+        const fileResult = await this.getPackageJson(packageDir);
         if (!fileResult.ok) {
           return; // will get this error below.
         }
@@ -198,6 +198,13 @@ export class Analyzer {
     return {ok: true, value: validRootConfig};
   }
 
+  async analyzeIgnoringErrors(
+    scriptReference: ScriptReference
+  ): Promise<PotentiallyValidScriptConfig> {
+    await this.analyze(scriptReference);
+    return this.#getPlaceholder(scriptReference).placeholder;
+  }
+
   async #getDiagnostics(): Promise<Set<Failure>> {
     const failures = new Set<Failure>();
     for await (const failure of this.#packageJsonReader.getFailures()) {
@@ -242,7 +249,7 @@ export class Analyzer {
     }
   }
 
-  async #readPackageJson(packageDir: string): Promise<Result<PackageJson>> {
+  async getPackageJson(packageDir: string): Promise<Result<PackageJson>> {
     return this.#packageJsonReader.read(packageDir);
   }
 
@@ -279,9 +286,7 @@ export class Analyzer {
   async #upgradePlaceholder(
     placeholder: UnvalidatedConfig
   ): Promise<undefined> {
-    const packageJsonResult = await this.#readPackageJson(
-      placeholder.packageDir
-    );
+    const packageJsonResult = await this.getPackageJson(placeholder.packageDir);
     if (!packageJsonResult.ok) {
       placeholder.failures.push(packageJsonResult.error);
       return undefined;

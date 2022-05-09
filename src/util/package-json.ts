@@ -7,6 +7,7 @@ import {findNamedNodeAtLocation, JsonFile} from './ast.js';
 import {JsonAstNode, NamedAstNode} from './ast.js';
 import {Failure} from '../event.js';
 import {failUnlessJsonObject, failUnlessNonBlankString} from '../analyzer.js';
+import {offsetInsideRange, Range} from '../error.js';
 
 export interface ScriptSyntaxInfo {
   name: string;
@@ -15,6 +16,10 @@ export interface ScriptSyntaxInfo {
   /** The node for this script in the wireit section of the package.json */
   wireitConfigNode?: NamedAstNode;
 }
+
+export type LocationSyntaxInfo =
+  | {kind: 'scripts-section-script'; scriptSyntaxInfo: ScriptSyntaxInfo}
+  | {kind: 'wireit-section-script'; scriptSyntaxInfo: ScriptSyntaxInfo};
 
 /**
  * A parsed and minimally analyzed package.json file.
@@ -55,6 +60,33 @@ export class PackageJson {
 
   get scripts() {
     return this.#scripts.values();
+  }
+
+  getInfoAboutRange(range: Range): LocationSyntaxInfo | undefined {
+    const start = range.offset;
+    if (this.scriptsSection && offsetInsideRange(start, this.scriptsSection)) {
+      for (const scriptSyntaxInfo of this.scripts) {
+        if (
+          scriptSyntaxInfo.scriptNode &&
+          (offsetInsideRange(start, scriptSyntaxInfo.scriptNode) ||
+            offsetInsideRange(start, scriptSyntaxInfo.scriptNode.name))
+        ) {
+          return {kind: 'scripts-section-script', scriptSyntaxInfo};
+        }
+      }
+    } else if (
+      this.wireitSection &&
+      offsetInsideRange(start, this.wireitSection)
+    ) {
+      for (const scriptSyntaxInfo of this.scripts) {
+        if (
+          scriptSyntaxInfo.wireitConfigNode &&
+          offsetInsideRange(start, scriptSyntaxInfo.wireitConfigNode)
+        ) {
+          return {kind: 'wireit-section-script', scriptSyntaxInfo};
+        }
+      }
+    }
   }
 
   #getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
