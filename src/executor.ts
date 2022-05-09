@@ -380,13 +380,13 @@ class ScriptExecution {
       return {ok: true, value: undefined};
     }
 
-    this.#logger.log({
-      script: this.#script,
-      type: 'info',
-      detail: 'running',
-    });
-
     return this.#workerPool.run(async (): Promise<Result<void>> => {
+      this.#logger.log({
+        script: this.#script,
+        type: 'info',
+        detail: 'running',
+      });
+
       const child = new ScriptChildProcess(
         // Unfortunately TypeScript doesn't automatically narrow this type
         // based on the undefined-command check we did just above.
