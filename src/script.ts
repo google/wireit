@@ -10,6 +10,7 @@ import type {
   JsonAstNode,
   NamedAstNode,
 } from './util/ast.js';
+import type {Failure} from './event.js';
 
 /**
  * The location on disk of an npm package.
@@ -31,6 +32,8 @@ export interface ScriptReference extends PackageReference {
  * The name and location of a script, along with its full configuration.
  */
 export interface ScriptConfig extends ScriptReference {
+  state: 'valid';
+
   /**
    * The shell command to execute.
    *
@@ -46,7 +49,7 @@ export interface ScriptConfig extends ScriptReference {
    * directory + script name, but the {@link Executor} then randomizes the order
    * during execution.
    */
-  dependencies: ScriptConfig[];
+  dependencies: Array<ScriptConfig>;
   dependenciesAst: JsonAstNode | undefined;
 
   /**
@@ -101,6 +104,7 @@ export interface ScriptConfig extends ScriptReference {
 
   /** The parsed JSON file that declared this script. */
   declaringFile: JsonFile;
+  failures: Failure[];
 }
 
 /**

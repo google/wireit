@@ -29,7 +29,10 @@ function assertSquiggleAndPosition(
     },
     indent ?? 0
   );
-  const position = new OffsetToPositionConverter(contents).toPosition(offset);
+  const position =
+    OffsetToPositionConverter.createUncachedForTest(contents).toPosition(
+      offset
+    );
   if (expectedSquiggle[0] !== '\n') {
     throw new Error(
       `Test authoring error: write the expected squiggle as a template string with a leading newline.`
@@ -49,7 +52,7 @@ test('drawing squiggles under ranges in single-line files', () => {
     `
 H
 `,
-    {line: 1, column: 1}
+    {line: 1, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -61,7 +64,7 @@ H
     `
 aaabbbccc
    ~~~`,
-    {line: 1, column: 4}
+    {line: 1, character: 4}
   );
 
   assertSquiggleAndPosition(
@@ -74,7 +77,7 @@ aaabbbccc
     `
         aaabbbccc
            ~~~`,
-    {line: 1, column: 4}
+    {line: 1, character: 4}
   );
 });
 
@@ -88,7 +91,7 @@ test('drawing squiggles single-line ranges at the end of multi-line files', () =
     `
 H
 `,
-    {line: 2, column: 1}
+    {line: 2, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -100,7 +103,7 @@ H
     `
 H
 ~`,
-    {line: 2, column: 1}
+    {line: 2, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -112,7 +115,7 @@ H
     `
 H
 ~`,
-    {line: 2, column: 1}
+    {line: 2, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -120,7 +123,7 @@ H
     `
 aaabbbccc
    ~~~`,
-    {line: 2, column: 4}
+    {line: 2, character: 4}
   );
 
   assertSquiggleAndPosition(
@@ -134,7 +137,7 @@ aaabbbccc
     `
         aaabbbccc
            ~~~`,
-    {line: 2, column: 4}
+    {line: 2, character: 4}
   );
 });
 
@@ -148,7 +151,7 @@ test('drawing squiggles under multi-line ranges', () => {
     `
 H
 `,
-    {line: 1, column: 1}
+    {line: 1, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -160,7 +163,7 @@ H
     `
 H
 ~`,
-    {line: 1, column: 1}
+    {line: 1, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -172,7 +175,7 @@ H
     `
 aaabbbccc
    ~~~`,
-    {line: 1, column: 4}
+    {line: 1, character: 4}
   );
 
   assertSquiggleAndPosition(
@@ -185,7 +188,7 @@ aaabbbccc
     `
         aaabbbccc
            ~~~`,
-    {line: 1, column: 4}
+    {line: 1, character: 4}
   );
 });
 
@@ -195,7 +198,7 @@ test('drawing squiggles under one line of a multi-line input', () => {
     `
 abc
 `,
-    {line: 1, column: 1}
+    {line: 1, character: 1}
   );
 
   assertSquiggleAndPosition(
@@ -205,7 +208,7 @@ abc
 ~~~
 def
 ~`,
-    {line: 1, column: 1}
+    {line: 1, character: 1}
   );
 
   // include the newline at the end of the first line
@@ -216,7 +219,7 @@ abc
 ~~~
 def
 `,
-    {line: 1, column: 1}
+    {line: 1, character: 1}
   );
 
   // include _only_ the newline at the end of the first line
@@ -227,7 +230,7 @@ abc
 ${'   '}
 def
 `,
-    {line: 1, column: 4}
+    {line: 1, character: 4}
   );
 
   assertSquiggleAndPosition(
@@ -237,7 +240,7 @@ abc
 ${'   '}
 def
 ~`,
-    {line: 1, column: 4}
+    {line: 1, character: 4}
   );
 
   assertSquiggleAndPosition(
@@ -249,7 +252,7 @@ def
 ~~~
 hij
 ~`,
-    {line: 1, column: 3}
+    {line: 1, character: 3}
   );
 });
 

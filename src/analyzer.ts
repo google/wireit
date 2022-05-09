@@ -5,29 +5,65 @@
  */
 
 import * as pathlib from 'path';
-import {Diagnostic, MessageLocation, Result} from './error.js';
 import {CachingPackageJsonReader} from './util/package-json-reader.js';
-import {scriptReferenceToString} from './script.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
+import {scriptReferenceToString} from './script.js';
 
+import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
+import type {Diagnostic, MessageLocation, Result} from './error.js';
+import type {DependencyOnMissingPackageJson, Failure} from './event.js';
+import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
 import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
 } from './script.js';
-import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
-import {DependencyOnMissingPackageJson, Failure} from './event.js';
-import {PackageJson} from './util/package-json.js';
+
+/**
+ * A script config that might be at any point of the analysis pipeline,
+ * or have stalled at any point along that way due to errors.
+ */
+export type PotentiallyValidScriptConfig =
+  | UnvalidatedConfig
+  | LocallyValidScriptConfig
+  | ScriptConfig;
 
 /**
  * A {@link ScriptConfig} where all fields are optional apart from `packageDir`
  * and `name`, used temporarily while package.json files are still loading.
+ *
+ * A script with an invalid config may stay a placeholder forever.
  */
-export type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
+export type UnvalidatedConfig = ScriptReference &
+  Omit<Omit<Partial<ScriptConfig>, 'state'>, 'dependencies'> & {
+    state: 'unvalidated';
+    failures: Failure[];
+    dependencies?: Array<
+      UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
+    >;
+  };
+
+/**
+ * A ScriptConfig that is locally valid, but whose dependencies may not have
+ * resolved and checked for circular dependency errors yet.
+ */
+export type LocallyValidScriptConfig = Omit<
+  Omit<ScriptConfig, 'state'>,
+  'dependencies'
+> & {
+  state: 'locally-valid';
+  dependencies: Array<
+    UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
+  >;
+};
 
 interface PlaceholderInfo {
-  placeholder: PlaceholderConfig;
-  failuresPromise: Promise<Result<void, Failure[]>>;
+  placeholder: PotentiallyValidScriptConfig;
+  /**
+   * A promise that resolves when this placeholder has either been upgraded to a
+   * LocallyValidScriptConfig, or if that process has failed.
+   */
+  upgradeComplete: Promise<undefined>;
 }
 
 /**
@@ -37,9 +73,7 @@ interface PlaceholderInfo {
 export class Analyzer {
   readonly #packageJsonReader = new CachingPackageJsonReader();
   readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
-  readonly #placeholderUpgradeFailureSinks: Array<
-    Promise<Result<void, Failure[]>>
-  > = [];
+  readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
 
   /**
    * Load the Wireit configuration from the `package.json` corresponding to the
@@ -77,29 +111,22 @@ export class Analyzer {
 
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
-    const errors = new Set<Failure>();
-    while (this.#placeholderUpgradeFailureSinks.length > 0) {
-      const result = await this.#placeholderUpgradeFailureSinks.shift();
-      if (result?.ok === false) {
-        for (const error of result.error) {
-          errors.add(error);
-        }
+    await this.#waitForAnalysisToComplete();
+    {
+      const errors = await this.#getDiagnostics();
+      if (errors.size > 0) {
+        return {ok: false, error: [...errors]};
       }
-    }
-    if (errors.size > 0) {
-      for (const error of errors) {
-        const supercedes = (error as Partial<DependencyOnMissingPackageJson>)
-          .supercedes;
-        if (supercedes != null) {
-          errors.delete(supercedes);
-        }
-      }
-      return {ok: false, error: [...errors]};
     }
 
     // We can safely assume all placeholders have now been upgraded to full
     // configs.
-    const rootConfig = rootPlaceholder.placeholder as ScriptConfig;
+    const rootConfig = rootPlaceholder.placeholder;
+    if (rootConfig.state === 'unvalidated') {
+      throw new Error(
+        `Internal error: script ${root.name} in ${root.packageDir} is still unvalidated but had no failures`
+      );
+    }
     const cycleResult = this.#checkForCyclesAndSortDependencies(
       rootConfig,
       new Set()
@@ -107,7 +134,52 @@ export class Analyzer {
     if (!cycleResult.ok) {
       return {ok: false, error: [cycleResult.error]};
     }
-    return {ok: true, value: rootConfig};
+    const validRootConfig = cycleResult.value;
+    return {ok: true, value: validRootConfig};
+  }
+
+  async #getDiagnostics(): Promise<Set<Failure>> {
+    const failures = new Set<Failure>();
+    for await (const failure of this.#packageJsonReader.getFailures()) {
+      failures.add(failure);
+    }
+    for (const info of this.#placeholders.values()) {
+      for (const failure of info.placeholder.failures) {
+        failures.add(failure);
+      }
+    }
+    for (const failure of failures) {
+      const supercedes = (failure as Partial<DependencyOnMissingPackageJson>)
+        .supercedes;
+      if (supercedes != null) {
+        failures.delete(supercedes);
+      }
+    }
+    return failures;
+  }
+
+  async #waitForAnalysisToComplete() {
+    while (this.#ongoingWorkPromises.length > 0) {
+      const promise =
+        this.#ongoingWorkPromises[this.#ongoingWorkPromises.length - 1];
+      await promise;
+      // Need to be careful here. The contract of this method is that it does
+      // not return until all pending analysis work is completed.
+      // If there are multiple concurrent callers to this method, we want to
+      // make sure that none of them hide any of the pending work from each
+      // other by removing a promise from the array before it has settled.
+      // So we first await the promise, and then remove it from the array if
+      // it's still the final element.
+      // It might not be the final element because another caller removed it,
+      // or because more work was added onto the end of the array. Either
+      // case is fine.
+      if (
+        promise ===
+        this.#ongoingWorkPromises[this.#ongoingWorkPromises.length - 1]
+      ) {
+        void this.#ongoingWorkPromises.pop();
+      }
+    }
   }
 
   async #readPackageJson(packageDir: string): Promise<Result<PackageJson>> {
@@ -122,15 +194,17 @@ export class Analyzer {
     const cacheKey = scriptReferenceToString(reference);
     let placeholderInfo = this.#placeholders.get(cacheKey);
     if (placeholderInfo === undefined) {
-      const placeholder = {...reference};
+      const placeholder: UnvalidatedConfig = {
+        ...reference,
+        state: 'unvalidated',
+        failures: [],
+      };
       placeholderInfo = {
         placeholder: placeholder,
-        failuresPromise: this.#upgradePlaceholder(placeholder),
+        upgradeComplete: this.#upgradePlaceholder(placeholder),
       };
       this.#placeholders.set(cacheKey, placeholderInfo);
-      this.#placeholderUpgradeFailureSinks.push(
-        placeholderInfo?.failuresPromise
-      );
+      this.#ongoingWorkPromises.push(placeholderInfo.upgradeComplete);
     }
     return placeholderInfo;
   }
@@ -143,18 +217,17 @@ export class Analyzer {
    * upgraded; dependencies are upgraded asynchronously.
    */
   async #upgradePlaceholder(
-    placeholder: PlaceholderConfig
-  ): Promise<Result<void, Failure[]>> {
+    placeholder: UnvalidatedConfig
+  ): Promise<undefined> {
     const packageJsonResult = await this.#readPackageJson(
       placeholder.packageDir
     );
     if (!packageJsonResult.ok) {
-      return {ok: false, error: [packageJsonResult.error]};
+      placeholder.failures.push(packageJsonResult.error);
+      return undefined;
     }
     const packageJson = packageJsonResult.value;
-    if (packageJson.failures.length > 0) {
-      return {ok: false, error: [...packageJson.failures]};
-    }
+    placeholder.failures.push(...packageJson.failures);
 
     const syntaxInfo = packageJson.getScriptInfo(placeholder.name);
     if (syntaxInfo === undefined || syntaxInfo.scriptNode === undefined) {
@@ -164,250 +237,91 @@ export class Analyzer {
             length: packageJson.scriptsSection.name.length,
           }
         : {offset: 0, length: 0};
-      return {
-        ok: false,
-        error: [
-          {
-            type: 'failure',
-            reason: 'script-not-found',
-            script: placeholder,
-            diagnostic: {
-              severity: 'error',
-              message: `Script "${placeholder.name}" not found in the scripts section of this package.json.`,
-              location: {file: packageJson.jsonFile, range},
-            },
-          },
-        ],
-      };
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'script-not-found',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `Script "${placeholder.name}" not found in the scripts section of this package.json.`,
+          location: {file: packageJson.jsonFile, range},
+        },
+      });
+      return undefined;
     }
     const scriptCommand = syntaxInfo.scriptNode;
     const wireitConfig = syntaxInfo.wireitConfigNode;
 
     if (wireitConfig !== undefined && scriptCommand.value !== 'wireit') {
       const configName = wireitConfig.name;
-      return {
-        ok: false,
-        error: [
-          {
-            type: 'failure',
-            reason: 'script-not-wireit',
-            script: placeholder,
-            diagnostic: {
-              message: `This command should just be "wireit", as this script is configured in the wireit section.`,
-              severity: 'warning',
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'script-not-wireit',
+        script: placeholder,
+        diagnostic: {
+          message: `This command should just be "wireit", as this script is configured in the wireit section.`,
+          severity: 'warning',
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: scriptCommand.length,
+              offset: scriptCommand.offset,
+            },
+          },
+          supplementalLocations: [
+            {
+              message: `The wireit config is here.`,
               location: {
                 file: packageJson.jsonFile,
                 range: {
-                  length: scriptCommand.length,
-                  offset: scriptCommand.offset,
+                  length: configName.length,
+                  offset: configName.offset,
                 },
               },
-              supplementalLocations: [
-                {
-                  message: `The wireit config is here.`,
-                  location: {
-                    file: packageJson.jsonFile,
-                    range: {
-                      length: configName.length,
-                      offset: configName.offset,
-                    },
-                  },
-                },
-              ],
             },
-          },
-        ],
-      };
+          ],
+        },
+      });
     }
 
     if (wireitConfig === undefined && scriptCommand.value === 'wireit') {
-      return {
-        ok: false,
-        error: [
-          {
-            type: 'failure',
-            reason: 'invalid-config-syntax',
-            script: placeholder,
-            diagnostic: {
-              severity: 'error',
-              message: `This script is configured to run wireit but it has no config in the wireit section of this package.json file`,
-              location: {
-                file: packageJson.jsonFile,
-                range: {
-                  length: scriptCommand.length,
-                  offset: scriptCommand.offset,
-                },
-              },
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `This script is configured to run wireit but it has no config in the wireit section of this package.json file`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: scriptCommand.length,
+              offset: scriptCommand.offset,
             },
           },
-        ],
-      };
+        },
+      });
     }
 
-    const dependencies: Array<PlaceholderConfig> = [];
-    const dependenciesAst =
-      wireitConfig && findNodeAtLocation(wireitConfig, ['dependencies']);
-    if (dependenciesAst !== undefined) {
-      const result = failUnlessArray(dependenciesAst, packageJson.jsonFile);
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
-      }
-      // Error if the same dependency is declared multiple times. Duplicate
-      // dependencies aren't necessarily a serious problem (since we already
-      // prevent double-analysis here, and double-analysis in the Executor), but
-      // they may indicate that the user has made a mistake (e.g. maybe they
-      // meant a different dependency).
-      const uniqueDependencies = new Map<string, JsonAstNode>();
-      const children = dependenciesAst.children ?? [];
-      for (let i = 0; i < children.length; i++) {
-        const maybeUnresolved = children[i];
-        const stringResult = failUnlessNonBlankString(
-          maybeUnresolved,
-          packageJson.jsonFile
-        );
-        if (!stringResult.ok) {
-          return {ok: false, error: [stringResult.error]};
-        }
-        const unresolved = stringResult.value;
-        const result = this.#resolveDependency(
-          unresolved,
-          placeholder,
-          packageJson.jsonFile
-        );
-        if (!result.ok) {
-          return {ok: false, error: [result.error]};
-        }
-
-        for (const resolved of result.value) {
-          const uniqueKey = scriptReferenceToString(resolved);
-          const duplicate = uniqueDependencies.get(uniqueKey);
-          if (duplicate !== undefined) {
-            return {
-              ok: false,
-              error: [
-                {
-                  type: 'failure',
-                  reason: 'duplicate-dependency',
-                  script: placeholder,
-                  dependency: resolved,
-                  diagnostic: {
-                    severity: 'error',
-                    message: `This dependency is listed multiple times`,
-                    location: {
-                      file: packageJson.jsonFile,
-                      range: {
-                        offset: unresolved.offset,
-                        length: unresolved.length,
-                      },
-                    },
-                    supplementalLocations: [
-                      {
-                        message: `The dependency was first listed here.`,
-                        location: {
-                          file: packageJson.jsonFile,
-                          range: {
-                            offset: duplicate.offset,
-                            length: duplicate.length,
-                          },
-                        },
-                      },
-                    ],
-                  },
-                },
-              ],
-            };
-          }
-          uniqueDependencies.set(uniqueKey, unresolved);
-          const placeHolderInfo = this.#getPlaceholder(resolved);
-          dependencies.push(placeHolderInfo.placeholder);
-          this.#placeholderUpgradeFailureSinks.push(
-            (async () => {
-              const res = await placeHolderInfo.failuresPromise;
-              if (res.ok) {
-                return {ok: true, value: undefined};
-              }
-              for (const failure of res.error) {
-                if (failure.reason === 'script-not-found') {
-                  let offset = unresolved.offset;
-                  let length = unresolved.length;
-                  if (unresolved.value.includes(':')) {
-                    // Skip past the colon to just highlight the script name.
-                    const colonOffsetInString = packageJson.jsonFile.contents
-                      .slice(unresolved.offset)
-                      .indexOf(':');
-                    offset = unresolved.offset + colonOffsetInString + 1;
-                    length = unresolved.length - colonOffsetInString - 2;
-                  }
-                  return {
-                    ok: false,
-                    error: [
-                      {
-                        type: 'failure',
-                        reason: 'dependency-on-missing-script',
-                        script: placeholder,
-                        diagnostic: {
-                          severity: 'error',
-                          message: `Cannot find script named ${JSON.stringify(
-                            resolved.name
-                          )} in package "${resolved.packageDir}"`,
-                          location: {
-                            file: packageJson.jsonFile,
-                            range: {offset, length},
-                          },
-                        },
-                      },
-                    ],
-                  };
-                }
-                if (failure.reason === 'missing-package-json') {
-                  // Skip the opening "
-                  const offset = unresolved.offset + 1;
-                  // Take everything up to the first colon, but look in
-                  // the original source, to avoid getting confused by escape
-                  // sequences, which have a different length before and after
-                  // encoding.
-                  const length = packageJson.jsonFile.contents
-                    .slice(offset)
-                    .indexOf(':');
-                  const range = {offset, length};
-                  return {
-                    ok: false,
-                    error: [
-                      {
-                        type: 'failure',
-                        reason: 'dependency-on-missing-package-json',
-                        script: placeholder,
-                        supercedes: failure,
-                        diagnostic: {
-                          severity: 'error',
-                          message: `package.json file missing: "${pathlib.join(
-                            resolved.packageDir,
-                            'package.json'
-                          )}"`,
-                          location: {file: packageJson.jsonFile, range},
-                        },
-                      },
-                    ],
-                  };
-                }
-              }
-              return {ok: true, value: undefined};
-            })()
-          );
-        }
-      }
-    }
+    const {
+      dependencies,
+      dependenciesAst,
+      encounteredError: dependenciesErrored,
+    } = this.#processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
+    let commandError = false;
     if (wireitConfig === undefined) {
       const result = failUnlessNonBlankString(
         scriptCommand,
         packageJson.jsonFile
       );
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
+      if (result.ok) {
+        command = result.value;
+      } else {
+        commandError = true;
+        placeholder.failures.push(result.error);
       }
-      command = result.value;
     } else {
       const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
         | undefined
@@ -417,119 +331,348 @@ export class Analyzer {
           commandAst,
           packageJson.jsonFile
         );
-        if (!result.ok) {
-          return {ok: false, error: [result.error]};
+        if (result.ok) {
+          command = result.value;
+        } else {
+          commandError = true;
+          placeholder.failures.push(result.error);
         }
-        command = result.value;
       }
     }
 
-    let files: undefined | ArrayNode<string>;
-    let output: undefined | ArrayNode<string>;
-    let clean: undefined | JsonAstNode<true | false | 'if-file-deleted'>;
-    if (wireitConfig !== undefined) {
-      if (command === undefined && dependencies.length === 0) {
-        return {
-          ok: false,
-          error: [
-            {
-              type: 'failure',
-              reason: 'invalid-config-syntax',
-              script: placeholder,
-              diagnostic: {
-                severity: 'error',
-                message: `A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.`,
-                location: {
-                  file: packageJson.jsonFile,
-                  range: {
-                    length: wireitConfig.name.length,
-                    offset: wireitConfig.name.offset,
+    if (
+      wireitConfig !== undefined &&
+      command === undefined &&
+      dependencies.length === 0 &&
+      !dependenciesErrored &&
+      !commandError
+    ) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: wireitConfig.name.length,
+              offset: wireitConfig.name.offset,
+            },
+          },
+        },
+      });
+    }
+
+    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
+    const output = this.#processOutput(placeholder, packageJson, syntaxInfo);
+    const clean = this.#processClean(placeholder, packageJson, syntaxInfo);
+    this.#processPackageLocks(placeholder, packageJson, syntaxInfo, files);
+
+    // It's important to in-place update the placeholder object, instead of
+    // creating a new object, because other configs may be referencing this
+    // exact object in their dependencies.
+    const remainingConfig: LocallyValidScriptConfig = {
+      ...placeholder,
+      state: 'locally-valid',
+      failures: placeholder.failures,
+      command,
+      dependencies: dependencies as Array<ScriptConfig>,
+      dependenciesAst,
+      files,
+      output,
+      clean: clean ?? true,
+      scriptAstNode: scriptCommand,
+      configAstNode: wireitConfig,
+      declaringFile: packageJson.jsonFile,
+    };
+    Object.assign(placeholder, remainingConfig);
+  }
+
+  #processDependencies(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    scriptInfo: ScriptSyntaxInfo
+  ): {
+    dependencies: Array<PotentiallyValidScriptConfig>;
+    dependenciesAst: JsonAstNode | undefined;
+    encounteredError: boolean;
+  } {
+    const dependencies: Array<PotentiallyValidScriptConfig> = [];
+    const dependenciesAst =
+      scriptInfo.wireitConfigNode &&
+      findNodeAtLocation(scriptInfo.wireitConfigNode, ['dependencies']);
+    let encounteredError = false;
+    if (dependenciesAst == null) {
+      return {dependencies, dependenciesAst: undefined, encounteredError};
+    }
+    const result = failUnlessArray(dependenciesAst, packageJson.jsonFile);
+    if (!result.ok) {
+      encounteredError = true;
+      placeholder.failures.push(result.error);
+      return {dependencies, dependenciesAst, encounteredError};
+    }
+    // Error if the same dependency is declared multiple times. Duplicate
+    // dependencies aren't necessarily a serious problem (since we already
+    // prevent double-analysis here, and double-analysis in the Executor), but
+    // they may indicate that the user has made a mistake (e.g. maybe they
+    // meant a different dependency).
+    const uniqueDependencies = new Map<string, JsonAstNode>();
+    const children = dependenciesAst.children ?? [];
+    for (let i = 0; i < children.length; i++) {
+      const maybeUnresolved = children[i];
+      const stringResult = failUnlessNonBlankString(
+        maybeUnresolved,
+        packageJson.jsonFile
+      );
+      if (!stringResult.ok) {
+        encounteredError = true;
+        placeholder.failures.push(stringResult.error);
+        continue;
+      }
+      const unresolved = stringResult.value;
+      const result = this.#resolveDependency(
+        unresolved,
+        placeholder,
+        packageJson.jsonFile
+      );
+      if (!result.ok) {
+        encounteredError = true;
+        placeholder.failures.push(result.error);
+        continue;
+      }
+
+      for (const resolved of result.value) {
+        const uniqueKey = scriptReferenceToString(resolved);
+        const duplicate = uniqueDependencies.get(uniqueKey);
+        if (duplicate !== undefined) {
+          encounteredError = true;
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'duplicate-dependency',
+            script: placeholder,
+            dependency: resolved,
+            diagnostic: {
+              severity: 'error',
+              message: `This dependency is listed multiple times`,
+              location: {
+                file: packageJson.jsonFile,
+                range: {
+                  offset: unresolved.offset,
+                  length: unresolved.length,
+                },
+              },
+              supplementalLocations: [
+                {
+                  message: `The dependency was first listed here.`,
+                  location: {
+                    file: packageJson.jsonFile,
+                    range: {
+                      offset: duplicate.offset,
+                      length: duplicate.length,
+                    },
                   },
                 },
-              },
+              ],
             },
-          ],
-        };
+          });
+        }
+        uniqueDependencies.set(uniqueKey, unresolved);
+        const placeHolderInfo = this.#getPlaceholder(resolved);
+        dependencies.push(placeHolderInfo.placeholder);
+        this.#ongoingWorkPromises.push(
+          (async () => {
+            await placeHolderInfo.upgradeComplete;
+            const failures = placeHolderInfo.placeholder.failures;
+            for (const failure of failures) {
+              if (failure.reason === 'script-not-found') {
+                const hasColon = unresolved.value.includes(':');
+                let offset;
+                let length;
+                if (!hasColon) {
+                  offset = unresolved.offset;
+                  length = unresolved.length;
+                } else {
+                  // Skip past the colon
+                  const colonOffsetInString = packageJson.jsonFile.contents
+                    .slice(unresolved.offset)
+                    .indexOf(':');
+                  offset = unresolved.offset + colonOffsetInString + 1;
+                  length = unresolved.length - colonOffsetInString - 2;
+                }
+                placeholder.failures.push({
+                  type: 'failure',
+                  reason: 'dependency-on-missing-script',
+                  script: placeholder,
+                  supercedes: failure,
+                  diagnostic: {
+                    severity: 'error',
+                    message: `Cannot find script named ${JSON.stringify(
+                      resolved.name
+                    )} in package "${resolved.packageDir}"`,
+                    location: {
+                      file: packageJson.jsonFile,
+                      range: {offset, length},
+                    },
+                  },
+                });
+              } else if (failure.reason === 'missing-package-json') {
+                // Skip the opening "
+                const offset = unresolved.offset + 1;
+                // Take everything up to the first colon, but look in
+                // the original source, to avoid getting confused by escape
+                // sequences, which have a different length before and after
+                // encoding.
+                const length = packageJson.jsonFile.contents
+                  .slice(offset)
+                  .indexOf(':');
+                const range = {offset, length};
+                placeholder.failures.push({
+                  type: 'failure',
+                  reason: 'dependency-on-missing-package-json',
+                  script: placeholder,
+                  supercedes: failure,
+                  diagnostic: {
+                    severity: 'error',
+                    message: `package.json file missing: "${pathlib.join(
+                      resolved.packageDir,
+                      'package.json'
+                    )}"`,
+                    location: {file: packageJson.jsonFile, range},
+                  },
+                });
+              }
+            }
+            return undefined;
+          })()
+        );
       }
+    }
+    return {dependencies, dependenciesAst, encounteredError};
+  }
 
-      const filesNode = findNodeAtLocation(wireitConfig, ['files']);
-      if (filesNode !== undefined) {
-        const values = [];
-        const result = failUnlessArray(filesNode, packageJson.jsonFile);
-        if (!result.ok) {
-          return {ok: false, error: [result.error]};
-        }
-        const children = filesNode.children ?? [];
-        for (let i = 0; i < children.length; i++) {
-          const file = children[i];
-          const result = failUnlessNonBlankString(file, packageJson.jsonFile);
-          if (!result.ok) {
-            return {ok: false, error: [result.error]};
-          }
-          values.push(result.value.value);
-        }
-        files = {node: filesNode, values};
+  #processFiles(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo
+  ): undefined | ArrayNode<string> {
+    if (syntaxInfo.wireitConfigNode == null) {
+      return;
+    }
+    const filesNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'files',
+    ]);
+    if (filesNode === undefined) {
+      return;
+    }
+    const values = [];
+    const result = failUnlessArray(filesNode, packageJson.jsonFile);
+    if (!result.ok) {
+      placeholder.failures.push(result.error);
+      return;
+    }
+    const children = filesNode.children ?? [];
+    for (let i = 0; i < children.length; i++) {
+      const file = children[i];
+      const result = failUnlessNonBlankString(file, packageJson.jsonFile);
+      if (!result.ok) {
+        placeholder.failures.push(result.error);
+        continue;
       }
+      values.push(result.value.value);
+    }
+    return {node: filesNode, values};
+  }
 
-      const outputNode = findNodeAtLocation(wireitConfig, ['output']);
-      if (outputNode !== undefined) {
-        const values = [];
-        const result = failUnlessArray(outputNode, packageJson.jsonFile);
-        if (!result.ok) {
-          return {ok: false, error: [result.error]};
-        }
-        const children = outputNode.children ?? [];
-        for (let i = 0; i < children.length; i++) {
-          const anOutput = children[i];
-          const result = failUnlessNonBlankString(
-            anOutput,
-            packageJson.jsonFile
-          );
-          if (!result.ok) {
-            return {ok: false, error: [result.error]};
-          }
-          values.push(result.value.value);
-        }
-        output = {node: outputNode, values};
+  #processOutput(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo
+  ): undefined | ArrayNode<string> {
+    if (syntaxInfo.wireitConfigNode == null) {
+      return;
+    }
+    const outputNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'output',
+    ]);
+    if (outputNode === undefined) {
+      return;
+    }
+    const values = [];
+    const result = failUnlessArray(outputNode, packageJson.jsonFile);
+    if (!result.ok) {
+      placeholder.failures.push(result.error);
+      return;
+    }
+    const children = outputNode.children ?? [];
+    for (let i = 0; i < children.length; i++) {
+      const anOutput = children[i];
+      const result = failUnlessNonBlankString(anOutput, packageJson.jsonFile);
+      if (!result.ok) {
+        placeholder.failures.push(result.error);
+        continue;
       }
-      clean = findNodeAtLocation(wireitConfig, ['clean']) as
-        | undefined
-        | JsonAstNode<true | false | 'if-file-deleted'>;
-      if (
-        clean !== undefined &&
-        clean.value !== true &&
-        clean.value !== false &&
-        clean.value !== 'if-file-deleted'
-      ) {
-        return {
-          ok: false,
-          error: [
-            {
-              type: 'failure',
-              reason: 'invalid-config-syntax',
-              script: placeholder,
-              diagnostic: {
-                severity: 'error',
-                message: `The "clean" property must be either true, false, or "if-file-deleted".`,
-                location: {
-                  file: packageJson.jsonFile,
-                  range: {length: clean.length, offset: clean.offset},
-                },
-              },
-            },
-          ],
-        };
-      }
+      values.push(result.value.value);
+    }
+    return {node: outputNode, values};
+  }
 
-      const packageLocksNode = findNodeAtLocation(wireitConfig, [
-        'packageLocks',
-      ]);
-      let packageLocks: undefined | {node: JsonAstNode; values: string[]};
-      if (packageLocksNode !== undefined) {
-        const result = failUnlessArray(packageLocksNode, packageJson.jsonFile);
-        if (!result.ok) {
-          return {ok: false, error: [result.error]};
-        }
+  #processClean(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo
+  ): undefined | boolean | 'if-file-deleted' {
+    if (syntaxInfo.wireitConfigNode == null) {
+      return;
+    }
+    const clean = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['clean']) as
+      | undefined
+      | JsonAstNode<true | false | 'if-file-deleted'>;
+    if (
+      clean !== undefined &&
+      clean.value !== true &&
+      clean.value !== false &&
+      clean.value !== 'if-file-deleted'
+    ) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `The "clean" property must be either true, false, or "if-file-deleted".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: clean.length, offset: clean.offset},
+          },
+        },
+      });
+      // We shouldn't execute if there's failures, but just in case, this is
+      // likely the safest option.
+      return false;
+    }
+    return clean?.value;
+  }
+
+  #processPackageLocks(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    files: undefined | ArrayNode<string>
+  ): void {
+    if (syntaxInfo.wireitConfigNode == null) {
+      return;
+    }
+    const packageLocksNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'packageLocks',
+    ]);
+    let packageLocks: undefined | {node: JsonAstNode; values: string[]};
+    if (packageLocksNode !== undefined) {
+      const result = failUnlessArray(packageLocksNode, packageJson.jsonFile);
+      if (!result.ok) {
+        placeholder.failures.push(result.error);
+      } else {
         packageLocks = {node: packageLocksNode, values: []};
         const children = packageLocksNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
@@ -539,78 +682,66 @@ export class Analyzer {
             packageJson.jsonFile
           );
           if (!result.ok) {
-            return {ok: false, error: [result.error]};
+            placeholder.failures.push(result.error);
+            continue;
           }
           const filename = result.value;
           if (filename.value !== pathlib.basename(filename.value)) {
-            return {
-              ok: false,
-              error: [
-                {
-                  type: 'failure',
-                  reason: 'invalid-config-syntax',
-                  script: placeholder,
-                  diagnostic: {
-                    severity: 'error',
-                    message: `A package lock must be a filename, not a path`,
-                    location: {
-                      file: packageJson.jsonFile,
-                      range: {length: filename.length, offset: filename.offset},
-                    },
-                  },
+            placeholder.failures.push({
+              type: 'failure',
+              reason: 'invalid-config-syntax',
+              script: placeholder,
+              diagnostic: {
+                severity: 'error',
+                message: `A package lock must be a filename, not a path`,
+                location: {
+                  file: packageJson.jsonFile,
+                  range: {length: filename.length, offset: filename.offset},
                 },
-              ],
-            };
+              },
+            });
+            continue;
           }
           packageLocks.values.push(filename.value);
         }
       }
-      if (
-        // There's no reason to check package locks when "files" is undefined,
-        // because scripts will always run in that case anyway.
-        files !== undefined &&
-        // An explicitly empty "packageLocks" array disables package lock checking
-        // entirely.
-        packageLocks?.values.length !== 0
-      ) {
-        const lockfileNames = packageLocks?.values ?? ['package-lock.json'];
-        // Generate "package-lock.json", "../package-lock.json",
-        // "../../package-lock.json" etc. all the way up to the root of the
-        // filesystem, because that's how Node package resolution works.
-        const depth = placeholder.packageDir.split(pathlib.sep).length;
-        for (let i = 0; i < depth; i++) {
-          // Glob patterns are specified with forward-slash delimiters, even on
-          // Windows.
-          const prefix = Array(i + 1).join('../');
-          for (const lockfileName of lockfileNames) {
-            files.values.push(prefix + lockfileName);
-          }
+    }
+    if (
+      // There's no reason to check package locks when "files" is undefined,
+      // because scripts will always run in that case anyway.
+      files !== undefined &&
+      // An explicitly empty "packageLocks" array disables package lock checking
+      // entirely.
+      packageLocks?.values.length !== 0
+    ) {
+      const lockfileNames = packageLocks?.values ?? ['package-lock.json'];
+      // Generate "package-lock.json", "../package-lock.json",
+      // "../../package-lock.json" etc. all the way up to the root of the
+      // filesystem, because that's how Node package resolution works.
+      const depth = placeholder.packageDir.split(pathlib.sep).length;
+      for (let i = 0; i < depth; i++) {
+        // Glob patterns are specified with forward-slash delimiters, even on
+        // Windows.
+        const prefix = Array(i + 1).join('../');
+        for (const lockfileName of lockfileNames) {
+          files.values.push(prefix + lockfileName);
         }
       }
     }
-
-    // It's important to in-place update the placeholder object, instead of
-    // creating a new object, because other configs may be referencing this
-    // exact object in their dependencies.
-    const remainingConfig: Omit<ScriptConfig, keyof ScriptReference> = {
-      command,
-      dependencies: dependencies as Array<ScriptConfig>,
-      dependenciesAst,
-      files,
-      output,
-      clean: clean?.value ?? true,
-      scriptAstNode: scriptCommand,
-      configAstNode: wireitConfig,
-      declaringFile: packageJson.jsonFile,
-    };
-    Object.assign(placeholder, remainingConfig);
-    return {ok: true, value: undefined};
   }
 
+  /**
+   * This is where we check for cycles in dependencies, but it's also the
+   * place where we transform LocallyValidScriptConfigs to ScriptConfigs.
+   */
   #checkForCyclesAndSortDependencies(
-    config: ScriptConfig,
+    config: LocallyValidScriptConfig | ScriptConfig,
     trail: Set<ScriptReferenceString>
-  ): Result<void> {
+  ): Result<ScriptConfig> {
+    if (config.state === 'valid') {
+      // Already validated.
+      return {ok: true, value: config};
+    }
     const trailKey = scriptReferenceToString(config);
     const supplementalLocations: MessageLocation[] = [];
     if (trail.has(trailKey)) {
@@ -626,20 +757,30 @@ export class Analyzer {
         i++;
       }
       const trailArray = [...trail].map((key) => {
-        const placeholder = this.#placeholders.get(key);
-        if (placeholder == null) {
+        const placeholderInfo = this.#placeholders.get(key);
+        if (placeholderInfo == null) {
           throw new Error(
             `Internal error: placeholder not found for ${key} during cycle detection`
           );
         }
-        return placeholder.placeholder as ScriptConfig;
+        const placeholder = placeholderInfo.placeholder;
+        if (placeholder.state === 'unvalidated') {
+          throw new Error(
+            `Internal error: script ${key} has not finished resolution before checkForCyclesAndSortDependencies`
+          );
+        }
+        return placeholder;
       });
       trailArray.push(config);
       const cycleEnd = trailArray.length - 1;
       for (let i = cycleStart; i < cycleEnd; i++) {
         const current = trailArray[i];
         const next = trailArray[i + 1];
-        const nextIdx = current.dependencies.indexOf(next);
+        const nextIdx = current.dependencies.indexOf(
+          // This cast shouldn't be necessary, but the typings of indexOf
+          // are too strict.
+          next as ScriptConfig
+        );
         const dependencyNode = current.dependenciesAst?.children?.[nextIdx];
         // Use the actual value in the array, because this could refer to
         // a script in another package.
@@ -699,7 +840,7 @@ export class Analyzer {
         },
       };
     }
-    if (config.dependencies.length > 0) {
+    if (config.dependencies != null && config.dependencies.length > 0) {
       // Sorting means that if the user re-orders the same set of dependencies,
       // the trail we take in this walk remains the same, so any cycle error
       // message we might throw will have the same trail, too. This also helps
@@ -713,6 +854,11 @@ export class Analyzer {
       });
       trail.add(trailKey);
       for (const dependency of config.dependencies) {
+        if (dependency.state === 'unvalidated') {
+          throw new Error(
+            `Internal error: encountered unvalidated dependency ${dependency.name} of ${config.name} while checking for cycles.`
+          );
+        }
         const result = this.#checkForCyclesAndSortDependencies(
           dependency,
           trail
@@ -723,7 +869,19 @@ export class Analyzer {
       }
       trail.delete(trailKey);
     }
-    return {ok: true, value: undefined};
+    {
+      const validConfig: ScriptConfig = {
+        ...config,
+        state: 'valid',
+        dependencies: config.dependencies as Array<ScriptConfig>,
+      };
+      // We want to keep the original reference, but get type checking that
+      // the only difference between a ScriptConfig and a
+      // LocallyValidScriptConfig is that the state is 'valid' and the
+      // dependencies are also valid, which we confirmed above.
+      Object.assign(config, validConfig);
+    }
+    return {ok: true, value: config as unknown as ScriptConfig};
   }
 
   /**
