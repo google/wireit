@@ -214,6 +214,7 @@ export class Analyzer {
           {
             type: 'failure',
             reason: 'invalid-config-syntax',
+            script: placeholder,
             diagnostic: {
               severity: 'error',
               message: `This script is configured to run wireit but it has no config in the wireit section of this package.json file`,
@@ -346,6 +347,7 @@ export class Analyzer {
             {
               type: 'failure',
               reason: 'invalid-config-syntax',
+              script: placeholder,
               diagnostic: {
                 severity: 'error',
                 message: `A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.`,
@@ -417,6 +419,7 @@ export class Analyzer {
             {
               type: 'failure',
               reason: 'invalid-config-syntax',
+              script: placeholder,
               diagnostic: {
                 severity: 'error',
                 message: `The "clean" property must be either true, false, or "if-file-deleted".`,
@@ -458,6 +461,7 @@ export class Analyzer {
                 {
                   type: 'failure',
                   reason: 'invalid-config-syntax',
+                  script: placeholder,
                   diagnostic: {
                     severity: 'error',
                     message: `A package lock must be a filename, not a path`,
@@ -684,6 +688,7 @@ export class Analyzer {
         error: {
           type: 'failure',
           reason: 'invalid-config-syntax',
+          script: context,
           diagnostic: {
             severity: 'error',
             message:
@@ -705,6 +710,7 @@ export class Analyzer {
         error: {
           type: 'failure',
           reason: 'invalid-config-syntax',
+          script: context,
           diagnostic: {
             severity: 'error',
             message:
@@ -730,6 +736,7 @@ export class Analyzer {
         error: {
           type: 'failure',
           reason: 'invalid-config-syntax',
+          script: context,
           diagnostic: {
             severity: 'error',
             message:
@@ -772,6 +779,7 @@ export function failUnlessNonBlankString(
       error: {
         type: 'failure',
         reason: 'invalid-config-syntax',
+        script: {packageDir: pathlib.dirname(file.path)},
         diagnostic: {
           severity: 'error',
           message: `Expected a string, but was ${astNode.type}.`,
@@ -792,6 +800,7 @@ export function failUnlessNonBlankString(
       error: {
         type: 'failure',
         reason: 'invalid-config-syntax',
+        script: {packageDir: pathlib.dirname(file.path)},
         diagnostic: {
           severity: 'error',
           message: `Expected this field to be nonempty`,
@@ -822,6 +831,7 @@ const failUnlessArray = (
       error: {
         type: 'failure',
         reason: 'invalid-config-syntax',
+        script: {packageDir: pathlib.dirname(file.path)},
         diagnostic: {
           severity: 'error',
           message: `Expected an array, but was ${astNode.type}.`,
@@ -850,6 +860,7 @@ export const failUnlessJsonObject = (
     return {
       type: 'failure',
       reason: 'invalid-config-syntax',
+      script: {packageDir: pathlib.dirname(file.path)},
       diagnostic: {
         severity: 'error',
         message: `Expected an object, but was ${astNode.type}.`,

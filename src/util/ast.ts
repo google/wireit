@@ -9,6 +9,7 @@ import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
 import {Result, Diagnostic} from '../error.js';
 import {Failure} from '../event.js';
 import {JsonFile} from './package-json-reader.js';
+import * as pathlib from 'path';
 export {ParseError} from 'jsonc-parser';
 
 type ValueTypes = string | number | boolean | null | undefined;
@@ -75,6 +76,7 @@ export function findNamedNodeAtLocation(
       error: {
         type: 'failure',
         reason: 'invalid-config-syntax',
+        script: {packageDir: pathlib.dirname(file.path)},
         diagnostic: {
           severity: 'error',
           message: `Expected a property, but got a ${parent.type}`,
@@ -126,6 +128,7 @@ export function parseTree(
       error: {
         type: 'failure',
         reason: 'invalid-json-syntax',
+        script: {packageDir: pathlib.dirname(filePath)},
         diagnostics,
       },
     };

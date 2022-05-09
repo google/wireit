@@ -62,6 +62,7 @@ export class DefaultLogger implements Logger {
 
   log(event: Event) {
     const type = event.type;
+    const prefix = this.#getPrefix(event.script);
     switch (type) {
       default: {
         throw new Error(`Unknown event type: ${unreachable(type) as string}`);
@@ -69,7 +70,6 @@ export class DefaultLogger implements Logger {
 
       case 'success': {
         const reason = event.reason;
-        const prefix = this.#getPrefix(event.script);
         switch (reason) {
           default: {
             throw new Error(
@@ -105,7 +105,6 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'launched-incorrectly': {
-            const prefix = this.#getPrefix(event.script);
             console.error(
               `❌${prefix} wireit must be launched with "npm run" or a compatible command.`
             );
@@ -113,7 +112,6 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'missing-package-json': {
-            const prefix = this.#getPrefix(event.script);
             console.error(
               `❌${prefix} No package.json was found in ${event.script.packageDir}`
             );
@@ -127,7 +125,6 @@ export class DefaultLogger implements Logger {
           }
 
           case 'no-scripts-in-package-json': {
-            const prefix = this.#getPrefix(event.script);
             console.error(
               `❌${prefix} No "scripts" section defined in package.json in ${event.script.packageDir}`
             );
@@ -142,12 +139,10 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'invalid-usage': {
-            const prefix = this.#getPrefix(event.script);
             console.error(`❌${prefix} Invalid usage: ${event.message}`);
             break;
           }
           case 'exit-non-zero': {
-            const prefix = this.#getPrefix(event.script);
             console.error(
               `❌${prefix} Failed with exit status ${event.status}`
             );
@@ -155,17 +150,14 @@ export class DefaultLogger implements Logger {
           }
 
           case 'signal': {
-            const prefix = this.#getPrefix(event.script);
             console.error(`❌${prefix} Failed with signal ${event.signal}`);
             break;
           }
           case 'spawn-error': {
-            const prefix = this.#getPrefix(event.script);
             console.error(`❌${prefix} Process spawn error: ${event.message}`);
             break;
           }
           case 'unknown-error-thrown': {
-            const prefix = this.#getPrefix(event.script);
             console.error(
               `❌${prefix} Internal error! Unknown error thrown: ${String(
                 event.error
@@ -204,7 +196,6 @@ export class DefaultLogger implements Logger {
       }
 
       case 'info': {
-        const prefix = this.#getPrefix(event.script);
         const detail = event.detail;
         switch (detail) {
           default: {

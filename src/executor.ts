@@ -612,6 +612,7 @@ class ScriptExecution {
           error: {
             type: 'failure',
             reason: 'invalid-config-syntax',
+            script: this.#script,
             diagnostic: {
               severity: 'error',
               message: `Output files must be within the package: ${error.message}`,
@@ -812,6 +813,7 @@ class ScriptExecution {
           error: {
             type: 'failure',
             reason: 'invalid-config-syntax',
+            script: this.#script,
             diagnostic: {
               severity: 'error',
               message: `Output files must be within the package: ${error.message}`,

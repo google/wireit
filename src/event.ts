@@ -85,10 +85,6 @@ interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
 }
 
-interface ScriptlessError {
-  type: 'failure';
-}
-
 /**
  * A script finished with an exit status that was not 0.
  */
@@ -132,7 +128,7 @@ export interface MissingPackageJson extends ErrorBase<PackageReference> {
 /**
  * The package.json file was invalid JSON.
  */
-export interface PackageJsonParseError extends ScriptlessError {
+export interface PackageJsonParseError extends ErrorBase<PackageReference> {
   reason: 'invalid-json-syntax';
   diagnostics: Diagnostic[];
 }
@@ -164,7 +160,7 @@ export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
 /**
  * Something is syntactically wrong with the wireit config.
  */
-export interface InvalidConfigSyntax extends ScriptlessError {
+export interface InvalidConfigSyntax extends ErrorBase<PackageReference> {
   reason: 'invalid-config-syntax';
   diagnostic: Diagnostic;
 }
