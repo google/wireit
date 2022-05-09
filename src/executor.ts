@@ -338,9 +338,9 @@ class ScriptExecution {
     // Note we use Promise.allSettled instead of Promise.all so that we can
     // collect all errors, instead of just the first one.
     const dependencyResults = await Promise.allSettled(
-      this.#script.dependencies.map((dependency) =>
-        this.#executor.execute(dependency)
-      )
+      this.#script.dependencies.map((dependency) => {
+        return this.#executor.execute(dependency);
+      })
     );
     const errors = new Set<Failure>();
     const results: Array<[ScriptReference, ScriptState]> = [];

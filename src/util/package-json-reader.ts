@@ -49,4 +49,16 @@ export class CachingPackageJsonReader {
       return {ok: true, value: packageJsonFile};
     });
   }
+
+  async *getFailures() {
+    const values = await Promise.all([...this.#cache.values]);
+    for (const result of values) {
+      if (!result.ok) {
+        yield result.error;
+        continue;
+      }
+      const packageJson = result.value;
+      yield* packageJson.failures;
+    }
+  }
 }

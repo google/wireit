@@ -28,7 +28,7 @@ export interface MessageLocation {
 }
 
 export interface Diagnostic {
-  readonly severity: string;
+  readonly severity: 'error' | 'warning' | 'info';
   readonly message: string;
   readonly location: Location;
   readonly supplementalLocations?: MessageLocation[];
@@ -36,7 +36,6 @@ export interface Diagnostic {
 
 export class DiagnosticPrinter {
   #cwd: string;
-  #offsetConverterCache = new WeakMap<JsonFile, OffsetToPositionConverter>();
 
   /**
    * @param workingDir Paths are printed relative to this directory.
@@ -65,28 +64,15 @@ ${drawSquiggle(diagnostic.location, 4)}`;
 
   #formatPath(location: Location) {
     const relPath = pathlib.relative(this.#cwd, location.file.path);
-    const {line, column} = this.#offsetToPosition(
+    const {line, character} = this.#offsetToPosition(
       location.file,
       location.range.offset
     );
-    return `${CYAN}${relPath}${RESET}:${YELLOW}${line}${RESET}:${YELLOW}${column}${RESET}`;
+    return `${CYAN}${relPath}${RESET}:${YELLOW}${line}${RESET}:${YELLOW}${character}${RESET}`;
   }
 
-  #offsetToPosition(
-    file: JsonFile,
-    offset: number
-  ): {line: number; column: number} {
-    const indexes = this.#getNewlineIndexes(file);
-    return indexes.toPosition(offset);
-  }
-
-  #getNewlineIndexes(file: JsonFile): OffsetToPositionConverter {
-    let converter = this.#offsetConverterCache.get(file);
-    if (converter === undefined) {
-      converter = new OffsetToPositionConverter(file.contents);
-      this.#offsetConverterCache.set(file, converter);
-    }
-    return converter;
+  #offsetToPosition(file: JsonFile, offset: number): Position {
+    return OffsetToPositionConverter.get(file).toPosition(offset);
   }
 }
 
@@ -94,13 +80,27 @@ export interface Position {
   /** 1 indexed */
   line: number;
   /** 1 indexed */
-  column: number;
+  character: number;
 }
 
 export class OffsetToPositionConverter {
   readonly newlineIndexes: readonly number[];
+  static #cache = new WeakMap<JsonFile, OffsetToPositionConverter>();
 
-  constructor(contents: string) {
+  static get(file: JsonFile): OffsetToPositionConverter {
+    let converter = OffsetToPositionConverter.#cache.get(file);
+    if (converter === undefined) {
+      converter = new OffsetToPositionConverter(file.contents);
+      OffsetToPositionConverter.#cache.set(file, converter);
+    }
+    return converter;
+  }
+
+  static createUncachedForTest(contents: string): OffsetToPositionConverter {
+    return new OffsetToPositionConverter(contents);
+  }
+
+  private constructor(contents: string) {
     const indexes = [];
     for (let i = 0; i < contents.length; i++) {
       if (contents[i] === '\n') {
@@ -110,21 +110,32 @@ export class OffsetToPositionConverter {
     this.newlineIndexes = indexes;
   }
 
-  toPosition(offset: number): {line: number; column: number} {
+  toPosition(offset: number): Position {
     if (this.newlineIndexes.length === 0) {
-      return {line: 1, column: offset + 1};
+      return {line: 1, character: offset + 1};
     }
     const line = this.newlineIndexes.findIndex((index) => index >= offset);
     if (line === 0) {
-      return {line: 1, column: offset + 1};
+      return {line: 1, character: offset + 1};
     }
     if (line === -1) {
       return {
         line: this.newlineIndexes.length + 1,
-        column: offset - this.newlineIndexes[this.newlineIndexes.length - 1],
+        character: offset - this.newlineIndexes[this.newlineIndexes.length - 1],
       };
     }
-    return {line: line + 1, column: offset - this.newlineIndexes[line - 1]};
+    return {line: line + 1, character: offset - this.newlineIndexes[line - 1]};
+  }
+
+  toIdePosition(offset: number): Position {
+    const position = this.toPosition(offset);
+    return {line: position.line - 1, character: position.character - 1};
+  }
+
+  toIdeRange(range: Range): {start: Position; end: Position} {
+    const start = this.toIdePosition(range.offset);
+    const end = this.toIdePosition(range.offset + range.length);
+    return {start, end};
   }
 }
 

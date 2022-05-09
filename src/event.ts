@@ -21,6 +21,8 @@ export type Event = Success | Failure | Output | Info;
 
 interface EventBase<T extends PackageReference> {
   script: T;
+  diagnostic?: Diagnostic;
+  diagnostics?: Diagnostic[];
 }
 
 // -------------------------------
@@ -81,7 +83,9 @@ export type Failure =
   | DependencyOnMissingPackageJson
   | DependencyOnMissingScript
   | Cycle
-  | UnknownErrorThrown;
+  | UnknownErrorThrown
+  | DependencyOnMissingPackageJson
+  | DependencyOnMissingScript;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -204,6 +208,7 @@ export interface DependencyOnMissingPackageJson
 export interface DependencyOnMissingScript extends ErrorBase<ScriptReference> {
   reason: 'dependency-on-missing-script';
   diagnostic: Diagnostic;
+  supercedes: ScriptNotFound;
 }
 
 /**

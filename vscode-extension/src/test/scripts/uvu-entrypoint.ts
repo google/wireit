@@ -19,8 +19,7 @@ import {test} from '../main.test.js';
 export async function run(): Promise<void> {
   process.exitCode = 0;
   const finished = new Promise<void>((resolve) => {
-    test.after((result) => {
-      console.log(`after result:`, result);
+    test.after(() => {
       resolve();
     });
   });

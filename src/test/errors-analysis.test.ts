@@ -82,7 +82,10 @@ test(
       `
 ❌ package.json:5:13 Expected an object, but was array.
       "wireit": []
-                ~~`
+                ~~
+❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
+        "a": "wireit"
+             ~~~~~~~~`
     );
   })
 );
@@ -108,7 +111,10 @@ test(
       `
 ❌ package.json:6:10 Expected an object, but was array.
         "a": []
-             ~~`
+             ~~
+❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
+        "a": "wireit"
+             ~~~~~~~~`
     );
   })
 );
@@ -593,9 +599,6 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:2:3 Script "missing" not found in the scripts section of this package.json.
-      "scripts": {
-      ~~~~~~~~~
 ❌ package.json:8:9 Cannot find script named "missing" in package "${rig.temp}"
             "missing"
             ~~~~~~~~~`
@@ -627,11 +630,6 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ child${
-        pathlib.sep
-      }package.json:2:3 Script "missing" not found in the scripts section of this package.json.
-      "scripts": {}
-      ~~~~~~~~~
 ❌ package.json:8:18 Cannot find script named "missing" in package "${rig.resolve(
         'child'
       )}"
@@ -669,16 +667,41 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       String.raw`
-❌ ch${'\t'}\ ild${
-        pathlib.sep
-      }package.json:2:3 Script "mis${'\t'}\ sing" not found in the scripts section of this package.json.
-      "scripts": {}
-      ~~~~~~~~~
 ❌ package.json:8:23 Cannot find script named "mis\t\\ sing" in package "${rig.resolve(
         'ch\t\\ ild'
       )}"
             "./ch\t\\ ild:mis\t\\ sing"
                           ~~~~~~~~~~~~`
+    );
+  })
+);
+
+test(
+  'cross-package dependency with complicated escaped name leads to directory without package.json',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['../b\t\\ ar:b'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a', {cwd: 'foo'});
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      String.raw`
+❌ package.json:8:10 package.json file missing: "${rig.resolve(
+        'b\t\\ ar/package.json'
+      )}"
+            "../b\t\\ ar:b"
+             ~~~~~~~~~~~`
     );
   })
 );
@@ -797,7 +820,7 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:6:5 A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.
+❌ package.json:6:5 A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.
         "a": {}
         ~~~`
     );
@@ -946,36 +969,6 @@ test(
       )}"
             "../bar:b"
              ~~~~~~`
-    );
-  })
-);
-
-test(
-  'cross-package dependency with complicated escaped name leads to directory without package.json',
-  timeout(async ({rig}) => {
-    await rig.write({
-      'foo/package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            dependencies: ['../b\t\\ ar:b'],
-          },
-        },
-      },
-    });
-    const result = rig.exec('npm run a', {cwd: 'foo'});
-    const done = await result.exit;
-    assert.equal(done.code, 1);
-    assertScriptOutputEquals(
-      done.stderr,
-      String.raw`
-❌ package.json:8:10 package.json file missing: "${rig.resolve(
-        'b\t\\ ar/package.json'
-      )}"
-            "../b\t\\ ar:b"
-             ~~~~~~~~~~~`
     );
   })
 );
@@ -1450,10 +1443,10 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:15:5 A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.
+❌ package.json:15:5 A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.
         "b": {},
         ~~~
-❌ package.json:16:5 A wireit config must set at least one of "wireit" or "dependencies", otherwise there is nothing for wireit to do.
+❌ package.json:16:5 A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.
         "c": {}
         ~~~`
     );
@@ -1559,7 +1552,17 @@ test(`we don't produce a duplicate error when there's multiple deps into the sam
     `
 ❌ child${pathlib.sep}package.json:2:14 Expected an object, but was string.
       "scripts": "bad"
-                 ~~~~~`
+                 ~~~~~
+❌ package.json:8:18 Cannot find script named "error1" in package "${rig.resolve(
+      'child'
+    )}"
+            "./child:error1",
+                     ~~~~~~
+❌ package.json:9:18 Cannot find script named "error2" in package "${rig.resolve(
+      'child'
+    )}"
+            "./child:error2"
+                     ~~~~~~`
   );
 });
 
@@ -1630,9 +1633,6 @@ test(`repro an issue with looking for a colon in missing dependency`, async ({
   assertScriptOutputEquals(
     done.stderr,
     `
-❌ package.json:2:3 Script "c" not found in the scripts section of this package.json.
-      "scripts": {
-      ~~~~~~~~~
 ❌ package.json:9:9 Cannot find script named "c" in package "${rig.temp}"
             "c"
             ~~~`

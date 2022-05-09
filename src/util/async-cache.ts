@@ -19,4 +19,8 @@ export class AsyncCache<K, V> {
     }
     return result;
   }
+
+  get values() {
+    return this.#cache.values();
+  }
 }
