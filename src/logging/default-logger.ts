@@ -55,14 +55,10 @@ export class DefaultLogger implements Logger {
     return '';
   }
 
-  #getPrefix(script: PackageReference) {
-    const label = this.#label(script);
-    return label !== '' ? ` [${label}]` : '';
-  }
-
   log(event: Event) {
     const type = event.type;
-    const prefix = this.#getPrefix(event.script);
+    const label = this.#label(event.script);
+    const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
         throw new Error(`Unknown event type: ${unreachable(type) as string}`);
