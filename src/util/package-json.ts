@@ -1,5 +1,9 @@
-import {JsonFile} from './package-json-reader.js';
-import {findNamedNodeAtLocation} from './ast.js';
+/**
+ * @license
+ * Copyright 2022 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import {JsonAstNode, NamedAstNode} from './ast.js';
 import {Failure} from '../event.js';
 import {failUnlessJsonObject, failUnlessNonBlankString} from '../analyzer.js';
