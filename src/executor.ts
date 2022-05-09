@@ -8,7 +8,6 @@ import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import {createHash} from 'crypto';
 import {createReadStream, createWriteStream} from 'fs';
-import {spawn} from 'child_process';
 import {Result} from './error.js';
 import {scriptReferenceToString} from './script.js';
 import {shuffle} from './util/shuffle.js';
@@ -17,14 +16,13 @@ import {getScriptDataDir} from './util/script-data-dir.js';
 import {unreachable} from './util/unreachable.js';
 import {glob, GlobOutsideCwdError} from './util/glob.js';
 import {deleteEntries} from './util/delete.js';
-import {
-  augmentProcessEnvSafelyIfOnWindows,
-  posixifyPathIfOnWindows,
-} from './util/windows.js';
+import {posixifyPathIfOnWindows} from './util/windows.js';
 import lockfile from 'proper-lockfile';
+import {ScriptChildProcess} from './script-child-process.js';
 
 import type {
   ScriptConfig,
+  ScriptConfigWithRequiredCommand,
   ScriptReference,
   ScriptReferenceString,
   ScriptState,
@@ -34,29 +32,7 @@ import type {
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
-import {Failure} from './event.js';
-
-/**
- * The PATH environment variable of this process, minus all of the leading
- * "node_modules/.bin" entries that the incoming "npm run" command already set.
- *
- * We want full control over which "node_modules/.bin" paths are in the PATH of
- * the processes we spawn, so that cross-package dependencies act as though we
- * are running "npm run" with each package as the cwd.
- *
- * We only need to do this once per Wireit process, because process.env never
- * changes.
- */
-const PATH_ENV_SUFFIX = (() => {
-  const path = process.env.PATH ?? '';
-  // Note the PATH delimiter is platform-dependent.
-  const entries = path.split(pathlib.delimiter);
-  const nodeModulesBinSuffix = pathlib.join('node_modules', '.bin');
-  const endOfNodeModuleBins = entries.findIndex(
-    (entry) => !entry.endsWith(nodeModulesBinSuffix)
-  );
-  return entries.slice(endOfNodeModuleBins).join(pathlib.delimiter);
-})();
+import type {Failure} from './event.js';
 
 type ExecutionResult = Result<ScriptState, Failure[]>;
 
@@ -410,149 +386,63 @@ class ScriptExecution {
       detail: 'running',
     });
 
-    const command = this.#script.command;
-    const result = await this.#workerPool.run(
-      async (): Promise<Result<void>> => {
-        // TODO(aomarks) Update npm_ environment variables to reflect the new
-        // package.
-        const child = spawn(command.value, {
-          cwd: this.#script.packageDir,
-          // Conveniently, "shell:true" has the same shell-selection behavior as
-          // "npm run", where on macOS and Linux it is "sh", and on Windows it is
-          // %COMSPEC% || "cmd.exe".
-          //
-          // References:
-          //   https://nodejs.org/api/child_process.html#child_processspawncommand-args-options
-          //   https://nodejs.org/api/child_process.html#default-windows-shell
-          //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
-          shell: true,
-          env: augmentProcessEnvSafelyIfOnWindows({
-            PATH: this.#pathEnvironmentVariable,
-          }),
+    return this.#workerPool.run(async (): Promise<Result<void>> => {
+      const child = new ScriptChildProcess(
+        // Unfortunately TypeScript doesn't automatically narrow this type
+        // based on the undefined-command check we did just above.
+        this.#script as ScriptConfigWithRequiredCommand
+      );
+
+      // Only create the stdout/stderr replay files if we encounter anything on
+      // this streams.
+      let stdoutReplay: WriteStream | undefined;
+      let stderrReplay: WriteStream | undefined;
+
+      child.stdout.on('data', (data: string | Buffer) => {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stdout',
+          data,
         });
+        if (stdoutReplay === undefined) {
+          stdoutReplay = createWriteStream(this.#stdoutReplayPath);
+        }
+        stdoutReplay.write(data);
+      });
 
-        // Only create the stdout/stderr replay files if we encounter anything on
-        // this streams.
-        let stdoutReplay: WriteStream | undefined;
-        let stderrReplay: WriteStream | undefined;
+      child.stderr.on('data', (data: string | Buffer) => {
+        this.#logger.log({
+          script: this.#script,
+          type: 'output',
+          stream: 'stderr',
+          data,
+        });
+        if (stderrReplay === undefined) {
+          stderrReplay = createWriteStream(this.#stderrReplayPath);
+        }
+        stderrReplay.write(data);
+      });
 
-        child.stdout.on('data', (data: string | Buffer) => {
+      try {
+        const result = await child.completed;
+        if (result.ok) {
           this.#logger.log({
             script: this.#script,
-            type: 'output',
-            stream: 'stdout',
-            data,
+            type: 'success',
+            reason: 'exit-zero',
           });
-          if (stdoutReplay === undefined) {
-            stdoutReplay = createWriteStream(this.#stdoutReplayPath);
-          }
-          stdoutReplay.write(data);
-        });
-
-        child.stderr.on('data', (data: string | Buffer) => {
-          this.#logger.log({
-            script: this.#script,
-            type: 'output',
-            stream: 'stderr',
-            data,
-          });
-          if (stderrReplay === undefined) {
-            stderrReplay = createWriteStream(this.#stderrReplayPath);
-          }
-          stderrReplay.write(data);
-        });
-
-        const completed = new Promise<Result<void>>((resolve) => {
-          child.on('error', (error) => {
-            resolve({
-              ok: false,
-              error: {
-                script: this.#script,
-                type: 'failure',
-                reason: 'spawn-error',
-                message: error.message,
-              },
-            });
-          });
-
-          child.on('close', (status, signal) => {
-            if (signal !== null) {
-              resolve({
-                ok: false,
-                error: {
-                  script: this.#script,
-                  type: 'failure',
-                  reason: 'signal',
-                  signal,
-                },
-              });
-            } else if (status !== 0) {
-              resolve({
-                ok: false,
-                error: {
-                  script: this.#script,
-                  type: 'failure',
-                  reason: 'exit-non-zero',
-                  // status should only ever be null if signal was not null, but
-                  // this isn't reflected in the TypeScript types. Just in case, and
-                  // to make TypeScript happy, fall back to -1 (which is a
-                  // conventional exit status used for "exited with signal").
-                  status: status ?? -1,
-                },
-              });
-            } else {
-              resolve({ok: true, value: undefined});
-            }
-          });
-        });
-
-        let result;
-        try {
-          result = await completed;
-        } finally {
-          if (stdoutReplay !== undefined) {
-            await closeWriteStream(stdoutReplay);
-          }
-          if (stderrReplay !== undefined) {
-            await closeWriteStream(stderrReplay);
-          }
         }
         return result;
+      } finally {
+        if (stdoutReplay !== undefined) {
+          await closeWriteStream(stdoutReplay);
+        }
+        if (stderrReplay !== undefined) {
+          await closeWriteStream(stderrReplay);
+        }
       }
-    );
-
-    if (result.ok) {
-      this.#logger.log({
-        script: this.#script,
-        type: 'success',
-        reason: 'exit-zero',
-      });
-    }
-    return result;
-  }
-
-  /**
-   * Generates the PATH environment variable that should be set when this
-   * script's command is spawned.
-   */
-  get #pathEnvironmentVariable(): string {
-    // Given package "/foo/bar", walk up the path hierarchy to generate
-    // "/foo/bar/node_modules/.bin:/foo/node_modules/.bin:/node_modules/.bin".
-    const entries = [];
-    let cur = this.#script.packageDir;
-    while (true) {
-      entries.push(pathlib.join(cur, 'node_modules', '.bin'));
-      const parent = pathlib.dirname(cur);
-      if (parent === cur) {
-        break;
-      }
-      cur = parent;
-    }
-    // Add the inherited PATH variable, minus any "node_modules/.bin" entries
-    // that were set by the "npm run" command that spawned Wireit.
-    entries.push(PATH_ENV_SUFFIX);
-    // Note the PATH delimiter is platform-dependent.
-    return entries.join(pathlib.delimiter);
+    });
   }
 
   /**
