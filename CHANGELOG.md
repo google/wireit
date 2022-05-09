@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The `Running command` log message now prints immediately before the child
+  process is spawned. Previously it would print even if it was blocked by
+  parallelism contention.
+
+### Changed
+
 - If two or more scripts depend on the same invalid config, or if they both depend on a script that fails, we now only log about it once.
 
 ## [0.4.0] - 2022-05-06
