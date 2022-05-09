@@ -16,7 +16,7 @@ import type {
   ScriptReferenceString,
 } from './script.js';
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
-import {Failure} from './event.js';
+import {DependencyOnMissingPackageJson, Failure} from './event.js';
 import {PackageJson} from './util/package-json.js';
 
 /**
@@ -25,14 +25,19 @@ import {PackageJson} from './util/package-json.js';
  */
 export type PlaceholderConfig = ScriptReference & Partial<ScriptConfig>;
 
+interface PlaceholderInfo {
+  placeholder: PlaceholderConfig;
+  failuresPromise: Promise<Result<void, Failure[]>>;
+}
+
 /**
  * Analyzes and validates a script along with all of its transitive
  * dependencies, producing a build graph that is ready to be executed.
  */
 export class Analyzer {
   readonly #packageJsonReader = new CachingPackageJsonReader();
-  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderConfig>();
-  readonly #placeholderUpgradePromises: Array<
+  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
+  readonly #placeholderUpgradeFailureSinks: Array<
     Promise<Result<void, Failure[]>>
   > = [];
 
@@ -73,8 +78,8 @@ export class Analyzer {
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
     const errors = new Set<Failure>();
-    while (this.#placeholderUpgradePromises.length > 0) {
-      const result = await this.#placeholderUpgradePromises.shift();
+    while (this.#placeholderUpgradeFailureSinks.length > 0) {
+      const result = await this.#placeholderUpgradeFailureSinks.shift();
       if (result?.ok === false) {
         for (const error of result.error) {
           errors.add(error);
@@ -82,12 +87,19 @@ export class Analyzer {
       }
     }
     if (errors.size > 0) {
+      for (const error of errors) {
+        const supercedes = (error as Partial<DependencyOnMissingPackageJson>)
+          .supercedes;
+        if (supercedes != null) {
+          errors.delete(supercedes);
+        }
+      }
       return {ok: false, error: [...errors]};
     }
 
     // We can safely assume all placeholders have now been upgraded to full
     // configs.
-    const rootConfig = rootPlaceholder as ScriptConfig;
+    const rootConfig = rootPlaceholder.placeholder as ScriptConfig;
     const cycleResult = this.#checkForCyclesAndSortDependencies(
       rootConfig,
       new Set()
@@ -106,17 +118,21 @@ export class Analyzer {
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */
-  #getPlaceholder(reference: ScriptReference): PlaceholderConfig {
+  #getPlaceholder(reference: ScriptReference): PlaceholderInfo {
     const cacheKey = scriptReferenceToString(reference);
-    let placeholder = this.#placeholders.get(cacheKey);
-    if (placeholder === undefined) {
-      placeholder = {...reference};
-      this.#placeholders.set(cacheKey, placeholder);
-      this.#placeholderUpgradePromises.push(
-        this.#upgradePlaceholder(placeholder)
+    let placeholderInfo = this.#placeholders.get(cacheKey);
+    if (placeholderInfo === undefined) {
+      const placeholder = {...reference};
+      placeholderInfo = {
+        placeholder: placeholder,
+        failuresPromise: this.#upgradePlaceholder(placeholder),
+      };
+      this.#placeholders.set(cacheKey, placeholderInfo);
+      this.#placeholderUpgradeFailureSinks.push(
+        placeholderInfo?.failuresPromise
       );
     }
-    return placeholder;
+    return placeholderInfo;
   }
 
   /**
@@ -302,7 +318,82 @@ export class Analyzer {
             };
           }
           uniqueDependencies.set(uniqueKey, unresolved);
-          dependencies.push(this.#getPlaceholder(resolved));
+          const placeHolderInfo = this.#getPlaceholder(resolved);
+          dependencies.push(placeHolderInfo.placeholder);
+          this.#placeholderUpgradeFailureSinks.push(
+            (async () => {
+              const res = await placeHolderInfo.failuresPromise;
+              if (res.ok) {
+                return {ok: true, value: undefined};
+              }
+              for (const failure of res.error) {
+                if (failure.reason === 'script-not-found') {
+                  let offset = unresolved.offset;
+                  let length = unresolved.length;
+                  if (unresolved.value.includes(':')) {
+                    // Skip past the colon to just highlight the script name.
+                    const colonOffsetInString = packageJson.jsonFile.contents
+                      .slice(unresolved.offset)
+                      .indexOf(':');
+                    offset = unresolved.offset + colonOffsetInString + 1;
+                    length = unresolved.length - colonOffsetInString - 2;
+                  }
+                  return {
+                    ok: false,
+                    error: [
+                      {
+                        type: 'failure',
+                        reason: 'dependency-on-missing-script',
+                        script: placeholder,
+                        diagnostic: {
+                          severity: 'error',
+                          message: `Cannot find script named ${JSON.stringify(
+                            resolved.name
+                          )} in package "${resolved.packageDir}"`,
+                          location: {
+                            file: packageJson.jsonFile,
+                            range: {offset, length},
+                          },
+                        },
+                      },
+                    ],
+                  };
+                }
+                if (failure.reason === 'missing-package-json') {
+                  // Skip the opening "
+                  const offset = unresolved.offset + 1;
+                  // Take everything up to the first colon, but look in
+                  // the original source, to avoid getting confused by escape
+                  // sequences, which have a different length before and after
+                  // encoding.
+                  const length = packageJson.jsonFile.contents
+                    .slice(offset)
+                    .indexOf(':');
+                  const range = {offset, length};
+                  return {
+                    ok: false,
+                    error: [
+                      {
+                        type: 'failure',
+                        reason: 'dependency-on-missing-package-json',
+                        script: placeholder,
+                        supercedes: failure,
+                        diagnostic: {
+                          severity: 'error',
+                          message: `package.json file missing: "${pathlib.join(
+                            resolved.packageDir,
+                            'package.json'
+                          )}"`,
+                          location: {file: packageJson.jsonFile, range},
+                        },
+                      },
+                    ],
+                  };
+                }
+              }
+              return {ok: true, value: undefined};
+            })()
+          );
         }
       }
     }
@@ -541,7 +632,7 @@ export class Analyzer {
             `Internal error: placeholder not found for ${key} during cycle detection`
           );
         }
-        return placeholder as ScriptConfig;
+        return placeholder.placeholder as ScriptConfig;
       });
       trailArray.push(config);
       const cycleEnd = trailArray.length - 1;
