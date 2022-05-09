@@ -626,11 +626,12 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ child/package.json:2:3 Script "missing" not found in the scripts section of this package.json.
+❌ child${
+        pathlib.sep
+      }package.json:2:3 Script "missing" not found in the scripts section of this package.json.
       "scripts": {}
       ~~~~~~~~~
-❌ package.json:8:18 Cannot find script named "missing" in package "${pathlib.join(
-        rig.temp,
+❌ package.json:8:18 Cannot find script named "missing" in package "${rig.resolve(
         'child'
       )}"
             "./child:missing"
@@ -663,12 +664,14 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ ch\t\\ ild/package.json:2:3 Script "mis\t\\ sing" not found in the scripts section of this package.json.
+❌ ch\t\\ ild${
+        pathlib.sep
+      }package.json:2:3 Script "mis\t\\ sing" not found in the scripts section of this package.json.
       "scripts": {}
       ~~~~~~~~~
-❌ package.json:8:23 Cannot find script named "mis\\t\\\\ sing" in package ${JSON.stringify(
-        pathlib.join(rig.temp, 'ch\t\\ ild')
-      )}
+❌ package.json:8:23 Cannot find script named "mis\\t\\\\ sing" in package "${rig.resolve(
+        'ch\t\\ ild'
+      )}"
             "./ch\\t\\\\ ild:mis\\t\\\\ sing"
                           ~~~~~~~~~~~~`
       // This doesn't look right, because this is itself a string with escapes,
@@ -935,10 +938,8 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:8:10 Package json file missing: "${pathlib.resolve(
-        rig.temp,
-        'bar',
-        'package.json'
+❌ package.json:8:10 package.json file missing: "${rig.resolve(
+        'bar/package.json'
       )}"
             "../bar:b"
              ~~~~~~`
@@ -967,9 +968,9 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:8:10 Package json file missing: ${JSON.stringify(
-        pathlib.join(rig.temp, 'b\t\\ ar', 'package.json')
-      )}
+❌ package.json:8:10 package.json file missing: "${rig.resolve(
+        'b\t\\ ar/package.json'
+      )}"
             "../b\\t\\\\ ar:b"
              ~~~~~~~~~~~`
       // This doesn't look right, because the string itself contains escapes,
@@ -1518,17 +1519,13 @@ test(`we don't produce a duplicate not found error when there's multiple deps in
   assertScriptOutputEquals(
     done.stderr,
     `
-❌ package.json:8:10 Package json file missing: "${pathlib.join(
-      rig.temp,
-      'child',
-      'package.json'
+❌ package.json:8:10 package.json file missing: "${rig.resolve(
+      'child/package.json'
     )}"
             "./child:error1",
              ~~~~~~~
-❌ package.json:9:10 Package json file missing: "${pathlib.join(
-      rig.temp,
-      'child',
-      'package.json'
+❌ package.json:9:10 package.json file missing: "${rig.resolve(
+      'child/package.json'
     )}"
             "./child:error2"
              ~~~~~~~`

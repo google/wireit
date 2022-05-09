@@ -352,7 +352,7 @@ export class Analyzer {
                           severity: 'error',
                           message: `Cannot find script named ${JSON.stringify(
                             resolved.name
-                          )} in package ${JSON.stringify(resolved.packageDir)}`,
+                          )} in package "${resolved.packageDir}"`,
                           location: {
                             file: packageJson.jsonFile,
                             range: {offset, length},
@@ -383,9 +383,10 @@ export class Analyzer {
                         supercedes: failure,
                         diagnostic: {
                           severity: 'error',
-                          message: `Package json file missing: ${JSON.stringify(
-                            pathlib.join(resolved.packageDir, 'package.json')
-                          )}`,
+                          message: `package.json file missing: "${pathlib.join(
+                            resolved.packageDir,
+                            'package.json'
+                          )}"`,
                           location: {file: packageJson.jsonFile, range},
                         },
                       },
