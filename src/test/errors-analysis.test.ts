@@ -1608,4 +1608,39 @@ test(`we don't produce a duplicate error when there's multiple deps on a script 
   );
 });
 
+test(`repro an issue with looking for a colon in missing dependency`, async ({
+  rig,
+}) => {
+  await rig.write('package.json', {
+    scripts: {
+      a: 'wireit',
+      b: 'wireit',
+    },
+    wireit: {
+      a: {
+        // There's no colon in this dependency name, but there are more colons
+        // later on in the file. Ensure that we still draw the squiggles
+        // correctly.
+        dependencies: ['c'],
+      },
+      b: {
+        command: 'foo:bar important mainly that this includes a colon',
+      },
+    },
+  });
+  const execResult = await rig.exec(`npm run a`);
+  const done = await execResult.exit;
+  assert.equal(done.code, 1);
+  assertScriptOutputEquals(
+    done.stderr,
+    `
+❌ package.json:2:3 Script "c" not found in the scripts section of this package.json.
+      "scripts": {
+      ~~~~~~~~~
+❌ package.json:9:9 Cannot find script named "c" in package "${rig.temp}"
+            "c"
+            ~~~`
+  );
+});
+
 test.run();

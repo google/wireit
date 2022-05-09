@@ -328,16 +328,13 @@ export class Analyzer {
               }
               for (const failure of res.error) {
                 if (failure.reason === 'script-not-found') {
-                  const colonOffsetInString = packageJson.jsonFile.contents
-                    .slice(unresolved.offset)
-                    .indexOf(':');
-                  let offset;
-                  let length;
-                  if (colonOffsetInString === -1) {
-                    offset = unresolved.offset;
-                    length = unresolved.length;
-                  } else {
-                    // Skip past the colon
+                  let offset = unresolved.offset;
+                  let length = unresolved.length;
+                  if (unresolved.value.includes(':')) {
+                    // Skip past the colon to just highlight the script name.
+                    const colonOffsetInString = packageJson.jsonFile.contents
+                      .slice(unresolved.offset)
+                      .indexOf(':');
                     offset = unresolved.offset + colonOffsetInString + 1;
                     length = unresolved.length - colonOffsetInString - 2;
                   }
