@@ -2,7 +2,7 @@ import {JsonFile} from './package-json-reader.js';
 import {findNamedNodeAtLocation} from './ast.js';
 import {JsonAstNode, NamedAstNode} from './ast.js';
 import {Failure} from '../event.js';
-import {failIfNotJsonObject, assertNonBlankString} from '../analyzer.js';
+import {failUnlessJsonObject, failUnlessNonBlankString} from '../analyzer.js';
 
 export interface ScriptSyntaxInfo {
   name: string;
@@ -77,7 +77,7 @@ export class PackageJson {
     if (scriptsSection == null) {
       return;
     }
-    const fail = failIfNotJsonObject(scriptsSection, this.jsonFile);
+    const fail = failUnlessJsonObject(scriptsSection, this.jsonFile);
     if (fail != null) {
       failures.push(fail);
       return;
@@ -90,12 +90,12 @@ export class PackageJson {
       if (rawName == null || rawValue == null) {
         continue;
       }
-      const nameResult = assertNonBlankString(rawName, this.jsonFile);
+      const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
       if (!nameResult.ok) {
         failures.push(nameResult.error);
         continue;
       }
-      const valueResult = assertNonBlankString(rawValue, this.jsonFile);
+      const valueResult = failUnlessNonBlankString(rawValue, this.jsonFile);
       if (!valueResult.ok) {
         failures.push(valueResult.error);
         continue;
@@ -132,7 +132,7 @@ export class PackageJson {
     if (wireitSection == null) {
       return;
     }
-    const fail = failIfNotJsonObject(wireitSection, this.jsonFile);
+    const fail = failUnlessJsonObject(wireitSection, this.jsonFile);
     if (fail != null) {
       failures.push(fail);
       return;
@@ -145,12 +145,12 @@ export class PackageJson {
       if (rawName == null || rawValue == null) {
         continue;
       }
-      const nameResult = assertNonBlankString(rawName, this.jsonFile);
+      const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
       if (!nameResult.ok) {
         failures.push(nameResult.error);
         continue;
       }
-      const fail = failIfNotJsonObject(rawValue, this.jsonFile);
+      const fail = failUnlessJsonObject(rawValue, this.jsonFile);
       if (fail != null) {
         failures.push(fail);
         continue;

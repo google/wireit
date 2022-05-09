@@ -234,7 +234,7 @@ export class Analyzer {
     const dependenciesAst =
       wireitConfig && findNodeAtLocation(wireitConfig, ['dependencies']);
     if (dependenciesAst !== undefined) {
-      const result = assertArray(dependenciesAst, packageJson.jsonFile);
+      const result = failUnlessArray(dependenciesAst, packageJson.jsonFile);
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
@@ -247,7 +247,7 @@ export class Analyzer {
       const children = dependenciesAst.children ?? [];
       for (let i = 0; i < children.length; i++) {
         const maybeUnresolved = children[i];
-        const stringResult = assertNonBlankString(
+        const stringResult = failUnlessNonBlankString(
           maybeUnresolved,
           packageJson.jsonFile
         );
@@ -311,7 +311,10 @@ export class Analyzer {
 
     let command: JsonAstNode<string> | undefined;
     if (wireitConfig === undefined) {
-      const result = assertNonBlankString(scriptCommand, packageJson.jsonFile);
+      const result = failUnlessNonBlankString(
+        scriptCommand,
+        packageJson.jsonFile
+      );
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
@@ -321,7 +324,10 @@ export class Analyzer {
         | undefined
         | JsonAstNode<string>;
       if (commandAst !== undefined) {
-        const result = assertNonBlankString(commandAst, packageJson.jsonFile);
+        const result = failUnlessNonBlankString(
+          commandAst,
+          packageJson.jsonFile
+        );
         if (!result.ok) {
           return {ok: false, error: [result.error]};
         }
@@ -359,14 +365,14 @@ export class Analyzer {
       const filesNode = findNodeAtLocation(wireitConfig, ['files']);
       if (filesNode !== undefined) {
         const values = [];
-        const result = assertArray(filesNode, packageJson.jsonFile);
+        const result = failUnlessArray(filesNode, packageJson.jsonFile);
         if (!result.ok) {
           return {ok: false, error: [result.error]};
         }
         const children = filesNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const file = children[i];
-          const result = assertNonBlankString(file, packageJson.jsonFile);
+          const result = failUnlessNonBlankString(file, packageJson.jsonFile);
           if (!result.ok) {
             return {ok: false, error: [result.error]};
           }
@@ -378,14 +384,17 @@ export class Analyzer {
       const outputNode = findNodeAtLocation(wireitConfig, ['output']);
       if (outputNode !== undefined) {
         const values = [];
-        const result = assertArray(outputNode, packageJson.jsonFile);
+        const result = failUnlessArray(outputNode, packageJson.jsonFile);
         if (!result.ok) {
           return {ok: false, error: [result.error]};
         }
         const children = outputNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const anOutput = children[i];
-          const result = assertNonBlankString(anOutput, packageJson.jsonFile);
+          const result = failUnlessNonBlankString(
+            anOutput,
+            packageJson.jsonFile
+          );
           if (!result.ok) {
             return {ok: false, error: [result.error]};
           }
@@ -426,7 +435,7 @@ export class Analyzer {
       ]);
       let packageLocks: undefined | {node: JsonAstNode; values: string[]};
       if (packageLocksNode !== undefined) {
-        const result = assertArray(packageLocksNode, packageJson.jsonFile);
+        const result = failUnlessArray(packageLocksNode, packageJson.jsonFile);
         if (!result.ok) {
           return {ok: false, error: [result.error]};
         }
@@ -434,7 +443,7 @@ export class Analyzer {
         const children = packageLocksNode.children ?? [];
         for (let i = 0; i < children.length; i++) {
           const maybeFilename = children[i];
-          const result = assertNonBlankString(
+          const result = failUnlessNonBlankString(
             maybeFilename,
             packageJson.jsonFile
           );
@@ -742,17 +751,18 @@ export class Analyzer {
 }
 
 /**
- * Throw an error if the given value is not a string.
+ * Return a failing result if the given value is not a string, or is an empty
+ * string.
  */
-export function assertNonBlankString(
+export function failUnlessNonBlankString(
   astNode: NamedAstNode,
   file: JsonFile
 ): Result<NamedAstNode<string>, Failure>;
-export function assertNonBlankString(
+export function failUnlessNonBlankString(
   astNode: JsonAstNode,
   file: JsonFile
 ): Result<JsonAstNode<string>, Failure>;
-export function assertNonBlankString(
+export function failUnlessNonBlankString(
   astNode: JsonAstNode,
   file: JsonFile
 ): Result<JsonAstNode<string>, Failure> {
@@ -800,9 +810,9 @@ export function assertNonBlankString(
 }
 
 /**
- * Throw an error if the given value is not an Array.
+ * Return a failing result if the given value is not an Array.
  */
-const assertArray = (
+const failUnlessArray = (
   astNode: JsonAstNode,
   file: JsonFile
 ): Result<void, Failure> => {
@@ -830,10 +840,9 @@ const assertArray = (
 };
 
 /**
- * Throw an error if it was an object literal ({...}), assuming it was parsed
- * from JSON.
+ * Return a failed result if the given value is not an object literal ({...}).
  */
-export const failIfNotJsonObject = (
+export const failUnlessJsonObject = (
   astNode: JsonAstNode,
   file: JsonFile
 ): Failure | void => {
