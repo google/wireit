@@ -1628,7 +1628,7 @@ test(`repro an issue with looking for a colon in missing dependency`, async ({
       },
     },
   });
-  const execResult = await rig.exec(`npm run a`);
+  const execResult = rig.exec(`npm run a`);
   const done = await execResult.exit;
   assert.equal(done.code, 1);
   assertScriptOutputEquals(
