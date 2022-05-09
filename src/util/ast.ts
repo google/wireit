@@ -8,11 +8,15 @@ import * as jsonParser from 'jsonc-parser';
 import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
 import {Result, Diagnostic} from '../error.js';
 import {Failure} from '../event.js';
-import {JsonFile} from './package-json-reader.js';
 import * as pathlib from 'path';
 export {ParseError} from 'jsonc-parser';
 
 type ValueTypes = string | number | boolean | null | undefined;
+
+export interface JsonFile {
+  path: string;
+  contents: string;
+}
 
 /**
  * A JSON AST node.

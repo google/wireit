@@ -13,10 +13,6 @@ import {parseTree} from './ast.js';
 
 export const astKey = Symbol('ast');
 
-export interface JsonFile {
-  path: string;
-  contents: string;
-}
 
 /**
  * Reads package.json files and caches them.

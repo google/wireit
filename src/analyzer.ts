@@ -8,10 +8,9 @@ import * as pathlib from 'path';
 import {Diagnostic, MessageLocation, Result} from './error.js';
 import {
   CachingPackageJsonReader,
-  JsonFile,
 } from './util/package-json-reader.js';
 import {scriptReferenceToString} from './script.js';
-import {findNodeAtLocation} from './util/ast.js';
+import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {
   ScriptConfig,
