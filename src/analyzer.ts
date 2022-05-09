@@ -37,7 +37,7 @@ interface PlaceholderInfo {
 export class Analyzer {
   readonly #packageJsonReader = new CachingPackageJsonReader();
   readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
-  readonly placeholderUpgradeFailureSinks: Array<
+  readonly #placeholderUpgradeFailureSinks: Array<
     Promise<Result<void, Failure[]>>
   > = [];
 
@@ -78,8 +78,8 @@ export class Analyzer {
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
     const errors = new Set<Failure>();
-    while (this.placeholderUpgradeFailureSinks.length > 0) {
-      const result = await this.placeholderUpgradeFailureSinks.shift();
+    while (this.#placeholderUpgradeFailureSinks.length > 0) {
+      const result = await this.#placeholderUpgradeFailureSinks.shift();
       if (result?.ok === false) {
         for (const error of result.error) {
           errors.add(error);
@@ -128,7 +128,7 @@ export class Analyzer {
         failuresPromise: this.#upgradePlaceholder(placeholder),
       };
       this.#placeholders.set(cacheKey, placeholderInfo);
-      this.placeholderUpgradeFailureSinks.push(
+      this.#placeholderUpgradeFailureSinks.push(
         placeholderInfo?.failuresPromise
       );
     }
@@ -320,7 +320,7 @@ export class Analyzer {
           uniqueDependencies.set(uniqueKey, unresolved);
           const placeHolderInfo = this.#getPlaceholder(resolved);
           dependencies.push(placeHolderInfo.placeholder);
-          this.placeholderUpgradeFailureSinks.push(
+          this.#placeholderUpgradeFailureSinks.push(
             (async () => {
               const res = await placeHolderInfo.failuresPromise;
               if (res.ok) {
