@@ -6,13 +6,17 @@
 
 import * as jsonParser from 'jsonc-parser';
 import {parseTree as parseTreeInternal, ParseError} from 'jsonc-parser';
-import {PlaceholderConfig} from '../analyzer.js';
 import {Result, Diagnostic} from '../error.js';
 import {Failure} from '../event.js';
-import {JsonFile} from './package-json-reader.js';
+import * as pathlib from 'path';
 export {ParseError} from 'jsonc-parser';
 
 type ValueTypes = string | number | boolean | null | undefined;
+
+export interface JsonFile {
+  path: string;
+  contents: string;
+}
 
 /**
  * A JSON AST node.
@@ -62,7 +66,6 @@ export interface NamedAstNode<T extends ValueTypes = ValueTypes>
 export function findNamedNodeAtLocation(
   astNode: JsonAstNode,
   path: jsonParser.JSONPath,
-  script: PlaceholderConfig,
   file: JsonFile
 ): Result<NamedAstNode | undefined> {
   const node = findNodeAtLocation(astNode, path) as NamedAstNode | undefined;
@@ -77,7 +80,7 @@ export function findNamedNodeAtLocation(
       error: {
         type: 'failure',
         reason: 'invalid-config-syntax',
-        script,
+        script: {packageDir: pathlib.dirname(file.path)},
         diagnostic: {
           severity: 'error',
           message: `Expected a property, but got a ${parent.type}`,
@@ -104,8 +107,7 @@ export function findNodeAtLocation(
 
 export function parseTree(
   filePath: string,
-  json: string,
-  placeholder: PlaceholderConfig
+  json: string
 ): Result<JsonAstNode, Failure> {
   const errors: ParseError[] = [];
   const result = parseTreeInternal(json, errors);
@@ -130,8 +132,8 @@ export function parseTree(
       error: {
         type: 'failure',
         reason: 'invalid-json-syntax',
+        script: {packageDir: pathlib.dirname(filePath)},
         diagnostics,
-        script: placeholder,
       },
     };
   }

@@ -5,8 +5,8 @@
  */
 
 import type {Failure} from './event.js';
-import {JsonFile} from './util/package-json-reader.js';
 import * as pathlib from 'path';
+import {JsonFile} from './util/ast.js';
 
 export type Result<T, E = Failure> =
   | {ok: true; value: T}

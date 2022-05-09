@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
-import {JsonFile} from './util/package-json-reader.js';
+import type {
+  JsonFile,
+  ArrayNode,
+  JsonAstNode,
+  NamedAstNode,
+} from './util/ast.js';
 
 /**
  * The location on disk of an npm package.

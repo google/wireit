@@ -121,14 +121,14 @@ export interface LaunchedIncorrectly extends ErrorBase<PackageReference> {
 /**
  * The package.json file could not be found.
  */
-export interface MissingPackageJson extends ErrorBase<ScriptReference> {
+export interface MissingPackageJson extends ErrorBase<PackageReference> {
   reason: 'missing-package-json';
 }
 
 /**
  * The package.json file was invalid JSON.
  */
-export interface PackageJsonParseError extends ErrorBase<ScriptReference> {
+export interface PackageJsonParseError extends ErrorBase<PackageReference> {
   reason: 'invalid-json-syntax';
   diagnostics: Diagnostic[];
 }
@@ -160,7 +160,7 @@ export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
 /**
  * Something is syntactically wrong with the wireit config.
  */
-export interface InvalidConfigSyntax extends ErrorBase<ScriptReference> {
+export interface InvalidConfigSyntax extends ErrorBase<PackageReference> {
   reason: 'invalid-config-syntax';
   diagnostic: Diagnostic;
 }

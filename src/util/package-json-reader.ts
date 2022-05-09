@@ -4,35 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {Result} from '../error.js';
+import {AsyncCache} from './async-cache.js';
+import {PackageJson} from './package-json.js';
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import {parseTree} from './ast.js';
 
-import type {PlaceholderConfig} from '../analyzer.js';
-import type {JsonAstNode} from './ast.js';
-import {Failure} from '../event.js';
-import {Result} from '../error.js';
-
 export const astKey = Symbol('ast');
-
-export interface JsonFile {
-  path: string;
-  ast: JsonAstNode;
-  contents: string;
-}
 
 /**
  * Reads package.json files and caches them.
  */
 export class CachingPackageJsonReader {
-  readonly #cache = new Map<string, JsonFile>();
+  readonly #cache = new AsyncCache<string, Result<PackageJson>>();
 
-  async read(
-    packageDir: string,
-    placeholder: PlaceholderConfig
-  ): Promise<Result<JsonFile, Failure>> {
-    let file = this.#cache.get(packageDir);
-    if (file === undefined) {
+  async read(packageDir: string): Promise<Result<PackageJson>> {
+    return this.#cache.getOrCompute(packageDir, async () => {
       const path = pathlib.resolve(packageDir, 'package.json');
       let contents;
       try {
@@ -44,19 +32,21 @@ export class CachingPackageJsonReader {
             error: {
               type: 'failure',
               reason: 'missing-package-json',
-              script: placeholder,
+              script: {packageDir},
             },
           };
         }
         throw error;
       }
-      const astResult = parseTree(path, contents, placeholder);
+      const astResult = parseTree(path, contents);
       if (!astResult.ok) {
         return astResult;
       }
-      file = {path, ast: astResult.value, contents};
-      this.#cache.set(packageDir, file);
-    }
-    return {ok: true, value: file};
+      const packageJsonFile = new PackageJson(
+        {contents, path},
+        astResult.value
+      );
+      return {ok: true, value: packageJsonFile};
+    });
   }
 }
