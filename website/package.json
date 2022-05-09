@@ -32,14 +32,12 @@
     }
   },
   "dependencies": {
-    "@11ty/eleventy": "^1.0.1",
-    "@11ty/eleventy-plugin-syntaxhighlight": "^4.0.0",
-    "markdown-it": "^13.0.1",
-    "markdown-it-anchor": "^8.6.3",
-    "prism-themes": "^1.9.0"
-  },
-  "devDependencies": {
     "@11ty/eleventy-navigation": "^0.3.3",
-    "@web/dev-server": "^0.1.31"
+    "@11ty/eleventy-plugin-syntaxhighlight": "^4.0.0",
+    "@11ty/eleventy": "^1.0.1",
+    "@web/dev-server": "^0.1.31",
+    "markdown-it-anchor": "^8.6.3",
+    "markdown-it": "^13.0.1",
+    "prism-themes": "^1.9.0"
   }
 }
