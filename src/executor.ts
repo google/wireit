@@ -286,7 +286,7 @@ class ScriptExecution {
         reason: 'cached',
       });
     } else {
-      const result = await this.#executeCommandIfNeeded();
+      const result = await this.#spawnCommandIfNeeded();
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
@@ -368,7 +368,7 @@ class ScriptExecution {
     return {ok: true, value: results};
   }
 
-  async #executeCommandIfNeeded(): Promise<Result<void>> {
+  async #spawnCommandIfNeeded(): Promise<Result<void>> {
     // It's valid to not have a command defined, since thats a useful way to
     // alias a group of dependency scripts. In this case, we can return early.
     if (!this.#script.command) {
