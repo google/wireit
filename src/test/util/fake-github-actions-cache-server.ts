@@ -37,6 +37,8 @@ interface CacheEntry {
 const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
   `${key}:${version}` as KeyAndVersion;
 
+type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
+
 /**
  * A fake version of the GitHub Actions cache server.
  *
@@ -84,15 +86,16 @@ export class FakeGitHubActionsCacheServer {
    * Counters for how many times each endpoint was hit in the lifetime of this
    * fake instance.
    */
-  readonly metrics = {
-    check: 0,
-    reserve: 0,
-    upload: 0,
-    commit: 0,
-    download: 0,
+  metrics!: {
+    check: number;
+    reserve: number;
+    upload: number;
+    commit: number;
+    download: number;
   };
 
   #nextEntryId = 0;
+  #rateLimitNextRequest = new Set<ApiName>();
   readonly #entryIdToEntry = new Map<EntryId, CacheEntry>();
   readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
   readonly #tarballIdToEntryId = new Map<TarballId, EntryId>();
@@ -100,6 +103,17 @@ export class FakeGitHubActionsCacheServer {
   constructor(authToken: string) {
     this.#authToken = authToken;
     this.#server = http.createServer(this.#route);
+    this.resetMetrics();
+  }
+
+  resetMetrics(): void {
+    this.metrics = {
+      check: 0,
+      reserve: 0,
+      upload: 0,
+      commit: 0,
+      download: 0,
+    };
   }
 
   async listen(): Promise<void> {
@@ -135,6 +149,10 @@ export class FakeGitHubActionsCacheServer {
     return address.port;
   }
 
+  rateLimitNextRequest(apiName: ApiName): void {
+    this.#rateLimitNextRequest.add(apiName);
+  }
+
   #respond(
     response: http.ServerResponse,
     status: number,
@@ -145,6 +163,10 @@ export class FakeGitHubActionsCacheServer {
       response.write(message);
     }
     response.end();
+  }
+
+  #rateLimit(response: http.ServerResponse): void {
+    return this.#respond(response, /* Too Many Requests */ 429);
   }
 
   #checkAuthorization(
@@ -211,6 +233,9 @@ export class FakeGitHubActionsCacheServer {
     url: URL
   ): void {
     this.metrics.check++;
+    if (this.#rateLimitNextRequest.delete('check')) {
+      return this.#rateLimit(response);
+    }
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
@@ -266,6 +291,9 @@ export class FakeGitHubActionsCacheServer {
    */
   #reserve(request: http.IncomingMessage, response: http.ServerResponse): void {
     this.metrics.reserve++;
+    if (this.#rateLimitNextRequest.delete('reserve')) {
+      return this.#rateLimit(response);
+    }
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
@@ -306,6 +334,9 @@ export class FakeGitHubActionsCacheServer {
     url: URL
   ): void {
     this.metrics.upload++;
+    if (this.#rateLimitNextRequest.delete('upload')) {
+      return this.#rateLimit(response);
+    }
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
@@ -355,6 +386,9 @@ export class FakeGitHubActionsCacheServer {
     url: URL
   ): void {
     this.metrics.commit++;
+    if (this.#rateLimitNextRequest.delete('commit')) {
+      return this.#rateLimit(response);
+    }
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
@@ -390,6 +424,9 @@ export class FakeGitHubActionsCacheServer {
     url: URL
   ): void {
     this.metrics.download++;
+    if (this.#rateLimitNextRequest.delete('download')) {
+      return this.#rateLimit(response);
+    }
 
     const tarballId = url.pathname.slice('/tarballs/'.length) as TarballId;
     const id = this.#tarballIdToEntryId.get(tarballId);

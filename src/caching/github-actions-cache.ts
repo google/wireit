@@ -77,6 +77,16 @@ export class GitHubActionsCache implements Cache {
   readonly #authToken: string;
   readonly #logger: Logger;
 
+  /**
+   * Once we've hit a 429 rate limit error from GitHub, simply stop hitting the
+   * cache for the remainder of this Wireit process. Caching is not critical,
+   * it's just an optimization.
+   *
+   * TODO(aomarks) We could be a little smarter and do retries, but this at
+   * least should stop builds breaking in the short-term.
+   */
+  #hitRateLimit = false;
+
   private constructor(logger: Logger, baseUrl: string, authToken: string) {
     this.#baseUrl = baseUrl;
     this.#authToken = authToken;
@@ -143,9 +153,14 @@ export class GitHubActionsCache implements Cache {
     script: ScriptReference,
     stateStr: ScriptStateString
   ): Promise<CacheHit | undefined> {
+    if (this.#hitRateLimit) {
+      return undefined;
+    }
+
     const compressionMethod = await GitHubActionsCache.#compressionMethod;
     const version = this.#computeVersion(stateStr, compressionMethod);
     const location = await this.#checkForCacheEntry(
+      script,
       this.#computeCacheKey(script),
       version
     );
@@ -165,6 +180,10 @@ export class GitHubActionsCache implements Cache {
     stateStr: ScriptStateString,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
+    if (this.#hitRateLimit) {
+      return false;
+    }
+
     // We're going to build a tarball. We do this by passing paths to the "tar"
     // command. When we pass a directory to "tar", all of its children are
     // implicitly included. This is a problem, because sometimes we want to add
@@ -248,6 +267,7 @@ export class GitHubActionsCache implements Cache {
         return false;
       }
       const id = await this.#reserveCacheEntry(
+        script,
         this.#makeAuthenticatedHttpClient(),
         this.#computeCacheKey(script),
         version,
@@ -259,7 +279,15 @@ export class GitHubActionsCache implements Cache {
       // between calling "get" and "set" on the cache in which another worker
       // could have reserved the entry before us. Non fatal, just don't save.
       if (id !== undefined) {
-        await saveCache(id, tarballPath);
+        try {
+          await saveCache(id, tarballPath);
+        } catch (error) {
+          if (/\W429\W/.test((error as Error).message)) {
+            this.#onRateLimit(script);
+            return false;
+          }
+          throw error;
+        }
       }
     } finally {
       // Delete the tarball.
@@ -271,6 +299,23 @@ export class GitHubActionsCache implements Cache {
       await tarballDeleted;
     }
     return true;
+  }
+
+  /**
+   * Log a message about hitting a rate limit, and disable caching for the
+   * remainder of this process.
+   */
+  #onRateLimit(script: ScriptReference): void {
+    if (this.#hitRateLimit) {
+      return;
+    }
+    this.#logger.log({
+      script,
+      type: 'info',
+      detail: 'generic',
+      message: `Hit GitHub Actions cache rate limit, caching disabled.`,
+    });
+    this.#hitRateLimit = true;
   }
 
   #emptyDirectoriesManifestPath(
@@ -352,6 +397,7 @@ export class GitHubActionsCache implements Cache {
    * not exist.
    */
   async #checkForCacheEntry(
+    script: ScriptReference,
     key: string,
     version: string
   ): Promise<string | undefined> {
@@ -367,6 +413,10 @@ export class GitHubActionsCache implements Cache {
         )
       );
     if (response.statusCode === /* No Content */ 204) {
+      return undefined;
+    }
+    if (response.statusCode === /* Too Many Requests */ 429) {
+      this.#onRateLimit(script);
       return undefined;
     }
     if (
@@ -390,6 +440,7 @@ export class GitHubActionsCache implements Cache {
    * undefined if the cache entry was already reserved.
    */
   async #reserveCacheEntry(
+    script: ScriptReference,
     httpClient: HttpClient,
     key: string,
     version: string,
@@ -411,6 +462,10 @@ export class GitHubActionsCache implements Cache {
       );
     if (response.statusCode === /* Conflict */ 409) {
       // This cache entry has already been reserved, so we can't write to it.
+      return undefined;
+    }
+    if (response.statusCode === /* Too Many Requests */ 429) {
+      this.#onRateLimit(script);
       return undefined;
     }
     if (
@@ -454,6 +509,9 @@ class GitHubActionsCacheHit implements CacheHit {
       cacheUtils.getCacheFileName(this.#compressionMethod)
     );
     try {
+      // TODO(aomarks) We should recover from rate limits and other HTTP errors
+      // here, but we currently seem to just get an exception about the tarball
+      // being invalid so we can't really tell what's going on.
       await downloadCache(this.#url, archivePath);
       await extractTar(archivePath, this.#compressionMethod);
       await this.#createEmptyDirectories();
