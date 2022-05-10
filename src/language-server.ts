@@ -32,7 +32,7 @@ import {
   TextEdit,
 } from 'vscode-languageserver-textdocument';
 import {inspect} from 'util';
-import {IdeAnalyzer} from '../../src/ide.js';
+import {IdeAnalyzer} from './ide.js';
 
 const ideAnalyzer = new IdeAnalyzer();
 const connection = createConnection(ProposedFeatures.all);

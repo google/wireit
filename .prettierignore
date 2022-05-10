@@ -7,5 +7,3 @@
 /vscode-extension/.wireit
 /vscode-extension/lib
 /vscode-extension/built
-/vscode-extension/src/**/*.js
-/vscode-extension/src/**/*.js.map

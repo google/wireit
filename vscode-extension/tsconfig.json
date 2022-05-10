@@ -5,6 +5,8 @@
     "moduleResolution": "node",
     "useDefineForClassFields": true,
     "lib": ["es2021"],
+    "rootDir": "src",
+    "outDir": "lib",
     "strict": true,
     "sourceMap": true,
     "noUnusedLocals": true,
@@ -16,10 +18,5 @@
     "tsBuildInfoFile": ".tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "exclude": [],
-  "references": [
-    {
-      "path": "../"
-    }
-  ]
+  "exclude": []
 }

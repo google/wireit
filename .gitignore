@@ -19,5 +19,3 @@
 
 .DS_Store
 
-/vscode-extension/src/**/*.js
-/vscode-extension/src/**/*.js.map

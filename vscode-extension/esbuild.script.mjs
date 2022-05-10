@@ -20,7 +20,7 @@ await esbuild.build({
 });
 
 await esbuild.build({
-  entryPoints: ['./src/server.ts'],
+  entryPoints: ['../src/language-server.ts'],
   bundle: true,
   outfile: 'built/server.js',
   platform: 'node',
