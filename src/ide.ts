@@ -29,6 +29,16 @@ class OverlayFilesystem implements FileSystem {
   }
 }
 
+/**
+ * The interface for an IDE to communicate with wireit's analysis pipeline.
+ *
+ * An IDE has certain files open with in-memory buffers. These buffers often
+ * shadow the files on disk, and in those cases we want to use the buffer if
+ * it's available, and fall back on disk contents if not.
+ *
+ * Generally the user only cares about the in-memory files, at least for
+ * most features like diagnostics.
+ */
 export class IdeAnalyzer {
   readonly #overlayFs;
   #analyzer;
