@@ -66,7 +66,6 @@ export class IdeAnalyzer {
    * diagnostics then we don't include an entry for it at all.
    */
   async getDiagnostics(): Promise<Map<string, Set<IdeDiagnostic>>> {
-    const openFiles = new Set(this.openFiles);
     const diagnostics = new Map<string, Set<IdeDiagnostic>>();
     function addDiagnostic(diagnostic: Diagnostic) {
       const path = diagnostic.location.file.path;
@@ -81,6 +80,8 @@ export class IdeAnalyzer {
       }
       set.add(converted);
     }
+
+    const openFiles = new Set(this.openFiles);
     for (const failure of await this.#analyzer.analyzeFiles([...openFiles])) {
       if (failure.diagnostic != null) {
         addDiagnostic(failure.diagnostic);
@@ -118,6 +119,7 @@ function convertDiagnostic(d: Diagnostic): IdeDiagnostic {
     relatedInformation,
   };
 }
+
 function convertSeverity(
   severity: 'error' | 'warning' | 'info'
 ): DiagnosticSeverity {

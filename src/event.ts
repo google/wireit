@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {UnvalidatedConfig} from './analyzer.js';
 import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
@@ -85,7 +86,8 @@ export type Failure =
   | Cycle
   | UnknownErrorThrown
   | DependencyOnMissingPackageJson
-  | DependencyOnMissingScript;
+  | DependencyOnMissingScript
+  | DependencyInvalid;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -209,6 +211,21 @@ export interface DependencyOnMissingScript extends ErrorBase<ScriptReference> {
   reason: 'dependency-on-missing-script';
   diagnostic: Diagnostic;
   supercedes: ScriptNotFound;
+}
+
+/**
+ * We reached the point of doing cyclic dependency checking, and one of our
+ * transitive dependencies had not transitioned to being locally validated.
+ * This should generally only happen if we ignored the diagnostics after
+ * analyzing, and is potentially a sign of an internal error in our logic.
+ *
+ * The IdeAnalyzer will reach this point normally however, because it will
+ * continue to cycle detection even when some diagnostics were generated during
+ * local analysis.
+ */
+export interface DependencyInvalid extends ErrorBase<ScriptReference> {
+  reason: 'dependency-invalid';
+  dependency: UnvalidatedConfig;
 }
 
 /**

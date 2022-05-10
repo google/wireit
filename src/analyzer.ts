@@ -14,7 +14,7 @@ import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 import type {Diagnostic, MessageLocation, Result} from './error.js';
-import type {DependencyOnMissingPackageJson, Failure} from './event.js';
+import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
 import type {
   ScriptConfig,
@@ -29,6 +29,7 @@ import type {
 export type PotentiallyValidScriptConfig =
   | UnvalidatedConfig
   | LocallyValidScriptConfig
+  | InvalidScriptConfig
   | ScriptConfig;
 
 /**
@@ -58,6 +59,27 @@ export type LocallyValidScriptConfig = Omit<
   dependencies: Array<
     UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
   >;
+};
+
+/**
+ * A ScriptConfig that is locally valid, but whose dependencies aren't.
+ * For example, it depends on a script that's declared incorrectly, or its
+ * dependencies form a cycle.
+ *
+ * This is a separate type so that we can detect this case and check each
+ * script for cycles at most once.
+ */
+export type InvalidScriptConfig = Omit<
+  Omit<ScriptConfig, 'state'>,
+  'dependencies'
+> & {
+  state: 'invalid';
+  dependencies: Array<
+    UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
+  >;
+  // This should also be pushed into the `dependencies` field, but this way
+  // we can be sure it's here.
+  dependencyFailure: Failure;
 };
 
 interface PlaceholderInfo {
@@ -100,6 +122,16 @@ export class Analyzer {
       })
     );
     await this.#waitForAnalysisToComplete();
+    // Check for cycles.
+    for (const info of this.#placeholders.values()) {
+      if (info.placeholder.state === 'unvalidated') {
+        continue;
+      }
+      // We don't care about the result, if there's a cycle error it'll
+      // be added to the scripts' diagnostics.
+      this.#checkForCyclesAndSortDependencies(info.placeholder, new Set());
+    }
+
     return this.#getDiagnostics();
   }
 
@@ -160,7 +192,7 @@ export class Analyzer {
       new Set()
     );
     if (!cycleResult.ok) {
-      return {ok: false, error: [cycleResult.error]};
+      return {ok: false, error: [cycleResult.error.dependencyFailure]};
     }
     const validRootConfig = cycleResult.value;
     return {ok: true, value: validRootConfig};
@@ -763,13 +795,16 @@ export class Analyzer {
    * place where we transform LocallyValidScriptConfigs to ScriptConfigs.
    */
   #checkForCyclesAndSortDependencies(
-    config: LocallyValidScriptConfig | ScriptConfig,
+    config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
     trail: Set<ScriptReferenceString>
-  ): Result<ScriptConfig> {
+  ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
       return {ok: true, value: config};
+    } else if (config.state === 'invalid') {
+      return {ok: false, error: config};
     }
+    let dependencyStillUnvalidated = undefined;
     const trailKey = scriptReferenceToString(config);
     const supplementalLocations: MessageLocation[] = [];
     if (trail.has(trailKey)) {
@@ -791,19 +826,17 @@ export class Analyzer {
             `Internal error: placeholder not found for ${key} during cycle detection`
           );
         }
-        const placeholder = placeholderInfo.placeholder;
-        if (placeholder.state === 'unvalidated') {
-          throw new Error(
-            `Internal error: script ${key} has not finished resolution before checkForCyclesAndSortDependencies`
-          );
-        }
-        return placeholder;
+        return placeholderInfo.placeholder;
       });
       trailArray.push(config);
       const cycleEnd = trailArray.length - 1;
       for (let i = cycleStart; i < cycleEnd; i++) {
         const current = trailArray[i];
         const next = trailArray[i + 1];
+        if (current.state === 'unvalidated') {
+          dependencyStillUnvalidated = current;
+          continue;
+        }
         const nextIdx = current.dependencies.indexOf(
           // This cast shouldn't be necessary, but the typings of indexOf
           // are too strict.
@@ -858,15 +891,13 @@ export class Analyzer {
         },
         supplementalLocations,
       };
-      return {
-        ok: false,
-        error: {
-          type: 'failure',
-          reason: 'cycle',
-          script: config,
-          diagnostic,
-        },
+      const failure: Cycle = {
+        type: 'failure',
+        reason: 'cycle',
+        script: config,
+        diagnostic,
       };
+      return {ok: false, error: this.#markAsInvalid(config, failure)};
     }
     if (config.dependencies != null && config.dependencies.length > 0) {
       // Sorting means that if the user re-orders the same set of dependencies,
@@ -883,19 +914,33 @@ export class Analyzer {
       trail.add(trailKey);
       for (const dependency of config.dependencies) {
         if (dependency.state === 'unvalidated') {
-          throw new Error(
-            `Internal error: encountered unvalidated dependency ${dependency.name} of ${config.name} while checking for cycles.`
-          );
+          dependencyStillUnvalidated = dependency;
+          continue;
         }
         const result = this.#checkForCyclesAndSortDependencies(
           dependency,
           trail
         );
         if (!result.ok) {
-          return result;
+          return {
+            ok: false,
+            error: this.#markAsInvalid(config, result.error.dependencyFailure),
+          };
         }
       }
       trail.delete(trailKey);
+    }
+    if (dependencyStillUnvalidated != null) {
+      // At least one of our dependencies was unvalidated, likely because it
+      // had a syntax error or was missing necessary information. Therefore
+      // we can't transition to valid either.
+      const failure: Failure = {
+        type: 'failure',
+        reason: 'dependency-invalid',
+        script: config,
+        dependency: dependencyStillUnvalidated,
+      };
+      return {ok: false, error: this.#markAsInvalid(config, failure)};
     }
     {
       const validConfig: ScriptConfig = {
@@ -910,6 +955,20 @@ export class Analyzer {
       Object.assign(config, validConfig);
     }
     return {ok: true, value: config as unknown as ScriptConfig};
+  }
+
+  #markAsInvalid(
+    config: LocallyValidScriptConfig,
+    failure: Failure
+  ): InvalidScriptConfig {
+    const invalidConfig: InvalidScriptConfig = {
+      ...config,
+      state: 'invalid',
+      dependencyFailure: failure,
+    };
+    Object.assign(config, invalidConfig);
+    config.failures.push(failure);
+    return config as unknown as InvalidScriptConfig;
   }
 
   /**

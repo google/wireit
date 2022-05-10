@@ -126,4 +126,28 @@ test('the overlay filesystem overrides the regular one', async ({rig}) => {
   await assertDiagnostics(ide, {});
 });
 
+test('we can get cyclic dependency errors', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  ide.setOpenFileContents(
+    rig.resolve('package.json'),
+    JSON.stringify({
+      scripts: {
+        a: 'wireit',
+        b: 'wireit',
+      },
+      wireit: {
+        a: {
+          dependencies: ['b'],
+        },
+        b: {
+          dependencies: ['a'],
+        },
+      },
+    })
+  );
+  await assertDiagnostics(ide, {
+    [rig.resolve('package.json')]: [`Cycle detected in dependencies of "a".`],
+  });
+});
+
 test.run();
