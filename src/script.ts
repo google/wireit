@@ -11,7 +11,7 @@ import type {
   NamedAstNode,
 } from './util/ast.js';
 import type {Failure} from './event.js';
-import { PotentiallyValidScriptConfig } from './analyzer.js';
+import {PotentiallyValidScriptConfig} from './analyzer.js';
 
 /**
  * The location on disk of an npm package.

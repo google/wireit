@@ -54,7 +54,7 @@ connection.onInitialize(() => {
           CodeActionKind.RefactorExtract,
         ],
       },
-      definitionProvider: true
+      definitionProvider: true,
     },
   };
   return result;

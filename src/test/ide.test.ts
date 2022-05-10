@@ -173,8 +173,11 @@ async function assertDefinition(
     options.contentsWithPipe.slice(0, offset) +
     options.contentsWithPipe.slice(offset + 1);
   ide.setOpenFileContents(options.path, contents);
-  const sourceFile = (await ide.getPackageJsonForTest(options.path))!;
-  const sourceConverter = OffsetToPositionConverter.get(sourceFile!.jsonFile);
+  const sourceFile = await ide.getPackageJsonForTest(options.path);
+  if (sourceFile == null) {
+    throw new Error(`could not get source file`);
+  }
+  const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
   const definitions = await ide.getDefinition(
     options.path,
     sourceConverter.toIdePosition(offset)
@@ -195,9 +198,12 @@ async function assertDefinition(
       `Expected no definition, but got one: ${inspect(definition)}`
     );
   }
-  const targetFile = (await ide.getPackageJsonForTest(
+  const targetFile = await ide.getPackageJsonForTest(
     url.fileURLToPath(definition.targetUri)
-  ))!;
+  );
+  if (targetFile == null) {
+    throw new Error(`Could not load target file`);
+  }
   const targetConverter = OffsetToPositionConverter.get(targetFile.jsonFile);
   const targetSquiggle = drawSquiggle(
     {
@@ -219,11 +225,13 @@ async function assertDefinition(
     targetSelectionSquiggle,
     options.expected.targetSelection
   );
-
+  if (definition.originSelectionRange == null) {
+    throw new Error(`No iriginSelectionRange returned`);
+  }
   const sourceSelectionSquiggle = drawSquiggle(
     {
       file: sourceFile.jsonFile,
-      range: sourceConverter.ideRangeToRange(definition.originSelectionRange!),
+      range: sourceConverter.ideRangeToRange(definition.originSelectionRange),
     },
     2
   );
@@ -235,7 +243,6 @@ async function assertDefinition(
 
 function assertSquiggleEquals(actual: string, expected: string) {
   actual = removeAciiColors(actual);
-  expected = expected;
   if (actual.trim() !== expected.trim()) {
     console.log(`Copy pastable output:\n${actual}`);
   }
