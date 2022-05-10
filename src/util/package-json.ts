@@ -53,6 +53,10 @@ export class PackageJson {
     return this.#scripts.get(name);
   }
 
+  get scripts() {
+    return this.#scripts.values();
+  }
+
   #getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
     let info = this.#scripts.get(name);
     if (info == null) {

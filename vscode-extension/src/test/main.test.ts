@@ -24,15 +24,27 @@ test('the extension is installed', () => {
 async function getDiagnostics(
   doc: vscode.TextDocument
 ): Promise<vscode.Diagnostic[]> {
-  for (let i = 0; i < 1000; i++) {
+  return await tryUntil(() => {
     const diagnostics = vscode.languages.getDiagnostics(doc.uri);
     if (diagnostics.length > 0) {
       return diagnostics;
     }
+  });
+}
+
+const TICKS_TO_WAIT = process.env.CI ? 1000 : 40;
+async function tryUntil<T>(
+  f: () => T | null | undefined | Promise<T | null | undefined>
+): Promise<T> {
+  for (let i = 0; i < TICKS_TO_WAIT; i++) {
+    const v = await f();
+    if (v != null) {
+      return v;
+    }
     // Is there a better way to wait for the server to be ready?
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error('No diagnostics found');
+  throw new Error('tryUntil never got a value');
 }
 
 // This is mainly a test that the schema is present and automatically
@@ -45,22 +57,25 @@ test('warns on a package.json based on the schema', async () => {
     )
   );
   await vscode.window.showTextDocument(doc);
-  const diagnostics = await getDiagnostics(doc);
+  const diagnostic = await tryUntil(() => {
+    return vscode.languages.getDiagnostics(doc.uri)?.find((d) => {
+      if (`Incorrect type. Expected "string".` === d.message) {
+        return d;
+      }
+    });
+  });
+  assert.equal(diagnostic.message, `Incorrect type. Expected "string".`);
+  const range = diagnostic.range;
   assert.equal(
-    diagnostics.map((d) => d.message),
-    [`Incorrect type. Expected "string".`]
-  );
-  assert.equal(
-    diagnostics.map((d) => ({
-      start: {line: d.range.start.line, character: d.range.start.character},
-      end: {line: d.range.end.line, character: d.range.end.character},
-    })),
-    [
-      {
-        start: {line: 6, character: 17},
-        end: {line: 6, character: 18},
-      },
-    ]
+    {
+      start: {line: range.start.line, character: range.start.character},
+      end: {line: range.end.line, character: range.end.character},
+    },
+    {
+      start: {line: 6, character: 17},
+      end: {line: 6, character: 18},
+    },
+    JSON.stringify(range)
   );
 });
 
@@ -78,9 +93,9 @@ test('warns on a package.json based on semantic analysis in the language server'
   assert.equal(
     diagnostics.map((d) => d.message),
     [
-      `This script is declared in the "wireit" section, but that won't have any effect unless this command is just "wireit"`,
-      `This script is declared in the "wireit" section, but not in the "scripts" section`,
-      'Set either "command" or "dependencies", otherwise there\'s nothing for wireit to do.',
+      'This command should just be "wireit", as this script is configured in the wireit section.',
+      'A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.',
+      'Script "not_in_scripts" not found in the scripts section of this package.json.',
     ],
     JSON.stringify(diagnostics.map((d) => d.message))
   );
@@ -91,8 +106,8 @@ test('warns on a package.json based on semantic analysis in the language server'
     })),
     [
       {start: {line: 2, character: 26}, end: {line: 2, character: 31}},
-      {start: {line: 11, character: 4}, end: {line: 11, character: 20}},
       {start: {line: 17, character: 4}, end: {line: 17, character: 38}},
+      {start: {line: 1, character: 2}, end: {line: 1, character: 11}},
     ],
     JSON.stringify(
       diagnostics.map((d) => ({

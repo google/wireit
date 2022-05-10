@@ -11,6 +11,21 @@ import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
 import type {PackageReference, ScriptReference} from '../script.js';
 import {DiagnosticPrinter} from '../error.js';
+import {createRequire} from 'module';
+
+const getWireitVersion = (() => {
+  let version: string | undefined;
+  return () => {
+    if (version === undefined) {
+      version = (
+        createRequire(import.meta.url)('../../package.json') as {
+          version: string;
+        }
+      ).version;
+    }
+    return version;
+  };
+})();
 
 /**
  * Default {@link Logger} which logs to stdout and stderr.
@@ -157,7 +172,7 @@ export class DefaultLogger implements Logger {
           }
           case 'unknown-error-thrown': {
             console.error(
-              `❌${prefix} Internal error! Unknown error thrown: ${String(
+              `❌${prefix} Internal error! Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.\n    Unknown error thrown: ${String(
                 event.error
               )}`
             );
@@ -166,6 +181,13 @@ export class DefaultLogger implements Logger {
               console.error(maybeError.stack);
             }
             break;
+          }
+          case 'dependency-invalid': {
+            console.error(
+              `❌${prefix} Depended, perhaps indirectly, on ${this.#label(
+                event.dependency
+              )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`
+            );
           }
         }
         break;

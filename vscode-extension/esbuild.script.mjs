@@ -12,7 +12,7 @@ await esbuild.build({
   outfile: 'built/client.js',
   platform: 'node',
   minify: true,
-  target: 'es2017',
+  target: 'es2018',
   format: 'cjs',
   color: true,
   external: ['vscode'],
@@ -20,12 +20,12 @@ await esbuild.build({
 });
 
 await esbuild.build({
-  entryPoints: ['./src/server.ts'],
+  entryPoints: ['../src/language-server.ts'],
   bundle: true,
   outfile: 'built/server.js',
   platform: 'node',
-  minify: false,
-  target: 'es2017',
+  minify: true,
+  target: 'es2018',
   format: 'cjs',
   color: true,
   mainFields: ['module', 'main'],
