@@ -14,6 +14,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   process is spawned. Previously it would print even if it was blocked by
   parallelism contention.
 
+- Rate limit errors from GitHub Actions are no longer fatal. If it occurs, a
+  message will be logged, and caching will be disabled for the remainder of the
+  current Wireit process.
+
 ### Changed
 
 - If two or more scripts depend on the same invalid config, or if they both depend on a script that fails, we now only log about it once.
