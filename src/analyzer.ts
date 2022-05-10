@@ -9,7 +9,7 @@ import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {scriptReferenceToString} from './script.js';
+import {Dependency, scriptReferenceToString} from './script.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
@@ -42,9 +42,7 @@ export type UnvalidatedConfig = ScriptReference &
   Omit<Omit<Partial<ScriptConfig>, 'state'>, 'dependencies'> & {
     state: 'unvalidated';
     failures: Failure[];
-    dependencies?: Array<
-      UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
-    >;
+    dependencies?: Array<Dependency<PotentiallyValidScriptConfig>>;
   };
 
 /**
@@ -56,9 +54,7 @@ export type LocallyValidScriptConfig = Omit<
   'dependencies'
 > & {
   state: 'locally-valid';
-  dependencies: Array<
-    UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
-  >;
+  dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
 };
 
 /**
@@ -74,9 +70,7 @@ export type InvalidScriptConfig = Omit<
   'dependencies'
 > & {
   state: 'invalid';
-  dependencies: Array<
-    UnvalidatedConfig | LocallyValidScriptConfig | ScriptConfig
-  >;
+  dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
   // This should also be pushed into the `dependencies` field, but this way
   // we can be sure it's here.
   dependencyFailure: Failure;
@@ -368,11 +362,8 @@ export class Analyzer {
       });
     }
 
-    const {
-      dependencies,
-      dependenciesAst,
-      encounteredError: dependenciesErrored,
-    } = this.#processDependencies(placeholder, packageJson, syntaxInfo);
+    const {dependencies, encounteredError: dependenciesErrored} =
+      this.#processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
@@ -443,8 +434,7 @@ export class Analyzer {
       state: 'locally-valid',
       failures: placeholder.failures,
       command,
-      dependencies: dependencies as Array<ScriptConfig>,
-      dependenciesAst,
+      dependencies,
       files,
       output,
       clean: clean ?? true,
@@ -460,23 +450,22 @@ export class Analyzer {
     packageJson: PackageJson,
     scriptInfo: ScriptSyntaxInfo
   ): {
-    dependencies: Array<PotentiallyValidScriptConfig>;
-    dependenciesAst: JsonAstNode | undefined;
+    dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
     encounteredError: boolean;
   } {
-    const dependencies: Array<PotentiallyValidScriptConfig> = [];
+    const dependencies: Array<Dependency<PotentiallyValidScriptConfig>> = [];
     const dependenciesAst =
       scriptInfo.wireitConfigNode &&
       findNodeAtLocation(scriptInfo.wireitConfigNode, ['dependencies']);
     let encounteredError = false;
     if (dependenciesAst == null) {
-      return {dependencies, dependenciesAst: undefined, encounteredError};
+      return {dependencies, encounteredError};
     }
     const result = failUnlessArray(dependenciesAst, packageJson.jsonFile);
     if (!result.ok) {
       encounteredError = true;
       placeholder.failures.push(result.error);
-      return {dependencies, dependenciesAst, encounteredError};
+      return {dependencies, encounteredError};
     }
     // Error if the same dependency is declared multiple times. Duplicate
     // dependencies aren't necessarily a serious problem (since we already
@@ -545,7 +534,10 @@ export class Analyzer {
         }
         uniqueDependencies.set(uniqueKey, unresolved);
         const placeHolderInfo = this.#getPlaceholder(resolved);
-        dependencies.push(placeHolderInfo.placeholder);
+        dependencies.push({
+          astNode: unresolved,
+          config: placeHolderInfo.placeholder,
+        });
         this.#ongoingWorkPromises.push(
           (async () => {
             await placeHolderInfo.upgradeComplete;
@@ -614,7 +606,7 @@ export class Analyzer {
         );
       }
     }
-    return {dependencies, dependenciesAst, encounteredError};
+    return {dependencies, encounteredError};
   }
 
   #processFiles(
@@ -809,7 +801,7 @@ export class Analyzer {
     } else if (config.state === 'invalid') {
       return {ok: false, error: config};
     }
-    let dependencyStillUnvalidated = undefined;
+    let dependencyStillUnvalidated: undefined | UnvalidatedConfig = undefined;
     const trailKey = scriptReferenceToString(config);
     const supplementalLocations: MessageLocation[] = [];
     if (trail.has(trailKey)) {
@@ -842,16 +834,13 @@ export class Analyzer {
           dependencyStillUnvalidated = current;
           continue;
         }
-        const nextIdx = current.dependencies.indexOf(
-          // This cast shouldn't be necessary, but the typings of indexOf
-          // are too strict.
-          next as ScriptConfig
+        const nextNode = current.dependencies.find(
+          (dep) => dep.config === next
         );
-        const dependencyNode = current.dependenciesAst?.children?.[nextIdx];
         // Use the actual value in the array, because this could refer to
         // a script in another package.
         const nextName =
-          dependencyNode?.value ?? next?.name ?? trailArray[cycleStart].name;
+          nextNode?.astNode?.value ?? next?.name ?? trailArray[cycleStart].name;
         const message =
           next === trailArray[cycleStart]
             ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
@@ -863,7 +852,7 @@ export class Analyzer {
 
         const culpritNode =
           // This should always be present
-          dependencyNode ??
+          nextNode?.astNode ??
           // But failing that, fall back to the best node we have.
           current.configAstNode?.name ??
           current.scriptAstNode?.name;
@@ -911,19 +900,19 @@ export class Analyzer {
       // make the caching keys that we'll be generating in the later execution
       // step insensitive to dependency order as well.
       config.dependencies.sort((a, b) => {
-        if (a.packageDir !== b.packageDir) {
-          return a.packageDir.localeCompare(b.packageDir);
+        if (a.config.packageDir !== b.config.packageDir) {
+          return a.config.packageDir.localeCompare(b.config.packageDir);
         }
-        return a.name.localeCompare(b.name);
+        return a.config.name.localeCompare(b.config.name);
       });
       trail.add(trailKey);
       for (const dependency of config.dependencies) {
-        if (dependency.state === 'unvalidated') {
-          dependencyStillUnvalidated = dependency;
+        if (dependency.config.state === 'unvalidated') {
+          dependencyStillUnvalidated = dependency.config;
           continue;
         }
         const result = this.#checkForCyclesAndSortDependencies(
-          dependency,
+          dependency.config,
           trail
         );
         if (!result.ok) {
@@ -951,7 +940,7 @@ export class Analyzer {
       const validConfig: ScriptConfig = {
         ...config,
         state: 'valid',
-        dependencies: config.dependencies as Array<ScriptConfig>,
+        dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
       };
       // We want to keep the original reference, but get type checking that
       // the only difference between a ScriptConfig and a
