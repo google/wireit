@@ -35,11 +35,7 @@ import {inspect} from 'util';
 import {IdeAnalyzer} from '../../src/ide.js';
 
 const ideAnalyzer = new IdeAnalyzer();
-const connection = createConnection(
-  ProposedFeatures.all
-  // process.stdin,
-  // process.stdout
-);
+const connection = createConnection(ProposedFeatures.all);
 
 interface Modification {
   path: jsonParser.JSONPath;

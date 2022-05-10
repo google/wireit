@@ -49,7 +49,7 @@
         "lib"
       ],
       "clean": "if-file-deleted",
-      "command": "tsc --skipLibCheck > /dev/null || echo ''"
+      "command": "tsc --skipLibCheck || echo ''"
     },
     "test:compile": {
       "dependencies": [

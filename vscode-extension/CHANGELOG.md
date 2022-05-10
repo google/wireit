@@ -6,7 +6,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-- Use the same logic as the CLI for finding diagnostics.
+- Use the same logic as the CLI for finding diagnostics. This adds many new
+  diagnostics, like diagnostics for missing dependencies, or cycles in the
+  dependency graph!
 
 ## [0.2.0] - 2022-05-04
 
