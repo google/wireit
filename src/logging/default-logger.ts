@@ -17,12 +17,14 @@ const getWireitVersion = (() => {
   let version: string | undefined;
   return () => {
     if (version === undefined) {
-      version = createRequire(import.meta.url)(
-        '../../package.json'
+      version = (
+        createRequire(import.meta.url)('../../package.json') as {
+          version: string;
+        }
       ).version;
     }
     return version;
-  }
+  };
 })();
 
 /**
