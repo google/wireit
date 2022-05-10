@@ -167,6 +167,26 @@ export class IdeAnalyzer {
         edit,
       });
     }
+    if (scriptInfo.kind === 'wireit-section-script') {
+      const {script, scriptSyntaxInfo: syntaxInfo} = scriptInfo;
+      if (syntaxInfo.scriptNode == null) {
+        const edit = getEdit(packageJson.jsonFile, [
+          {path: ['scripts', script.name], value: 'wireit'},
+        ]);
+        codeActions.push({
+          title: `Add this script to the "scripts" section.`,
+          /**
+           * Quoting https://microsoft.github.io//language-server-protocol/specifications/lsp/3.17/specification/
+           *
+           * > 'Fix all' actions automatically fix errors that have a clear fix
+           * > that do not require user input. They should not suppress errors
+           * > or perform unsafe fixes such as generating new types or classes.
+           */
+          kind: 'source.fixAll',
+          edit,
+        });
+      }
+    }
 
     return codeActions;
   }

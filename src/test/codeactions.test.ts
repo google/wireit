@@ -283,4 +283,27 @@ test(`we try to match the existing file's formatting`, async ({rig}) => {
   });
 });
 
+test(`we suggest adding a wireit-only script to scripts section`, async ({
+  rig,
+}) => {
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {wireit: {foo: {command: "echo| 'test'"}}},
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {foo: {command: "echo 'test'"}},
+    },
+    expectedTitle: 'Add this script to the "scripts" section.',
+  });
+
+  // No suggestion after the fix is applied.
+  await assertNoCodeActions({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: 'wireit'},
+      wireit: {foo: {command: "echo| 'test'"}},
+    },
+  });
+});
+
 test.run();

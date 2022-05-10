@@ -168,16 +168,7 @@ class Analysis {
     const {kind, property} = propAndKind;
     if (kind === 'wireit') {
       const scriptProp = this.#scriptsByKey.get(property.key);
-      if (scriptProp == null) {
-        return [
-          {
-            kind: CodeActionKind.QuickFix,
-            title: 'Add this script to the "scripts" section',
-            isPreferred: true,
-            edit: this.#modify(['scripts', property.key], 'wireit'),
-          },
-        ];
-      } else if (scriptProp.value !== 'wireit') {
+      if (scriptProp != null && scriptProp.value !== 'wireit') {
         const wireitCommand = getPropertyByKeyName(
           property.valueAst,
           'command'
