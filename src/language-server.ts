@@ -54,6 +54,7 @@ connection.onInitialize(() => {
           CodeActionKind.RefactorExtract,
         ],
       },
+      definitionProvider: true
     },
   };
   return result;
@@ -351,6 +352,12 @@ connection.onCodeAction(async (params) => {
   }
   const analysis = new Analysis(document);
   return analysis.getCodeActions(params.range);
+});
+
+connection.onDefinition(async (params) => {
+  const path = url.fileURLToPath(params.textDocument.uri);
+  const position = params.position;
+  return ideAnalyzer.getDefinition(path, position);
 });
 
 function getPropertyByKeyName(objectNode: jsonParser.Node, key: string) {

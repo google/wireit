@@ -10,6 +10,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   diagnostics, like diagnostics for missing dependencies, or cycles in the
   dependency graph!
 
+- Add jump to definition support to jump right to where a dependency is defined.
+
 ## [0.2.0] - 2022-05-04
 
 - Add code actions to fix some common mistakes, as well as to convert a script
