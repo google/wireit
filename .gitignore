@@ -13,4 +13,8 @@
 /vscode-extension/*.vsix
 /vscode-extension/built
 
+/website/.wireit
+/website/_site
+/website/node_modules
+
 .DS_Store
