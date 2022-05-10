@@ -25,6 +25,7 @@ import type {
   TextEdit,
   WorkspaceEdit,
   Position,
+  DefinitionLink,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
 import type {JsonFile} from './util/ast.js';
@@ -170,7 +171,10 @@ export class IdeAnalyzer {
     return codeActions;
   }
 
-  async getDefinition(path: string, position: Position) {
+  async getDefinition(
+    path: string,
+    position: Position
+  ): Promise<DefinitionLink[] | undefined> {
     const packageDir = pathlib.dirname(path);
     const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
     if (!packageJsonResult.ok) {
@@ -212,6 +216,29 @@ export class IdeAnalyzer {
           targetSelectionRange: targetConverter.toIdeRange(targetNode.name),
         },
       ];
+    }
+    if (scriptInfo?.kind === 'scripts-section-script') {
+      const sourceConverter = OffsetToPositionConverter.get(
+        packageJson.jsonFile
+      );
+      const syntaxInfo = scriptInfo.scriptSyntaxInfo;
+      if (syntaxInfo.scriptNode && syntaxInfo.wireitConfigNode) {
+        // we can jump from the script section to the wireit config
+        return [
+          {
+            originSelectionRange: sourceConverter.toIdeRange(
+              syntaxInfo.scriptNode.parent ?? syntaxInfo.scriptNode
+            ),
+            targetUri: url.pathToFileURL(packageJson.jsonFile.path).toString(),
+            targetRange: sourceConverter.toIdeRange(
+              syntaxInfo.wireitConfigNode.parent ?? syntaxInfo.wireitConfigNode
+            ),
+            targetSelectionRange: sourceConverter.toIdeRange(
+              syntaxInfo.wireitConfigNode.name
+            ),
+          },
+        ];
+      }
     }
   }
 

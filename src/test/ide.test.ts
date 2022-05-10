@@ -223,7 +223,7 @@ async function assertDefinition(
   const sourceSelectionSquiggle = drawSquiggle(
     {
       file: sourceFile.jsonFile,
-      range: sourceConverter.ideRangeToRange(definition.originSelectionRange),
+      range: sourceConverter.ideRangeToRange(definition.originSelectionRange!),
     },
     2
   );
@@ -438,6 +438,50 @@ test(`we can jump to definitions across files`, async ({rig}) => {
       originSelection: `
           "./child:b"
           ~~~~~~~~~~~`,
+    },
+  });
+});
+
+test('can jump from scripts section to wireit config', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await assertDefinition(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wir|eit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'echo',
+          },
+        },
+      },
+      null,
+      2
+    ),
+    expected: {
+      target: `
+    "a": {
+    ~~~~~~
+      "dependencies": [
+~~~~~~~~~~~~~~~~~~~~~~~
+        "b"
+~~~~~~~~~~~
+      ]
+~~~~~~~
+    },
+~~~~~`,
+      targetSelection: `
+    "a": {
+    ~~~`,
+      originSelection: `
+      "a": "wireit",
+      ~~~~~~~~~~~~~`,
     },
   });
 });

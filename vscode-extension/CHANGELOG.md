@@ -12,6 +12,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Add jump to definition support to jump right to where a dependency is defined.
 
+- Also added jump to definition for going from the scripts section to a wireit
+  configuration object.
+
 ## [0.2.0] - 2022-05-04
 
 - Add code actions to fix some common mistakes, as well as to convert a script
