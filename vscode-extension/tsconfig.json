@@ -5,8 +5,6 @@
     "moduleResolution": "node",
     "useDefineForClassFields": true,
     "lib": ["es2021"],
-    "rootDir": "src",
-    "outDir": "lib",
     "strict": true,
     "sourceMap": true,
     "noUnusedLocals": true,

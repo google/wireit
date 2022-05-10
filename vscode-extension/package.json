@@ -46,7 +46,8 @@
         "src/**/*.ts"
       ],
       "output": [
-        "lib"
+        "src/**/*.js",
+        "src/**/*.js.map"
       ],
       "clean": "if-file-deleted",
       "command": "tsc --skipLibCheck || echo ''"
@@ -90,7 +91,7 @@
         "built/"
       ],
       "output": [],
-      "command": "node ./lib/test/scripts/runner.js"
+      "command": "node ./src/test/scripts/runner.js"
     },
     "build:package": {
       "dependencies": [
@@ -109,7 +110,7 @@
         "built/README.md",
         "built/CHANGELOG.md"
       ],
-      "command": "node lib/scripts/copy-to-built.js"
+      "command": "node src/scripts/copy-to-built.js"
     },
     "package": {
       "dependencies": [

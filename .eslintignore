@@ -5,3 +5,5 @@
 /vscode-extension/lib
 /vscode-extension/built
 .wireit
+/vscode-extension/src/**/*.js
+/vscode-extension/src/**/*.js.map
