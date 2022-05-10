@@ -1,6 +1,6 @@
 {
   "name": "wireit",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Upgrade your npm scripts to make them smarter and more efficient",
   "author": "Google LLC",
   "license": "Apache-2.0",
