@@ -1235,8 +1235,8 @@ test(
                 "d"
                 ~~~
 
-    package.json:27:9 "d" points back to "e"
-                "e",
+    package.json:28:9 "d" points back to "b"
+                "b"
                 ~~~`
     );
   })
