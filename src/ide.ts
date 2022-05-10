@@ -24,7 +24,6 @@ import type {
   CodeAction,
   TextEdit,
   WorkspaceEdit,
-  DefinitionLink,
   Position,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
@@ -171,10 +170,7 @@ export class IdeAnalyzer {
     return codeActions;
   }
 
-  async getDefinition(
-    path: string,
-    position: Position
-  ): Promise<DefinitionLink[] | undefined> {
+  async getDefinition(path: string, position: Position) {
     const packageDir = pathlib.dirname(path);
     const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
     if (!packageJsonResult.ok) {
@@ -217,6 +213,17 @@ export class IdeAnalyzer {
         },
       ];
     }
+  }
+
+  async getPackageJsonForTest(
+    filename: string
+  ): Promise<PackageJson | undefined> {
+    const packageDir = pathlib.dirname(filename);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      return undefined;
+    }
+    return packageJsonResult.value;
   }
 
   async #getInfoAboutLocation(packageJson: PackageJson, offset: number) {
