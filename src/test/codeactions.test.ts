@@ -306,4 +306,91 @@ test(`we suggest adding a wireit-only script to scripts section`, async ({
   });
 });
 
+test(`we suggest moving command into wireit section`, async ({rig}) => {
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: `echo| 'test'`},
+      wireit: {foo: {}},
+    },
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {foo: {command: "echo 'test'"}},
+    },
+    expectedTitle: `Move this script's command into the wireit config.`,
+  });
+
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: `echo 'test'`},
+      wireit: {foo: {['|dependencies']: []}},
+    },
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {foo: {dependencies: [], command: "echo 'test'"}},
+    },
+    expectedTitle: `Move this script's command into the wireit config.`,
+  });
+
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: `echo| 'test'`},
+      wireit: {foo: {command: `echo 'test'`}},
+    },
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {foo: {command: "echo 'test'"}},
+    },
+    expectedTitle: `Run "wireit" in the scripts section.`,
+  });
+
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: `echo 'test'`},
+      wireit: {foo: {command: "echo 'test'", ['|dependencies']: []}},
+    },
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {foo: {command: "echo 'test'", dependencies: []}},
+    },
+    expectedTitle: `Run "wireit" in the scripts section.`,
+  });
+
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: `echo |'foo'`},
+      wireit: {foo: {command: "echo 'bar'"}},
+    },
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {
+        foo: {command: "echo 'bar'", '[the script command was]': "echo 'foo'"},
+      },
+    },
+    expectedTitle: `Move this script's command into the wireit config.`,
+  });
+
+  await assertCodeAction({
+    rig,
+    contentsWithPipe: {
+      scripts: {foo: `echo 'foo'`},
+      wireit: {foo: {command: "echo| 'bar'"}},
+    },
+    expectedOutput: {
+      scripts: {foo: 'wireit'},
+      wireit: {
+        foo: {
+          command: "echo 'bar'",
+          '[the script command was]': "echo 'foo'",
+        },
+      },
+    },
+    expectedTitle: `Move this script's command into the wireit config.`,
+  });
+});
+
 test.run();
