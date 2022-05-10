@@ -37,6 +37,15 @@ import type {Failure} from './event.js';
 type ExecutionResult = Result<ScriptState, Failure[]>;
 
 /**
+ * What to do when a script failure occurs:
+ *
+ * - `no-new`: Allow running scripts to finish, but don't start new ones.
+ * - `continue`: Allow running scripts to finish, and start new ones unless a
+ *   dependency failed.
+ */
+export type FailureMode = 'no-new' | 'continue';
+
+/**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
@@ -44,15 +53,18 @@ export class Executor {
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
+  readonly #failureMode: FailureMode;
 
   constructor(
     logger: Logger,
     workerPool: WorkerPool,
-    cache: Cache | undefined
+    cache: Cache | undefined,
+    failureMode: FailureMode
   ) {
     this.#logger = logger;
     this.#workerPool = workerPool;
     this.#cache = cache;
+    this.#failureMode = failureMode;
   }
 
   async execute(script: ScriptConfig): Promise<ExecutionResult> {

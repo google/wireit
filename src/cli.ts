@@ -16,7 +16,8 @@ import {unreachable} from './util/unreachable.js';
 import {Deferred} from './util/deferred.js';
 
 import type {ScriptReference} from './script.js';
-import {Failure} from './event.js';
+import type {Failure} from './event.js';
+import type {FailureMode} from './executor.js';
 
 const packageDir = await (async (): Promise<string | undefined> => {
   // Recent versions of npm set this environment variable that tells us the
@@ -54,6 +55,7 @@ interface Options {
   watch: boolean;
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
+  failureMode: FailureMode;
 }
 
 const getOptions = (): Result<Options> => {
@@ -153,9 +155,32 @@ const getOptions = (): Result<Options> => {
       },
     };
   })();
-
   if (!cacheResult.ok) {
     return cacheResult;
+  }
+
+  const failureModeResult = ((): Result<FailureMode> => {
+    const str = process.env['WIREIT_FAILURES'];
+    if (!str) {
+      return {ok: true, value: 'no-new'};
+    }
+    if (str === 'no-new' || str === 'continue') {
+      return {ok: true, value: str};
+    }
+    return {
+      ok: false,
+      error: {
+        reason: 'invalid-usage',
+        message:
+          `Expected the WIREIT_FAILURES env variable to be ` +
+          `"no-new" or "continue", got ${JSON.stringify(str)}`,
+        script,
+        type: 'failure',
+      },
+    };
+  })();
+  if (!failureModeResult.ok) {
+    return failureModeResult;
   }
 
   return {
@@ -165,6 +190,7 @@ const getOptions = (): Result<Options> => {
       watch: process.argv[2] === 'watch',
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
+      failureMode: failureModeResult.value,
     },
   };
 };
@@ -234,14 +260,26 @@ const run = async (): Promise<Result<void, Failure[]>> => {
 
   if (options.watch) {
     const {Watcher} = await import('./watcher.js');
-    await Watcher.watch(options.script, logger, workerPool, cache, abort);
+    await Watcher.watch(
+      options.script,
+      logger,
+      workerPool,
+      cache,
+      options.failureMode,
+      abort
+    );
   } else {
     const analyzer = new Analyzer();
     const analyzedResult = await analyzer.analyze(options.script);
     if (!analyzedResult.ok) {
       return analyzedResult;
     }
-    const executor = new Executor(logger, workerPool, cache);
+    const executor = new Executor(
+      logger,
+      workerPool,
+      cache,
+      options.failureMode
+    );
     const result = await executor.execute(analyzedResult.value);
     if (!result.ok) {
       return result;
