@@ -149,16 +149,24 @@ export class IdeAnalyzer {
     if (scriptInfo === undefined) {
       return codeActions;
     }
+    if (scriptInfo.kind === 'dependency') {
+      // No code actions for dependencies yet.
+      return codeActions;
+    }
+    const {
+      script,
+      scriptSyntaxInfo: {name, scriptNode, wireitConfigNode},
+    } = scriptInfo;
     if (
       scriptInfo.kind === 'scripts-section-script' &&
-      scriptInfo.scriptSyntaxInfo.scriptNode &&
-      !scriptInfo.scriptSyntaxInfo.wireitConfigNode
+      scriptNode != null &&
+      wireitConfigNode == null
     ) {
       const edit = getEdit(packageJson.jsonFile, [
-        {path: ['scripts', scriptInfo.script.name], value: 'wireit'},
+        {path: ['scripts', name], value: 'wireit'},
         {
-          path: ['wireit', scriptInfo.script.name],
-          value: {command: scriptInfo.scriptSyntaxInfo.scriptNode.value},
+          path: ['wireit', name],
+          value: {command: scriptNode.value},
         },
       ]);
       codeActions.push({
@@ -167,26 +175,24 @@ export class IdeAnalyzer {
         edit,
       });
     }
-    if (scriptInfo.kind === 'wireit-section-script') {
-      const {script, scriptSyntaxInfo: syntaxInfo} = scriptInfo;
-      if (syntaxInfo.scriptNode == null) {
-        const edit = getEdit(packageJson.jsonFile, [
-          {path: ['scripts', script.name], value: 'wireit'},
-        ]);
-        codeActions.push({
-          title: `Add this script to the "scripts" section.`,
-          /**
-           * Quoting https://microsoft.github.io//language-server-protocol/specifications/lsp/3.17/specification/
-           *
-           * > 'Fix all' actions automatically fix errors that have a clear fix
-           * > that do not require user input. They should not suppress errors
-           * > or perform unsafe fixes such as generating new types or classes.
-           */
-          kind: 'source.fixAll',
-          edit,
-        });
-      }
+    if (scriptInfo.kind === 'wireit-section-script' && scriptNode == null) {
+      const edit = getEdit(packageJson.jsonFile, [
+        {path: ['scripts', script.name], value: 'wireit'},
+      ]);
+      codeActions.push({
+        title: `Add this script to the "scripts" section.`,
+        /**
+         * Quoting https://microsoft.github.io//language-server-protocol/specifications/lsp/3.17/specification/
+         *
+         * > 'Fix all' actions automatically fix errors that have a clear fix
+         * > that do not require user input. They should not suppress errors
+         * > or perform unsafe fixes such as generating new types or classes.
+         */
+        kind: 'source.fixAll',
+        edit,
+      });
     }
+    
 
     return codeActions;
   }
