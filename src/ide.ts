@@ -53,6 +53,9 @@ export class IdeAnalyzer {
    * in memory contents, not by their on-disk contents.
    *
    * We also only care about diagnostics for open files.
+   *
+   * IDEs will typically call this method when a user opens a package.json file
+   * for editing, as well as once for each edit the user makes.
    */
   setOpenFileContents(path: string, contents: string): void {
     this.#overlayFs.overlay.set(path, contents);

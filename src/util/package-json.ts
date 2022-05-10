@@ -36,7 +36,7 @@ export class PackageJson {
   // We keep the file level AST node private to represent the invariant that
   // we only walk the file once, in this class, and nowhere else.
   readonly #fileAstNode: JsonAstNode;
-  readonly scripts: Map<string, ScriptSyntaxInfo> = new Map();
+  readonly #scripts: Map<string, ScriptSyntaxInfo> = new Map();
   readonly failures: readonly Failure[];
   readonly scriptsSection: NamedAstNode | undefined = undefined;
   readonly wireitSection: NamedAstNode | undefined = undefined;
@@ -50,14 +50,18 @@ export class PackageJson {
   }
 
   getScriptInfo(name: string): ScriptSyntaxInfo | undefined {
-    return this.scripts.get(name);
+    return this.#scripts.get(name);
+  }
+
+  get scripts() {
+    return this.#scripts.values();
   }
 
   #getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
-    let info = this.scripts.get(name);
+    let info = this.#scripts.get(name);
     if (info == null) {
       info = {name};
-      this.scripts.set(name, info);
+      this.#scripts.set(name, info);
     }
     return info;
   }

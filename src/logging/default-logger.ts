@@ -13,9 +13,17 @@ import type {PackageReference, ScriptReference} from '../script.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
 
-const WIREIT_VERSION = createRequire(import.meta.url)(
-  '../../package.json'
-) as string;
+const getWireitVersion = (() => {
+  let version: string | undefined;
+  return () => {
+    if (version === undefined) {
+      version = createRequire(import.meta.url)(
+        '../../package.json'
+      ).version;
+    }
+    return version;
+  }
+})();
 
 /**
  * Default {@link Logger} which logs to stdout and stderr.
@@ -162,7 +170,7 @@ export class DefaultLogger implements Logger {
           }
           case 'unknown-error-thrown': {
             console.error(
-              `❌${prefix} Internal error! Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wirit version ${WIREIT_VERSION}, and give information about your package.json files.\n    Unknown error thrown: ${String(
+              `❌${prefix} Internal error! Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.\n    Unknown error thrown: ${String(
                 event.error
               )}`
             );
@@ -176,7 +184,7 @@ export class DefaultLogger implements Logger {
             console.error(
               `❌${prefix} Depended, perhaps indirectly, on ${this.#label(
                 event.dependency
-              )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wirit version ${WIREIT_VERSION}, and give information about your package.json files.`
+              )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`
             );
           }
         }

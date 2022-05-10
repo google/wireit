@@ -115,7 +115,7 @@ export class Analyzer {
         if (!fileResult.ok) {
           return; // will get this error below.
         }
-        for (const script of fileResult.value.scripts.values()) {
+        for (const script of fileResult.value.scripts) {
           // This starts analysis of each of the scripts in our root files.
           this.#getPlaceholder({name: script.name, packageDir});
         }

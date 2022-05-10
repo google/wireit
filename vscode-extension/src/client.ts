@@ -49,6 +49,8 @@ export async function activate(context: vscode.ExtensionContext) {
     client.onNotification(
       'window/logMessage',
       ({message}: {message: string}) => {
+        // Log both to the output channel (when running in the IDE), and to
+        // the console (when running as part of a test).
         outputChannel.appendLine(`languageServer: ${message}`);
         console.error(`languageServer: ${message}`);
       }

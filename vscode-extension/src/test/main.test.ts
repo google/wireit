@@ -19,7 +19,6 @@ test('the extension is installed', () => {
   );
 });
 
-const ticksToWait = process.env.CI ? 1000 : 40;
 // Wait until the something is able to produce diagnostics, then return
 // those.
 async function getDiagnostics(
@@ -33,10 +32,11 @@ async function getDiagnostics(
   });
 }
 
+const TICKS_TO_WAIT = process.env.CI ? 1000 : 40;
 async function tryUntil<T>(
   f: () => T | null | undefined | Promise<T | null | undefined>
 ): Promise<T> {
-  for (let i = 0; i < ticksToWait; i++) {
+  for (let i = 0; i < TICKS_TO_WAIT; i++) {
     const v = await f();
     if (v != null) {
       return v;
