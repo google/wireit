@@ -175,6 +175,10 @@ export class DefaultLogger implements Logger {
             // fairly noisy. Maybe in a verbose mode.
             break;
           }
+          case 'terminated': {
+            console.error(`💀${prefix} Terminated`);
+            break;
+          }
           case 'unknown-error-thrown': {
             console.error(
               `❌${prefix} Internal error! Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.\n    Unknown error thrown: ${String(

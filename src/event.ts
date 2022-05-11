@@ -73,6 +73,7 @@ export type Failure =
   | ExitSignal
   | SpawnError
   | Cancelled
+  | Terminated
   | LaunchedIncorrectly
   | MissingPackageJson
   | NoScriptsSectionInPackageJson
@@ -123,6 +124,13 @@ export interface SpawnError extends ErrorBase<ScriptReference> {
  */
 export interface Cancelled extends ErrorBase<ScriptReference> {
   reason: 'cancelled';
+}
+
+/**
+ * A script was intentionally and successfully terminated by Wireit.
+ */
+export interface Terminated extends ErrorBase<ScriptReference> {
+  reason: 'terminated';
 }
 
 /**
