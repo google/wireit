@@ -6,7 +6,7 @@
 
 import type * as uvu from 'uvu';
 
-const DEFAULT_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 30_000);
+const DEFAULT_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 60_000);
 
 /**
  * Returns a promise that resolves after the given period of time.
