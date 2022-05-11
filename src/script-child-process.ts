@@ -6,12 +6,15 @@
 
 import * as pathlib from 'path';
 import {spawn} from 'child_process';
-import {augmentProcessEnvSafelyIfOnWindows} from './util/windows.js';
+import {
+  augmentProcessEnvSafelyIfOnWindows,
+  IS_WINDOWS,
+} from './util/windows.js';
 
 import type {Result} from './error.js';
 import type {ScriptConfigWithRequiredCommand} from './script.js';
 import type {ChildProcessWithoutNullStreams} from 'child_process';
-import type {ExitNonZero, ExitSignal, SpawnError} from './event.js';
+import type {ExitNonZero, ExitSignal, SpawnError, Terminated} from './event.js';
 
 /**
  * The PATH environment variable of this process, minus all of the leading
@@ -35,18 +38,25 @@ const PATH_ENV_SUFFIX = (() => {
   return entries.slice(endOfNodeModuleBins).join(pathlib.delimiter);
 })();
 
+export type ScriptChildProcessState =
+  | 'starting'
+  | 'started'
+  | 'stopping'
+  | 'stopped';
+
 /**
  * A child process spawned during execution of a script.
  */
 export class ScriptChildProcess {
   readonly #script: ScriptConfigWithRequiredCommand;
   readonly #child: ChildProcessWithoutNullStreams;
+  #state: ScriptChildProcessState = 'starting';
 
   /**
    * Resolves when this child process ends.
    */
   readonly completed: Promise<
-    Result<void, SpawnError | ExitSignal | ExitNonZero>
+    Result<void, SpawnError | ExitSignal | ExitNonZero | Terminated>
   >;
 
   get stdout() {
@@ -76,9 +86,58 @@ export class ScriptChildProcess {
       env: augmentProcessEnvSafelyIfOnWindows({
         PATH: this.#pathEnvironmentVariable,
       }),
+      // Set "detached" on Linux and macOS so that we create a new process
+      // group, instead of being added to the process group for this Wireit
+      // process.
+      //
+      // We need a new process group so that we can use "kill(-pid)" to kill all
+      // of the processes in the process group, instead of just the group leader
+      // "sh" process. "sh" does not forward signals to child processes, so a
+      // regular "kill(pid)" would not kill the actual process we care about.
+      //
+      // On Windows this works differently, and we use the "\t" flag to
+      // "taskkill" to kill child processes. However, if we do set "detached" on
+      // Windows, it causes the child process to open in a new terminal window,
+      // which we don't want.
+      detached: !IS_WINDOWS,
     });
 
-    this.completed = new Promise((resolve) => {
+    this.completed = new Promise((resolve, reject) => {
+      this.#child.on('spawn', () => {
+        switch (this.#state) {
+          case 'starting': {
+            this.#state = 'started';
+            break;
+          }
+          case 'stopping': {
+            // We received a termination request while we were still starting.
+            // Terminate now that we're started.
+            this.#actuallyTerminate();
+            break;
+          }
+          case 'started':
+          case 'stopped': {
+            reject(
+              new Error(
+                `Internal error: Expected ScriptChildProcessState ` +
+                  `to be "started" or "stopping" but was "${this.#state}"`
+              )
+            );
+            break;
+          }
+          default: {
+            const never: never = this.#state;
+            reject(
+              new Error(
+                `Internal error: unexpected ScriptChildProcessState: ${String(
+                  never
+                )}`
+              )
+            );
+          }
+        }
+      });
+
       this.#child.on('error', (error) => {
         resolve({
           ok: false,
@@ -89,10 +148,20 @@ export class ScriptChildProcess {
             message: error.message,
           },
         });
+        this.#state = 'stopped';
       });
 
       this.#child.on('close', (status, signal) => {
-        if (signal !== null) {
+        if (this.#state === 'stopping') {
+          resolve({
+            ok: false,
+            error: {
+              script,
+              type: 'failure',
+              reason: 'terminated',
+            },
+          });
+        } else if (signal !== null) {
           resolve({
             ok: false,
             error: {
@@ -119,8 +188,72 @@ export class ScriptChildProcess {
         } else {
           resolve({ok: true, value: undefined});
         }
+        this.#state = 'stopped';
       });
     });
+  }
+
+  /**
+   * Mark this child process for termination. On Linux/macOS, sends a `SIGINT`
+   * signal. On Windows, invokes `taskkill /pid PID /t /f`.
+   *
+   * Note this function returns immediately. To find out when the process
+   * actually terminates, use the {@link completed} promise.
+   */
+  terminate(): void {
+    switch (this.#state) {
+      case 'started': {
+        this.#actuallyTerminate();
+        return;
+      }
+      case 'starting': {
+        // We're still starting up, and it's not possible to abort. When we get
+        // the "spawn" event, we'll notice the "stopping" state and actually
+        // terminate then.
+        this.#state = 'stopping';
+        return;
+      }
+      case 'stopping':
+      case 'stopped': {
+        // No-op.
+        return;
+      }
+      default: {
+        const never: never = this.#state;
+        throw new Error(
+          `Internal error: unexpected ScriptChildProcessState: ${String(never)}`
+        );
+      }
+    }
+  }
+
+  #actuallyTerminate(): void {
+    if (this.#child.pid === undefined) {
+      throw new Error(
+        `Internal error: Can't terminate child process because it has no pid. ` +
+          `Command: ${JSON.stringify(this.#script.command)}.`
+      );
+    }
+    if (IS_WINDOWS) {
+      // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
+      // the behavior of SIGKILL (and ignores the signal you pass in), but this
+      // doesn't end child processes. We have child processes because the parent
+      // process is cmd.exe or PowerShell.
+      // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
+      spawn('taskkill', [
+        '/pid',
+        this.#child.pid.toString(),
+        /* End child processes */ '/t',
+        /* Forceful */ '/f',
+      ]);
+    } else {
+      // We used "detached" when we spawned, so our child is the leader of a
+      // process group. Passing the negative of a pid kills all processes in
+      // that group (without the negative, only the leader "sh" process would be
+      // killed).
+      process.kill(-this.#child.pid, 'SIGINT');
+    }
+    this.#state = 'stopping';
   }
 
   /**
