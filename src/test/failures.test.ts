@@ -414,4 +414,57 @@ test(
   })
 );
 
+test(
+  'kill running script after failure in kill mode',
+  timeout(async ({rig}) => {
+    //   main
+    //    / \
+    //   |   |
+    //   |   v
+    //   |  fail
+    //   v
+    // kill
+
+    const fail = await rig.newCommand();
+    const kill = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+          fail: 'wireit',
+          kill: 'wireit',
+        },
+        wireit: {
+          main: {
+            dependencies: ['kill', 'fail'],
+          },
+          fail: {
+            command: fail.command,
+          },
+          kill: {
+            command: kill.command,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run main', {
+      env: {
+        WIREIT_FAILURES: 'kill',
+      },
+    });
+
+    // `fail` and `kill` start
+    const failInv = await fail.nextInvocation();
+    await kill.nextInvocation();
+
+    // The failure occurs.
+    failInv.exit(1);
+
+    // `kill` is killed.
+    assert.equal((await wireit.exit).code, 1);
+  })
+);
+
 test.run();
