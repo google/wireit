@@ -5,7 +5,7 @@ module.exports = {
     tsconfigRootDir: __dirname,
     project: ['./tsconfig.json', './vscode-extension/tsconfig.json'],
   },
-  plugins: ['@typescript-eslint'],
+  plugins: ['@typescript-eslint', 'no-only-tests'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
@@ -13,5 +13,6 @@ module.exports = {
   ],
   rules: {
     'no-constant-condition': 'off',
+    'no-only-tests/no-only-tests': 'error',
   },
 };
