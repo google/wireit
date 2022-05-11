@@ -19,6 +19,7 @@ import {deleteEntries} from './util/delete.js';
 import {posixifyPathIfOnWindows} from './util/windows.js';
 import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from './script-child-process.js';
+import {Deferred} from './util/deferred.js';
 
 import type {
   ScriptConfig,
@@ -32,9 +33,18 @@ import type {
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
-import type {Failure} from './event.js';
+import type {Failure, Cancelled} from './event.js';
 
 type ExecutionResult = Result<ScriptState, Failure[]>;
+
+/**
+ * What to do when a script failure occurs:
+ *
+ * - `no-new`: Allow running scripts to finish, but don't start new ones.
+ * - `continue`: Allow running scripts to finish, and start new ones unless a
+ *   dependency failed.
+ */
+export type FailureMode = 'no-new' | 'continue';
 
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
@@ -44,15 +54,37 @@ export class Executor {
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
+  readonly #failureMode: FailureMode;
+  readonly #failureDeferred = new Deferred<void>();
 
   constructor(
     logger: Logger,
     workerPool: WorkerPool,
-    cache: Cache | undefined
+    cache: Cache | undefined,
+    failureMode: FailureMode
   ) {
     this.#logger = logger;
     this.#workerPool = workerPool;
     this.#cache = cache;
+    this.#failureMode = failureMode;
+  }
+
+  /**
+   * Signal that a script has failed, which will potentially cancel/kill other
+   * scripts depending on their {@link FailureMode}.
+   *
+   * This method will be called automatically in the normal flow of execution,
+   * but scripts can also call it directly to synchronously signal a failure.
+   */
+  notifyFailure(): void {
+    this.#failureDeferred.resolve();
+  }
+
+  /**
+   * Whether any failures have occured in any script.
+   */
+  get failureEncountered(): boolean {
+    return this.#failureDeferred.settled;
   }
 
   async execute(script: ScriptConfig): Promise<ExecutionResult> {
@@ -64,8 +96,14 @@ export class Executor {
         this,
         this.#workerPool,
         this.#cache,
-        this.#logger
-      );
+        this.#logger,
+        this.#failureMode
+      ).then((result) => {
+        if (!result.ok) {
+          this.notifyFailure();
+        }
+        return result;
+      });
       this.#executions.set(executionKey, promise);
     }
     return promise;
@@ -81,14 +119,16 @@ class ScriptExecution {
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    logger: Logger
+    logger: Logger,
+    failureMode: FailureMode
   ): Promise<ExecutionResult> {
     return new ScriptExecution(
       script,
       executor,
       workerPool,
       cache,
-      logger
+      logger,
+      failureMode
     ).#execute();
   }
 
@@ -97,43 +137,97 @@ class ScriptExecution {
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
   readonly #logger: Logger;
+  readonly #failureMode: FailureMode;
 
   private constructor(
     script: ScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    logger: Logger
+    logger: Logger,
+    failureMode: FailureMode
   ) {
     this.#script = script;
     this.#executor = executor;
     this.#workerPool = workerPool;
     this.#cache = cache;
     this.#logger = logger;
+    this.#failureMode = failureMode;
   }
 
   async #execute(): Promise<ExecutionResult> {
+    if (this.#shouldCancel) {
+      return {ok: false, error: [this.#cancelledEvent]};
+    }
     const dependencyStatesResult = await this.#executeDependencies();
     if (!dependencyStatesResult.ok) {
+      dependencyStatesResult.error.push(this.#cancelledEvent);
       return dependencyStatesResult;
     }
+
+    // Significant time could have elapsed since we last checked because our
+    // dependencies had to finish.
+    if (this.#shouldCancel) {
+      return {ok: false, error: [this.#cancelledEvent]};
+    }
+
     if (this.#script.output?.values.length === 0) {
       // If there are explicitly no output files, then it's not actually
       // important to maintain an exclusive lock.
       return this.#executeScript(dependencyStatesResult.value);
     }
     const releaseLock = await this.#acquireLock();
+    if (!releaseLock.ok) {
+      return {ok: false, error: [releaseLock.error]};
+    }
     try {
       return await this.#executeScript(dependencyStatesResult.value);
     } finally {
-      await releaseLock();
+      await releaseLock.value();
     }
+  }
+
+  /**
+   * Whether we should cancel execution of this script before we start it.
+   *
+   * We should check this as the first thing we do, and then after any
+   * significant amount of time might have elapsed.
+   */
+  get #shouldCancel(): boolean {
+    if (!this.#executor.failureEncountered) {
+      return false;
+    }
+    switch (this.#failureMode) {
+      case 'continue': {
+        return false;
+      }
+      case 'no-new': {
+        return true;
+      }
+      default: {
+        const never: never = this.#failureMode;
+        throw new Error(
+          `Internal error: unexpected failure mode: ${String(never)}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Convenience to generate a cancellation failure event for this script.
+   */
+  get #cancelledEvent(): Cancelled {
+    return {
+      script: this.#script,
+      type: 'failure',
+      reason: 'cancelled',
+    };
   }
 
   /**
    * Acquire a system-wide lock on the execution of this script.
    */
-  async #acquireLock(): Promise<() => Promise<void>> {
+  async #acquireLock(): Promise<Result<() => Promise<void>, Cancelled>> {
     // The proper-lockfile library is designed to give an exclusive lock for a
     // *file*. That's slightly misaligned with our use-case, because there's no
     // particular file we need a lock for -- our lock is for the execution of
@@ -155,7 +249,7 @@ class ScriptExecution {
     let loggedLocked = false;
     while (true) {
       try {
-        return await lockfile.lock(lockFile, {
+        const release = await lockfile.lock(lockFile, {
           // If this many milliseconds has elapsed since the lock mtime was last
           // updated, proper-lockfile will delete it and attempt to acquire the
           // lock again. This handles the case where a process holding the lock
@@ -167,6 +261,7 @@ class ScriptExecution {
           // the script.
           update: 2000,
         });
+        return {ok: true, value: release};
       } catch (error) {
         if ((error as {code: string}).code === 'ELOCKED') {
           if (!loggedLocked) {
@@ -180,6 +275,9 @@ class ScriptExecution {
           }
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
+          if (this.#shouldCancel) {
+            return {ok: false, error: this.#cancelledEvent};
+          }
         } else {
           throw error;
         }
@@ -213,6 +311,12 @@ class ScriptExecution {
         reason: 'fresh',
       });
       return {ok: true, value: state};
+    }
+
+    // Computing state can take some time, and the next operation is
+    // destructive. Another good opportunity to check if we're cancelled.
+    if (this.#shouldCancel) {
+      return {ok: false, error: [this.#cancelledEvent]};
     }
 
     // It's important that we delete any previous state before running the
@@ -383,6 +487,12 @@ class ScriptExecution {
     }
 
     return this.#workerPool.run(async (): Promise<Result<void>> => {
+      // Significant time could have elapsed since we last checked because of
+      // parallelism limits.
+      if (this.#shouldCancel) {
+        return {ok: false, error: this.#cancelledEvent};
+      }
+
       this.#logger.log({
         script: this.#script,
         type: 'info',
@@ -434,6 +544,19 @@ class ScriptExecution {
             type: 'success',
             reason: 'exit-zero',
           });
+        } else {
+          // This failure will propagate to the Executor eventually anyway, but
+          // asynchronously.
+          //
+          // The problem with that is that when parallelism is constrained, the
+          // next script waiting on this WorkerPool might start running before
+          // the failure information propagates, because returning from this
+          // function immediately unblocks the next worker.
+          //
+          // By directly notifying the Executor about the failure while we are
+          // still inside the WorkerPool callback, we prevent this race
+          // condition.
+          this.#executor.notifyFailure();
         }
         return result;
       } finally {

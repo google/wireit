@@ -19,6 +19,7 @@ import type {
   ScriptReferenceString,
 } from './script.js';
 import type {Cache} from './caching/cache.js';
+import type {FailureMode} from './executor.js';
 
 /**
  * Watches a script for changes in its input files, and in the input files of
@@ -55,9 +56,17 @@ export class Watcher {
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
+    failureMode: FailureMode,
     abort: Deferred<void>
   ): Promise<void> {
-    return new Watcher(script, logger, workerPool, cache, abort).#watch();
+    return new Watcher(
+      script,
+      logger,
+      workerPool,
+      cache,
+      failureMode,
+      abort
+    ).#watch();
   }
 
   readonly #script: ScriptReference;
@@ -65,6 +74,7 @@ export class Watcher {
   readonly #workerPool: WorkerPool;
   readonly #watchers: Array<chokidar.FSWatcher> = [];
   readonly #cache?: Cache;
+  readonly #failureMode: FailureMode;
   readonly #abort: Deferred<void>;
 
   /** Whether an executor is currently running. */
@@ -86,12 +96,14 @@ export class Watcher {
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
+    failureMode: FailureMode,
     abort: Deferred<void>
   ) {
     this.#script = script;
     this.#logger = logger;
     this.#workerPool = workerPool;
     this.#abort = abort;
+    this.#failureMode = failureMode;
     this.#cache = cache;
 
     if (!this.#aborted) {
@@ -160,7 +172,8 @@ export class Watcher {
       const executor = new Executor(
         this.#logger,
         this.#workerPool,
-        this.#cache
+        this.#cache,
+        this.#failureMode
       );
       const result = await executor.execute(analysis);
       if (!result.ok) {

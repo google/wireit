@@ -35,6 +35,7 @@
   - [GitHub Actions caching](#github-actions-caching)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
+- [Failures and errors](#failures-and-errors)
 - [Package locks](#package-locks)
 - [Recipes](#recipes)
   - [TypeScript](#typescript)
@@ -378,6 +379,28 @@ The benefit of Wireit's watch mode over built-in watch modes are:
   simultaneously, such as build steps being triggered before all preceding steps
   have finished.
 
+## Failures and errors
+
+By default, when a script fails (meaning it returned with a non-zero exit code),
+all scripts that are already running are allowed to finish, but new scripts are
+not started.
+
+In some situations a different behavior may be better suited. There is an
+additional mode, which you can set with the `WIREIT_FAILURES` environment
+variable. Note that Wireit always ultimately exits with a non-zero exit code if
+there was a failure, regardless of the mode.
+
+### Continue
+
+When a failure occurs in `continue` mode, running scripts continue, and new
+scripts are started as long as the failure did not affect their dependencies.
+This mode is useful if you want a complete picture of which scripts are
+succeeding and which are failing.
+
+```bash
+WIREIT_FAILURES=continue
+```
+
 ## Package locks
 
 By default, Wireit automatically treats
@@ -514,6 +537,7 @@ The following environment variables affect the behavior of Wireit:
 
 | Variable          | Description                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WIREIT_FAILURES` | [How to handle script failures](#failures-and-errors).<br><br>Options:<br><ul><li>[`no-new`](#failures-and-errors) (default): Allow running scripts to finish, but don't start new ones.</li><li>[`continue`](#continue): Allow running scripts to continue, and start new ones unless any of their dependencies failed.</li></ul>                                                                                                   |
 | `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                            |
 | `WIREIT_CACHE`    | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v1`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul> |
 | `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`.                                                                            |

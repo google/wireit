@@ -72,6 +72,7 @@ export type Failure =
   | ExitNonZero
   | ExitSignal
   | SpawnError
+  | Cancelled
   | LaunchedIncorrectly
   | MissingPackageJson
   | NoScriptsSectionInPackageJson
@@ -115,6 +116,13 @@ export interface ExitSignal extends ErrorBase<ScriptConfig> {
 export interface SpawnError extends ErrorBase<ScriptReference> {
   reason: 'spawn-error';
   message: string;
+}
+
+/**
+ * A script was cancelled before it started, due to e.g. another script failure.
+ */
+export interface Cancelled extends ErrorBase<ScriptReference> {
+  reason: 'cancelled';
 }
 
 /**

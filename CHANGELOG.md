@@ -6,7 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Added
+
+- Added `WIREIT_FAILURES` environment variable that controls what happens when a
+  script fails (meaning it returned with a non-zero exit code) with the
+  following options:
+
+  - `no-new` (default): Allow running scripts to continue, but don't start new
+    ones.
+  - `continue`: Allow running scripts to continue, and start new ones as long as
+    all of their dependencies succeeded.
+
+### Changed
+
+- Default failure mode changed from `continue` to `no-new` (see above for
+  definitions).
 
 ## [0.4.1] - 2022-05-10
 
