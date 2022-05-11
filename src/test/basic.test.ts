@@ -1293,4 +1293,30 @@ test(
   })
 );
 
+test(
+  'top-level SIGINT kills running scripts',
+  timeout(async ({rig}) => {
+    const main = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {
+            command: main.command,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run main');
+    const inv = await main.nextInvocation();
+    wireit.terminate();
+    await inv.closed;
+    await wireit.exit;
+    assert.equal(main.numInvocations, 1);
+  })
+);
+
 test.run();
