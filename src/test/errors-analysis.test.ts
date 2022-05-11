@@ -119,7 +119,7 @@ test(
   })
 );
 
-test.only(
+test(
   'wireit config but no entry in scripts section',
   timeout(async ({rig}) => {
     await rig.write({
