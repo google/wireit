@@ -4,7 +4,12 @@ The wireit VSCode extension provides editing assistance for package.json files t
 
 ## Features
 
-Provides diagnostics, autocompletion, and documentation on hover for fields in a wireit script config object.
-
-It will also suggest fixes for some common mistakes, as well as a code action
-to refactor an npm script into an equivalent wireit script.
+- ✍️ Autocompletion of properties in your wireit config
+- 📚 Documentation on hover for wireit properties
+- 🖍 Instant diagnostics, highlighting common mistakes
+- 🔗 Jump to definition
+  - Jump straight to the definition of a dependency
+  - Jump from a script to its wireit config
+- 👷 Code actions
+  - Refactor a vanilla npm script to use wireit
+  - Suggested fixes for a number of common errors
