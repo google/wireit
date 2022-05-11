@@ -24,6 +24,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Default failure mode changed from `continue` to `no-new` (see above for
   definitions).
 
+- A distinct event is now logged when a script is terminated intentionally by
+  Wireit.
+
 ## [0.4.1] - 2022-05-10
 
 ### Fixed
