@@ -443,7 +443,7 @@ class ScriptExecution {
     // collect all errors, instead of just the first one.
     const dependencyResults = await Promise.allSettled(
       this.#script.dependencies.map((dependency) => {
-        return this.#executor.execute(dependency);
+        return this.#executor.execute(dependency.config);
       })
     );
     const errors = new Set<Failure>();
@@ -455,7 +455,7 @@ class ScriptExecution {
         errors.add({
           type: 'failure',
           reason: 'unknown-error-thrown',
-          script: this.#script.dependencies[i],
+          script: this.#script.dependencies[i].config,
           error: error,
         });
       } else {
@@ -464,7 +464,10 @@ class ScriptExecution {
             errors.add(error);
           }
         } else {
-          results.push([this.#script.dependencies[i], result.value.value]);
+          results.push([
+            this.#script.dependencies[i].config,
+            result.value.value,
+          ]);
         }
       }
     }

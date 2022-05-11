@@ -11,6 +11,7 @@ import type {
   NamedAstNode,
 } from './util/ast.js';
 import type {Failure} from './event.js';
+import {PotentiallyValidScriptConfig} from './analyzer.js';
 
 /**
  * The location on disk of an npm package.
@@ -26,6 +27,11 @@ export interface PackageReference {
 export interface ScriptReference extends PackageReference {
   /** A concrete script name (no ./ or $WORKSPACES etc.) */
   name: string;
+}
+
+export interface Dependency<Config extends PotentiallyValidScriptConfig> {
+  config: Config;
+  astNode: JsonAstNode<string>;
 }
 
 /**
@@ -49,8 +55,7 @@ export interface ScriptConfig extends ScriptReference {
    * directory + script name, but the {@link Executor} then randomizes the order
    * during execution.
    */
-  dependencies: Array<ScriptConfig>;
-  dependenciesAst: JsonAstNode | undefined;
+  dependencies: Array<Dependency<ScriptConfig>>;
 
   /**
    * Input file globs for this script.

@@ -255,7 +255,7 @@ export class Watcher {
         groups.push({patterns: script.files.values, cwd: script.packageDir});
       }
       for (const dependency of script.dependencies) {
-        visit(dependency);
+        visit(dependency.config);
       }
     };
 

@@ -11,9 +11,9 @@ import * as pathlib from 'path';
 import * as jsonParser from 'jsonc-parser';
 import {
   Diagnostic,
+  offsetInsideRange,
   OffsetToPositionConverter,
   PositionRange,
-  Range,
 } from './error.js';
 
 import type {FileSystem} from './util/package-json-reader.js';
@@ -24,6 +24,8 @@ import type {
   CodeAction,
   TextEdit,
   WorkspaceEdit,
+  Position,
+  DefinitionLink,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
 import type {JsonFile} from './util/ast.js';
@@ -140,7 +142,10 @@ export class IdeAnalyzer {
     const ourRange = OffsetToPositionConverter.get(
       packageJson.jsonFile
     ).ideRangeToRange(range);
-    const scriptInfo = await this.#getInfoAboutLocation(packageJson, ourRange);
+    const scriptInfo = await this.#getInfoAboutLocation(
+      packageJson,
+      ourRange.offset
+    );
     if (scriptInfo === undefined) {
       return codeActions;
     }
@@ -166,8 +171,90 @@ export class IdeAnalyzer {
     return codeActions;
   }
 
-  async #getInfoAboutLocation(packageJson: PackageJson, range: Range) {
-    const locationInfo = packageJson.getInfoAboutRange(range);
+  async getDefinition(
+    path: string,
+    position: Position
+  ): Promise<DefinitionLink[] | undefined> {
+    const packageDir = pathlib.dirname(path);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      return undefined;
+    }
+    const packageJson = packageJsonResult.value;
+    const ourPosition = OffsetToPositionConverter.get(
+      packageJson.jsonFile
+    ).idePositionToOffset(position);
+    const scriptInfo = await this.#getInfoAboutLocation(
+      packageJson,
+      ourPosition
+    );
+    if (scriptInfo?.kind === 'dependency') {
+      const dep = scriptInfo.dependency;
+      const targetFile = dep.config.declaringFile;
+      const targetNode = dep.config.configAstNode ?? dep.config.scriptAstNode;
+      if (targetFile == null || targetNode == null) {
+        return;
+      }
+
+      const targetConverter = OffsetToPositionConverter.get(targetFile);
+      const sourceConverter = OffsetToPositionConverter.get(
+        packageJson.jsonFile
+      );
+      return [
+        {
+          originSelectionRange: sourceConverter.toIdeRange(
+            scriptInfo.dependency.astNode
+          ),
+          targetUri: url.pathToFileURL(targetFile.path).toString(),
+          targetRange: targetConverter.toIdeRange(
+            // The parent is the property, including both key and value.
+            // So we preview the whole thing when looking at the definition:
+            //      "build": {"command": "tsc"}
+            //      ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            targetNode.parent ?? targetNode
+          ),
+          targetSelectionRange: targetConverter.toIdeRange(targetNode.name),
+        },
+      ];
+    }
+    if (scriptInfo?.kind === 'scripts-section-script') {
+      const sourceConverter = OffsetToPositionConverter.get(
+        packageJson.jsonFile
+      );
+      const syntaxInfo = scriptInfo.scriptSyntaxInfo;
+      if (syntaxInfo.scriptNode && syntaxInfo.wireitConfigNode) {
+        // we can jump from the script section to the wireit config
+        return [
+          {
+            originSelectionRange: sourceConverter.toIdeRange(
+              syntaxInfo.scriptNode.parent ?? syntaxInfo.scriptNode
+            ),
+            targetUri: url.pathToFileURL(packageJson.jsonFile.path).toString(),
+            targetRange: sourceConverter.toIdeRange(
+              syntaxInfo.wireitConfigNode.parent ?? syntaxInfo.wireitConfigNode
+            ),
+            targetSelectionRange: sourceConverter.toIdeRange(
+              syntaxInfo.wireitConfigNode.name
+            ),
+          },
+        ];
+      }
+    }
+  }
+
+  async getPackageJsonForTest(
+    filename: string
+  ): Promise<PackageJson | undefined> {
+    const packageDir = pathlib.dirname(filename);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      return undefined;
+    }
+    return packageJsonResult.value;
+  }
+
+  async #getInfoAboutLocation(packageJson: PackageJson, offset: number) {
+    const locationInfo = packageJson.getInfoAboutLocation(offset);
     if (locationInfo === undefined) {
       return;
     }
@@ -175,6 +262,16 @@ export class IdeAnalyzer {
       name: locationInfo.scriptSyntaxInfo.name,
       packageDir: pathlib.dirname(packageJson.jsonFile.path),
     });
+    for (const dep of script.dependencies ?? []) {
+      if (offsetInsideRange(offset, dep.astNode)) {
+        return {
+          kind: 'dependency' as const,
+          dependency: dep,
+          script: script,
+          scriptSyntax: locationInfo.scriptSyntaxInfo,
+        };
+      }
+    }
     return {
       ...locationInfo,
       script,
