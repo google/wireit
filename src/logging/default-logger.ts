@@ -142,6 +142,7 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'script-not-found':
+          case 'wireit-config-but-no-script':
           case 'duplicate-dependency':
           case 'script-not-wireit':
           case 'invalid-config-syntax':

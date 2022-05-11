@@ -296,15 +296,21 @@ export class Analyzer {
 
     const syntaxInfo = packageJson.getScriptInfo(placeholder.name);
     if (syntaxInfo === undefined || syntaxInfo.scriptNode === undefined) {
-      const range = packageJson.scriptsSection
-        ? {
-            offset: packageJson.scriptsSection.name.offset,
-            length: packageJson.scriptsSection.name.length,
-          }
+      let node;
+      let reason;
+      if (syntaxInfo?.wireitConfigNode?.name != null) {
+        node = syntaxInfo.wireitConfigNode.name;
+        reason = 'wireit-config-but-no-script' as const;
+      } else {
+        node ??= packageJson.scriptsSection?.name;
+        reason = 'script-not-found' as const;
+      }
+      const range = node
+        ? {offset: node.offset, length: node.length}
         : {offset: 0, length: 0};
       placeholder.failures.push({
         type: 'failure',
-        reason: 'script-not-found',
+        reason,
         script: placeholder,
         diagnostic: {
           severity: 'error',
