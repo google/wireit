@@ -37,6 +37,13 @@ test.after.each(async (ctx) => {
   }
 });
 
+/**
+ * Get the code actions that would be offered for the given contents.
+ *
+ * The location is given by including a '|' character at the caret position.
+ * The pipe character is removed and isn't a part of the contents that the
+ * parser or the rest of the test sees.
+ */
 async function getCodeActions(options: {
   rig: WireitTestRig;
   contentsWithPipe: string | object;
