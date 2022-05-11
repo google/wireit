@@ -381,8 +381,9 @@ The benefit of Wireit's watch mode over built-in watch modes are:
 
 ## Failures and errors
 
-By default, when a failure occurs in any script, all scripts that are already
-running are allowed to finish, but new scripts are not started.
+By default, when a script fails (meaning it returned with a non-zero exit code),
+all scripts that are already running are allowed to finish, but new scripts are
+not started.
 
 In some situations a different behavior may be better suited. There is an
 additional mode, which you can set with the `WIREIT_FAILURES` environment

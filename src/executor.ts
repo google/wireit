@@ -69,10 +69,20 @@ export class Executor {
     this.#failureMode = failureMode;
   }
 
+  /**
+   * Signal that a script has failed, which will potentially cancel/kill other
+   * scripts depending on their {@link FailureMode}.
+   *
+   * This method will be called automatically in the normal flow of execution,
+   * but scripts can also call it directly to synchronously signal a failure.
+   */
   notifyFailure(): void {
     this.#failureDeferred.resolve();
   }
 
+  /**
+   * Whether any failures have occured in any script.
+   */
   get failureEncountered(): boolean {
     return this.#failureDeferred.settled;
   }

@@ -10,7 +10,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Added `WIREIT_FAILURES` environment variable with the following options:
+- Added `WIREIT_FAILURES` environment variable that controls what happens when a
+  script fails (meaning it returned with a non-zero exit code) with the
+  following options:
 
   - `no-new` (default): Allow running scripts to continue, but don't start new
     ones.

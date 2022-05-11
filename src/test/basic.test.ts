@@ -1042,7 +1042,7 @@ test(
 
 for (const envSetting of ['no-new', undefined]) {
   test(
-    `don't start new script after unrelated failure when WIREIT_PARALLEL=${
+    `don't start new script after unrelated failure when WIREIT_FAILURES=${
       envSetting ?? '<unset>'
     }`,
     timeout(async ({rig}) => {
@@ -1144,7 +1144,7 @@ for (const envSetting of ['no-new', undefined]) {
       // cover the case where the branch that failed has not yet reached the root
       // of the graph, because it's easy to imagine an implementation that relies
       // on that. Wait a moment first to ensure Wireit unblocks `cancel` before
-      // `fail`.
+      // it unblocks `failParent`.
       await new Promise((resolve) => setTimeout(resolve, 50));
       failParentBlockerInv.exit(0);
 
@@ -1204,9 +1204,6 @@ test(
     // First one fails (doesn't matter which).
     const first = await Promise.race([a.nextInvocation(), b.nextInvocation()]);
     first.exit(1);
-
-    // Wait a moment to ensure Wireit notices the failure before the success.
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Cancel is now unblocked because there is a free worker pool slot, so it
     // could start. But there was a failure elsewhere in the build, so it
