@@ -54,19 +54,52 @@ export class Executor {
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
-  readonly #failureMode: FailureMode;
-  readonly #failureDeferred = new Deferred<void>();
+
+  /** Resolves when the first failure occurs in any script. */
+  readonly #failureOccured = new Deferred<void>();
+  /** Resolves when we decide that new scripts should be cancelled. */
+  readonly #cancelNewScripts = new Deferred<void>();
+  /** Resolves when we decide that running scripts should be terminated. */
+  readonly #terminateRunningScripts = new Deferred<void>();
 
   constructor(
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    failureMode: FailureMode
+    failureMode: FailureMode,
+    abort: Deferred<void>
   ) {
     this.#logger = logger;
     this.#workerPool = workerPool;
     this.#cache = cache;
-    this.#failureMode = failureMode;
+
+    // If this entire execution is aborted because e.g. the user sent a SIGINT
+    // to the Wireit process, then cancel new scripts and terminate running
+    // ones.
+    void abort.promise.then(() => {
+      this.#cancelNewScripts.resolve();
+      this.#terminateRunningScripts.resolve();
+    });
+
+    // If a failure occurs, then whether we cancel new scripts or terminate
+    // running ones depends on the failure mode setting.
+    void this.#failureOccured.promise.then(() => {
+      switch (failureMode) {
+        case 'continue': {
+          break;
+        }
+        case 'no-new': {
+          this.#cancelNewScripts.resolve();
+          break;
+        }
+        default: {
+          const never: never = failureMode;
+          throw new Error(
+            `Internal error: unexpected failure mode: ${String(never)}`
+          );
+        }
+      }
+    });
   }
 
   /**
@@ -77,14 +110,21 @@ export class Executor {
    * but scripts can also call it directly to synchronously signal a failure.
    */
   notifyFailure(): void {
-    this.#failureDeferred.resolve();
+    this.#failureOccured.resolve();
   }
 
   /**
-   * Whether any failures have occured in any script.
+   * Synchronously check if new scripts should be cancelled.
    */
-  get failureEncountered(): boolean {
-    return this.#failureDeferred.settled;
+  get shouldCancelNewScripts(): boolean {
+    return this.#cancelNewScripts.settled;
+  }
+
+  /**
+   * A promise which resolves if we should terminate running scripts.
+   */
+  get shouldTerminateRunningScripts(): Promise<void> {
+    return this.#cancelNewScripts.promise;
   }
 
   async execute(script: ScriptConfig): Promise<ExecutionResult> {
@@ -96,8 +136,7 @@ export class Executor {
         this,
         this.#workerPool,
         this.#cache,
-        this.#logger,
-        this.#failureMode
+        this.#logger
       ).then((result) => {
         if (!result.ok) {
           this.notifyFailure();
@@ -119,16 +158,14 @@ class ScriptExecution {
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    logger: Logger,
-    failureMode: FailureMode
+    logger: Logger
   ): Promise<ExecutionResult> {
     return new ScriptExecution(
       script,
       executor,
       workerPool,
       cache,
-      logger,
-      failureMode
+      logger
     ).#execute();
   }
 
@@ -137,26 +174,23 @@ class ScriptExecution {
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
   readonly #logger: Logger;
-  readonly #failureMode: FailureMode;
 
   private constructor(
     script: ScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    logger: Logger,
-    failureMode: FailureMode
+    logger: Logger
   ) {
     this.#script = script;
     this.#executor = executor;
     this.#workerPool = workerPool;
     this.#cache = cache;
     this.#logger = logger;
-    this.#failureMode = failureMode;
   }
 
   async #execute(): Promise<ExecutionResult> {
-    if (this.#shouldCancel) {
+    if (this.#shouldCancelNewScripts) {
       return {ok: false, error: [this.#cancelledEvent]};
     }
     const dependencyStatesResult = await this.#executeDependencies();
@@ -167,7 +201,7 @@ class ScriptExecution {
 
     // Significant time could have elapsed since we last checked because our
     // dependencies had to finish.
-    if (this.#shouldCancel) {
+    if (this.#shouldCancelNewScripts) {
       return {ok: false, error: [this.#cancelledEvent]};
     }
 
@@ -193,24 +227,8 @@ class ScriptExecution {
    * We should check this as the first thing we do, and then after any
    * significant amount of time might have elapsed.
    */
-  get #shouldCancel(): boolean {
-    if (!this.#executor.failureEncountered) {
-      return false;
-    }
-    switch (this.#failureMode) {
-      case 'continue': {
-        return false;
-      }
-      case 'no-new': {
-        return true;
-      }
-      default: {
-        const never: never = this.#failureMode;
-        throw new Error(
-          `Internal error: unexpected failure mode: ${String(never)}`
-        );
-      }
-    }
+  get #shouldCancelNewScripts(): boolean {
+    return this.#executor.shouldCancelNewScripts;
   }
 
   /**
@@ -275,7 +293,7 @@ class ScriptExecution {
           }
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
-          if (this.#shouldCancel) {
+          if (this.#shouldCancelNewScripts) {
             return {ok: false, error: this.#cancelledEvent};
           }
         } else {
@@ -315,7 +333,7 @@ class ScriptExecution {
 
     // Computing state can take some time, and the next operation is
     // destructive. Another good opportunity to check if we're cancelled.
-    if (this.#shouldCancel) {
+    if (this.#shouldCancelNewScripts) {
       return {ok: false, error: [this.#cancelledEvent]};
     }
 
@@ -492,7 +510,7 @@ class ScriptExecution {
     return this.#workerPool.run(async (): Promise<Result<void>> => {
       // Significant time could have elapsed since we last checked because of
       // parallelism limits.
-      if (this.#shouldCancel) {
+      if (this.#shouldCancelNewScripts) {
         return {ok: false, error: this.#cancelledEvent};
       }
 
@@ -507,6 +525,10 @@ class ScriptExecution {
         // based on the undefined-command check we did just above.
         this.#script as ScriptConfigWithRequiredCommand
       );
+
+      void this.#executor.shouldTerminateRunningScripts.then(() => {
+        child.terminate();
+      });
 
       // Only create the stdout/stderr replay files if we encounter anything on
       // this streams.

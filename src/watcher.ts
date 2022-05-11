@@ -173,7 +173,8 @@ export class Watcher {
         this.#logger,
         this.#workerPool,
         this.#cache,
-        this.#failureMode
+        this.#failureMode,
+        this.#abort
       );
       const result = await executor.execute(analysis);
       if (!result.ok) {
