@@ -4,7 +4,7 @@ All notable changes to the "wireit" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [0.3.0] - 2022-05-11
 
 - Use the same logic as the CLI for finding diagnostics. This adds many new
   diagnostics, like diagnostics for missing dependencies, or cycles in the
