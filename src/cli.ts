@@ -164,7 +164,7 @@ const getOptions = (): Result<Options> => {
     if (!str) {
       return {ok: true, value: 'no-new'};
     }
-    if (str === 'no-new' || str === 'continue') {
+    if (str === 'no-new' || str === 'continue' || str === 'kill') {
       return {ok: true, value: str};
     }
     return {
@@ -173,7 +173,7 @@ const getOptions = (): Result<Options> => {
         reason: 'invalid-usage',
         message:
           `Expected the WIREIT_FAILURES env variable to be ` +
-          `"no-new" or "continue", got ${JSON.stringify(str)}`,
+          `"no-new", "continue", or "kill", got ${JSON.stringify(str)}`,
         script,
         type: 'failure',
       },
