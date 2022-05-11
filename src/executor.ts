@@ -168,7 +168,7 @@ class ScriptExecution {
     }
     const releaseLock = await this.#acquireLock();
     if (!releaseLock.ok) {
-      return releaseLock;
+      return {ok: false, error: [releaseLock.error]};
     }
     try {
       return await this.#executeScript(dependencyStatesResult.value);
@@ -217,7 +217,7 @@ class ScriptExecution {
   /**
    * Acquire a system-wide lock on the execution of this script.
    */
-  async #acquireLock(): Promise<Result<() => Promise<void>, [Cancelled]>> {
+  async #acquireLock(): Promise<Result<() => Promise<void>, Cancelled>> {
     // The proper-lockfile library is designed to give an exclusive lock for a
     // *file*. That's slightly misaligned with our use-case, because there's no
     // particular file we need a lock for -- our lock is for the execution of
@@ -266,7 +266,7 @@ class ScriptExecution {
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
           if (this.#shouldCancel) {
-            return {ok: false, error: [this.#cancelledEvent]};
+            return {ok: false, error: this.#cancelledEvent};
           }
         } else {
           throw error;
