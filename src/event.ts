@@ -78,6 +78,7 @@ export type Failure =
   | NoScriptsSectionInPackageJson
   | PackageJsonParseError
   | ScriptNotFound
+  | WireitScriptNotInScriptsSection
   | ScriptNotWireit
   | InvalidConfigSyntax
   | InvalidUsage
@@ -162,6 +163,16 @@ export interface NoScriptsSectionInPackageJson
  */
 export interface ScriptNotFound extends ErrorBase<ScriptReference> {
   reason: 'script-not-found';
+  diagnostic: Diagnostic;
+}
+
+/**
+ * The specified script has a wireit config, but it isn't declared in the
+ * scripts section at all.
+ */
+export interface WireitScriptNotInScriptsSection
+  extends ErrorBase<ScriptReference> {
+  reason: 'wireit-config-but-no-script';
   diagnostic: Diagnostic;
 }
 

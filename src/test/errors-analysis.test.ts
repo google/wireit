@@ -120,6 +120,37 @@ test(
 );
 
 test(
+  'wireit config but no entry in scripts section',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b'],
+          },
+          b: {
+            dependencies: [],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ package.json:11:5 Script "b" not found in the scripts section of this package.json.
+        "b": {
+        ~~~`
+    );
+  })
+);
+
+test(
   'dependencies is not an array',
   timeout(async ({rig}) => {
     await rig.write({
