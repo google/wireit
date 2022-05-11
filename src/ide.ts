@@ -149,16 +149,24 @@ export class IdeAnalyzer {
     if (scriptInfo === undefined) {
       return codeActions;
     }
+    if (scriptInfo.kind === 'dependency') {
+      // No code actions for dependencies yet.
+      return codeActions;
+    }
+    const {
+      script,
+      scriptSyntaxInfo: {name, scriptNode, wireitConfigNode},
+    } = scriptInfo;
     if (
       scriptInfo.kind === 'scripts-section-script' &&
-      scriptInfo.scriptSyntaxInfo.scriptNode &&
-      !scriptInfo.scriptSyntaxInfo.wireitConfigNode
+      scriptNode != null &&
+      wireitConfigNode == null
     ) {
       const edit = getEdit(packageJson.jsonFile, [
-        {path: ['scripts', scriptInfo.script.name], value: 'wireit'},
+        {path: ['scripts', name], value: 'wireit'},
         {
-          path: ['wireit', scriptInfo.script.name],
-          value: {command: scriptInfo.scriptSyntaxInfo.scriptNode.value},
+          path: ['wireit', name],
+          value: {command: scriptNode.value},
         },
       ]);
       codeActions.push({
@@ -167,7 +175,101 @@ export class IdeAnalyzer {
         edit,
       });
     }
+    if (scriptInfo.kind === 'wireit-section-script' && scriptNode == null) {
+      const edit = getEdit(packageJson.jsonFile, [
+        {path: ['scripts', script.name], value: 'wireit'},
+      ]);
+      codeActions.push({
+        title: `Add this script to the "scripts" section.`,
+        /**
+         * Quoting https://microsoft.github.io//language-server-protocol/specifications/lsp/3.17/specification/
+         *
+         * > 'Fix all' actions automatically fix errors that have a clear fix
+         * > that do not require user input. They should not suppress errors
+         * > or perform unsafe fixes such as generating new types or classes.
+         */
+        kind: 'source.fixAll',
+        edit,
+      });
+    }
 
+    if (
+      scriptNode == null ||
+      wireitConfigNode == null ||
+      scriptNode.value === 'wireit'
+    ) {
+      return codeActions;
+    }
+    // Ok, so there's definitely a wireit config and an entry in the scripts
+    // section, however the scripts section has its own command.
+    // In this case, we want to offer the user the option to move that command
+    // into the wireit section, but we need to be careful that we don't
+    // lose the user's command.
+
+    // Let's find the command, if any, in the wireit config.
+    let wireitCommand;
+    for (const propNode of wireitConfigNode.children ?? []) {
+      if (propNode.type !== 'property') {
+        continue;
+      }
+      const [key, value] = propNode.children ?? [];
+      if (key?.value !== 'command') {
+        continue;
+      }
+      if (typeof value.value !== 'string') {
+        return codeActions; // This is invalid, so we don't offer anything.
+      }
+      wireitCommand = value.value;
+      break;
+    }
+    if (wireitCommand === undefined) {
+      // this is the easy case, we can just move the command over
+      const edit = getEdit(packageJson.jsonFile, [
+        {path: ['scripts', script.name], value: 'wireit'},
+        {path: ['wireit', script.name, 'command'], value: scriptNode.value},
+      ]);
+      codeActions.push({
+        title: `Move this script's command into the wireit config.`,
+        // This is mostly safe. The user might have moved the command
+        // back to the scripts section because they don't want some wireit
+        // features, like they don't want it to clean, or to run dependencies.
+        // So we don't want it to happen automatically, but it's very safe.
+        kind: 'quickfix',
+        isPreferred: true,
+        edit,
+      });
+      return codeActions;
+    }
+
+    // In the case where the commands are the same, we can just replace the
+    // script version with "wireit"
+    if (wireitCommand === scriptNode.value) {
+      const edit = getEdit(packageJson.jsonFile, [
+        {path: ['scripts', script.name], value: 'wireit'},
+      ]);
+      codeActions.push({
+        title: `Run "wireit" in the scripts section.`,
+        kind: 'quickfix',
+        isPreferred: true,
+        edit,
+      });
+      return codeActions;
+    }
+
+    // Ok here's the tricky part, we could lose user data.
+    const edit = getEdit(packageJson.jsonFile, [
+      {path: ['scripts', script.name], value: 'wireit'},
+      {
+        path: ['wireit', script.name, '[the script command was]'],
+        value: scriptNode.value,
+      },
+    ]);
+    codeActions.push({
+      title: `Move this script's command into the wireit config.`,
+      kind: 'quickfix',
+      isPreferred: false,
+      edit,
+    });
     return codeActions;
   }
 
