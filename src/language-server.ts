@@ -71,9 +71,10 @@ function log(...values: unknown[]) {
     connection.console.log(message);
   }
 }
-if (false as boolean) {
-  log(`Log is useful when developing, even if we don't use it currently.`);
-}
+
+// So that we can just console.log and console.error as usual.
+console.log = log;
+console.error = log;
 
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
@@ -205,21 +206,7 @@ class Analysis {
       }
     } else if (kind === 'script') {
       const wireitProp = this.#wireitConfigsByKey.get(property.key);
-      if (wireitProp == null) {
-        return [
-          {
-            kind: CodeActionKind.RefactorExtract,
-            title: 'Convert this script to use wireit',
-            edit: this.#modifyMultiple([
-              {path: ['scripts', property.key], value: 'wireit'},
-              {
-                path: ['wireit', property.key],
-                value: {command: property.value},
-              },
-            ]),
-          },
-        ];
-      } else if (property.value !== 'wireit') {
+      if (wireitProp != null && property.value !== 'wireit') {
         const wireitCommand = getPropertyByKeyName(
           wireitProp.valueAst,
           'command'
@@ -352,10 +339,15 @@ documents.onDidClose((change) => {
   });
 });
 
-connection.onCodeAction((params) => {
+connection.onCodeAction(async (params) => {
   const document = documents.get(params.textDocument.uri);
   if (document == null) {
     return [];
+  }
+  const path = url.fileURLToPath(document.uri);
+  const actions = await ideAnalyzer.getCodeActions(path, params.range);
+  if (actions.length > 0) {
+    return actions;
   }
   const analysis = new Analysis(document);
   return analysis.getCodeActions(params.range);

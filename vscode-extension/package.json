@@ -116,7 +116,8 @@
         "build:package"
       ],
       "files": [
-        "built"
+        "built",
+        "!built/*.vsix"
       ],
       "command": "cd built && vsce package -o wireit.vsix"
     },

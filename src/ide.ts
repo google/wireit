@@ -4,17 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {FileSystem} from './util/package-json-reader.js';
 import * as fs from 'fs/promises';
 import {Analyzer} from './analyzer.js';
-import {Diagnostic, OffsetToPositionConverter} from './error.js';
 import * as url from 'url';
+import * as pathlib from 'path';
+import * as jsonParser from 'jsonc-parser';
+import {
+  Diagnostic,
+  OffsetToPositionConverter,
+  PositionRange,
+  Range,
+} from './error.js';
 
+import type {FileSystem} from './util/package-json-reader.js';
 import type {
   Diagnostic as IdeDiagnostic,
   DiagnosticSeverity,
   DiagnosticRelatedInformation,
+  CodeAction,
+  TextEdit,
+  WorkspaceEdit,
 } from 'vscode-languageclient';
+import type {PackageJson} from './util/package-json.js';
+import type {JsonFile} from './util/ast.js';
 
 class OverlayFilesystem implements FileSystem {
   // filename to contents
@@ -107,6 +119,119 @@ export class IdeAnalyzer {
     }
     return diagnostics;
   }
+
+  async getCodeActions(
+    path: string,
+    range: PositionRange
+  ): Promise<CodeAction[]> {
+    const codeActions: CodeAction[] = [];
+    // file isn't open
+    if (!this.#overlayFs.overlay.has(path)) {
+      return codeActions;
+    }
+    const packageDir = pathlib.dirname(path);
+    // If there are any syntax-level errors for the file, we don't want to
+    // offer any code actions.
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok || packageJsonResult.value.failures.length > 0) {
+      return codeActions;
+    }
+    const packageJson = packageJsonResult.value;
+    const ourRange = OffsetToPositionConverter.get(
+      packageJson.jsonFile
+    ).ideRangeToRange(range);
+    const scriptInfo = await this.#getInfoAboutLocation(packageJson, ourRange);
+    if (scriptInfo === undefined) {
+      return codeActions;
+    }
+    if (
+      scriptInfo.kind === 'scripts-section-script' &&
+      scriptInfo.scriptSyntaxInfo.scriptNode &&
+      !scriptInfo.scriptSyntaxInfo.wireitConfigNode
+    ) {
+      const edit = getEdit(packageJson.jsonFile, [
+        {path: ['scripts', scriptInfo.script.name], value: 'wireit'},
+        {
+          path: ['wireit', scriptInfo.script.name],
+          value: {command: scriptInfo.scriptSyntaxInfo.scriptNode.value},
+        },
+      ]);
+      codeActions.push({
+        title: `Refactor this script to use wireit.`,
+        kind: 'refactor.extract',
+        edit,
+      });
+    }
+
+    return codeActions;
+  }
+
+  async #getInfoAboutLocation(packageJson: PackageJson, range: Range) {
+    const locationInfo = packageJson.getInfoAboutRange(range);
+    if (locationInfo === undefined) {
+      return;
+    }
+    const script = await this.#analyzer.analyzeIgnoringErrors({
+      name: locationInfo.scriptSyntaxInfo.name,
+      packageDir: pathlib.dirname(packageJson.jsonFile.path),
+    });
+    return {
+      ...locationInfo,
+      script,
+    };
+  }
+}
+
+interface Modification {
+  path: jsonParser.JSONPath;
+  value: unknown;
+}
+
+function getEdit(file: JsonFile, modifications: Modification[]): WorkspaceEdit {
+  const edits = [];
+  for (const {path, value} of modifications) {
+    edits.push(
+      ...jsonParser.modify(
+        file.contents,
+        path,
+        value,
+        inferModificationOptions(file)
+      )
+    );
+  }
+  const converter = OffsetToPositionConverter.get(file);
+  const textEdits = edits.map((e): TextEdit => {
+    return {
+      range: converter.toIdeRange(e),
+      newText: e.content,
+    };
+  });
+  return {changes: {[file.path]: textEdits}};
+}
+
+function inferModificationOptions(
+  file: JsonFile
+): jsonParser.ModificationOptions {
+  const firstPostNewlineWhitespace = file.contents.match(/\n(\s+)/)?.[1];
+  if (firstPostNewlineWhitespace === undefined) {
+    return {};
+  }
+  if (/^ +$/.test(firstPostNewlineWhitespace)) {
+    return {
+      formattingOptions: {
+        insertSpaces: true,
+        tabSize: firstPostNewlineWhitespace.length,
+      },
+    };
+  } else if (/^\t+$/.test(firstPostNewlineWhitespace)) {
+    return {
+      formattingOptions: {
+        insertSpaces: false,
+        tabSize: firstPostNewlineWhitespace.length,
+      },
+    };
+  }
+  return {};
 }
 
 function convertDiagnostic(d: Diagnostic): IdeDiagnostic {

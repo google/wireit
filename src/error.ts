@@ -45,6 +45,12 @@ export class DiagnosticPrinter {
   }
 
   print(diagnostic: Diagnostic) {
+    if (diagnostic.location.range.length < 0) {
+      throw new Error(
+        `Internal error: got a negative length squiggle for ${diagnostic.message}: ${diagnostic.location.range.length}`
+      );
+    }
+
     const path = this.#formatPath(diagnostic.location);
     let result = `❌ ${path} ${diagnostic.message}
 ${drawSquiggle(diagnostic.location, 4)}`;
@@ -76,6 +82,10 @@ ${drawSquiggle(diagnostic.location, 4)}`;
   }
 }
 
+export interface PositionRange {
+  start: Position;
+  end: Position;
+}
 export interface Position {
   /** 1 indexed */
   line: number;
@@ -132,10 +142,22 @@ export class OffsetToPositionConverter {
     return {line: position.line - 1, character: position.character - 1};
   }
 
-  toIdeRange(range: Range): {start: Position; end: Position} {
+  toIdeRange(range: Range): PositionRange {
     const start = this.toIdePosition(range.offset);
     const end = this.toIdePosition(range.offset + range.length);
     return {start, end};
+  }
+
+  idePositionToOffset(position: Position): number {
+    let lineOffset = this.newlineIndexes[position.line - 1];
+    lineOffset = lineOffset === undefined ? 0 : lineOffset + 1;
+    return lineOffset + position.character;
+  }
+
+  ideRangeToRange(range: PositionRange): Range {
+    const start = this.idePositionToOffset(range.start);
+    const end = this.idePositionToOffset(range.end);
+    return {offset: start, length: end - start};
   }
 }
 
@@ -175,3 +197,6 @@ export function drawSquiggle(location: Location, indent: number): string {
   // Drop the last newline.
   return result.slice(0, -1);
 }
+
+export const offsetInsideRange = (offset: number, range: Range): boolean =>
+  offset >= range.offset && offset < range.offset + range.length;
