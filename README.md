@@ -405,10 +405,7 @@ WIREIT_FAILURES=continue
 
 When a failure occurs in `kill` mode, running scripts are immediately
 terminated, and new scripts are not started. This mode is useful if you want to
-be notified as soon as possible about any failures. Since scripts may be
-terminated before they are finished, this mode risks leaving your output in a
-temporarily invalid state, but Wireit will recover from this state the next time
-it runs successfully.
+be notified as soon as possible about any failures.
 
 ```bash
 WIREIT_FAILURES=kill
