@@ -111,11 +111,11 @@ export class WireitTestRig extends FilesystemTestRig {
    * Delete the temporary filesystem and perform other cleanup.
    */
   async cleanup(): Promise<void> {
+    await Promise.all(this.#commands.map((command) => command.close()));
     for (const child of this.#activeChildProcesses) {
       child.kill();
       await child.exit;
     }
-    await Promise.all(this.#commands.map((command) => command.close()));
     await super.cleanup();
   }
 
