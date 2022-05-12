@@ -13,7 +13,11 @@ import {
 
 import type {Result} from './error.js';
 import type {ScriptConfig} from './script.js';
-import type {ChildProcessWithoutNullStreams} from 'child_process';
+import type {
+  ChildProcessWithoutNullStreams,
+  ChildProcessByStdio,
+} from 'child_process';
+import {Readable} from 'stream';
 import type {ExitNonZero, ExitSignal, SpawnError, Killed} from './event.js';
 
 /**
@@ -56,7 +60,9 @@ type ScriptConfigWithRequiredCommand = ScriptConfig & {
  */
 export class ScriptChildProcess {
   readonly #script: ScriptConfigWithRequiredCommand;
-  readonly #child: ChildProcessWithoutNullStreams;
+  readonly #child:
+    | ChildProcessWithoutNullStreams
+    | ChildProcessByStdio<null, Readable, Readable>;
   #state: ScriptChildProcessState = 'starting';
 
   /**
@@ -90,6 +96,7 @@ export class ScriptChildProcess {
       //   https://nodejs.org/api/child_process.html#default-windows-shell
       //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
       shell: true,
+      stdio: ['inherit', 'pipe', 'pipe'],
       env: augmentProcessEnvSafelyIfOnWindows({
         PATH: this.#pathEnvironmentVariable,
       }),
