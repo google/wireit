@@ -32,6 +32,7 @@
   - [GitHub Actions caching](#github-actions-caching)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
+- [Services](#services)
 - [Failures and errors](#failures-and-errors)
 - [Package locks](#package-locks)
 - [Recipes](#recipes)
@@ -387,6 +388,46 @@ The benefit of Wireit's watch mode over built-in watch modes are:
 - It prevents problems that can occur when running many separate watch commands
   simultaneously, such as build steps being triggered before all preceding steps
   have finished.
+
+## Services
+
+By default, Wireit assumes that your scripts will eventually exit by themselves.
+This is well suited for build and test scripts, but not for long-running
+processes like servers. To tell Wireit that a process is long-running and not
+expected to exit by itself, set `"service": true`.
+
+```json
+{
+  "scripts": {
+    "serve": "wireit",
+    "build:server": "wireit",
+    "build:assets": "wireit"
+  },
+  "wireit": {
+    "serve": {
+      "command": "node my-server.js",
+      "service": true,
+      "files": ["server-config.json"],
+      "dependencies": ["build:server", "build:assets"]
+    }
+  }
+}
+```
+
+If a service is run _directly_ (e.g. `npm run serve`), then it will stay running
+until the user kills Wireit (e.g. `Ctrl-C`).
+
+If a service is a _dependency_ of one or more other scripts, then it will start
+up before any depending script runs, and will shut down after all depending
+scripts finish.
+
+In watch mode, a service will be restarted whenever one of its input files or
+dependencies change.
+
+Services cannot have `output` files, because there is no way for Wireit to know
+when a service has finished writing its output. If you have a service that
+produces output, you should define a non-service script that depends on it, and
+which exits when the service's output is complete.
 
 ## Failures and errors
 
