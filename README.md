@@ -410,9 +410,6 @@ terminated before they are finished, this mode risks leaving your output in a
 temporarily invalid state, but Wireit will recover from this state the next time
 it runs successfully.
 
-, your output should
-be restored to a valid state.
-
 ```bash
 WIREIT_FAILURES=kill
 ```
