@@ -1,17 +1,18 @@
+{% set base = page.url | relativePathToRoot -%}
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} | Wireit</title>
-    <link rel="stylesheet" href="{{ '/style.css' | url }}">
-    <link rel="stylesheet" href="{{ '/prism-light.css' | url }}" media="(prefers-color-scheme:light)">
-    <link rel="stylesheet" href="{{ '/prism-dark.css' | url }}" media="(prefers-color-scheme:dark)">
+    <link rel="stylesheet" href="{{ base }}/style.css">
+    <link rel="stylesheet" href="{{ base }}/prism-light.css" media="(prefers-color-scheme:light)">
+    <link rel="stylesheet" href="{{ base }}/prism-dark.css" media="(prefers-color-scheme:dark)">
   </head>
   <body>
     <nav>
       <a id="skipnav" href="#content">Skip to main content</a>
-      <img src="{{ '/wireit.svg' | url }}" alt="Wireit" width="160" height="44">
+      <img src="{{ base }}/wireit.svg" alt="Wireit" width="160" height="44">
       <div id="badges">
         <span id="githubStarsBadge">
           <a
