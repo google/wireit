@@ -43,7 +43,7 @@ type ExecutionResult = Result<ScriptState, Failure[]>;
  * - `no-new`: Allow running scripts to finish, but don't start new ones.
  * - `continue`: Allow running scripts to finish, and start new ones unless a
  *   dependency failed.
- * - `kill`: Immediately terminate running scripts, and don't start new ones.
+ * - `kill`: Immediately kill running scripts, and don't start new ones.
  */
 export type FailureMode = 'no-new' | 'continue' | 'kill';
 
@@ -94,8 +94,8 @@ export class Executor {
           break;
         }
         case 'kill': {
-          this.#cancelNewScripts.resolve();
-          this.#terminateRunningScripts.resolve();
+          this.#stopStartingNewScripts.resolve();
+          this.#killRunningScripts.resolve();
           break;
         }
         default: {

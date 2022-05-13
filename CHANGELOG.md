@@ -18,7 +18,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     ones.
   - `continue`: Allow running scripts to continue, and start new ones as long as
     all of their dependencies succeeded.
-  - `kill`: Immediately terminate running scripts, and don't start new ones.
+  - `kill`: Immediately kill running scripts, and don't start new ones.
 
 ### Changed
 
