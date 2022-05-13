@@ -171,9 +171,13 @@ export class DefaultLogger implements Logger {
             console.error(`❌${prefix} Process spawn error: ${event.message}`);
             break;
           }
-          case 'cancelled': {
+          case 'start-cancelled': {
             // The script never started. We don't really need to log this, it's
             // fairly noisy. Maybe in a verbose mode.
+            break;
+          }
+          case 'killed': {
+            console.error(`💀${prefix} Killed`);
             break;
           }
           case 'unknown-error-thrown': {

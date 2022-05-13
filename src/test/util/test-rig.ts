@@ -112,7 +112,7 @@ export class WireitTestRig extends FilesystemTestRig {
    */
   async cleanup(): Promise<void> {
     for (const child of this.#activeChildProcesses) {
-      child.terminate();
+      child.kill();
       await child.exit;
     }
     await Promise.all(this.#commands.map((command) => command.close()));
@@ -253,10 +253,10 @@ class ExecResult {
       // do nothing. The process is a child of "sh" because we are using the
       // "shell" option.
       //
-      // On Windows this works completely differently, and we instead terminate
-      // child processes with "taskkill". If we set "detached" on Windows, it
-      // has the side effect of causing all child processes to open in new
-      // terminal windows.
+      // On Windows this works completely differently, and we instead kill child
+      // processes with "taskkill". If we set "detached" on Windows, it has the
+      // side effect of causing all child processes to open in new terminal
+      // windows.
       detached: !IS_WINDOWS,
     });
 
@@ -294,16 +294,14 @@ class ExecResult {
   }
 
   /**
-   * Terminate the child process.
+   * Kill the child process.
    */
-  terminate(): void {
+  kill(): void {
     if (!this.running) {
-      throw new Error(
-        "Can't terminate child process because it is not running"
-      );
+      throw new Error("Can't kill child process because it is not running");
     }
     if (this.#child.pid === undefined) {
-      throw new Error("Can't terminate child process because it has no pid");
+      throw new Error("Can't kill child process because it has no pid");
     }
     if (IS_WINDOWS) {
       // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates

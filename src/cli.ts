@@ -278,7 +278,8 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       logger,
       workerPool,
       cache,
-      options.failureMode
+      options.failureMode,
+      abort
     );
     const result = await executor.execute(analyzedResult.value);
     if (!result.ok) {

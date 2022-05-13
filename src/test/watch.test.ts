@@ -76,7 +76,7 @@ test(
     assert.ok(exec.running);
 
     // Should exit after a SIGINT signal (i.e. Ctrl-C).
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 1);
   })
@@ -119,7 +119,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -162,7 +162,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -203,7 +203,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -247,7 +247,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -300,7 +300,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA1.numInvocations, 1);
     assert.equal(cmdA2.numInvocations, 1);
@@ -370,7 +370,7 @@ test(
       await invB.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 3);
     assert.equal(cmdB.numInvocations, 2);
@@ -446,7 +446,7 @@ test(
       await invB.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 3);
     assert.equal(cmdB.numInvocations, 2);
@@ -491,7 +491,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -580,7 +580,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -624,7 +624,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
   })
@@ -674,7 +674,7 @@ test(
       await inv.closed;
     }
 
-    exec.terminate();
+    exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 3);
   })

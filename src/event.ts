@@ -72,7 +72,8 @@ export type Failure =
   | ExitNonZero
   | ExitSignal
   | SpawnError
-  | Cancelled
+  | StartCancelled
+  | Killed
   | LaunchedIncorrectly
   | MissingPackageJson
   | NoScriptsSectionInPackageJson
@@ -120,10 +121,18 @@ export interface SpawnError extends ErrorBase<ScriptReference> {
 }
 
 /**
- * A script was cancelled before it started, due to e.g. another script failure.
+ * We decided not to start a script after all, due to e.g. another script
+ * failure.
  */
-export interface Cancelled extends ErrorBase<ScriptReference> {
-  reason: 'cancelled';
+export interface StartCancelled extends ErrorBase<ScriptReference> {
+  reason: 'start-cancelled';
+}
+
+/**
+ * A script was intentionally and successfully killed by Wireit.
+ */
+export interface Killed extends ErrorBase<ScriptReference> {
+  reason: 'killed';
 }
 
 /**
