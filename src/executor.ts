@@ -124,7 +124,7 @@ export class Executor {
    * A promise which resolves if we should terminate running scripts.
    */
   get shouldTerminateRunningScripts(): Promise<void> {
-    return this.#cancelNewScripts.promise;
+    return this.#terminateRunningScripts.promise;
   }
 
   async execute(script: ScriptConfig): Promise<ExecutionResult> {
