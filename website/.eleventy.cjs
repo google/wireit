@@ -6,6 +6,7 @@
 
 const markdownIt = require('markdown-it');
 const markdownItAnchor = require('markdown-it-anchor');
+const pathlib = require('path');
 
 module.exports = function (eleventyConfig) {
   eleventyConfig.addPlugin(require('@11ty/eleventy-navigation'));
@@ -29,8 +30,26 @@ module.exports = function (eleventyConfig) {
     })
   );
 
+  /**
+   * Generate a relative path to the root from the given page URL.
+   *
+   * Useful when a template which is used from different directories needs to
+   * reliably refer to a path with a relative URL, so that the site can be
+   * served from different sub-directories.
+   *
+   * Example:
+   *   /         --> .
+   *   /foo/     --> ..
+   *   /foo/bar/ --> ../..
+   *
+   * (It sort of seems like this should be built-in. There's the "url" filter,
+   *  but it produces paths that don't depend on the current URL).
+   */
+  eleventyConfig.addFilter('relativePathToRoot', (url) =>
+    url === '/' ? '.' : pathlib.posix.relative(url, '/')
+  );
+
   return {
-    pathPrefix: '/wireit/',
     dir: {
       input: 'content',
     },
