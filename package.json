@@ -38,6 +38,7 @@
     "test:diagnostic": "wireit",
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
+    "test:failures": "wireit",
     "test:freshness": "wireit",
     "test:ide": "wireit",
     "test:glob": "wireit",
@@ -79,6 +80,7 @@
         "test:diagnostic",
         "test:errors-analysis",
         "test:errors-usage",
+        "test:failures",
         "test:freshness",
         "test:glob",
         "test:ide",
@@ -178,6 +180,14 @@
     },
     "test:errors-usage": {
       "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"errors-usage\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:failures": {
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"failures\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],

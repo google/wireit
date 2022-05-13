@@ -244,6 +244,7 @@ export class ScriptChildProcess {
         '/pid',
         this.#child.pid.toString(),
         /* End child processes */ '/t',
+        /* Force. Killing does not seem reliable otherwise. */ '/f',
       ]);
     } else {
       // We used "detached" when we spawned, so our child is the leader of a

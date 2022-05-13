@@ -176,6 +176,32 @@ test(
 );
 
 test(
+  'nonsense WIREIT_FAILURES',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'true'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_FAILURES: 'aklsdjflajsdkflj'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.match(
+      done.stderr,
+      `
+❌ [main] Invalid usage: Expected the WIREIT_FAILURES env variable to be "no-new", "continue", or "kill", got "aklsdjflajsdkflj"`.trim()
+    );
+  })
+);
+
+test(
   'github caching without ACTIONS_CACHE_URL',
   timeout(async ({rig}) => {
     await rig.write({
