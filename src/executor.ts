@@ -33,7 +33,7 @@ import type {
 import type {Logger} from './logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
-import type {Failure, Cancelled} from './event.js';
+import type {Failure, StartCancelled} from './event.js';
 
 type ExecutionResult = Result<ScriptState, Failure[]>;
 
@@ -57,10 +57,10 @@ export class Executor {
 
   /** Resolves when the first failure occurs in any script. */
   readonly #failureOccured = new Deferred<void>();
-  /** Resolves when we decide that new scripts should be cancelled. */
-  readonly #cancelNewScripts = new Deferred<void>();
-  /** Resolves when we decide that running scripts should be terminated. */
-  readonly #terminateRunningScripts = new Deferred<void>();
+  /** Resolves when we decide that new scripts should not be started. */
+  readonly #stopStartingNewScripts = new Deferred<void>();
+  /** Resolves when we decide that running scripts should be killed. */
+  readonly #killRunningScripts = new Deferred<void>();
 
   constructor(
     logger: Logger,
@@ -74,14 +74,14 @@ export class Executor {
     this.#cache = cache;
 
     // If this entire execution is aborted because e.g. the user sent a SIGINT
-    // to the Wireit process, then cancel new scripts and terminate running
+    // to the Wireit process, then dont start new scripts, and kill running
     // ones.
     void abort.promise.then(() => {
-      this.#cancelNewScripts.resolve();
-      this.#terminateRunningScripts.resolve();
+      this.#stopStartingNewScripts.resolve();
+      this.#killRunningScripts.resolve();
     });
 
-    // If a failure occurs, then whether we cancel new scripts or terminate
+    // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
     void this.#failureOccured.promise.then(() => {
       switch (failureMode) {
@@ -89,7 +89,7 @@ export class Executor {
           break;
         }
         case 'no-new': {
-          this.#cancelNewScripts.resolve();
+          this.#stopStartingNewScripts.resolve();
           break;
         }
         default: {
@@ -103,8 +103,8 @@ export class Executor {
   }
 
   /**
-   * Signal that a script has failed, which will potentially cancel/kill other
-   * scripts depending on their {@link FailureMode}.
+   * Signal that a script has failed, which will potentially stop starting or
+   * kill other scripts depending on the {@link FailureMode}.
    *
    * This method will be called automatically in the normal flow of execution,
    * but scripts can also call it directly to synchronously signal a failure.
@@ -114,17 +114,17 @@ export class Executor {
   }
 
   /**
-   * Synchronously check if new scripts should be cancelled.
+   * Synchronously check if new scripts should stop being started.
    */
-  get shouldCancelNewScripts(): boolean {
-    return this.#cancelNewScripts.settled;
+  get shouldStopStartingNewScripts(): boolean {
+    return this.#stopStartingNewScripts.settled;
   }
 
   /**
-   * A promise which resolves if we should terminate running scripts.
+   * A promise which resolves if we should kill running scripts.
    */
-  get shouldTerminateRunningScripts(): Promise<void> {
-    return this.#terminateRunningScripts.promise;
+  get shouldKillRunningScripts(): Promise<void> {
+    return this.#killRunningScripts.promise;
   }
 
   async execute(script: ScriptConfig): Promise<ExecutionResult> {
@@ -190,19 +190,19 @@ class ScriptExecution {
   }
 
   async #execute(): Promise<ExecutionResult> {
-    if (this.#shouldCancelNewScripts) {
-      return {ok: false, error: [this.#cancelledEvent]};
+    if (this.#shouldNotStart) {
+      return {ok: false, error: [this.#startCancelledEvent]};
     }
     const dependencyStatesResult = await this.#executeDependencies();
     if (!dependencyStatesResult.ok) {
-      dependencyStatesResult.error.push(this.#cancelledEvent);
+      dependencyStatesResult.error.push(this.#startCancelledEvent);
       return dependencyStatesResult;
     }
 
     // Significant time could have elapsed since we last checked because our
     // dependencies had to finish.
-    if (this.#shouldCancelNewScripts) {
-      return {ok: false, error: [this.#cancelledEvent]};
+    if (this.#shouldNotStart) {
+      return {ok: false, error: [this.#startCancelledEvent]};
     }
 
     if (this.#script.output?.values.length === 0) {
@@ -222,30 +222,30 @@ class ScriptExecution {
   }
 
   /**
-   * Whether we should cancel execution of this script before we start it.
+   * Whether we should return early instead of starting this script.
    *
    * We should check this as the first thing we do, and then after any
    * significant amount of time might have elapsed.
    */
-  get #shouldCancelNewScripts(): boolean {
-    return this.#executor.shouldCancelNewScripts;
+  get #shouldNotStart(): boolean {
+    return this.#executor.shouldStopStartingNewScripts;
   }
 
   /**
    * Convenience to generate a cancellation failure event for this script.
    */
-  get #cancelledEvent(): Cancelled {
+  get #startCancelledEvent(): StartCancelled {
     return {
       script: this.#script,
       type: 'failure',
-      reason: 'cancelled',
+      reason: 'start-cancelled',
     };
   }
 
   /**
    * Acquire a system-wide lock on the execution of this script.
    */
-  async #acquireLock(): Promise<Result<() => Promise<void>, Cancelled>> {
+  async #acquireLock(): Promise<Result<() => Promise<void>, StartCancelled>> {
     // The proper-lockfile library is designed to give an exclusive lock for a
     // *file*. That's slightly misaligned with our use-case, because there's no
     // particular file we need a lock for -- our lock is for the execution of
@@ -293,8 +293,8 @@ class ScriptExecution {
           }
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
-          if (this.#shouldCancelNewScripts) {
-            return {ok: false, error: this.#cancelledEvent};
+          if (this.#shouldNotStart) {
+            return {ok: false, error: this.#startCancelledEvent};
           }
         } else {
           throw error;
@@ -332,9 +332,9 @@ class ScriptExecution {
     }
 
     // Computing state can take some time, and the next operation is
-    // destructive. Another good opportunity to check if we're cancelled.
-    if (this.#shouldCancelNewScripts) {
-      return {ok: false, error: [this.#cancelledEvent]};
+    // destructive. Another good opportunity to check if we should still start.
+    if (this.#shouldNotStart) {
+      return {ok: false, error: [this.#startCancelledEvent]};
     }
 
     // It's important that we delete any previous state before running the
@@ -510,8 +510,8 @@ class ScriptExecution {
     return this.#workerPool.run(async (): Promise<Result<void>> => {
       // Significant time could have elapsed since we last checked because of
       // parallelism limits.
-      if (this.#shouldCancelNewScripts) {
-        return {ok: false, error: this.#cancelledEvent};
+      if (this.#shouldNotStart) {
+        return {ok: false, error: this.#startCancelledEvent};
       }
 
       this.#logger.log({
@@ -526,8 +526,8 @@ class ScriptExecution {
         this.#script as ScriptConfigWithRequiredCommand
       );
 
-      void this.#executor.shouldTerminateRunningScripts.then(() => {
-        child.terminate();
+      void this.#executor.shouldKillRunningScripts.then(() => {
+        child.kill();
       });
 
       // Only create the stdout/stderr replay files if we encounter anything on

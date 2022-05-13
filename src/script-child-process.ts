@@ -14,7 +14,7 @@ import {
 import type {Result} from './error.js';
 import type {ScriptConfigWithRequiredCommand} from './script.js';
 import type {ChildProcessWithoutNullStreams} from 'child_process';
-import type {ExitNonZero, ExitSignal, SpawnError, Terminated} from './event.js';
+import type {ExitNonZero, ExitSignal, SpawnError, Killed} from './event.js';
 
 /**
  * The PATH environment variable of this process, minus all of the leading
@@ -41,7 +41,7 @@ const PATH_ENV_SUFFIX = (() => {
 export type ScriptChildProcessState =
   | 'starting'
   | 'started'
-  | 'stopping'
+  | 'killing'
   | 'stopped';
 
 /**
@@ -56,7 +56,7 @@ export class ScriptChildProcess {
    * Resolves when this child process ends.
    */
   readonly completed: Promise<
-    Result<void, SpawnError | ExitSignal | ExitNonZero | Terminated>
+    Result<void, SpawnError | ExitSignal | ExitNonZero | Killed>
   >;
 
   get stdout() {
@@ -109,10 +109,10 @@ export class ScriptChildProcess {
             this.#state = 'started';
             break;
           }
-          case 'stopping': {
-            // We received a termination request while we were still starting.
-            // Terminate now that we're started.
-            this.#actuallyTerminate();
+          case 'killing': {
+            // We received a kill request while we were still starting. Kill now
+            // that we're started.
+            this.#actuallyKill();
             break;
           }
           case 'started':
@@ -120,7 +120,7 @@ export class ScriptChildProcess {
             reject(
               new Error(
                 `Internal error: Expected ScriptChildProcessState ` +
-                  `to be "started" or "stopping" but was "${this.#state}"`
+                  `to be "started" or "killing" but was "${this.#state}"`
               )
             );
             break;
@@ -152,13 +152,13 @@ export class ScriptChildProcess {
       });
 
       this.#child.on('close', (status, signal) => {
-        if (this.#state === 'stopping') {
+        if (this.#state === 'killing') {
           resolve({
             ok: false,
             error: {
               script,
               type: 'failure',
-              reason: 'terminated',
+              reason: 'killed',
             },
           });
         } else if (signal !== null) {
@@ -194,26 +194,26 @@ export class ScriptChildProcess {
   }
 
   /**
-   * Mark this child process for termination. On Linux/macOS, sends a `SIGINT`
-   * signal. On Windows, invokes `taskkill /pid PID /t /f`.
+   * Kill this child process. On Linux/macOS, sends a `SIGINT` signal. On
+   * Windows, invokes `taskkill /pid PID /t`.
    *
-   * Note this function returns immediately. To find out when the process
-   * actually terminates, use the {@link completed} promise.
+   * Note this function returns immediately. To find out when the process was
+   * actually killed, use the {@link completed} promise.
    */
-  terminate(): void {
+  kill(): void {
     switch (this.#state) {
       case 'started': {
-        this.#actuallyTerminate();
+        this.#actuallyKill();
         return;
       }
       case 'starting': {
         // We're still starting up, and it's not possible to abort. When we get
-        // the "spawn" event, we'll notice the "stopping" state and actually
-        // terminate then.
-        this.#state = 'stopping';
+        // the "spawn" event, we'll notice the "killing" state and actually kill
+        // then.
+        this.#state = 'killing';
         return;
       }
-      case 'stopping':
+      case 'killing':
       case 'stopped': {
         // No-op.
         return;
@@ -227,10 +227,10 @@ export class ScriptChildProcess {
     }
   }
 
-  #actuallyTerminate(): void {
+  #actuallyKill(): void {
     if (this.#child.pid === undefined) {
       throw new Error(
-        `Internal error: Can't terminate child process because it has no pid. ` +
+        `Internal error: Can't kill child process because it has no pid. ` +
           `Command: ${JSON.stringify(this.#script.command)}.`
       );
     }
@@ -238,13 +238,12 @@ export class ScriptChildProcess {
       // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
       // the behavior of SIGKILL (and ignores the signal you pass in), but this
       // doesn't end child processes. We have child processes because the parent
-      // process is cmd.exe or PowerShell.
+      // process is the shell (cmd.exe or PowerShell).
       // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
       spawn('taskkill', [
         '/pid',
         this.#child.pid.toString(),
         /* End child processes */ '/t',
-        /* Forceful */ '/f',
       ]);
     } else {
       // We used "detached" when we spawned, so our child is the leader of a
@@ -253,7 +252,7 @@ export class ScriptChildProcess {
       // killed).
       process.kill(-this.#child.pid, 'SIGINT');
     }
-    this.#state = 'stopping';
+    this.#state = 'killing';
   }
 
   /**

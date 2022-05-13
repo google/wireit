@@ -1312,7 +1312,7 @@ test(
 
     const wireit = rig.exec('npm run main');
     const inv = await main.nextInvocation();
-    wireit.terminate();
+    wireit.kill();
     await inv.closed;
     await wireit.exit;
     assert.equal(main.numInvocations, 1);
