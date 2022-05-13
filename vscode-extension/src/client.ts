@@ -40,11 +40,6 @@ export async function activate(context: vscode.ExtensionContext) {
       traceOutputChannel: outputChannel,
     }
   );
-  context.subscriptions.push(client.start());
-
-  // Can't call client.onNotification() until the client is ready.
-  await client.onReady();
-  // Pass through logs to the output channel.
   context.subscriptions.push(
     client.onNotification(
       'window/logMessage',
@@ -56,6 +51,8 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     )
   );
+
+  await client.start();
 }
 
 export async function deactivate(): Promise<void> {

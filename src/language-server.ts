@@ -77,7 +77,7 @@ const getAndSendDiagnostics = async () => {
   }
   for (const path of ideAnalyzer.openFiles) {
     const diagnostics = diagnosticsByFile.get(path) ?? [];
-    connection.sendDiagnostics({
+    void connection.sendDiagnostics({
       uri: url.pathToFileURL(path).toString(),
       diagnostics: [...diagnostics],
     });
@@ -110,7 +110,7 @@ documents.onDidClose((change) => {
   ideAnalyzer.closeFile(path);
   void getAndSendDiagnostics();
   // Clear diagnostics for closed file.
-  connection.sendDiagnostics({
+  void connection.sendDiagnostics({
     uri: change.document.uri,
     diagnostics: [],
   });
