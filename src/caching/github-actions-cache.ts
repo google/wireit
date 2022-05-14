@@ -10,24 +10,15 @@ import * as https from 'https';
 import {createHash} from 'crypto';
 import * as cacheUtils from '@actions/cache/lib/internal/cacheUtils.js';
 import {createTar, extractTar} from '@actions/cache/lib/internal/tar.js';
-import {retryTypedResponse} from '@actions/cache/lib/internal/requestUtils.js';
 import {
   saveCache,
   downloadCache,
 } from '@actions/cache/lib/internal/cacheHttpClient.js';
-import {HttpClient} from '@actions/http-client';
-import {BearerCredentialHandler} from '@actions/http-client/auth.js';
-import {isSuccessStatusCode} from '@actions/cache/lib/internal/requestUtils.js';
 import {scriptReferenceToString} from '../script.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 
 import type * as http from 'http';
-import type {
-  ReserveCacheRequest,
-  ReserveCacheResponse,
-  ITypedResponseWithError,
-} from '@actions/cache/lib/internal/contracts.js';
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
 import type {Logger} from '../logging/logger.js';
@@ -277,7 +268,6 @@ export class GitHubActionsCache implements Cache {
       }
       const id = await this.#reserveCacheEntry(
         script,
-        this.#makeAuthenticatedHttpClient(),
         this.#computeCacheKey(script),
         version,
         tarBytes
@@ -380,21 +370,6 @@ export class GitHubActionsCache implements Cache {
   }
 
   /**
-   * Make an HTTP client which always sends "Authorization: Bearer <token>"
-   * header.
-   */
-  #makeAuthenticatedHttpClient(): HttpClient {
-    const bearerCredentialHandler = new BearerCredentialHandler(
-      this.#authToken
-    );
-    return new HttpClient('actions/cache', [bearerCredentialHandler], {
-      headers: {
-        Accept: 'application/json;api-version=6.0-preview.1',
-      },
-    });
-  }
-
-  /**
    * Create a tarball file in a local temp directory containing the given paths.
    *
    * @returns The full path to the tarball file on disk.
@@ -417,45 +392,46 @@ export class GitHubActionsCache implements Cache {
    */
   async #reserveCacheEntry(
     script: ScriptReference,
-    httpClient: HttpClient,
     key: string,
     version: string,
     cacheSize: number
   ): Promise<number | undefined> {
-    const request: ReserveCacheRequest = {
+    const url = new URL('_apis/artifactcache/caches', this.#baseUrl);
+    const reqBody = JSON.stringify({
       key,
       version,
       cacheSize,
-    };
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const response: ITypedResponseWithError<ReserveCacheResponse> =
-      await retryTypedResponse('reserveCache', async () =>
-        httpClient.postJson(
-          /** For docs on this API, see {@link FakeGitHubActionsCacheServer} */
-          `${this.#baseUrl}_apis/artifactcache/caches`,
-          request
-        )
-      );
-    if (response.statusCode === /* Conflict */ 409) {
-      // This cache entry has already been reserved, so we can't write to it.
+    });
+    const {req, resPromise} = this.#request(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+    req.end(reqBody);
+    const res = await resPromise;
+
+    if (isOk(res)) {
+      const resData = JSON.parse(await readBody(res)) as {
+        cacheId: number;
+      };
+      return resData.cacheId;
+    }
+
+    if (res.statusCode === /* Conflict */ 409) {
       return undefined;
     }
-    if (response.statusCode === /* Too Many Requests */ 429) {
+
+    if (res.statusCode === /* Too Many Requests */ 429) {
       this.#onRateLimit(script);
       return undefined;
     }
-    if (
-      !isSuccessStatusCode(response.statusCode) ||
-      response.error !== undefined ||
-      response.result?.cacheId === undefined
-    ) {
-      throw new Error(
-        `Error reserving cache entry: ${response.statusCode} ${
-          response.error?.message ?? '<no error message>'
-        }`
-      );
-    }
-    return response.result.cacheId;
+
+    throw new Error(
+      `GitHub Cache reserve HTTP ${String(
+        res.statusCode
+      )} error: ${await readBody(res)}`
+    );
   }
 }
 
