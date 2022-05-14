@@ -318,7 +318,11 @@ export class FakeGitHubActionsCacheServer {
         commited: false,
         tarballId,
       });
-      this.#respond(response, 200, JSON.stringify({cacheId: entryId}));
+      this.#respond(
+        response,
+        /* Created */ 201,
+        JSON.stringify({cacheId: entryId})
+      );
     });
   }
 
@@ -370,7 +374,7 @@ export class FakeGitHubActionsCacheServer {
     });
 
     request.on('end', () => {
-      this.#respond(response, 200);
+      this.#respond(response, /* No Content */ 204);
     });
   }
 
@@ -404,7 +408,7 @@ export class FakeGitHubActionsCacheServer {
     }
 
     entry.commited = true;
-    this.#respond(response, 200);
+    this.#respond(response, /* No Content */ 204);
   }
 
   /**
