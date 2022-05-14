@@ -14,7 +14,7 @@ import {fileURLToPath} from 'url';
 import {WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
 import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
-import {timeout} from './util/uvu-timeout.js';
+import {timeout, DEFAULT_UVU_TIMEOUT} from './util/uvu-timeout.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -406,7 +406,7 @@ test(
       });
       assert.equal(await rig.read('output'), fileContent);
     }
-  })
+  }, Math.max(DEFAULT_UVU_TIMEOUT, 15_000))
 );
 
 test.run();
