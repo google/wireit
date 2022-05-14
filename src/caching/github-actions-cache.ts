@@ -391,6 +391,10 @@ export class GitHubActionsCache implements Cache {
           // could consider including, but it probably changes frequently and is
           // unlikely to affect output, so we prefer the higher cache hit rate.
           process.env.ImageOS ?? '',
+          // Versioning salt:
+          //   - <omitted>: Initial version.
+          //   - 2: Removed empty directories manifest.
+          '2',
         ].join('\x1E') // ASCII record seperator
       )
       .digest('hex');
