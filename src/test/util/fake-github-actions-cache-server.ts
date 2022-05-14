@@ -149,6 +149,18 @@ export class FakeGitHubActionsCacheServer {
     this.#rateLimitNextRequest.add(apiName);
   }
 
+  #readBody(request: http.IncomingMessage): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    return new Promise((resolve) => {
+      request.on('end', () => {
+        resolve(Buffer.concat(chunks));
+      });
+    });
+  }
+
   #respond(
     response: http.ServerResponse,
     status: number,
@@ -196,16 +208,16 @@ export class FakeGitHubActionsCacheServer {
     }
 
     if (api === '_apis/artifactcache/caches' && request.method === 'POST') {
-      return this.#reserve(request, response);
+      return void this.#reserve(request, response);
     }
 
     if (api.startsWith('_apis/artifactcache/caches/')) {
       const tail = api.slice('_apis/artifactcache/caches/'.length);
       if (request.method === 'PATCH') {
-        return this.#upload(request, response, tail);
+        return void this.#upload(request, response, tail);
       }
       if (request.method === 'POST') {
-        return this.#commit(request, response, tail);
+        return void this.#commit(request, response, tail);
       }
     }
 
@@ -286,7 +298,10 @@ export class FakeGitHubActionsCacheServer {
    * key + version. If so, returns a "409 Conflict" response. If not, returns a
    * new unique cache ID which can be used to upload the tarball.
    */
-  #reserve(request: http.IncomingMessage, response: http.ServerResponse): void {
+  async #reserve(
+    request: http.IncomingMessage,
+    response: http.ServerResponse
+  ): Promise<void> {
     this.metrics.reserve++;
     if (this.#rateLimitNextRequest.delete('reserve')) {
       return this.#rateLimit(response);
@@ -295,32 +310,29 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    let jsonStr = '';
-    request.on('data', (chunk) => {
-      jsonStr += chunk;
+    const json = await this.#readBody(request);
+    const data = JSON.parse(json.toString()) as {
+      key: string;
+      version: string;
+    };
+    const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
+    if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
+      return this.#respond(response, /* Conflict */ 409);
+    }
+    const entryId = this.#nextEntryId++ as EntryId;
+    const tarballId = String(Math.random()).slice(2) as TarballId;
+    this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
+    this.#tarballIdToEntryId.set(tarballId, entryId);
+    this.#entryIdToEntry.set(entryId, {
+      chunks: [],
+      commited: false,
+      tarballId,
     });
-
-    request.on('end', () => {
-      const json = JSON.parse(jsonStr) as {key: string; version: string};
-      const keyAndVersion = encodeKeyAndVersion(json.key, json.version);
-      if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
-        return this.#respond(response, /* Conflict */ 409);
-      }
-      const entryId = this.#nextEntryId++ as EntryId;
-      const tarballId = String(Math.random()).slice(2) as TarballId;
-      this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
-      this.#tarballIdToEntryId.set(tarballId, entryId);
-      this.#entryIdToEntry.set(entryId, {
-        chunks: [],
-        commited: false,
-        tarballId,
-      });
-      this.#respond(
-        response,
-        /* Created */ 201,
-        JSON.stringify({cacheId: entryId})
-      );
-    });
+    this.#respond(
+      response,
+      /* Created */ 201,
+      JSON.stringify({cacheId: entryId})
+    );
   }
 
   /**
@@ -329,11 +341,11 @@ export class FakeGitHubActionsCacheServer {
    * This API receives a tarball (or a chunk of a tarball) and stores it using
    * the given key (as returned by the reserve cache API).
    */
-  #upload(
+  async #upload(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     idStr: string
-  ): void {
+  ): Promise<void> {
     this.metrics.upload++;
     if (this.#rateLimitNextRequest.delete('upload')) {
       return this.#rateLimit(response);
@@ -365,13 +377,9 @@ export class FakeGitHubActionsCacheServer {
       );
     }
 
-    request.on('data', (chunk: unknown) => {
-      entry.chunks.push(chunk as Buffer);
-    });
-
-    request.on('end', () => {
-      this.#respond(response, /* No Content */ 204);
-    });
+    const buffer = await this.#readBody(request);
+    entry.chunks.push(buffer);
+    this.#respond(response, /* No Content */ 204);
   }
 
   /**
@@ -380,11 +388,11 @@ export class FakeGitHubActionsCacheServer {
    * This API marks a tarball uploaded by the onSaveCache API (which could be
    * sent in multiple chunks) as complete.
    */
-  #commit(
+  async #commit(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     idStr: string
-  ): void {
+  ): Promise<void> {
     this.metrics.commit++;
     if (this.#rateLimitNextRequest.delete('commit')) {
       return this.#rateLimit(response);
@@ -396,10 +404,28 @@ export class FakeGitHubActionsCacheServer {
     if (idStr.match(/\d+/) === null) {
       return this.#respond(response, 400, 'Cache ID was not an integer');
     }
+
     const id = Number(idStr) as EntryId;
     const entry = this.#entryIdToEntry.get(id);
     if (entry === undefined) {
       return this.#respond(response, 400, 'Cache entry did not exist');
+    }
+
+    const json = await this.#readBody(request);
+    const data = JSON.parse(json.toString()) as {
+      size: number;
+    };
+    const expectedSize = data.size;
+    const actualSize = entry.chunks.reduce(
+      (sum, chunk) => sum + chunk.length,
+      0
+    );
+    if (actualSize !== expectedSize) {
+      return this.#respond(
+        response,
+        400,
+        'Cache entry did not have expected size'
+      );
     }
 
     entry.commited = true;
