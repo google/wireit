@@ -27,7 +27,6 @@ import type {
   ReserveCacheRequest,
   ReserveCacheResponse,
   ITypedResponseWithError,
-  ArtifactCacheEntry,
 } from '@actions/cache/lib/internal/contracts.js';
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
@@ -152,18 +151,37 @@ export class GitHubActionsCache implements Cache {
     }
 
     const version = this.#computeVersion(stateStr);
-    const location = await this.#checkForCacheEntry(
-      script,
-      this.#computeCacheKey(script),
-      version
-    );
-    if (location === undefined) {
-      // No cache hit.
+    const key = this.#computeCacheKey(script);
+    const url = new URL('_apis/artifactcache/cache', this.#baseUrl);
+    url.searchParams.set('keys', key);
+    url.searchParams.set('version', version);
+
+    const {req, resPromise} = this.#request(url);
+    req.end();
+    const res = await resPromise;
+
+    if (res.statusCode === /* No Content */ 204) {
       return undefined;
     }
-    return new GitHubActionsCacheHit(
-      location,
-      this.#emptyDirectoriesManifestPath(script, version)
+
+    if (isOk(res)) {
+      const {archiveLocation} = JSON.parse(await readBody(res)) as {
+        archiveLocation: string;
+      };
+      return new GitHubActionsCacheHit(
+        archiveLocation,
+        this.#emptyDirectoriesManifestPath(script, version)
+      );
+    }
+
+    if (res.statusCode === /* Too Many Requests */ 429) {
+      this.#onRateLimit(script);
+      return;
+    }
+
+    throw new Error(
+      `GitHub Cache check HTTP ${String(res.statusCode)} error: ` +
+        (await readBody(res))
     );
   }
 
@@ -389,49 +407,6 @@ export class GitHubActionsCache implements Cache {
       cacheUtils.getCacheFileName(CompressionMethod.Gzip)
     );
     return path;
-  }
-
-  /**
-   * Check for a cache entry.
-   *
-   * @returns A tarball URL if this cache entry exists, or undefined if it does
-   * not exist.
-   */
-  async #checkForCacheEntry(
-    script: ScriptReference,
-    key: string,
-    version: string
-  ): Promise<string | undefined> {
-    const httpClient = this.#makeAuthenticatedHttpClient();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const response: ITypedResponseWithError<ArtifactCacheEntry> =
-      await retryTypedResponse('getCacheEntry', async () =>
-        httpClient.getJson<ArtifactCacheEntry>(
-          /** For docs on this API, see {@link FakeGitHubActionsCacheServer} */
-          `${this.#baseUrl}_apis/artifactcache/cache?keys=${encodeURIComponent(
-            key
-          )}&version=${version}`
-        )
-      );
-    if (response.statusCode === /* No Content */ 204) {
-      return undefined;
-    }
-    if (response.statusCode === /* Too Many Requests */ 429) {
-      this.#onRateLimit(script);
-      return undefined;
-    }
-    if (
-      !isSuccessStatusCode(response.statusCode) ||
-      response.error !== undefined ||
-      response.result?.archiveLocation === undefined
-    ) {
-      throw new Error(
-        `Error getting cache entry: ${response.statusCode} ${
-          response.error?.message ?? '<no error message>'
-        }`
-      );
-    }
-    return response.result.archiveLocation;
   }
 
   /**
