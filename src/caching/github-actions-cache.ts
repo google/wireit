@@ -301,6 +301,43 @@ export class GitHubActionsCache implements Cache {
     }
   }
 
+  async #commit(
+    script: ScriptReference,
+    id: number,
+    tarballBytes: number
+  ): Promise<boolean> {
+    const url = new URL(
+      `_apis/artifactcache/caches/${String(id)}`,
+      this.#baseUrl
+    );
+    const reqBody = JSON.stringify({
+      size: tarballBytes,
+    });
+    const {req, resPromise} = this.#request(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+    });
+    req.end(reqBody);
+    const res = await resPromise;
+
+    if (res.statusCode === /* Too Many Requests */ 429) {
+      this.#onRateLimit(script);
+      return false;
+    }
+
+    if (!isOk(res)) {
+      throw new Error(
+        `GitHub Cache commit HTTP ${String(
+          res.statusCode
+        )} error: ${await readBody(res)}`
+      );
+    }
+
+    return true;
+  }
+
   #request(
     url: URL,
     options?: http.RequestOptions
