@@ -20,31 +20,6 @@ import type {Logger} from '../logging/logger.js';
 import type {RelativeEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
 
-// TODO(aomarks) Consider dropping the dependency on @actions/cache by writing
-// our own implementation. See https://github.com/google/wireit/issues/107 for
-// details.
-//
-// The public API provided by the @actions/cache package doesn't exactly meet
-// our needs, because it automatically uses the file paths that are included in
-// the tarball as part of the cache entry version (see
-// https://github.com/actions/toolkit/blob/7654d97eb6c4a3d564f036a2d4a783ae9105ec07/packages/cache/src/internal/cacheHttpClient.ts#L70),
-// and implements globbing differently.
-//
-// We want complete control over our cache key, instead of having it be
-// generated automatically based on file paths.
-//
-// For this reason, we are reaching into the "internal/" directory of this
-// package to get more control. This is bad because those modules could change
-// at any time, which is why we currently have a strict ("=") version pin in our
-// package.json.
-//
-// The @actions/cache package is also our largest dependency by far. It's 22MB,
-// and adds 63 transitive dependencies.
-//
-// The logic in here could be re-implemented in a fairly minimal way. The main
-// tricky part is the way it handles tarball generation across platforms
-// (https://github.com/actions/toolkit/blob/7654d97eb6c4a3d564f036a2d4a783ae9105ec07/packages/cache/src/internal/tar.ts).
-
 /**
  * Caches script output to the GitHub Actions caching service.
  */
