@@ -671,6 +671,33 @@ test(
 );
 
 test(
+  'missing same-package dependency with colon in name',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['test:missing'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ package.json:8:9 Cannot find script named "test:missing" in package "${rig.temp}"
+            "test:missing"
+            ~~~~~~~~~~~~~~`
+    );
+  })
+);
+test(
   'missing cross package dependency with complicated escaped names',
   timeout(async ({rig}) => {
     // This test writes a file with a name that windows can't handle.
