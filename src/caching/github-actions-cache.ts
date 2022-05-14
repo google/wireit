@@ -8,11 +8,10 @@ import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import * as https from 'https';
 import {createHash} from 'crypto';
-import {downloadCache} from '@actions/cache/lib/internal/cacheHttpClient.js';
 import {scriptReferenceToString} from '../script.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {execFile} from 'child_process';
-import {createReadStream} from 'fs';
+import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
@@ -517,14 +516,32 @@ class GitHubActionsCacheHit implements CacheHit {
     const tempDir = await makeTempDir(this.#script);
     const tarballPath = pathlib.join(tempDir, 'cache.tgz');
     try {
-      // TODO(aomarks) We should recover from rate limits and other HTTP errors
-      // here, but we currently seem to just get an exception about the tarball
-      // being invalid so we can't really tell what's going on.
-      await downloadCache(this.#url, tarballPath);
+      // TODO(aomarks) Recover from rate limits and other HTTP errors.
+      await this.#download(tarballPath);
       await this.#extract(tarballPath);
     } finally {
       await fs.rm(tempDir, {recursive: true});
     }
+  }
+
+  async #download(tarballPath: string): Promise<void> {
+    const {req, resPromise} = request(this.#url);
+    req.end();
+    const res = await resPromise;
+    if (!isOk(res)) {
+      throw new Error(
+        `GitHub Cache download HTTP ${String(res.statusCode)} error`
+      );
+    }
+    await new Promise<void>((resolve, reject) => {
+      const writeTarballStream = createWriteStream(tarballPath);
+      writeTarballStream.on('error', (error) => reject(error));
+      res.on('error', (error) => reject(error));
+      res.pipe(writeTarballStream);
+      writeTarballStream.on('close', () => {
+        resolve();
+      });
+    });
   }
 
   #extract(tarballPath: string): Promise<void> {
