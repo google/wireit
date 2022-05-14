@@ -6,7 +6,7 @@
 
 import type {Failure} from './event.js';
 import * as pathlib from 'path';
-import {JsonFile} from './util/ast.js';
+import {JsonFile, NamedAstNode} from './util/ast.js';
 
 export type Result<T, E = Failure> =
   | {ok: true; value: T}
@@ -200,3 +200,15 @@ export function drawSquiggle(location: Location, indent: number): string {
 
 export const offsetInsideRange = (offset: number, range: Range): boolean =>
   offset >= range.offset && offset < range.offset + range.length;
+
+export const offsetInsideNamedNode = (
+  offset: number,
+  namedNode: NamedAstNode
+): boolean => {
+  const valueEnd = namedNode.offset + namedNode.length;
+  const totalLength = valueEnd - namedNode.name.offset;
+  return offsetInsideRange(offset, {
+    offset: namedNode.name.offset,
+    length: totalLength,
+  });
+};

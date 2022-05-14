@@ -54,7 +54,7 @@ export interface NamedAstNode<T extends ValueTypes = ValueTypes>
    *            ~~~~~~~
    * ```
    *
-   * Then this name represents:
+   * Then `this.name` represents:
    * ```json
    *     "key": "value",
    *     ~~~~~
