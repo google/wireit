@@ -75,6 +75,7 @@ type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
  */
 export class FakeGitHubActionsCacheServer {
   readonly #server: http.Server;
+  #url!: URL;
 
   /**
    * An authentication token which this server will require to be set in a
@@ -116,18 +117,24 @@ export class FakeGitHubActionsCacheServer {
     };
   }
 
-  async listen(): Promise<void> {
-    return new Promise((resolve) => {
-      this.#server.listen(
-        {
-          host: 'localhost',
-          port: /* random free */ 0,
-        },
-        () => {
-          resolve();
-        }
-      );
+  async listen(): Promise<string> {
+    const host = 'localhost';
+    await new Promise<void>((resolve) => {
+      this.#server.listen({host, port: /* random free */ 0}, () => resolve());
     });
+    const address = this.#server.address();
+    if (address === null || typeof address !== 'object') {
+      throw new Error(
+        `Expected server address to be ServerInfo object, ` +
+          `got ${JSON.stringify(address)}`
+      );
+    }
+    // The real API includes a unique identifier as the base path. It's good to
+    // include this in the fake because it ensures the client is preserving the
+    // base path and not just using the origin.
+    const randomBasePath = Math.random().toString().slice(2);
+    this.#url = new URL(`http://${host}:${address.port}/${randomBasePath}/`);
+    return this.#url.href;
   }
 
   async close(): Promise<void> {
@@ -136,17 +143,6 @@ export class FakeGitHubActionsCacheServer {
         resolve();
       });
     });
-  }
-
-  get port(): number {
-    const address = this.#server.address();
-    if (address === null || typeof address !== 'object') {
-      throw new Error(
-        `Expected server address to be ServerInfo object, ` +
-          `got ${JSON.stringify(address)}`
-      );
-    }
-    return address.port;
   }
 
   rateLimitNextRequest(apiName: ApiName): void {
@@ -187,34 +183,35 @@ export class FakeGitHubActionsCacheServer {
     if (!request.url) {
       return this.#respond(response, 404);
     }
-    // Request.url is only the pathname + query params.
-    const url = new URL(request.url, `http://localhost:${this.port}`);
+    // request.url is a string with pathname + query params.
+    const url = new URL(request.url, this.#url.origin);
+    if (!url.pathname.startsWith(this.#url.pathname)) {
+      // Missing the random base path.
+      return this.#respond(response, 404);
+    }
+    const api = url.pathname.slice(this.#url.pathname.length);
 
-    if (
-      url.pathname === '/_apis/artifactcache/cache' &&
-      request.method === 'GET'
-    ) {
+    if (api === '_apis/artifactcache/cache' && request.method === 'GET') {
       return this.#check(request, response, url);
     }
 
-    if (
-      url.pathname === '/_apis/artifactcache/caches' &&
-      request.method === 'POST'
-    ) {
+    if (api === '_apis/artifactcache/caches' && request.method === 'POST') {
       return this.#reserve(request, response);
     }
 
-    if (url.pathname.startsWith('/_apis/artifactcache/caches/')) {
+    if (api.startsWith('_apis/artifactcache/caches/')) {
+      const tail = api.slice('_apis/artifactcache/caches/'.length);
       if (request.method === 'PATCH') {
-        return this.#upload(request, response, url);
+        return this.#upload(request, response, tail);
       }
       if (request.method === 'POST') {
-        return this.#commit(request, response, url);
+        return this.#commit(request, response, tail);
       }
     }
 
-    if (url.pathname.startsWith('/tarballs/') && request.method === 'GET') {
-      return this.#download(request, response, url);
+    if (api.startsWith('tarballs/') && request.method === 'GET') {
+      const tail = api.slice('tarballs/'.length);
+      return this.#download(request, response, tail);
     }
 
     this.#respond(response, 404);
@@ -276,7 +273,7 @@ export class FakeGitHubActionsCacheServer {
       response,
       200,
       JSON.stringify({
-        archiveLocation: `http://localhost:${this.port}/tarballs/${entry.tarballId}`,
+        archiveLocation: `${this.#url.href}tarballs/${entry.tarballId}`,
         cacheKey: keys,
       })
     );
@@ -335,7 +332,7 @@ export class FakeGitHubActionsCacheServer {
   #upload(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
+    idStr: string
   ): void {
     this.metrics.upload++;
     if (this.#rateLimitNextRequest.delete('upload')) {
@@ -345,7 +342,6 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    const idStr = url.pathname.slice('/_apis/artifactcache/caches/'.length);
     if (idStr.match(/\d+/) === null) {
       return this.#respond(response, 400, 'Cache ID was not an integer');
     }
@@ -387,7 +383,7 @@ export class FakeGitHubActionsCacheServer {
   #commit(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
+    idStr: string
   ): void {
     this.metrics.commit++;
     if (this.#rateLimitNextRequest.delete('commit')) {
@@ -397,7 +393,6 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    const idStr = url.pathname.slice('/_apis/artifactcache/caches/'.length);
     if (idStr.match(/\d+/) === null) {
       return this.#respond(response, 400, 'Cache ID was not an integer');
     }
@@ -425,15 +420,14 @@ export class FakeGitHubActionsCacheServer {
   #download(
     _request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
+    tarballId: string
   ): void {
     this.metrics.download++;
     if (this.#rateLimitNextRequest.delete('download')) {
       return this.#rateLimit(response);
     }
 
-    const tarballId = url.pathname.slice('/tarballs/'.length) as TarballId;
-    const id = this.#tarballIdToEntryId.get(tarballId);
+    const id = this.#tarballIdToEntryId.get(tarballId as TarballId);
     if (id === undefined) {
       return this.#respond(response, 404, 'Tarball does not exist');
     }

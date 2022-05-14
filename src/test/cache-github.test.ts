@@ -23,11 +23,11 @@ test.before.each(async (ctx) => {
     // suite) because we want fresh cache state for each test.
     const authToken = String(Math.random()).slice(2);
     ctx.server = new FakeGitHubActionsCacheServer(authToken);
-    await ctx.server.listen();
+    const actionsCacheUrl = await ctx.server.listen();
     ctx.rig = new WireitTestRig();
     ctx.rig.env = {
       WIREIT_CACHE: 'github',
-      ACTIONS_CACHE_URL: `http://localhost:${ctx.server.port}/`,
+      ACTIONS_CACHE_URL: actionsCacheUrl,
       ACTIONS_RUNTIME_TOKEN: authToken,
       RUNNER_TEMP: pathlib.join(ctx.rig.temp, 'github-cache-temp'),
     };
