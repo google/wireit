@@ -8,15 +8,12 @@ import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import * as https from 'https';
 import {createHash} from 'crypto';
-import * as cacheUtils from '@actions/cache/lib/internal/cacheUtils.js';
-import {extractTar} from '@actions/cache/lib/internal/tar.js';
 import {
   saveCache,
   downloadCache,
 } from '@actions/cache/lib/internal/cacheHttpClient.js';
 import {scriptReferenceToString} from '../script.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
-import {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 import {execFile} from 'child_process';
 
 import type * as http from 'http';
@@ -160,7 +157,7 @@ export class GitHubActionsCache implements Cache {
       const {archiveLocation} = JSON.parse(await readBody(res)) as {
         archiveLocation: string;
       };
-      return new GitHubActionsCacheHit(archiveLocation);
+      return new GitHubActionsCacheHit(script, archiveLocation);
     }
 
     if (res.statusCode === /* Too Many Requests */ 429) {
@@ -398,10 +395,12 @@ export class GitHubActionsCache implements Cache {
 }
 
 class GitHubActionsCacheHit implements CacheHit {
+  #script: ScriptReference;
   #url: string;
   #applied = false;
 
-  constructor(location: string) {
+  constructor(script: ScriptReference, location: string) {
+    this.#script = script;
     this.#url = location;
   }
 
@@ -410,19 +409,33 @@ class GitHubActionsCacheHit implements CacheHit {
       throw new Error('GitHubActionsCacheHit.apply was called more than once');
     }
     this.#applied = true;
-    const archivePath = pathlib.join(
-      await cacheUtils.createTempDirectory(),
-      cacheUtils.getCacheFileName(CompressionMethod.Gzip)
-    );
+    const tempDir = await makeTempDir(this.#script);
+    const tarballPath = pathlib.join(tempDir, 'cache.tgz');
     try {
       // TODO(aomarks) We should recover from rate limits and other HTTP errors
       // here, but we currently seem to just get an exception about the tarball
       // being invalid so we can't really tell what's going on.
-      await downloadCache(this.#url, archivePath);
-      await extractTar(archivePath, CompressionMethod.Gzip);
+      await downloadCache(this.#url, tarballPath);
+      await this.#extract(tarballPath);
     } finally {
-      await cacheUtils.unlinkFile(archivePath);
+      await fs.rm(tempDir, {recursive: true});
     }
+  }
+
+  #extract(tarballPath: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      execFile(
+        'tar',
+        ['--extract', '--file', tarballPath, '--gzip', '-P'],
+        (error: unknown) => {
+          if (error != null) {
+            reject(`tar error: ${String(error)}`);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
   }
 }
 
