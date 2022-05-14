@@ -293,7 +293,6 @@
     "bracketSpacing": false
   },
   "dependencies": {
-    "@actions/cache": "=2.0.2",
     "braces": "^3.0.2",
     "chokidar": "^3.5.3",
     "fast-glob": "^3.2.11",
