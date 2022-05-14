@@ -184,51 +184,62 @@ export class GitHubActionsCache implements Cache {
       pathlib.join(script.packageDir, rel.path)
     );
     const tempDir = await makeTempDir(script);
-    const tarballPath = await this.#makeTarball([...absFiles], tempDir);
-
     try {
-      const version = this.#computeVersion(stateStr);
-      const {size: tarBytes} = await fs.stat(tarballPath);
-      // Reference:
-      // https://github.com/actions/toolkit/blob/f8a69bc473af4a204d0c03de61d5c9d1300dfb17/packages/cache/src/cache.ts#L174
-      const GB = 1024 * 1024 * 1024;
-      const maxBytes = 10 * GB;
-      if (tarBytes > maxBytes) {
-        this.#logger.log({
-          script,
-          type: 'info',
-          detail: 'generic',
-          message:
-            `Output was too big to be cached: ` +
-            `${Math.round(tarBytes / GB)}GB > ` +
-            `${Math.round(maxBytes / GB)}GB.`,
-        });
-        return false;
-      }
-      const id = await this.#reserveCacheEntry(
+      const tarballPath = await this.#makeTarball([...absFiles], tempDir);
+      return await this.#reserveUploadAndCommitTarball(
         script,
-        this.#computeCacheKey(script),
-        version,
-        tarBytes
+        stateStr,
+        tarballPath
       );
-      // It's likely that we'll occasionally fail to reserve an entry and get
-      // undefined here, especially when running multiple GitHub Action jobs in
-      // parallel with the same scripts, because there is a window of time
-      // between calling "get" and "set" on the cache in which another worker
-      // could have reserved the entry before us. Non fatal, just don't save.
-      if (id !== undefined) {
-        try {
-          await saveCache(id, tarballPath);
-        } catch (error) {
-          if (/\W429\W/.test((error as Error).message)) {
-            this.#onRateLimit(script);
-            return false;
-          }
-          throw error;
-        }
-      }
     } finally {
       await fs.rm(tempDir, {recursive: true});
+    }
+  }
+
+  async #reserveUploadAndCommitTarball(
+    script: ScriptReference,
+    stateStr: ScriptStateString,
+    tarballPath: string
+  ): Promise<boolean> {
+    const tarStats = await fs.stat(tarballPath);
+    const tarBytes = tarStats.size;
+    // Reference:
+    // https://github.com/actions/toolkit/blob/f8a69bc473af4a204d0c03de61d5c9d1300dfb17/packages/cache/src/cache.ts#L174
+    const GB = 1024 * 1024 * 1024;
+    const maxBytes = 10 * GB;
+    if (tarBytes > maxBytes) {
+      this.#logger.log({
+        script,
+        type: 'info',
+        detail: 'generic',
+        message:
+          `Output was too big to be cached: ` +
+          `${Math.round(tarBytes / GB)}GB > ` +
+          `${Math.round(maxBytes / GB)}GB.`,
+      });
+      return false;
+    }
+    const id = await this.#reserveCacheEntry(
+      script,
+      this.#computeCacheKey(script),
+      this.#computeVersion(stateStr),
+      tarBytes
+    );
+    // It's likely that we'll occasionally fail to reserve an entry and get
+    // undefined here, especially when running multiple GitHub Action jobs in
+    // parallel with the same scripts, because there is a window of time between
+    // calling "get" and "set" on the cache in which another worker could have
+    // reserved the entry before us. Non fatal, just don't save.
+    if (id !== undefined) {
+      try {
+        await saveCache(id, tarballPath, {});
+      } catch (error) {
+        if (/\W429\W/.test((error as Error).message)) {
+          this.#onRateLimit(script);
+          return false;
+        }
+        throw error;
+      }
     }
     return true;
   }
