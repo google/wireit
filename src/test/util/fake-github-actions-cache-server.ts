@@ -29,9 +29,15 @@ type KeyAndVersion = string & {
 };
 
 interface CacheEntry {
-  chunks: Buffer[];
+  chunks: ChunkRange[];
   commited: boolean;
   tarballId: TarballId;
+}
+
+interface ChunkRange {
+  start: number;
+  end: number;
+  buffer: Buffer;
 }
 
 const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
@@ -338,8 +344,8 @@ export class FakeGitHubActionsCacheServer {
   /**
    * Handle the PATCH:/_apis/artifactcache/caches/<CacheEntryId> API.
    *
-   * This API receives a tarball (or a chunk of a tarball) and stores it using
-   * the given key (as returned by the reserve cache API).
+   * This API receives a chunk of a tarball defined by the Content-Range header,
+   * and stores it using the given key (as returned by the reserve cache API).
    */
   async #upload(
     request: http.IncomingMessage,
@@ -363,30 +369,36 @@ export class FakeGitHubActionsCacheServer {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
-    if (entry.chunks.length > 0) {
-      // The real server supports multiple requests uploading different ranges
-      // of the same tarball distinguished using the Content-Range header, for
-      // large tarballs. However, our tests don't test this functionality, so we
-      // don't bother implementing it.
-      //
-      // TODO(aomarks) We probably should actually try to cover this case.
+    const contentRange = request.headers['content-range'] ?? '';
+    const parsedContentRange = contentRange.match(/^bytes (\d+)-(\d+)\/\*$/);
+    if (parsedContentRange === null) {
       return this.#respond(
         response,
-        501,
-        'Multiple tarball upload requests not supported'
+        400,
+        'Missing or invalid Content-Range header'
       );
     }
+    const start = Number(parsedContentRange[1]);
+    const end = Number(parsedContentRange[2]);
+    const expectedLength = end - start + 1;
 
     const buffer = await this.#readBody(request);
-    entry.chunks.push(buffer);
+    if (buffer.length !== expectedLength) {
+      return this.#respond(
+        response,
+        400,
+        'Chunk length did not match Content-Range header'
+      );
+    }
+    entry.chunks.push({start, end, buffer});
     this.#respond(response, /* No Content */ 204);
   }
 
   /**
    * Handle the POST:/_apis/artifactcache/caches/<CacheEntryId> API.
    *
-   * This API marks a tarball uploaded by the onSaveCache API (which could be
-   * sent in multiple chunks) as complete.
+   * This API marks an uploaded tarball (which can be sent in multiple chunks)
+   * as complete.
    */
   async #commit(
     request: http.IncomingMessage,
@@ -411,20 +423,34 @@ export class FakeGitHubActionsCacheServer {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
+    // Sort the chunks according to range and validate that there are no missing
+    // or overlapping chunks.
+    entry.chunks.sort((a, b) => a.start - b.start);
+    let expectedNextStart = 0;
+    let totalLength = 0;
+    for (const chunk of entry.chunks) {
+      if (chunk.start !== expectedNextStart) {
+        return this.#respond(
+          response,
+          400,
+          'Cache entry chunks were not contiguous'
+        );
+      }
+      expectedNextStart = chunk.end + 1;
+      totalLength += chunk.buffer.length;
+    }
+
+    // Validate against the expected total length from this request.
     const json = await this.#readBody(request);
     const data = JSON.parse(json.toString()) as {
       size: number;
     };
-    const expectedSize = data.size;
-    const actualSize = entry.chunks.reduce(
-      (sum, chunk) => sum + chunk.length,
-      0
-    );
-    if (actualSize !== expectedSize) {
+    const expectedLength = data.size;
+    if (totalLength !== expectedLength) {
       return this.#respond(
         response,
         400,
-        'Cache entry did not have expected size'
+        'Cache entry did not match expected length'
       );
     }
 
@@ -467,12 +493,12 @@ export class FakeGitHubActionsCacheServer {
 
     response.statusCode = 200;
     const contentLength = entry.chunks.reduce(
-      (acc, chunk) => acc + chunk.length,
+      (sum, chunk) => sum + chunk.buffer.length,
       0
     );
     response.setHeader('Content-Length', contentLength);
     for (const chunk of entry.chunks) {
-      response.write(chunk);
+      response.write(chunk.buffer);
     }
     response.end();
   }

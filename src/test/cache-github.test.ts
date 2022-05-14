@@ -6,6 +6,7 @@
 
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
+import * as crypto from 'crypto';
 import {suite} from 'uvu';
 import {WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
@@ -276,6 +277,109 @@ test(
     // might not really be a problem in reality, because tarballs come from a
     // different CDN server, so probably have a separate rate limit from the
     // rest of the caching APIs.
+  })
+);
+
+test(
+  'uploads large tarball in multiple chunks',
+  timeout(async ({rig, server}) => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+    });
+
+    // Generate a random file which is big enough to exceed the maximum chunk
+    // size, so that it gets split into 2 separate upload requests.
+    //
+    // The maximum chunk size is defined here:
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
+    //
+    // This needs to be actually random data, not just arbitrary, because the
+    // tarball will be compressed, and we need a poor compression ratio in order
+    // to hit our target size.
+    const MB = 1024 * 1024;
+    const maxChunkBytes = 32 * MB;
+    const compressionHeadroomBytes = 8 * MB; // Found experimentally.
+    const totalBytes = maxChunkBytes + compressionHeadroomBytes;
+    const fileContent = crypto.randomBytes(totalBytes).toString();
+
+    // On the initial run a large file is created and should be cached.
+    {
+      await rig.write('input', 'v0');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', fileContent);
+      inv.exit(0);
+
+      // Note here is when we are creating the compressed tarball, which is the
+      // slowest part of this test.
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        // Since we had a file that was larger than the maximum chunk size, we
+        // should have 2 upload requests.
+        upload: 2,
+        commit: 1,
+        download: 0,
+      });
+    }
+
+    // Invalidate cache by changing input.
+    {
+      await rig.write('input', 'v1');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      assert.not(await rig.exists('output'));
+      inv.exit(0);
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        upload: 1,
+        commit: 1,
+        download: 0,
+      });
+    }
+
+    // Change input back to v0. The large file should be restored from cache.
+    {
+      await rig.write('input', 'v0');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 0,
+        upload: 0,
+        commit: 0,
+        download: 1,
+      });
+      assert.equal(await rig.read('output'), fileContent);
+    }
   })
 );
 
