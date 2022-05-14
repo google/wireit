@@ -8,13 +8,11 @@ import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import * as https from 'https';
 import {createHash} from 'crypto';
-import {
-  saveCache,
-  downloadCache,
-} from '@actions/cache/lib/internal/cacheHttpClient.js';
+import {downloadCache} from '@actions/cache/lib/internal/cacheHttpClient.js';
 import {scriptReferenceToString} from '../script.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {execFile} from 'child_process';
+import {createReadStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
@@ -201,20 +199,20 @@ export class GitHubActionsCache implements Cache {
     stateStr: ScriptStateString,
     tarballPath: string
   ): Promise<boolean> {
-    const tarStats = await fs.stat(tarballPath);
-    const tarBytes = tarStats.size;
+    const tarballStats = await fs.stat(tarballPath);
+    const tarballBytes = tarballStats.size;
     // Reference:
     // https://github.com/actions/toolkit/blob/f8a69bc473af4a204d0c03de61d5c9d1300dfb17/packages/cache/src/cache.ts#L174
     const GB = 1024 * 1024 * 1024;
     const maxBytes = 10 * GB;
-    if (tarBytes > maxBytes) {
+    if (tarballBytes > maxBytes) {
       this.#logger.log({
         script,
         type: 'info',
         detail: 'generic',
         message:
           `Output was too big to be cached: ` +
-          `${Math.round(tarBytes / GB)}GB > ` +
+          `${Math.round(tarballBytes / GB)}GB > ` +
           `${Math.round(maxBytes / GB)}GB.`,
       });
       return false;
@@ -223,25 +221,84 @@ export class GitHubActionsCache implements Cache {
       script,
       this.#computeCacheKey(script),
       this.#computeVersion(stateStr),
-      tarBytes
+      tarballBytes
     );
     // It's likely that we'll occasionally fail to reserve an entry and get
     // undefined here, especially when running multiple GitHub Action jobs in
     // parallel with the same scripts, because there is a window of time between
     // calling "get" and "set" on the cache in which another worker could have
     // reserved the entry before us. Non fatal, just don't save.
-    if (id !== undefined) {
-      try {
-        await saveCache(id, tarballPath, {});
-      } catch (error) {
-        if (/\W429\W/.test((error as Error).message)) {
+    if (id === undefined) {
+      return false;
+    }
+    if (!(await this.#upload(script, id, tarballPath, tarballBytes))) {
+      return false;
+    }
+    if (!(await this.#commit(script, id, tarballBytes))) {
+      return false;
+    }
+    return true;
+  }
+
+  async #upload(
+    script: ScriptReference,
+    id: number,
+    tarballPath: string,
+    tarballBytes: number
+  ): Promise<boolean> {
+    const url = new URL(`_apis/artifactcache/caches/${id}`, this.#baseUrl);
+    // Reference:
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
+    const maxChunkSize = 32 * 1024 * 1024;
+    const tarballHandle = await fs.open(tarballPath, 'r');
+    let offset = 0;
+    try {
+      // TODO(aomarks) Chunks could be uploaded in parallel.
+      while (offset < tarballBytes) {
+        const chunkSize = Math.min(tarballBytes - offset, maxChunkSize);
+        const start = offset;
+        const end = offset + chunkSize - 1;
+        offset += maxChunkSize;
+
+        const tarballChunkStream = createReadStream(tarballPath, {
+          fd: tarballHandle.fd,
+          start,
+          end,
+          autoClose: false,
+        });
+
+        const opts = {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-range': `bytes ${start}-${end}/*`,
+          },
+        };
+        const {req, resPromise} = this.#request(url, opts);
+        tarballChunkStream.pipe(req);
+        tarballChunkStream.on('close', () => {
+          req.end();
+        });
+
+        const res = await resPromise;
+
+        if (res.statusCode === /* Too Many Requests */ 429) {
           this.#onRateLimit(script);
           return false;
         }
-        throw error;
+
+        if (!isOk(res)) {
+          throw new Error(
+            `GitHub Cache upload HTTP ${String(
+              res.statusCode
+            )} error: ${await readBody(res)}\nopts: ${JSON.stringify(opts)}`
+          );
+        }
       }
+      return true;
+    } finally {
+      await tarballHandle.close();
     }
-    return true;
   }
 
   #request(
