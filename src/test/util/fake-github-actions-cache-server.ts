@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as http from 'http';
+import * as https from 'https';
+import type * as http from 'http';
 
 /**
  * Numeric ID for a cache entry.
@@ -107,9 +108,9 @@ export class FakeGitHubActionsCacheServer {
   readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
   readonly #tarballIdToEntryId = new Map<TarballId, EntryId>();
 
-  constructor(authToken: string) {
+  constructor(authToken: string, tlsCert: {cert: string; key: string}) {
     this.#authToken = authToken;
-    this.#server = http.createServer(this.#route);
+    this.#server = https.createServer(tlsCert, this.#route);
     this.resetMetrics();
   }
 
@@ -139,7 +140,7 @@ export class FakeGitHubActionsCacheServer {
     // include this in the fake because it ensures the client is preserving the
     // base path and not just using the origin.
     const randomBasePath = Math.random().toString().slice(2);
-    this.#url = new URL(`http://${host}:${address.port}/${randomBasePath}/`);
+    this.#url = new URL(`https://${host}:${address.port}/${randomBasePath}/`);
     return this.#url.href;
   }
 

@@ -4,26 +4,50 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
 import * as crypto from 'crypto';
+import * as selfsigned from 'selfsigned';
 import {suite} from 'uvu';
+import {fileURLToPath} from 'url';
 import {WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
 import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
 import {timeout} from './util/uvu-timeout.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = pathlib.dirname(__filename);
+const repoRoot = pathlib.resolve(__dirname, '..', '..');
+
+const SELF_SIGNED_CERT = selfsigned.generate([
+  {name: 'commonName', value: 'localhost'},
+]);
+const SELF_SIGNED_CERT_PATH = pathlib.resolve(
+  repoRoot,
+  'temp',
+  'self-signed.cert'
+);
 
 const test = suite<{
   rig: WireitTestRig;
   server: FakeGitHubActionsCacheServer;
 }>();
 
+test.before(async () => {
+  await fs.mkdir(pathlib.dirname(SELF_SIGNED_CERT_PATH), {recursive: true});
+  await fs.writeFile(SELF_SIGNED_CERT_PATH, SELF_SIGNED_CERT.cert);
+});
+
 test.before.each(async (ctx) => {
   try {
     // Set up the cache service for each test (as opposed to for the whole
     // suite) because we want fresh cache state for each test.
     const authToken = String(Math.random()).slice(2);
-    ctx.server = new FakeGitHubActionsCacheServer(authToken);
+    ctx.server = new FakeGitHubActionsCacheServer(authToken, {
+      cert: SELF_SIGNED_CERT.cert,
+      key: SELF_SIGNED_CERT.private,
+    });
     const actionsCacheUrl = await ctx.server.listen();
     ctx.rig = new WireitTestRig();
     ctx.rig.env = {
@@ -31,6 +55,8 @@ test.before.each(async (ctx) => {
       ACTIONS_CACHE_URL: actionsCacheUrl,
       ACTIONS_RUNTIME_TOKEN: authToken,
       RUNNER_TEMP: pathlib.join(ctx.rig.temp, 'github-cache-temp'),
+      // Tell Node to trust our self-signed certificate for HTTPS.
+      NODE_EXTRA_CA_CERTS: SELF_SIGNED_CERT_PATH,
     };
     await ctx.rig.setup();
   } catch (error) {
