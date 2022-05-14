@@ -448,6 +448,17 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
+    const expectedTransferEncoding = 'chunked';
+    const actualTransferEncoding = request.headers['transfer-encoding'];
+    if (actualTransferEncoding !== 'chunked') {
+      return this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected transfer-encoding ${JSON.stringify(
+          expectedTransferEncoding
+        )}. ` + `Got ${String(actualTransferEncoding)}.`
+      );
+    }
 
     if (idStr.match(/\d+/) === null) {
       return this.#respond(response, 400, 'Cache ID was not an integer');
