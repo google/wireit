@@ -471,6 +471,13 @@ export class FakeGitHubActionsCacheServer {
     const end = Number(parsedContentRange[2]);
     const expectedLength = end - start + 1;
 
+    // The real server might not be this strict, but we should make sure we
+    // aren't sending larger chunks than the official client library does.
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
+    if (expectedLength > 32 * 1024 * 1024) {
+      return this.#respond(response, 400, 'Upload chunk was > 32MB');
+    }
+
     const buffer = await this.#readBody(request);
     if (buffer.length !== expectedLength) {
       return this.#respond(
