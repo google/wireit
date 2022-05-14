@@ -6,6 +6,7 @@
 
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
+import * as https from 'https';
 import {createHash} from 'crypto';
 import * as cacheUtils from '@actions/cache/lib/internal/cacheUtils.js';
 import {createTar, extractTar} from '@actions/cache/lib/internal/tar.js';
@@ -21,6 +22,7 @@ import {scriptReferenceToString} from '../script.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 
+import type * as http from 'http';
 import type {
   ReserveCacheRequest,
   ReserveCacheResponse,
@@ -90,6 +92,8 @@ export class GitHubActionsCache implements Cache {
     // they are _not_ provided to regular "run" scripts. For this reason, we
     // re-export those variables so that all "run" scripts can access them using
     // the "google/wireit@setup-github-actions-caching/v1" re-usable workflow.
+    //
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L38
     const baseUrl = process.env['ACTIONS_CACHE_URL'];
     if (!baseUrl) {
       return {
@@ -118,6 +122,7 @@ export class GitHubActionsCache implements Cache {
       };
     }
 
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L63
     const authToken = process.env['ACTIONS_RUNTIME_TOKEN'];
     if (!authToken) {
       return {
@@ -285,6 +290,22 @@ export class GitHubActionsCache implements Cache {
       await tarballDeleted;
     }
     return true;
+  }
+
+  #request(
+    url: URL,
+    options?: http.RequestOptions
+  ): {req: http.ClientRequest; resPromise: Promise<http.IncomingMessage>} {
+    return request(url, {
+      ...options,
+      headers: {
+        // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
+        accept: 'application/json;api-version=6.0-preview.1',
+        // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/http-client/src/auth.ts#L46
+        authorization: `Bearer ${this.#authToken}`,
+        ...options?.headers,
+      },
+    });
   }
 
   /**
@@ -514,4 +535,54 @@ class GitHubActionsCacheHit implements CacheHit {
       fs.unlink(this.#emptyDirectoriesManifestPath),
     ]);
   }
+}
+
+function request(
+  url: URL | string,
+  options?: http.RequestOptions
+): {
+  req: http.ClientRequest;
+  resPromise: Promise<http.IncomingMessage>;
+} {
+  const opts = {
+    ...options,
+    headers: {
+      // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L67
+      'user-agent': 'actions/cache',
+      ...options?.headers,
+    },
+  };
+  let req!: http.ClientRequest;
+  const resPromise = new Promise<http.IncomingMessage>((resolve, reject) => {
+    req = https.request(url, opts, (res) => {
+      resolve(res);
+    });
+    req.on('error', (error) => {
+      reject(error);
+    });
+  });
+  return {req, resPromise};
+}
+
+function isOk(res: http.IncomingMessage): boolean {
+  return (
+    res.statusCode !== undefined &&
+    res.statusCode >= 200 &&
+    res.statusCode < 300
+  );
+}
+
+function readBody(res: http.IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  res.on('data', (chunk: Buffer) => {
+    chunks.push(chunk);
+  });
+  return new Promise((resolve, reject) => {
+    res.on('error', (error: Error) => {
+      reject(error);
+    });
+    res.on('end', () => {
+      resolve(Buffer.concat(chunks).toString());
+    });
+  });
 }
