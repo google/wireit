@@ -46,6 +46,9 @@ const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
 
 type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
 
+// https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
+const JSON_RESPONSE_TYPE = 'application/json;api-version=6.0-preview.1';
+
 /**
  * A fake version of the GitHub Actions cache server.
  *
@@ -195,6 +198,67 @@ export class FakeGitHubActionsCacheServer {
     return true;
   }
 
+  #checkUserAgent(
+    request: http.IncomingMessage,
+    response: http.ServerResponse
+  ): boolean {
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L67
+    const expected = 'actions/cache';
+    const actual = request.headers['user-agent'];
+    if (actual !== expected) {
+      // The real server might not be this strict, but we want to be sure we're
+      // acting just like the official client library.
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected user-agent ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  #checkContentType(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    expected: string | undefined
+  ): boolean {
+    const actual = request.headers['content-type'];
+    if (actual !== expected) {
+      // The real server might not be this strict, but we want to be sure we're
+      // acting just like the official client library.
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected content-type ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  #checkAccept(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    expected: string | undefined
+  ): boolean {
+    const actual = request.headers['accept'];
+    if (actual !== expected) {
+      // The real server might not be this strict, but we want to be sure we're
+      // acting just like the official client library.
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected accept ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`
+      );
+      return false;
+    }
+    return true;
+  }
+
   #route = (
     request: http.IncomingMessage,
     response: http.ServerResponse
@@ -209,6 +273,10 @@ export class FakeGitHubActionsCacheServer {
       return this.#respond(response, 404);
     }
     const api = url.pathname.slice(this.#url.pathname.length);
+
+    if (!this.#checkUserAgent(request, response)) {
+      return;
+    }
 
     if (api === '_apis/artifactcache/cache' && request.method === 'GET') {
       return this.#check(request, response, url);
@@ -253,6 +321,12 @@ export class FakeGitHubActionsCacheServer {
       return this.#rateLimit(response);
     }
     if (!this.#checkAuthorization(request, response)) {
+      return;
+    }
+    if (!this.#checkContentType(request, response, undefined)) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
@@ -316,6 +390,12 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
+    if (!this.#checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+      return;
+    }
 
     const json = await this.#readBody(request);
     const data = JSON.parse(json.toString()) as {
@@ -358,6 +438,14 @@ export class FakeGitHubActionsCacheServer {
       return this.#rateLimit(response);
     }
     if (!this.#checkAuthorization(request, response)) {
+      return;
+    }
+    if (
+      !this.#checkContentType(request, response, 'application/octet-stream')
+    ) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
@@ -411,6 +499,12 @@ export class FakeGitHubActionsCacheServer {
       return this.#rateLimit(response);
     }
     if (!this.#checkAuthorization(request, response)) {
+      return;
+    }
+    if (!this.#checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
@@ -471,13 +565,19 @@ export class FakeGitHubActionsCacheServer {
    * unguessable.
    */
   #download(
-    _request: http.IncomingMessage,
+    request: http.IncomingMessage,
     response: http.ServerResponse,
     tarballId: string
   ): void {
     this.metrics.download++;
     if (this.#rateLimitNextRequest.delete('download')) {
       return this.#rateLimit(response);
+    }
+    if (!this.#checkContentType(request, response, undefined)) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, undefined)) {
+      return;
     }
 
     const id = this.#tarballIdToEntryId.get(tarballId as TarballId);
