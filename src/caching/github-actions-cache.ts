@@ -19,8 +19,8 @@ import {BearerCredentialHandler} from '@actions/http-client/auth.js';
 import {isSuccessStatusCode} from '@actions/cache/lib/internal/requestUtils.js';
 import {scriptReferenceToString} from '../script.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
+import {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 
-import type {CompressionMethod} from '@actions/cache/lib/internal/constants.js';
 import type {
   ReserveCacheRequest,
   ReserveCacheResponse,
@@ -31,7 +31,7 @@ import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference, ScriptStateString} from '../script.js';
 import type {Logger} from '../logging/logger.js';
 import type {RelativeEntry} from '../util/glob.js';
-import {Result} from '../error.js';
+import type {Result} from '../error.js';
 
 // TODO(aomarks) Consider dropping the dependency on @actions/cache by writing
 // our own implementation. See https://github.com/google/wireit/issues/107 for
@@ -62,17 +62,6 @@ import {Result} from '../error.js';
  * Caches script output to the GitHub Actions caching service.
  */
 export class GitHubActionsCache implements Cache {
-  static #compressionMethodPromise?: Promise<CompressionMethod>;
-
-  static get #compressionMethod(): Promise<CompressionMethod> {
-    // We only need to do this once per Wireit process. It's expensive because
-    // it spawns a child process to test the tar version.
-    if (this.#compressionMethodPromise === undefined) {
-      this.#compressionMethodPromise = cacheUtils.getCompressionMethod();
-    }
-    return this.#compressionMethodPromise;
-  }
-
   readonly #baseUrl: string;
   readonly #authToken: string;
   readonly #logger: Logger;
@@ -157,8 +146,7 @@ export class GitHubActionsCache implements Cache {
       return undefined;
     }
 
-    const compressionMethod = await GitHubActionsCache.#compressionMethod;
-    const version = this.#computeVersion(stateStr, compressionMethod);
+    const version = this.#computeVersion(stateStr);
     const location = await this.#checkForCacheEntry(
       script,
       this.#computeCacheKey(script),
@@ -170,7 +158,6 @@ export class GitHubActionsCache implements Cache {
     }
     return new GitHubActionsCacheHit(
       location,
-      compressionMethod,
       this.#emptyDirectoriesManifestPath(script, version)
     );
   }
@@ -231,8 +218,7 @@ export class GitHubActionsCache implements Cache {
       }
     }
 
-    const compressionMethod = await GitHubActionsCache.#compressionMethod;
-    const version = this.#computeVersion(stateStr, compressionMethod);
+    const version = this.#computeVersion(stateStr);
 
     let emptyDirsManifestPath: string | undefined;
     if (emptyDirs.size > 0) {
@@ -248,7 +234,7 @@ export class GitHubActionsCache implements Cache {
       files.add(emptyDirsManifestPath);
     }
 
-    const tarballPath = await this.#makeTarball([...files], compressionMethod);
+    const tarballPath = await this.#makeTarball([...files]);
     try {
       const tarBytes = cacheUtils.getArchiveFileSizeInBytes(tarballPath);
       // Reference: https://github.com/actions/toolkit/blob/f8a69bc473af4a204d0c03de61d5c9d1300dfb17/packages/cache/src/cache.ts#L174
@@ -334,15 +320,12 @@ export class GitHubActionsCache implements Cache {
       .digest('hex');
   }
 
-  #computeVersion(
-    stateStr: ScriptStateString,
-    compressionMethod: CompressionMethod
-  ): string {
+  #computeVersion(stateStr: ScriptStateString): string {
     return createHash('sha256')
       .update(
         [
           stateStr,
-          compressionMethod, // e.g. zstd, gzip
+          'gzip', // e.g. zstd, gzip
           // The ImageOS environment variable tells us which operating system
           // version is being used for the worker VM (e.g. "ubuntu20",
           // "macos11"). We already include process.platform in ScriptState, but
@@ -377,15 +360,12 @@ export class GitHubActionsCache implements Cache {
    *
    * @returns The full path to the tarball file on disk.
    */
-  async #makeTarball(
-    paths: string[],
-    compressionMethod: CompressionMethod
-  ): Promise<string> {
+  async #makeTarball(paths: string[]): Promise<string> {
     const folder = await cacheUtils.createTempDirectory();
-    await createTar(folder, paths, compressionMethod);
+    await createTar(folder, paths, CompressionMethod.Gzip);
     const path = pathlib.join(
       folder,
-      cacheUtils.getCacheFileName(compressionMethod)
+      cacheUtils.getCacheFileName(CompressionMethod.Gzip)
     );
     return path;
   }
@@ -485,17 +465,11 @@ export class GitHubActionsCache implements Cache {
 
 class GitHubActionsCacheHit implements CacheHit {
   #url: string;
-  #compressionMethod: CompressionMethod;
   #applied = false;
   #emptyDirectoriesManifestPath: string;
 
-  constructor(
-    location: string,
-    compressionMethod: CompressionMethod,
-    emptyDirectoriesManifestPath: string
-  ) {
+  constructor(location: string, emptyDirectoriesManifestPath: string) {
     this.#url = location;
-    this.#compressionMethod = compressionMethod;
     this.#emptyDirectoriesManifestPath = emptyDirectoriesManifestPath;
   }
 
@@ -506,14 +480,14 @@ class GitHubActionsCacheHit implements CacheHit {
     this.#applied = true;
     const archivePath = pathlib.join(
       await cacheUtils.createTempDirectory(),
-      cacheUtils.getCacheFileName(this.#compressionMethod)
+      cacheUtils.getCacheFileName(CompressionMethod.Gzip)
     );
     try {
       // TODO(aomarks) We should recover from rate limits and other HTTP errors
       // here, but we currently seem to just get an exception about the tarball
       // being invalid so we can't really tell what's going on.
       await downloadCache(this.#url, archivePath);
-      await extractTar(archivePath, this.#compressionMethod);
+      await extractTar(archivePath, CompressionMethod.Gzip);
       await this.#createEmptyDirectories();
     } finally {
       await cacheUtils.unlinkFile(archivePath);
