@@ -553,7 +553,10 @@ export class Analyzer {
                 const hasColon = unresolved.value.includes(':');
                 let offset;
                 let length;
-                if (!hasColon) {
+                if (
+                  !hasColon ||
+                  resolved.packageDir === placeholder.packageDir
+                ) {
                   offset = unresolved.offset;
                   length = unresolved.length;
                 } else {

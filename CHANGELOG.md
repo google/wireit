@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Fixed
+
+- Fixed error formatting for a missing dependency in the same package
+  that had a colon in its name. We were drawing the squiggle only under the
+  part of the dependency name after the first colon, as though it was a
+  cross-package dependency, and the part before the colon was a relative
+  path.
 
 ## [0.4.2] - 2022-05-13
 
