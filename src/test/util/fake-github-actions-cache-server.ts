@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as http from 'http';
+import * as https from 'https';
+import type * as http from 'http';
 
 /**
  * Numeric ID for a cache entry.
@@ -29,15 +30,24 @@ type KeyAndVersion = string & {
 };
 
 interface CacheEntry {
-  chunks: Buffer[];
+  chunks: ChunkRange[];
   commited: boolean;
   tarballId: TarballId;
+}
+
+interface ChunkRange {
+  start: number;
+  end: number;
+  buffer: Buffer;
 }
 
 const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
   `${key}:${version}` as KeyAndVersion;
 
 type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
+
+// https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
+const JSON_RESPONSE_TYPE = 'application/json;api-version=6.0-preview.1';
 
 /**
  * A fake version of the GitHub Actions cache server.
@@ -75,6 +85,7 @@ type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
  */
 export class FakeGitHubActionsCacheServer {
   readonly #server: http.Server;
+  #url!: URL;
 
   /**
    * An authentication token which this server will require to be set in a
@@ -100,9 +111,9 @@ export class FakeGitHubActionsCacheServer {
   readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
   readonly #tarballIdToEntryId = new Map<TarballId, EntryId>();
 
-  constructor(authToken: string) {
+  constructor(authToken: string, tlsCert: {cert: string; key: string}) {
     this.#authToken = authToken;
-    this.#server = http.createServer(this.#route);
+    this.#server = https.createServer(tlsCert, this.#route);
     this.resetMetrics();
   }
 
@@ -116,18 +127,24 @@ export class FakeGitHubActionsCacheServer {
     };
   }
 
-  async listen(): Promise<void> {
-    return new Promise((resolve) => {
-      this.#server.listen(
-        {
-          host: 'localhost',
-          port: /* random free */ 0,
-        },
-        () => {
-          resolve();
-        }
-      );
+  async listen(): Promise<string> {
+    const host = 'localhost';
+    await new Promise<void>((resolve) => {
+      this.#server.listen({host, port: /* random free */ 0}, () => resolve());
     });
+    const address = this.#server.address();
+    if (address === null || typeof address !== 'object') {
+      throw new Error(
+        `Expected server address to be ServerInfo object, ` +
+          `got ${JSON.stringify(address)}`
+      );
+    }
+    // The real API includes a unique identifier as the base path. It's good to
+    // include this in the fake because it ensures the client is preserving the
+    // base path and not just using the origin.
+    const randomBasePath = Math.random().toString().slice(2);
+    this.#url = new URL(`https://${host}:${address.port}/${randomBasePath}/`);
+    return this.#url.href;
   }
 
   async close(): Promise<void> {
@@ -138,19 +155,20 @@ export class FakeGitHubActionsCacheServer {
     });
   }
 
-  get port(): number {
-    const address = this.#server.address();
-    if (address === null || typeof address !== 'object') {
-      throw new Error(
-        `Expected server address to be ServerInfo object, ` +
-          `got ${JSON.stringify(address)}`
-      );
-    }
-    return address.port;
-  }
-
   rateLimitNextRequest(apiName: ApiName): void {
     this.#rateLimitNextRequest.add(apiName);
+  }
+
+  #readBody(request: http.IncomingMessage): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    return new Promise((resolve) => {
+      request.on('end', () => {
+        resolve(Buffer.concat(chunks));
+      });
+    });
   }
 
   #respond(
@@ -180,6 +198,67 @@ export class FakeGitHubActionsCacheServer {
     return true;
   }
 
+  #checkUserAgent(
+    request: http.IncomingMessage,
+    response: http.ServerResponse
+  ): boolean {
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L67
+    const expected = 'actions/cache';
+    const actual = request.headers['user-agent'];
+    if (actual !== expected) {
+      // The real server might not be this strict, but we want to be sure we're
+      // acting just like the official client library.
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected user-agent ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  #checkContentType(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    expected: string | undefined
+  ): boolean {
+    const actual = request.headers['content-type'];
+    if (actual !== expected) {
+      // The real server might not be this strict, but we want to be sure we're
+      // acting just like the official client library.
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected content-type ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  #checkAccept(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    expected: string | undefined
+  ): boolean {
+    const actual = request.headers['accept'];
+    if (actual !== expected) {
+      // The real server might not be this strict, but we want to be sure we're
+      // acting just like the official client library.
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected accept ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`
+      );
+      return false;
+    }
+    return true;
+  }
+
   #route = (
     request: http.IncomingMessage,
     response: http.ServerResponse
@@ -187,34 +266,39 @@ export class FakeGitHubActionsCacheServer {
     if (!request.url) {
       return this.#respond(response, 404);
     }
-    // Request.url is only the pathname + query params.
-    const url = new URL(request.url, `http://localhost:${this.port}`);
+    // request.url is a string with pathname + query params.
+    const url = new URL(request.url, this.#url.origin);
+    if (!url.pathname.startsWith(this.#url.pathname)) {
+      // Missing the random base path.
+      return this.#respond(response, 404);
+    }
+    const api = url.pathname.slice(this.#url.pathname.length);
 
-    if (
-      url.pathname === '/_apis/artifactcache/cache' &&
-      request.method === 'GET'
-    ) {
+    if (!this.#checkUserAgent(request, response)) {
+      return;
+    }
+
+    if (api === '_apis/artifactcache/cache' && request.method === 'GET') {
       return this.#check(request, response, url);
     }
 
-    if (
-      url.pathname === '/_apis/artifactcache/caches' &&
-      request.method === 'POST'
-    ) {
-      return this.#reserve(request, response);
+    if (api === '_apis/artifactcache/caches' && request.method === 'POST') {
+      return void this.#reserve(request, response);
     }
 
-    if (url.pathname.startsWith('/_apis/artifactcache/caches/')) {
+    if (api.startsWith('_apis/artifactcache/caches/')) {
+      const tail = api.slice('_apis/artifactcache/caches/'.length);
       if (request.method === 'PATCH') {
-        return this.#upload(request, response, url);
+        return void this.#upload(request, response, tail);
       }
       if (request.method === 'POST') {
-        return this.#commit(request, response, url);
+        return void this.#commit(request, response, tail);
       }
     }
 
-    if (url.pathname.startsWith('/tarballs/') && request.method === 'GET') {
-      return this.#download(request, response, url);
+    if (api.startsWith('tarballs/') && request.method === 'GET') {
+      const tail = api.slice('tarballs/'.length);
+      return this.#download(request, response, tail);
     }
 
     this.#respond(response, 404);
@@ -237,6 +321,12 @@ export class FakeGitHubActionsCacheServer {
       return this.#rateLimit(response);
     }
     if (!this.#checkAuthorization(request, response)) {
+      return;
+    }
+    if (!this.#checkContentType(request, response, undefined)) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
@@ -276,7 +366,7 @@ export class FakeGitHubActionsCacheServer {
       response,
       200,
       JSON.stringify({
-        archiveLocation: `http://localhost:${this.port}/tarballs/${entry.tarballId}`,
+        archiveLocation: `${this.#url.href}tarballs/${entry.tarballId}`,
         cacheKey: keys,
       })
     );
@@ -289,7 +379,10 @@ export class FakeGitHubActionsCacheServer {
    * key + version. If so, returns a "409 Conflict" response. If not, returns a
    * new unique cache ID which can be used to upload the tarball.
    */
-  #reserve(request: http.IncomingMessage, response: http.ServerResponse): void {
+  async #reserve(
+    request: http.IncomingMessage,
+    response: http.ServerResponse
+  ): Promise<void> {
     this.metrics.reserve++;
     if (this.#rateLimitNextRequest.delete('reserve')) {
       return this.#rateLimit(response);
@@ -297,42 +390,49 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
+    if (!this.#checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+      return;
+    }
 
-    let jsonStr = '';
-    request.on('data', (chunk) => {
-      jsonStr += chunk;
+    const json = await this.#readBody(request);
+    const data = JSON.parse(json.toString()) as {
+      key: string;
+      version: string;
+    };
+    const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
+    if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
+      return this.#respond(response, /* Conflict */ 409);
+    }
+    const entryId = this.#nextEntryId++ as EntryId;
+    const tarballId = String(Math.random()).slice(2) as TarballId;
+    this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
+    this.#tarballIdToEntryId.set(tarballId, entryId);
+    this.#entryIdToEntry.set(entryId, {
+      chunks: [],
+      commited: false,
+      tarballId,
     });
-
-    request.on('end', () => {
-      const json = JSON.parse(jsonStr) as {key: string; version: string};
-      const keyAndVersion = encodeKeyAndVersion(json.key, json.version);
-      if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
-        return this.#respond(response, /* Conflict */ 409);
-      }
-      const entryId = this.#nextEntryId++ as EntryId;
-      const tarballId = String(Math.random()).slice(2) as TarballId;
-      this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
-      this.#tarballIdToEntryId.set(tarballId, entryId);
-      this.#entryIdToEntry.set(entryId, {
-        chunks: [],
-        commited: false,
-        tarballId,
-      });
-      this.#respond(response, 200, JSON.stringify({cacheId: entryId}));
-    });
+    this.#respond(
+      response,
+      /* Created */ 201,
+      JSON.stringify({cacheId: entryId})
+    );
   }
 
   /**
    * Handle the PATCH:/_apis/artifactcache/caches/<CacheEntryId> API.
    *
-   * This API receives a tarball (or a chunk of a tarball) and stores it using
-   * the given key (as returned by the reserve cache API).
+   * This API receives a chunk of a tarball defined by the Content-Range header,
+   * and stores it using the given key (as returned by the reserve cache API).
    */
-  #upload(
+  async #upload(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
-  ): void {
+    idStr: string
+  ): Promise<void> {
     this.metrics.upload++;
     if (this.#rateLimitNextRequest.delete('upload')) {
       return this.#rateLimit(response);
@@ -340,8 +440,26 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
+    if (
+      !this.#checkContentType(request, response, 'application/octet-stream')
+    ) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+      return;
+    }
+    const expectedTransferEncoding = 'chunked';
+    const actualTransferEncoding = request.headers['transfer-encoding'];
+    if (actualTransferEncoding !== 'chunked') {
+      return this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected transfer-encoding ${JSON.stringify(
+          expectedTransferEncoding
+        )}. ` + `Got ${String(actualTransferEncoding)}.`
+      );
+    }
 
-    const idStr = url.pathname.slice('/_apis/artifactcache/caches/'.length);
     if (idStr.match(/\d+/) === null) {
       return this.#respond(response, 400, 'Cache ID was not an integer');
     }
@@ -351,40 +469,49 @@ export class FakeGitHubActionsCacheServer {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
-    if (entry.chunks.length > 0) {
-      // The real server supports multiple requests uploading different ranges
-      // of the same tarball distinguished using the Content-Range header, for
-      // large tarballs. However, our tests don't test this functionality, so we
-      // don't bother implementing it.
-      //
-      // TODO(aomarks) We probably should actually try to cover this case.
+    const contentRange = request.headers['content-range'] ?? '';
+    const parsedContentRange = contentRange.match(/^bytes (\d+)-(\d+)\/\*$/);
+    if (parsedContentRange === null) {
       return this.#respond(
         response,
-        501,
-        'Multiple tarball upload requests not supported'
+        400,
+        'Missing or invalid Content-Range header'
       );
     }
+    const start = Number(parsedContentRange[1]);
+    const end = Number(parsedContentRange[2]);
+    const expectedLength = end - start + 1;
 
-    request.on('data', (chunk: unknown) => {
-      entry.chunks.push(chunk as Buffer);
-    });
+    // The real server might not be this strict, but we should make sure we
+    // aren't sending larger chunks than the official client library does.
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
+    if (expectedLength > 32 * 1024 * 1024) {
+      return this.#respond(response, 400, 'Upload chunk was > 32MB');
+    }
 
-    request.on('end', () => {
-      this.#respond(response, 200);
-    });
+    const buffer = await this.#readBody(request);
+    if (buffer.length !== expectedLength) {
+      return this.#respond(
+        response,
+        400,
+        'Chunk length did not match Content-Range header'
+      );
+    }
+    entry.chunks.push({start, end, buffer});
+    this.#respond(response, /* No Content */ 204);
   }
 
   /**
    * Handle the POST:/_apis/artifactcache/caches/<CacheEntryId> API.
    *
-   * This API marks a tarball uploaded by the onSaveCache API (which could be
-   * sent in multiple chunks) as complete.
+   * This API marks an uploaded tarball (which can be sent in multiple chunks)
+   * as complete.
    */
-  #commit(
+  async #commit(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
-  ): void {
+    idStr: string
+  ): Promise<void> {
     this.metrics.commit++;
     if (this.#rateLimitNextRequest.delete('commit')) {
       return this.#rateLimit(response);
@@ -392,19 +519,56 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
+    if (!this.#checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+      return;
+    }
 
-    const idStr = url.pathname.slice('/_apis/artifactcache/caches/'.length);
     if (idStr.match(/\d+/) === null) {
       return this.#respond(response, 400, 'Cache ID was not an integer');
     }
+
     const id = Number(idStr) as EntryId;
     const entry = this.#entryIdToEntry.get(id);
     if (entry === undefined) {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
+    // Sort the chunks according to range and validate that there are no missing
+    // or overlapping chunks.
+    entry.chunks.sort((a, b) => a.start - b.start);
+    let expectedNextStart = 0;
+    let totalLength = 0;
+    for (const chunk of entry.chunks) {
+      if (chunk.start !== expectedNextStart) {
+        return this.#respond(
+          response,
+          400,
+          'Cache entry chunks were not contiguous'
+        );
+      }
+      expectedNextStart = chunk.end + 1;
+      totalLength += chunk.buffer.length;
+    }
+
+    // Validate against the expected total length from this request.
+    const json = await this.#readBody(request);
+    const data = JSON.parse(json.toString()) as {
+      size: number;
+    };
+    const expectedLength = data.size;
+    if (totalLength !== expectedLength) {
+      return this.#respond(
+        response,
+        400,
+        'Cache entry did not match expected length'
+      );
+    }
+
     entry.commited = true;
-    this.#respond(response, 200);
+    this.#respond(response, /* No Content */ 204);
   }
 
   /**
@@ -419,17 +583,22 @@ export class FakeGitHubActionsCacheServer {
    * unguessable.
    */
   #download(
-    _request: http.IncomingMessage,
+    request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
+    tarballId: string
   ): void {
     this.metrics.download++;
     if (this.#rateLimitNextRequest.delete('download')) {
       return this.#rateLimit(response);
     }
+    if (!this.#checkContentType(request, response, undefined)) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, undefined)) {
+      return;
+    }
 
-    const tarballId = url.pathname.slice('/tarballs/'.length) as TarballId;
-    const id = this.#tarballIdToEntryId.get(tarballId);
+    const id = this.#tarballIdToEntryId.get(tarballId as TarballId);
     if (id === undefined) {
       return this.#respond(response, 404, 'Tarball does not exist');
     }
@@ -443,12 +612,12 @@ export class FakeGitHubActionsCacheServer {
 
     response.statusCode = 200;
     const contentLength = entry.chunks.reduce(
-      (acc, chunk) => acc + chunk.length,
+      (sum, chunk) => sum + chunk.buffer.length,
       0
     );
     response.setHeader('Content-Length', contentLength);
     for (const chunk of entry.chunks) {
-      response.write(chunk);
+      response.write(chunk.buffer);
     }
     response.end();
   }

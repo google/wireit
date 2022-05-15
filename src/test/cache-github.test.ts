@@ -4,32 +4,59 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
+import * as crypto from 'crypto';
+import * as selfsigned from 'selfsigned';
 import {suite} from 'uvu';
+import {fileURLToPath} from 'url';
 import {WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
 import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
-import {timeout} from './util/uvu-timeout.js';
+import {timeout, DEFAULT_UVU_TIMEOUT} from './util/uvu-timeout.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = pathlib.dirname(__filename);
+const repoRoot = pathlib.resolve(__dirname, '..', '..');
+
+const SELF_SIGNED_CERT = selfsigned.generate([
+  {name: 'commonName', value: 'localhost'},
+]);
+const SELF_SIGNED_CERT_PATH = pathlib.resolve(
+  repoRoot,
+  'temp',
+  'self-signed.cert'
+);
 
 const test = suite<{
   rig: WireitTestRig;
   server: FakeGitHubActionsCacheServer;
 }>();
 
+test.before(async () => {
+  await fs.mkdir(pathlib.dirname(SELF_SIGNED_CERT_PATH), {recursive: true});
+  await fs.writeFile(SELF_SIGNED_CERT_PATH, SELF_SIGNED_CERT.cert);
+});
+
 test.before.each(async (ctx) => {
   try {
     // Set up the cache service for each test (as opposed to for the whole
     // suite) because we want fresh cache state for each test.
     const authToken = String(Math.random()).slice(2);
-    ctx.server = new FakeGitHubActionsCacheServer(authToken);
-    await ctx.server.listen();
+    ctx.server = new FakeGitHubActionsCacheServer(authToken, {
+      cert: SELF_SIGNED_CERT.cert,
+      key: SELF_SIGNED_CERT.private,
+    });
+    const actionsCacheUrl = await ctx.server.listen();
     ctx.rig = new WireitTestRig();
     ctx.rig.env = {
       WIREIT_CACHE: 'github',
-      ACTIONS_CACHE_URL: `http://localhost:${ctx.server.port}/`,
+      ACTIONS_CACHE_URL: actionsCacheUrl,
       ACTIONS_RUNTIME_TOKEN: authToken,
       RUNNER_TEMP: pathlib.join(ctx.rig.temp, 'github-cache-temp'),
+      // Tell Node to trust our self-signed certificate for HTTPS.
+      NODE_EXTRA_CA_CERTS: SELF_SIGNED_CERT_PATH,
     };
     await ctx.rig.setup();
   } catch (error) {
@@ -277,6 +304,109 @@ test(
     // different CDN server, so probably have a separate rate limit from the
     // rest of the caching APIs.
   })
+);
+
+test(
+  'uploads large tarball in multiple chunks',
+  timeout(async ({rig, server}) => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+    });
+
+    // Generate a random file which is big enough to exceed the maximum chunk
+    // size, so that it gets split into 2 separate upload requests.
+    //
+    // The maximum chunk size is defined here:
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
+    //
+    // This needs to be actually random data, not just arbitrary, because the
+    // tarball will be compressed, and we need a poor compression ratio in order
+    // to hit our target size.
+    const MB = 1024 * 1024;
+    const maxChunkBytes = 32 * MB;
+    const compressionHeadroomBytes = 8 * MB; // Found experimentally.
+    const totalBytes = maxChunkBytes + compressionHeadroomBytes;
+    const fileContent = crypto.randomBytes(totalBytes).toString();
+
+    // On the initial run a large file is created and should be cached.
+    {
+      await rig.write('input', 'v0');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', fileContent);
+      inv.exit(0);
+
+      // Note here is when we are creating the compressed tarball, which is the
+      // slowest part of this test.
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        // Since we had a file that was larger than the maximum chunk size, we
+        // should have 2 upload requests.
+        upload: 2,
+        commit: 1,
+        download: 0,
+      });
+    }
+
+    // Invalidate cache by changing input.
+    {
+      await rig.write('input', 'v1');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      assert.not(await rig.exists('output'));
+      inv.exit(0);
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        upload: 1,
+        commit: 1,
+        download: 0,
+      });
+    }
+
+    // Change input back to v0. The large file should be restored from cache.
+    {
+      await rig.write('input', 'v0');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 0,
+        upload: 0,
+        commit: 0,
+        download: 1,
+      });
+      assert.equal(await rig.read('output'), fileContent);
+    }
+  }, Math.max(DEFAULT_UVU_TIMEOUT, 15_000))
 );
 
 test.run();

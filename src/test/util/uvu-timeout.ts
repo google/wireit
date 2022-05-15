@@ -6,7 +6,7 @@
 
 import type * as uvu from 'uvu';
 
-const DEFAULT_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 60_000);
+export const DEFAULT_UVU_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 60_000);
 
 /**
  * Returns a promise that resolves after the given period of time.
@@ -24,7 +24,7 @@ export const wait = async (ms: number) =>
  */
 export const timeout = <T>(
   handler: uvu.Callback<T>,
-  ms = DEFAULT_TIMEOUT
+  ms = DEFAULT_UVU_TIMEOUT
 ): uvu.Callback<T> => {
   return (...args) => {
     let timerId: ReturnType<typeof setTimeout>;
