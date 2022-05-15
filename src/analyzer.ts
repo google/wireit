@@ -481,17 +481,73 @@ export class Analyzer {
     const uniqueDependencies = new Map<string, JsonAstNode>();
     const children = dependenciesAst.children ?? [];
     for (let i = 0; i < children.length; i++) {
+      // A dependency can be either a plain string, or an object with a "script"
+      // property plus optional extra annotations.
       const maybeUnresolved = children[i];
-      const stringResult = failUnlessNonBlankString(
-        maybeUnresolved,
-        packageJson.jsonFile
-      );
-      if (!stringResult.ok) {
+      let specifierResult;
+      if (maybeUnresolved.type === 'string') {
+        specifierResult = failUnlessNonBlankString(
+          maybeUnresolved,
+          packageJson.jsonFile
+        );
+        if (!specifierResult.ok) {
+          encounteredError = true;
+          placeholder.failures.push(specifierResult.error);
+          continue;
+        }
+      } else if (maybeUnresolved.type === 'object') {
+        specifierResult = findNodeAtLocation(maybeUnresolved, ['script']);
+        if (specifierResult == null) {
+          encounteredError = true;
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+            diagnostic: {
+              severity: 'error',
+              message: `Dependency object must set a "script" property.`,
+              location: {
+                file: packageJson.jsonFile,
+                range: {
+                  offset: maybeUnresolved.offset,
+                  length: maybeUnresolved.length,
+                },
+              },
+            },
+          });
+          continue;
+        }
+        specifierResult = failUnlessNonBlankString(
+          specifierResult,
+          packageJson.jsonFile
+        );
+        if (!specifierResult.ok) {
+          encounteredError = true;
+          placeholder.failures.push(specifierResult.error);
+          continue;
+        }
+      } else {
         encounteredError = true;
-        placeholder.failures.push(stringResult.error);
+        placeholder.failures.push({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+          diagnostic: {
+            severity: 'error',
+            message: `Expected a string or object, but was ${maybeUnresolved.type}.`,
+            location: {
+              file: packageJson.jsonFile,
+              range: {
+                offset: maybeUnresolved.offset,
+                length: maybeUnresolved.length,
+              },
+            },
+          },
+        });
         continue;
       }
-      const unresolved = stringResult.value;
+
+      const unresolved = specifierResult.value;
       const result = this.#resolveDependency(
         unresolved,
         placeholder,
