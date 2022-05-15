@@ -305,7 +305,7 @@ export class IdeAnalyzer {
       return [
         {
           originSelectionRange: sourceConverter.toIdeRange(
-            scriptInfo.dependency.astNode
+            scriptInfo.dependency.specifier
           ),
           targetUri: url.pathToFileURL(targetFile.path).toString(),
           targetRange: targetConverter.toIdeRange(
@@ -365,7 +365,7 @@ export class IdeAnalyzer {
       packageDir: pathlib.dirname(packageJson.jsonFile.path),
     });
     for (const dep of script.dependencies ?? []) {
-      if (offsetInsideRange(offset, dep.astNode)) {
+      if (offsetInsideRange(offset, dep.specifier)) {
         return {
           kind: 'dependency' as const,
           dependency: dep,

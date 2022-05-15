@@ -31,7 +31,8 @@ export interface ScriptReference extends PackageReference {
 
 export interface Dependency<Config extends PotentiallyValidScriptConfig> {
   config: Config;
-  astNode: JsonAstNode<string>;
+  specifier: JsonAstNode<string>;
+  soft: boolean;
 }
 
 /**

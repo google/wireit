@@ -485,6 +485,7 @@ export class Analyzer {
       // property plus optional extra annotations.
       const maybeUnresolved = children[i];
       let specifierResult;
+      let soft = false; // Default;
       if (maybeUnresolved.type === 'string') {
         specifierResult = failUnlessNonBlankString(
           maybeUnresolved,
@@ -525,6 +526,31 @@ export class Analyzer {
           encounteredError = true;
           placeholder.failures.push(specifierResult.error);
           continue;
+        }
+        const softResult = findNodeAtLocation(maybeUnresolved, ['soft']);
+        if (softResult !== undefined) {
+          if (softResult.value === true || softResult.value === false) {
+            soft = softResult.value;
+          } else {
+            encounteredError = true;
+            placeholder.failures.push({
+              type: 'failure',
+              reason: 'invalid-config-syntax',
+              script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+              diagnostic: {
+                severity: 'error',
+                message: `The "soft" property must be either true or false.`,
+                location: {
+                  file: packageJson.jsonFile,
+                  range: {
+                    offset: softResult.offset,
+                    length: softResult.length,
+                  },
+                },
+              },
+            });
+            continue;
+          }
         }
       } else {
         encounteredError = true;
@@ -597,8 +623,9 @@ export class Analyzer {
         uniqueDependencies.set(uniqueKey, unresolved);
         const placeHolderInfo = this.#getPlaceholder(resolved);
         dependencies.push({
-          astNode: unresolved,
+          specifier: unresolved,
           config: placeHolderInfo.placeholder,
+          soft,
         });
         this.#ongoingWorkPromises.push(
           (async () => {
@@ -905,7 +932,9 @@ export class Analyzer {
         // Use the actual value in the array, because this could refer to
         // a script in another package.
         const nextName =
-          nextNode?.astNode?.value ?? next?.name ?? trailArray[cycleStart].name;
+          nextNode?.specifier?.value ??
+          next?.name ??
+          trailArray[cycleStart].name;
         const message =
           next === trailArray[cycleStart]
             ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
@@ -917,7 +946,7 @@ export class Analyzer {
 
         const culpritNode =
           // This should always be present
-          nextNode?.astNode ??
+          nextNode?.specifier ??
           // But failing that, fall back to the best node we have.
           current.configAstNode?.name ??
           current.scriptAstNode?.name;
