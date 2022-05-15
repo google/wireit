@@ -168,6 +168,11 @@ export class GitHubActionsCache implements Cache {
     }
   }
 
+  /**
+   * @returns True if we reserved, uploaded, and committed the tarball. False if
+   * we gave up due to a rate limit error.
+   * @throws If an unexpected HTTP error occured.
+   */
   async #reserveUploadAndCommitTarball(
     script: ScriptReference,
     stateStr: ScriptStateString,
@@ -214,6 +219,10 @@ export class GitHubActionsCache implements Cache {
     return true;
   }
 
+  /**
+   * @returns True if we uploaded, false if we gave up due to a rate limit error.
+   * @throws If an unexpected HTTP error occured.
+   */
   async #upload(
     script: ScriptReference,
     id: number,
@@ -275,6 +284,10 @@ export class GitHubActionsCache implements Cache {
     }
   }
 
+  /**
+   * @returns True if we committed, false if we gave up due to a rate limit error.
+   * @throws If an unexpected HTTP error occured.
+   */
   async #commit(
     script: ScriptReference,
     id: number,
@@ -430,7 +443,8 @@ export class GitHubActionsCache implements Cache {
    * Reserve a cache entry.
    *
    * @returns A numeric cache id the cache entry was reserved for us, or
-   * undefined if the cache entry was already reserved.
+   * undefined if the cache entry was already reserved, or a rate limit error
+   * occured.
    */
   async #reserveCacheEntry(
     script: ScriptReference,
