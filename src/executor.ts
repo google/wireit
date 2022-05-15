@@ -22,9 +22,9 @@ import {ScriptChildProcess} from './script-child-process.js';
 import {Deferred} from './util/deferred.js';
 
 import type {
+  Dependency,
   ScriptConfig,
   ScriptConfigWithRequiredCommand,
-  ScriptReference,
   ScriptReferenceString,
   ScriptState,
   ScriptStateString,
@@ -310,7 +310,7 @@ class ScriptExecution {
   }
 
   async #executeScript(
-    dependencyStates: Array<[ScriptReference, ScriptState]>
+    dependencyStates: Array<[Dependency<ScriptConfig>, ScriptState]>
   ): Promise<ExecutionResult> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
@@ -457,7 +457,7 @@ class ScriptExecution {
   }
 
   async #executeDependencies(): Promise<
-    Result<Array<[ScriptReference, ScriptState]>, Failure[]>
+    Result<Array<[Dependency<ScriptConfig>, ScriptState]>, Failure[]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
@@ -471,7 +471,7 @@ class ScriptExecution {
       })
     );
     const errors = new Set<Failure>();
-    const results: Array<[ScriptReference, ScriptState]> = [];
+    const results: Array<[Dependency<ScriptConfig>, ScriptState]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -488,10 +488,7 @@ class ScriptExecution {
             errors.add(error);
           }
         } else {
-          results.push([
-            this.#script.dependencies[i].config,
-            result.value.value,
-          ]);
+          results.push([this.#script.dependencies[i], result.value.value]);
         }
       }
     }
@@ -682,17 +679,24 @@ class ScriptExecution {
    * and the state of its dependencies.
    */
   async #computeState(
-    dependencyStates: Array<[ScriptReference, ScriptState]>
+    dependencyStates: Array<[Dependency<ScriptConfig>, ScriptState]>
   ): Promise<ScriptState> {
     let allDependenciesAreCacheable = true;
     const filteredDependencyStates: Array<
       [ScriptReferenceString, ScriptState]
     > = [];
     for (const [dep, depState] of dependencyStates) {
+      if (dep.soft) {
+        // Soft dependencies aren't included in the cache key.
+        continue;
+      }
       if (!depState.cacheable) {
         allDependenciesAreCacheable = false;
       }
-      filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
+      filteredDependencyStates.push([
+        scriptReferenceToString(dep.config),
+        depState,
+      ]);
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
