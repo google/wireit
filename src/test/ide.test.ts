@@ -493,7 +493,7 @@ test('can jump from scripts section to wireit config', async ({rig}) => {
   });
 });
 
-test('can jump from from colon in scripts section to wireit config', async ({
+test('can jump from colon in scripts section to wireit config', async ({
   rig,
 }) => {
   const ide = new IdeAnalyzer();
