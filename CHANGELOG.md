@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Install size decreased from 25MB to 2.4MB.
+
+- Total transitive dependencies decreased from 93 to 29.
+
+- New GitHub Actions caching implementation. Should be a drop-in replacement.
+
 ### Fixed
 
 - Fixed error formatting for a missing dependency in the same package
