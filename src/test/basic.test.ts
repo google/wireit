@@ -986,4 +986,93 @@ test(
   })
 );
 
+test(
+  'soft dependency does not inherit cache key',
+  timeout(async ({rig}) => {
+    //  a --[soft]--> b --> c
+    const a = await rig.newCommand();
+    const b = await rig.newCommand();
+    const c = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: a.command,
+            dependencies: [
+              {
+                script: 'b',
+                soft: true,
+              },
+            ],
+            files: ['inputs/a'],
+          },
+          b: {
+            command: b.command,
+            dependencies: ['c'],
+            files: ['inputs/b'],
+          },
+          c: {
+            command: c.command,
+            files: ['inputs/c'],
+          },
+        },
+      },
+    });
+
+    // Initially everything runs.
+    {
+      await rig.write('inputs/a', 'v1');
+      await rig.write('inputs/b', 'v1');
+      await rig.write('inputs/c', 'v1');
+      const wireit = rig.exec('npm run a');
+      (await c.nextInvocation()).exit(0);
+      (await b.nextInvocation()).exit(0);
+      (await a.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 1);
+      assert.equal(b.numInvocations, 1);
+      assert.equal(c.numInvocations, 1);
+    }
+
+    // Changing input of B re-runs B but not A.
+    {
+      await rig.write('inputs/b', 'v2');
+      const wireit = rig.exec('npm run a');
+      (await b.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 1);
+      assert.equal(b.numInvocations, 2);
+      assert.equal(c.numInvocations, 1);
+    }
+
+    // Changing input of C re-runs B and C but not A.
+    {
+      await rig.write('inputs/c', 'v2');
+      const wireit = rig.exec('npm run a');
+      (await c.nextInvocation()).exit(0);
+      (await b.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 1);
+      assert.equal(b.numInvocations, 3);
+      assert.equal(c.numInvocations, 2);
+    }
+
+    // Changing input of A re-runs A (just to be sure!).
+    {
+      await rig.write('inputs/a', 'v2');
+      const wireit = rig.exec('npm run a');
+      (await a.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 2);
+      assert.equal(b.numInvocations, 3);
+      assert.equal(c.numInvocations, 2);
+    }
+  })
+);
+
 test.run();
