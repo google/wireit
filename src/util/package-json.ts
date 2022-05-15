@@ -7,7 +7,7 @@ import {findNamedNodeAtLocation, JsonFile} from './ast.js';
 import {JsonAstNode, NamedAstNode} from './ast.js';
 import {Failure} from '../event.js';
 import {failUnlessJsonObject, failUnlessNonBlankString} from '../analyzer.js';
-import {offsetInsideRange} from '../error.js';
+import {offsetInsideNamedNode, offsetInsideRange} from '../error.js';
 
 export interface ScriptSyntaxInfo {
   name: string;
@@ -67,8 +67,7 @@ export class PackageJson {
       for (const scriptSyntaxInfo of this.scripts) {
         if (
           scriptSyntaxInfo.scriptNode &&
-          (offsetInsideRange(offset, scriptSyntaxInfo.scriptNode) ||
-            offsetInsideRange(offset, scriptSyntaxInfo.scriptNode.name))
+          offsetInsideNamedNode(offset, scriptSyntaxInfo.scriptNode)
         ) {
           return {kind: 'scripts-section-script', scriptSyntaxInfo};
         }
@@ -80,7 +79,7 @@ export class PackageJson {
       for (const scriptSyntaxInfo of this.scripts) {
         if (
           scriptSyntaxInfo.wireitConfigNode &&
-          offsetInsideRange(offset, scriptSyntaxInfo.wireitConfigNode)
+          offsetInsideNamedNode(offset, scriptSyntaxInfo.wireitConfigNode)
         ) {
           return {kind: 'wireit-section-script', scriptSyntaxInfo};
         }
