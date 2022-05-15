@@ -16,7 +16,7 @@ export interface PackageJson {
   wireit?: {
     [scriptName: string]: {
       command?: string;
-      dependencies?: string[];
+      dependencies?: Array<string | {script: string; soft?: boolean}>;
       files?: string[];
       output?: string[];
       clean?: boolean | 'if-file-deleted';

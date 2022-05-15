@@ -53,7 +53,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Added length > 0 requirement to `schema.json`.
+- Added string length > 0 requirement to the `command`, `dependencies`, `files`,
+  `output`, and `packageLocks` properties in `schema.json`.
 
 ## [0.4.3] - 2022-05-15
 
