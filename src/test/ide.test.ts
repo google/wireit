@@ -348,9 +348,8 @@ test('jump to definition from object style dependency', async ({rig}) => {
       targetSelection: `
     "b": "echo"
     ~~~`,
-      // TODO(aomarks) The ~~~ is 2 spaces ahead of where it should be.
       originSelection: `
-          "script": "b"
+            "script": "b"
                       ~~~`,
     },
   });
