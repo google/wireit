@@ -124,7 +124,7 @@ function applyEdit(
   before: string,
   action: CodeAction
 ): string {
-  if (action.edit == null) {
+  if (action.edit === undefined) {
     throw new Error(`Action ${action.title} had no edit`);
   }
   const edit = action.edit;
@@ -132,7 +132,7 @@ function applyEdit(
   const filename = rig.resolve('package.json');
   assert.equal(Object.keys(edit?.changes ?? {}), [filename]);
   const textEdits = edit?.changes?.[filename];
-  if (textEdits == null) {
+  if (textEdits === undefined) {
     throw new Error(`Action ${action.title} had no edits for ${filename}`);
   }
   const converter = OffsetToPositionConverter.createUncachedForTest(before);
