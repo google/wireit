@@ -987,7 +987,7 @@ test(
 );
 
 test(
-  'soft dependency does not inherit cache key',
+  'soft dependency does not inherit fingerprint',
   timeout(async ({rig}) => {
     //  a --[soft]--> b --> c
     const a = await rig.newCommand();

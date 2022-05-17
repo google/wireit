@@ -12,7 +12,7 @@ import {copyEntries} from '../util/copy.js';
 import {glob} from '../util/glob.js';
 
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference, ScriptStateString} from '../script.js';
+import type {ScriptReference, FingerprintString} from '../script.js';
 import type {RelativeEntry} from '../util/glob.js';
 
 /**
@@ -22,9 +22,9 @@ import type {RelativeEntry} from '../util/glob.js';
 export class LocalCache implements Cache {
   async get(
     script: ScriptReference,
-    cacheKey: ScriptStateString
+    fingerprint: FingerprintString
   ): Promise<CacheHit | undefined> {
-    const cacheDir = this.#getCacheDir(script, cacheKey);
+    const cacheDir = this.#getCacheDir(script, fingerprint);
     try {
       await fs.access(cacheDir);
     } catch (error) {
@@ -38,7 +38,7 @@ export class LocalCache implements Cache {
 
   async set(
     script: ScriptReference,
-    cacheKey: ScriptStateString,
+    fingerprint: FingerprintString,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
@@ -46,7 +46,7 @@ export class LocalCache implements Cache {
     // almost certainly want an automated way to limit the size of the cache
     // directory (e.g. LRU capped to some number of entries).
     // https://github.com/google/wireit/issues/71
-    const absCacheDir = this.#getCacheDir(script, cacheKey);
+    const absCacheDir = this.#getCacheDir(script, fingerprint);
     // Note fs.mkdir returns the first created directory, or undefined if no
     // directory was created.
     const existed =
@@ -60,11 +60,14 @@ export class LocalCache implements Cache {
     return true;
   }
 
-  #getCacheDir(script: ScriptReference, cacheKey: ScriptStateString): string {
+  #getCacheDir(
+    script: ScriptReference,
+    fingerprint: FingerprintString
+  ): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',
-      createHash('sha256').update(cacheKey).digest('hex')
+      createHash('sha256').update(fingerprint).digest('hex')
     );
   }
 }

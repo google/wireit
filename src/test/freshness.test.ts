@@ -371,7 +371,7 @@ test(
             dependencies: ['b'],
           },
           b: {
-            // B has undefined input files, but it can still have a cache key,
+            // B has undefined input files, but it can still have a fingerprint,
             // because it has no command. In effect, it is just an alias for C,
             // which does have its files defined.
             dependencies: ['c'],
@@ -450,7 +450,7 @@ test(
 );
 
 test(
-  'empty directory is not included in cache key',
+  'empty directory is not included in fingerprint',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -800,9 +800,9 @@ test(
 test(
   'fresh script is skipped with unsafe characters in script name',
   timeout(async ({rig}) => {
-    // This test confirms that we are serializing the previous state in a way
-    // that doesn't try to put forbidden characters in filenames (as would be
-    // the case if we used the script name directly).
+    // This test confirms that we are serializing the previous fingerprint file
+    // in a way that doesn't try to put forbidden characters in filenames (as
+    // would be the case if we used the script name directly).
     const name = '🔥<>:/\\|?*';
 
     const cmdA = await rig.newCommand();
@@ -831,15 +831,15 @@ test(
       assert.equal(cmdA.numInvocations, 1);
     }
 
-    // Check that we created a state file using the hex encoding of the script
-    // name.
+    // Check that we created a fingerprint file using the hex encoding of the
+    // script name.
     assert.ok(
       await rig.exists(
         pathlib.join(
           '.wireit',
           // Buffer.from(name).toString('hex')
           'f09f94a53c3e3a2f5c7c3f2a',
-          'state'
+          'fingerprint'
         )
       )
     );
@@ -897,7 +897,7 @@ test(
 );
 
 test(
-  'state is deleted before invoking command',
+  'fingerprint file is deleted before invoking command',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -915,8 +915,8 @@ test(
       'input.txt': 'v0',
     });
 
-    // Initially stale, so command is invoked. It succeeds, so a state file is
-    // written.
+    // Initially stale, so command is invoked. It succeeds, so a fingerprint
+    // file is written.
     {
       const exec = rig.exec('npm run a');
       const inv = await cmdA.nextInvocation();
@@ -927,10 +927,11 @@ test(
     }
 
     // Input file changed, so script is stale, and command is invoked. It fails,
-    // so a state file is not written. However, before the command is invoked,
-    // the previous state file must be deleted, because we can no longer be sure
-    // that the previous state is still reflected in the output (this failed
-    // invocation could have written some output before failing).
+    // so a fingerprint file is not written. However, before the command is
+    // invoked, the previous fingerprint file must be deleted, because we can no
+    // longer be sure that the previous fingerprint is still reflected in the
+    // output (this failed invocation could have written some output before
+    // failing).
     {
       await rig.write({
         'input.txt': 'v1',
@@ -943,10 +944,10 @@ test(
       assert.equal(cmdA.numInvocations, 2);
     }
 
-    // Input file reverts back to v0. Since the previous state file was deleted,
-    // the script is stale, and command is invoked. If we didn't pre-emptively
-    // delete the state file in the previous step, we would wrongly think we
-    // were fresh.
+    // Input file reverts back to v0. Since the previous fingerprint file was
+    // deleted, the script is stale, and command is invoked. If we didn't
+    // pre-emptively delete the fingerprint file in the previous step, we would
+    // wrongly think we were fresh.
     {
       await rig.write({
         'input.txt': 'v0',
@@ -1265,7 +1266,7 @@ test(
 );
 
 test(
-  'cache key is independent of file ordering',
+  'fingerprint is independent of file ordering',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -1321,7 +1322,7 @@ test(
 );
 
 test(
-  'cache key is independent of dependency ordering',
+  'fingerprint is independent of dependency ordering',
   timeout(async ({rig}) => {
     //         a
     //         |

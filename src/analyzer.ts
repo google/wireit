@@ -252,8 +252,8 @@ export class Analyzer {
    * given script reference.
    */
   #getPlaceholder(reference: ScriptReference): PlaceholderInfo {
-    const cacheKey = scriptReferenceToString(reference);
-    let placeholderInfo = this.#placeholders.get(cacheKey);
+    const scriptKey = scriptReferenceToString(reference);
+    let placeholderInfo = this.#placeholders.get(scriptKey);
     if (placeholderInfo === undefined) {
       const placeholder: UnvalidatedConfig = {
         ...reference,
@@ -264,7 +264,7 @@ export class Analyzer {
         placeholder: placeholder,
         upgradeComplete: this.#upgradePlaceholder(placeholder),
       };
-      this.#placeholders.set(cacheKey, placeholderInfo);
+      this.#placeholders.set(scriptKey, placeholderInfo);
       this.#ongoingWorkPromises.push(placeholderInfo.upgradeComplete);
     }
     return placeholderInfo;

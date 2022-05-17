@@ -151,10 +151,10 @@ export type ScriptReferenceString = string & {
 };
 
 /**
- * All meaningful input state of a script. Used for determining if a script is
- * fresh, and as the key for storing cached output.
+ * All meaningful inputs of a script. Used for determining if a script is fresh,
+ * and as the key for storing cached output.
  */
-export interface ScriptState {
+export interface Fingerprint {
   /**
    * Whether the output for this script can be fresh or cached.
    *
@@ -180,7 +180,7 @@ export interface ScriptState {
   /**
    * The "clean" setting from the Wireit config.
    *
-   * This is included in the cache key because switching from "false" to "true"
+   * This is included in the fingerprint because switching from "false" to "true"
    * could produce different output, so a re-run should be triggered even if
    * nothing else changed.
    */
@@ -192,7 +192,7 @@ export interface ScriptState {
   /**
    * The "output" glob patterns from the Wireit config.
    *
-   * This is included in the cache key because changing the output patterns
+   * This is included in the fingerprint because changing the output patterns
    * could produce different output when "clean" is true, and because it affects
    * which files get included in a cache entry.
    *
@@ -203,14 +203,14 @@ export interface ScriptState {
   output: string[];
 
   // Must be sorted.
-  dependencies: {[dependency: ScriptReferenceString]: ScriptState};
+  dependencies: {[dependency: ScriptReferenceString]: Fingerprint};
 }
 
 /**
- * String serialization of a {@link ScriptState}.
+ * String serialization of a {@link Fingerprint}.
  */
-export type ScriptStateString = string & {
-  __ScriptStateStringBrand__: never;
+export type FingerprintString = string & {
+  __FingerprintStringBrand__: never;
 };
 
 /**

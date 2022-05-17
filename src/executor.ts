@@ -26,8 +26,8 @@ import type {
   ScriptConfig,
   ScriptConfigWithRequiredCommand,
   ScriptReferenceString,
-  ScriptState,
-  ScriptStateString,
+  Fingerprint,
+  FingerprintString,
   Sha256HexDigest,
 } from './script.js';
 import type {Logger} from './logging/logger.js';
@@ -35,7 +35,7 @@ import type {WriteStream} from 'fs';
 import type {Cache} from './caching/cache.js';
 import type {Failure, StartCancelled} from './event.js';
 
-type ExecutionResult = Result<ScriptState, Failure[]>;
+type ExecutionResult = Result<Fingerprint, Failure[]>;
 
 /**
  * What to do when a script failure occurs:
@@ -199,10 +199,10 @@ class ScriptExecution {
     if (this.#shouldNotStart) {
       return {ok: false, error: [this.#startCancelledEvent]};
     }
-    const dependencyStatesResult = await this.#executeDependencies();
-    if (!dependencyStatesResult.ok) {
-      dependencyStatesResult.error.push(this.#startCancelledEvent);
-      return dependencyStatesResult;
+    const dependencyFingerprints = await this.#executeDependencies();
+    if (!dependencyFingerprints.ok) {
+      dependencyFingerprints.error.push(this.#startCancelledEvent);
+      return dependencyFingerprints;
     }
 
     // Significant time could have elapsed since we last checked because our
@@ -214,14 +214,14 @@ class ScriptExecution {
     if (this.#script.output?.values.length === 0) {
       // If there are explicitly no output files, then it's not actually
       // important to maintain an exclusive lock.
-      return this.#executeScript(dependencyStatesResult.value);
+      return this.#executeScript(dependencyFingerprints.value);
     }
     const releaseLock = await this.#acquireLock();
     if (!releaseLock.ok) {
       return {ok: false, error: [releaseLock.error]};
     }
     try {
-      return await this.#executeScript(dependencyStatesResult.value);
+      return await this.#executeScript(dependencyFingerprints.value);
     } finally {
       await releaseLock.value();
     }
@@ -310,18 +310,20 @@ class ScriptExecution {
   }
 
   async #executeScript(
-    dependencyStates: Array<[Dependency, ScriptState]>
+    dependencyFingerprints: Array<[Dependency, Fingerprint]>
   ): Promise<ExecutionResult> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const state = await this.#computeState(dependencyStates);
-    const stateStr = JSON.stringify(state) as ScriptStateString;
-    const prevStateStr = await this.#readPreviousState();
+    const fingerprintData = await this.#computeFingerprint(
+      dependencyFingerprints
+    );
+    const fingerprint = JSON.stringify(fingerprintData) as FingerprintString;
+    const prevFingerprint = await this.#readPreviousFingerprint();
     if (
-      state.cacheable &&
-      prevStateStr !== undefined &&
-      prevStateStr === stateStr
+      fingerprintData.cacheable &&
+      prevFingerprint !== undefined &&
+      prevFingerprint === fingerprint
     ) {
       // TODO(aomarks) Does not preserve original order of stdout vs stderr
       // chunks. See https://github.com/google/wireit/issues/74.
@@ -334,22 +336,23 @@ class ScriptExecution {
         type: 'success',
         reason: 'fresh',
       });
-      return {ok: true, value: state};
+      return {ok: true, value: fingerprintData};
     }
 
-    // Computing state can take some time, and the next operation is
+    // Computing the fingerprint can take some time, and the next operation is
     // destructive. Another good opportunity to check if we should still start.
     if (this.#shouldNotStart) {
       return {ok: false, error: [this.#startCancelledEvent]};
     }
 
-    // It's important that we delete any previous state before running the
-    // command or restoring from cache, because if either fails mid-flight, we
-    // don't want to think that the previous state is still valid.
+    // It's important that we delete the previous fingerprint and stdio replay
+    // files before running the command or restoring from cache, because if
+    // either fails mid-flight, we don't want to think that the previous
+    // fingerprint is still valid.
     await this.#prepareDataDir();
 
-    const cacheHit = state.cacheable
-      ? await this.#cache?.get(this.#script, stateStr)
+    const cacheHit = fingerprintData.cacheable
+      ? await this.#cache?.get(this.#script, fingerprint)
       : undefined;
 
     const shouldClean = (() => {
@@ -373,15 +376,15 @@ class ScriptExecution {
           return false;
         }
         case 'if-file-deleted': {
-          if (prevStateStr === undefined) {
-            // If we don't know the previous state, then we can't know whether
-            // any input files were removed. It's safer to err on the side of
-            // cleaning.
+          if (prevFingerprint === undefined) {
+            // If we don't know the previous fingerprint, then we can't know
+            // whether any input files were removed. It's safer to err on the
+            // side of cleaning.
             return true;
           }
           return this.#anyInputFilesDeletedSinceLastRun(
-            state,
-            JSON.parse(prevStateStr) as ScriptState
+            fingerprintData,
+            JSON.parse(prevFingerprint) as Fingerprint
           );
         }
         default: {
@@ -423,15 +426,15 @@ class ScriptExecution {
     // TODO(aomarks) We don't technically need to wait for these to finish to
     // return, we only need to wait in the top-level call to execute. The same
     // will go for saving output to the cache.
-    await this.#writeStateFile(stateStr);
-    if (cacheHit === undefined && state.cacheable) {
-      const result = await this.#saveToCacheIfPossible(stateStr);
+    await this.#writeFingerprintFile(fingerprint);
+    if (cacheHit === undefined && fingerprintData.cacheable) {
+      const result = await this.#saveToCacheIfPossible(fingerprint);
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
     }
 
-    return {ok: true, value: state};
+    return {ok: true, value: fingerprintData};
   }
 
   /**
@@ -439,8 +442,8 @@ class ScriptExecution {
    * file names, and returns whether any files have been removed.
    */
   #anyInputFilesDeletedSinceLastRun(
-    curState: ScriptState,
-    prevState: ScriptState
+    curState: Fingerprint,
+    prevState: Fingerprint
   ): boolean {
     const curFiles = Object.keys(curState.files);
     const prevFiles = Object.keys(prevState.files);
@@ -457,7 +460,7 @@ class ScriptExecution {
   }
 
   async #executeDependencies(): Promise<
-    Result<Array<[Dependency, ScriptState]>, Failure[]>
+    Result<Array<[Dependency, Fingerprint]>, Failure[]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
@@ -471,7 +474,7 @@ class ScriptExecution {
       })
     );
     const errors = new Set<Failure>();
-    const results: Array<[Dependency, ScriptState]> = [];
+    const results: Array<[Dependency, Fingerprint]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -602,7 +605,7 @@ class ScriptExecution {
    * Save the current output files to the configured cache if possible.
    */
   async #saveToCacheIfPossible(
-    stateStr: ScriptStateString
+    fingerprint: FingerprintString
   ): Promise<Result<void>> {
     if (this.#cache === undefined || this.#script.output === undefined) {
       return {ok: true, value: undefined};
@@ -670,30 +673,30 @@ class ScriptExecution {
       }
       throw error;
     }
-    await this.#cache.set(this.#script, stateStr, paths);
+    await this.#cache.set(this.#script, fingerprint, paths);
     return {ok: true, value: undefined};
   }
 
   /**
-   * Generate the state object for this script based on its current input files,
-   * and the state of its dependencies.
+   * Generate the fingerprint data object for this script based on its current
+   * configuration, input files, and the fingerprints of its dependencies.
    */
-  async #computeState(
-    dependencyStates: Array<[Dependency, ScriptState]>
-  ): Promise<ScriptState> {
+  async #computeFingerprint(
+    dependencyFingerprints: Array<[Dependency, Fingerprint]>
+  ): Promise<Fingerprint> {
     let allDependenciesAreCacheable = true;
-    const filteredDependencyStates: Array<
-      [ScriptReferenceString, ScriptState]
+    const filtereddependencyFingerprints: Array<
+      [ScriptReferenceString, Fingerprint]
     > = [];
-    for (const [dep, depState] of dependencyStates) {
+    for (const [dep, depState] of dependencyFingerprints) {
       if (dep.soft) {
-        // Soft dependencies aren't included in the cache key.
+        // Soft dependencies aren't included in the fingerprint.
         continue;
       }
       if (!depState.cacheable) {
         allDependenciesAreCacheable = false;
       }
-      filteredDependencyStates.push([
+      filtereddependencyFingerprints.push([
         scriptReferenceToString(dep.config),
         depState,
       ]);
@@ -706,10 +709,10 @@ class ScriptExecution {
         absolute: false,
         followSymlinks: true,
         // TODO(aomarks) This means that empty directories are not reflected in
-        // the state, however an empty directory could modify the behavior of a
-        // script. We should probably include empty directories; we'll just need
-        // special handling when we compute the state key, because there is no
-        // hash we can compute.
+        // the fingerprint, however an empty directory could modify the behavior
+        // of a script. We should probably include empty directories; we'll just
+        // need special handling when we compute the fingerprint, because there
+        // is no hash we can compute.
         includeDirectories: false,
         // We must expand directories here, because we need the complete
         // explicit list of files to hash.
@@ -740,8 +743,8 @@ class ScriptExecution {
 
     const cacheable =
       // If command is undefined, then it's always safe to be cached, because
-      // the script isn't going to do anything anyway. In these cases, the state
-      // is essentially just the state of the dependencies.
+      // the script isn't going to do anything anyway. In these cases, the
+      // fingerprint is essentially just the fingerprint of the dependencies.
       this.#script.command === undefined ||
       // Otherwise, If files are undefined, then it's not safe to be cached,
       // because we don't know what the inputs are, so we can't know if the
@@ -764,7 +767,7 @@ class ScriptExecution {
       ),
       output: this.#script.output?.values ?? [],
       dependencies: Object.fromEntries(
-        filteredDependencyStates.sort(([aRef], [bRef]) =>
+        filtereddependencyFingerprints.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
         )
       ),
@@ -779,10 +782,10 @@ class ScriptExecution {
   }
 
   /**
-   * Get the path where the current cache key is saved for this script.
+   * Get the path where the current fingerprint is saved for this script.
    */
-  get #statePath(): string {
-    return pathlib.join(this.#dataDir, 'state');
+  get #fingerprintFilePath(): string {
+    return pathlib.join(this.#dataDir, 'fingerprint');
   }
 
   /**
@@ -800,11 +803,14 @@ class ScriptExecution {
   }
 
   /**
-   * Read this script's ".wireit/<hex-script-name>/state" file.
+   * Read this script's fingerprint file.
    */
-  async #readPreviousState(): Promise<ScriptStateString | undefined> {
+  async #readPreviousFingerprint(): Promise<FingerprintString | undefined> {
     try {
-      return (await fs.readFile(this.#statePath, 'utf8')) as ScriptStateString;
+      return (await fs.readFile(
+        this.#fingerprintFilePath,
+        'utf8'
+      )) as FingerprintString;
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
         return undefined;
@@ -814,20 +820,20 @@ class ScriptExecution {
   }
 
   /**
-   * Write this script's ".wireit/<hex-script-name>/state" file.
+   * Write this script's fingerprint file.
    */
-  async #writeStateFile(stateStr: ScriptStateString): Promise<void> {
+  async #writeFingerprintFile(fingerprint: FingerprintString): Promise<void> {
     await fs.mkdir(this.#dataDir, {recursive: true});
-    await fs.writeFile(this.#statePath, stateStr, 'utf8');
+    await fs.writeFile(this.#fingerprintFilePath, fingerprint, 'utf8');
   }
 
   /**
-   * Delete all state for this script from the previous run, and ensure the data
-   * directory is created.
+   * Delete the fingerprint file and any stdio replays for this script from the
+   * previous run, and ensure the data directory exists.
    */
   async #prepareDataDir(): Promise<void> {
     await Promise.all([
-      fs.rm(this.#statePath, {force: true}),
+      fs.rm(this.#fingerprintFilePath, {force: true}),
       fs.rm(this.#stdoutReplayPath, {force: true}),
       fs.rm(this.#stderrReplayPath, {force: true}),
       fs.mkdir(this.#dataDir, {recursive: true}),

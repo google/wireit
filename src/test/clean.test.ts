@@ -339,12 +339,12 @@ test(
             // Include a dependency on a script with no input files to cover an
             // edge case that was broken in an earlier implementation.
             //
-            // We use the ".wireit/<script>/state" file to find out which input
-            // files were present in the previous run, so that we can compare
-            // them to the current input files. However, in an earlier
-            // implementation we did not save a "state" file for scripts with a
-            // dependency that have no input files (because that makes the
-            // script "uncacheable").
+            // We use the ".wireit/<script>/fingerprint" file to find out which
+            // input files were present in the previous run, so that we can
+            // compare them to the current input files. However, in an earlier
+            // implementation we did not save a "fingerprint" file for scripts
+            // with a dependency that have no input files (because that makes
+            // the script "uncacheable").
             dependencies: ['b'],
           },
           b: {

@@ -12,14 +12,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Added _soft dependencies_.
 
-  By default, the cache key of a script includes the cache keys of its
+  By default, the fingerprint of a script includes the fingerprints of its
   dependencies. This means a script will re-run whenever one of its dependencies
   re-runs, even if the output produced by the dependency didn't actually change.
 
-  Now, if a dependency is annotated with `"soft": true`, then the cache key of
-  that dependency will no longer be included in the script's own cache key. This
-  means a script won't neccessarily re-run just because a dependency re-ran —
-  though Wireit will still always run the dependency first if it is not
+  Now, if a dependency is annotated with `"soft": true`, then the fingerprint of
+  that dependency will no longer be included in the script's own fingerprint.
+  This means a script won't neccessarily re-run just because a dependency re-ran
+  — though Wireit will still always run the dependency first if it is not
   up-to-date.
 
   Using `"soft": true` can result in faster builds thanks to fewer re-runs, but
@@ -55,6 +55,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Added string length > 0 requirement to the `command`, `dependencies`, `files`,
   `output`, and `packageLocks` properties in `schema.json`.
+
+- The internal `.wireit/*/state` file was renamed to `.wireit/*/fingerprint`.
+  Should have no effect.
 
 ## [0.4.3] - 2022-05-15
 
@@ -187,7 +190,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `output`
   - `packageLocks`
 
-- The cache key now additionally includes the following fields:
+- The fingerprint now additionally includes the following fields:
 
   - The system platform (e.g. `linux`, `win32`).
   - The system CPU architecture (e.g. `x64`).
