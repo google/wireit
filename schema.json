@@ -35,8 +35,8 @@
                       "minLength": 1
                     },
                     "soft": {
-                      "markdownDescription": "If `false` (the default), the cache key of the dependency is automatically included in this script's cache key. This means that whenever the dependency re-runs, this script will re-run too, even if the output produced by the dependency didn't change.\n\nIf `true`, Wireit won't assume that this script needs to re-run just because the dependency re-ran. Instead, the dependency will still run first and be kept up-to-date, but whether this script runs is entirely determined by `files`. Be sure that any input files this script needs from the dependency are specified in `files`.\n\nFor more info, see https://github.com/google/wireit#soft-dependencies",
-                      "enum": [true, false]
+                      "markdownDescription": "When `false` (the default), whenever this dependency runs, this script (the dependent) will be marked stale and need to re-run too, regardless of whether the dependency produced new or relevant output. When soft is `true` Wireit won't assume that the dependent is stale just because the dependency ran. This can reduce unnecessary re-building when `files` captures all of the relevant output of the dependency .\n\nFor more info, see https://github.com/google/wireit#soft-dependencies",
+                      "type": "boolean"
                     }
                   }
                 }

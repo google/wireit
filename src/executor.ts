@@ -310,7 +310,7 @@ class ScriptExecution {
   }
 
   async #executeScript(
-    dependencyStates: Array<[Dependency<ScriptConfig>, ScriptState]>
+    dependencyStates: Array<[Dependency, ScriptState]>
   ): Promise<ExecutionResult> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
@@ -457,7 +457,7 @@ class ScriptExecution {
   }
 
   async #executeDependencies(): Promise<
-    Result<Array<[Dependency<ScriptConfig>, ScriptState]>, Failure[]>
+    Result<Array<[Dependency, ScriptState]>, Failure[]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
@@ -471,7 +471,7 @@ class ScriptExecution {
       })
     );
     const errors = new Set<Failure>();
-    const results: Array<[Dependency<ScriptConfig>, ScriptState]> = [];
+    const results: Array<[Dependency, ScriptState]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -679,7 +679,7 @@ class ScriptExecution {
    * and the state of its dependencies.
    */
   async #computeState(
-    dependencyStates: Array<[Dependency<ScriptConfig>, ScriptState]>
+    dependencyStates: Array<[Dependency, ScriptState]>
   ): Promise<ScriptState> {
     let allDependenciesAreCacheable = true;
     const filteredDependencyStates: Array<

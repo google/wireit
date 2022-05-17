@@ -1034,7 +1034,7 @@ export class Analyzer {
       const validConfig: ScriptConfig = {
         ...config,
         state: 'valid',
-        dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        dependencies: config.dependencies as Array<Dependency>,
       };
       // We want to keep the original reference, but get type checking that
       // the only difference between a ScriptConfig and a
