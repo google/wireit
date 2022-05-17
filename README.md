@@ -45,7 +45,7 @@
   - [Dependency syntax](#dependency-syntax)
   - [Environment variables](#environment-variables)
   - [Glob patterns](#glob-patterns)
-  - [Cache key](#cache-key)
+  - [Fingerprint](#fingerprint)
 - [Requirements](#requirements)
 - [Related tools](#related-tools)
 - [Contributing](#contributing)
@@ -527,7 +527,7 @@ The following properties can be set inside `wireit.<script>` objects in
 | -------------- | ------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `command`      | `string`                       | `undefined`             | The shell command to run.                                                                                   |
 | `dependencies` | `string[]`                     | `undefined`             | [Scripts that must run before this one](#dependencies).                                                     |
-| `files`        | `string[]`                     | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [cache key](#cache-key).                  |
+| `files`        | `string[]`                     | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [fingerprint](#fingerprint).              |
 | `output`       | `string[]`                     | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output). |
 | `clean`        | `boolean \| "if-file-deleted"` | `true`                  | [Delete output files before running](#cleaning-output).                                                     |
 | `packageLocks` | `string[]`                     | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                              |
@@ -581,10 +581,10 @@ Also note these details:
 - Hidden/dot files are matched by `*` and `**`.
 - Patterns are case-sensitive (if supported by the filesystem).
 
-### Cache key
+### Fingerprint
 
-The following inputs determine the _cache key_ for a script. This key is used to
-determine whether a script can be skipped for [incremental
+The following inputs determine the _fingerprint_ for a script. This value is
+used to determine whether a script can be skipped for [incremental
 build](#incremental-build), and whether its output can be [restored from
 cache](#caching).
 
@@ -597,10 +597,10 @@ cache](#caching).
 - The system platform (e.g. `linux`, `win32`).
 - The system CPU architecture (e.g. `x64`).
 - The system Node version (e.g. `16.7.0`).
-- The cache key of all transitive dependencies.
+- The fingerprint of all transitive dependencies.
 
 When using [GitHub Actions caching](#github-actions-caching), the following
-input also affects the cache key:
+input also affects the fingerprint:
 
 - The `ImageOS` environment variable (e.g. `ubuntu20`, `macos11`).
 

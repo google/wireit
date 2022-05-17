@@ -15,7 +15,7 @@ import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference, ScriptStateString} from '../script.js';
+import type {ScriptReference, FingerprintString} from '../script.js';
 import type {Logger} from '../logging/logger.js';
 import type {RelativeEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
@@ -105,13 +105,13 @@ export class GitHubActionsCache implements Cache {
 
   async get(
     script: ScriptReference,
-    stateStr: ScriptStateString
+    fingerprint: FingerprintString
   ): Promise<CacheHit | undefined> {
     if (this.#hitRateLimit) {
       return undefined;
     }
 
-    const version = this.#computeVersion(stateStr);
+    const version = this.#computeVersion(fingerprint);
     const key = this.#computeCacheKey(script);
     const url = new URL('_apis/artifactcache/cache', this.#baseUrl);
     url.searchParams.set('keys', key);
@@ -145,7 +145,7 @@ export class GitHubActionsCache implements Cache {
 
   async set(
     script: ScriptReference,
-    stateStr: ScriptStateString,
+    fingerprint: FingerprintString,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
     if (this.#hitRateLimit) {
@@ -160,7 +160,7 @@ export class GitHubActionsCache implements Cache {
       const tarballPath = await this.#makeTarball([...absFiles], tempDir);
       return await this.#reserveUploadAndCommitTarball(
         script,
-        stateStr,
+        fingerprint,
         tarballPath
       );
     } finally {
@@ -175,7 +175,7 @@ export class GitHubActionsCache implements Cache {
    */
   async #reserveUploadAndCommitTarball(
     script: ScriptReference,
-    stateStr: ScriptStateString,
+    fingerprint: FingerprintString,
     tarballPath: string
   ): Promise<boolean> {
     const tarballStats = await fs.stat(tarballPath);
@@ -199,7 +199,7 @@ export class GitHubActionsCache implements Cache {
     const id = await this.#reserveCacheEntry(
       script,
       this.#computeCacheKey(script),
-      this.#computeVersion(stateStr),
+      this.#computeVersion(fingerprint),
       tarballBytes
     );
     // It's likely that we'll occasionally fail to reserve an entry and get
@@ -364,16 +364,16 @@ export class GitHubActionsCache implements Cache {
       .digest('hex');
   }
 
-  #computeVersion(stateStr: ScriptStateString): string {
+  #computeVersion(fingerprint: FingerprintString): string {
     return createHash('sha256')
       .update(
         [
-          stateStr,
+          fingerprint,
           'gzip', // e.g. zstd, gzip
           // The ImageOS environment variable tells us which operating system
           // version is being used for the worker VM (e.g. "ubuntu20",
-          // "macos11"). We already include process.platform in ScriptState, but
-          // this is more specific.
+          // "macos11"). We already include process.platform in the fingerprint,
+          // but this is more specific.
           //
           // There is also an ImageVersion variable (e.g. "20220405.4") which we
           // could consider including, but it probably changes frequently and is
