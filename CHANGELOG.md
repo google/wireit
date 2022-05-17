@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+- The internal `.wireit/*/state` file was renamed to `.wireit/*/fingerprint`.
+  Should have no effect.
 
 ## [0.4.3] - 2022-05-15
 
@@ -139,7 +144,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `output`
   - `packageLocks`
 
-- The cache key now additionally includes the following fields:
+- The fingerprint now additionally includes the following fields:
 
   - The system platform (e.g. `linux`, `win32`).
   - The system CPU architecture (e.g. `x64`).
