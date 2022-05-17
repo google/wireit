@@ -322,6 +322,40 @@ test(`we jump to the scripts section for a vanilla script`, async ({rig}) => {
   });
 });
 
+test('jump to definition from object style dependency', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await assertDefinition(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'echo',
+        },
+        wireit: {
+          a: {
+            dependencies: [{script: '|b'}],
+          },
+        },
+      },
+      null,
+      2
+    ),
+    expected: {
+      target: `
+    "b": "echo"
+    ~~~~~~~~~~~`,
+      targetSelection: `
+    "b": "echo"
+    ~~~`,
+      // TODO(aomarks) The ~~~ is 2 spaces ahead of where it should be.
+      originSelection: `
+          "script": "b"
+                      ~~~`,
+    },
+  });
+});
+
 test(`we don't get definitions for non-dep locations`, async ({rig}) => {
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
