@@ -29,9 +29,12 @@ export interface ScriptReference extends PackageReference {
   name: string;
 }
 
-export interface Dependency<Config extends PotentiallyValidScriptConfig> {
+export interface Dependency<
+  Config extends PotentiallyValidScriptConfig = ScriptConfig
+> {
   config: Config;
-  astNode: JsonAstNode<string>;
+  specifier: JsonAstNode<string>;
+  soft: boolean;
 }
 
 /**
@@ -55,7 +58,7 @@ export interface ScriptConfig extends ScriptReference {
    * directory + script name, but the {@link Executor} then randomizes the order
    * during execution.
    */
-  dependencies: Array<Dependency<ScriptConfig>>;
+  dependencies: Array<Dependency>;
 
   /**
    * Input file globs for this script.

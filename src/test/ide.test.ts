@@ -174,7 +174,7 @@ async function assertDefinition(
     options.contentsWithPipe.slice(offset + 1);
   ide.setOpenFileContents(options.path, contents);
   const sourceFile = await ide.getPackageJsonForTest(options.path);
-  if (sourceFile == null) {
+  if (sourceFile === undefined) {
     throw new Error(`could not get source file`);
   }
   const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
@@ -201,7 +201,7 @@ async function assertDefinition(
   const targetFile = await ide.getPackageJsonForTest(
     url.fileURLToPath(definition.targetUri)
   );
-  if (targetFile == null) {
+  if (targetFile === undefined) {
     throw new Error(`Could not load target file`);
   }
   const targetConverter = OffsetToPositionConverter.get(targetFile.jsonFile);
@@ -225,7 +225,7 @@ async function assertDefinition(
     targetSelectionSquiggle,
     options.expected.targetSelection
   );
-  if (definition.originSelectionRange == null) {
+  if (definition.originSelectionRange === undefined) {
     throw new Error(`No iriginSelectionRange returned`);
   }
   const sourceSelectionSquiggle = drawSquiggle(
@@ -318,6 +318,39 @@ test(`we jump to the scripts section for a vanilla script`, async ({rig}) => {
       originSelection: `
           "b"
           ~~~`,
+    },
+  });
+});
+
+test('jump to definition from object style dependency', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await assertDefinition(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'echo',
+        },
+        wireit: {
+          a: {
+            dependencies: [{script: '|b'}],
+          },
+        },
+      },
+      null,
+      2
+    ),
+    expected: {
+      target: `
+    "b": "echo"
+    ~~~~~~~~~~~`,
+      targetSelection: `
+    "b": "echo"
+    ~~~`,
+      originSelection: `
+            "script": "b"
+                      ~~~`,
     },
   });
 });

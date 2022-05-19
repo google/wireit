@@ -22,9 +22,9 @@ import {ScriptChildProcess} from './script-child-process.js';
 import {Deferred} from './util/deferred.js';
 
 import type {
+  Dependency,
   ScriptConfig,
   ScriptConfigWithRequiredCommand,
-  ScriptReference,
   ScriptReferenceString,
   Fingerprint,
   FingerprintString,
@@ -310,7 +310,7 @@ class ScriptExecution {
   }
 
   async #executeScript(
-    dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
+    dependencyFingerprints: Array<[Dependency, Fingerprint]>
   ): Promise<ExecutionResult> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
@@ -460,7 +460,7 @@ class ScriptExecution {
   }
 
   async #executeDependencies(): Promise<
-    Result<Array<[ScriptReference, Fingerprint]>, Failure[]>
+    Result<Array<[Dependency, Fingerprint]>, Failure[]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
@@ -474,7 +474,7 @@ class ScriptExecution {
       })
     );
     const errors = new Set<Failure>();
-    const results: Array<[ScriptReference, Fingerprint]> = [];
+    const results: Array<[Dependency, Fingerprint]> = [];
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
       if (result.status === 'rejected') {
@@ -491,10 +491,7 @@ class ScriptExecution {
             errors.add(error);
           }
         } else {
-          results.push([
-            this.#script.dependencies[i].config,
-            result.value.value,
-          ]);
+          results.push([this.#script.dependencies[i], result.value.value]);
         }
       }
     }
@@ -685,17 +682,24 @@ class ScriptExecution {
    * configuration, input files, and the fingerprints of its dependencies.
    */
   async #computeFingerprint(
-    dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
+    dependencyFingerprints: Array<[Dependency, Fingerprint]>
   ): Promise<Fingerprint> {
     let allDependenciesAreCacheable = true;
-    const filteredDependencyStates: Array<
+    const filtereddependencyFingerprints: Array<
       [ScriptReferenceString, Fingerprint]
     > = [];
     for (const [dep, depState] of dependencyFingerprints) {
+      if (dep.soft) {
+        // Soft dependencies aren't included in the fingerprint.
+        continue;
+      }
       if (!depState.cacheable) {
         allDependenciesAreCacheable = false;
       }
-      filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
+      filtereddependencyFingerprints.push([
+        scriptReferenceToString(dep.config),
+        depState,
+      ]);
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
@@ -763,7 +767,7 @@ class ScriptExecution {
       ),
       output: this.#script.output?.values ?? [],
       dependencies: Object.fromEntries(
-        filteredDependencyStates.sort(([aRef], [bRef]) =>
+        filtereddependencyFingerprints.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
         )
       ),

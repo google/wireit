@@ -58,6 +58,14 @@ test('a script with just dependencies is valid', () => {
   shouldValidate({wireit: {a: {dependencies: ['b']}}});
 });
 
+test('dependency object is valid', () => {
+  shouldValidate({wireit: {a: {dependencies: [{script: 'b'}]}}});
+});
+
+test('dependency object with soft annotation is valid', () => {
+  shouldValidate({wireit: {a: {dependencies: [{script: 'b', soft: true}]}}});
+});
+
 // I couldn't figure out how to make this test pass while keeping the other
 // error messages reasonable.
 // It just turned all errors into this one.
@@ -72,7 +80,7 @@ test('a script with all fields set is valid', () => {
     wireit: {
       a: {
         command: 'b',
-        dependencies: ['c'],
+        dependencies: ['c', {script: 'c', soft: true}],
         files: ['d'],
         output: ['e'],
         clean: true,
@@ -122,6 +130,80 @@ test('clean can be either a boolean or the string if-file-deleted', () => {
   );
 });
 
+test('command must not be empty', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: '',
+        },
+      },
+    },
+    ['instance.wireit.a.command does not meet minimum length of 1']
+  );
+});
+
+test('dependencies[i] must not be empty', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'true',
+          dependencies: [''],
+        },
+      },
+    },
+    // TODO(aomarks) Can we get a better error message? Seems like the built-in
+    // toString() doesn't recurse, so we'd have to build the whole error message
+    // ourselves.
+    [
+      'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
+    ]
+  );
+});
+
+test('files[i] must not be empty', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'true',
+          files: [''],
+        },
+      },
+    },
+    ['instance.wireit.a.files[0] does not meet minimum length of 1']
+  );
+});
+
+test('output[i] must not be empty', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'true',
+          output: [''],
+        },
+      },
+    },
+    ['instance.wireit.a.output[0] does not meet minimum length of 1']
+  );
+});
+
+test('packageLocks[i] must not be empty', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'true',
+          packageLocks: [''],
+        },
+      },
+    },
+    ['instance.wireit.a.packageLocks[0] does not meet minimum length of 1']
+  );
+});
+
 test('dependencies must be an array of strings', () => {
   expectValidationErrors(
     {
@@ -144,7 +226,41 @@ test('dependencies must be an array of strings', () => {
         },
       },
     },
-    ['instance.wireit.a.dependencies[0] is not of a type(s) string']
+    [
+      'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
+    ]
+  );
+});
+
+test('dependencies[i].script is required', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'b',
+          dependencies: [{}],
+        },
+      },
+    },
+    [
+      'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
+    ]
+  );
+});
+
+test('dependencies[i].soft must be boolean', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'b',
+          dependencies: [{script: 'b', soft: 1}],
+        },
+      },
+    },
+    [
+      'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
+    ]
   );
 });
 

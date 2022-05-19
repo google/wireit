@@ -74,7 +74,7 @@ export function findNamedNodeAtLocation(
     return {ok: true, value: undefined};
   }
   const name = parent.children?.[0];
-  if (parent.type !== 'property' || name == null) {
+  if (parent.type !== 'property' || name === undefined) {
     return {
       ok: false,
       error: {
