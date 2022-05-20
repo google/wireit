@@ -402,12 +402,15 @@ export class Analyzer {
       }
     }
 
+    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
+
     if (
       wireitConfig !== undefined &&
-      command === undefined &&
       dependencies.length === 0 &&
       !dependenciesErrored &&
-      !commandError
+      command === undefined &&
+      !commandError &&
+      (files === undefined || files.values.length === 0)
     ) {
       placeholder.failures.push({
         type: 'failure',
@@ -415,7 +418,7 @@ export class Analyzer {
         script: placeholder,
         diagnostic: {
           severity: 'error',
-          message: `A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.`,
+          message: `A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.`,
           location: {
             file: packageJson.jsonFile,
             range: {
@@ -427,8 +430,12 @@ export class Analyzer {
       });
     }
 
-    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
-    const output = this.#processOutput(placeholder, packageJson, syntaxInfo);
+    const output = this.#processOutput(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      command
+    );
     const clean = this.#processClean(placeholder, packageJson, syntaxInfo);
     this.#processPackageLocks(placeholder, packageJson, syntaxInfo, files);
 
@@ -654,7 +661,8 @@ export class Analyzer {
   #processOutput(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
-    syntaxInfo: ScriptSyntaxInfo
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined
   ): undefined | ArrayNode<string> {
     if (syntaxInfo.wireitConfigNode == null) {
       return;
@@ -664,6 +672,25 @@ export class Analyzer {
     ]);
     if (outputNode === undefined) {
       return;
+    }
+    if (command === undefined) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `"output" can only be set if "command" is also set.`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              // Highlight the whole `"output": []` part.
+              length: (outputNode.parent ?? outputNode).length,
+              offset: (outputNode.parent ?? outputNode).offset,
+            },
+          },
+        },
+      });
     }
     const values = [];
     const result = failUnlessArray(outputNode, packageJson.jsonFile);

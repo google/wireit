@@ -8,7 +8,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- It is now possible to define a script that only defines `files`. This can be
+  useful for organizing groups of shared input files that multiple scripts can
+  depend on, such as configuration files.
+
 ### Changed
+
+- [**Breaking**] Setting `"output"` on a script that does not have a `"command"`
+  is now an error.
 
 - The internal `.wireit/*/state` file was renamed to `.wireit/*/fingerprint`.
   Should have no effect.
