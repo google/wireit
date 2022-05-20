@@ -13,6 +13,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The internal `.wireit/*/state` file was renamed to `.wireit/*/fingerprint`.
   Should have no effect.
 
+- If a script does not define a `"command"`, then fingerprints, lock files, and
+  cache entries are no longer written to the `.wireit` directory. This should
+  have no meaningful effect.
+
 ## [0.4.3] - 2022-05-15
 
 ### Changed

@@ -113,13 +113,6 @@ export interface ScriptConfig extends ScriptReference {
 }
 
 /**
- * A script config but the command is required.
- */
-export type ScriptConfigWithRequiredCommand = ScriptConfig & {
-  command: Exclude<ScriptConfig['command'], undefined>;
-};
-
-/**
  * Convert a {@link ScriptReference} to a string that can be used as a key in a
  * Set, Map, etc.
  */

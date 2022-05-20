@@ -6,11 +6,7 @@
 
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
-import {createHash} from 'crypto';
 import {createReadStream, createWriteStream} from 'fs';
-import {Result} from '../error.js';
-import {scriptReferenceToString} from '../script.js';
-import {shuffle} from '../util/shuffle.js';
 import {WorkerPool} from '../util/worker-pool.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {unreachable} from '../util/unreachable.js';
@@ -19,46 +15,41 @@ import {deleteEntries} from '../util/delete.js';
 import {posixifyPathIfOnWindows} from '../util/windows.js';
 import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from '../script-child-process.js';
+import {BaseExecution} from './base.js';
 
+import type {Result} from '../error.js';
+import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
 import type {
   ScriptConfig,
-  ScriptConfigWithRequiredCommand,
   ScriptReference,
-  ScriptReferenceString,
   Fingerprint,
   FingerprintString,
-  Sha256HexDigest,
 } from '../script.js';
 import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from '../caching/cache.js';
-import type {Failure, StartCancelled} from '../event.js';
-
-export type ExecutionResult = Result<Fingerprint, Failure[]>;
+import type {StartCancelled} from '../event.js';
 
 /**
- * What to do when a script failure occurs:
- *
- * - `no-new`: Allow running scripts to finish, but don't start new ones.
- * - `continue`: Allow running scripts to finish, and start new ones unless a
- *   dependency failed.
- * - `kill`: Immediately kill running scripts, and don't start new ones.
+ * A script with a command that exits by itself.
  */
-export type FailureMode = 'no-new' | 'continue' | 'kill';
+export type OneShotScriptConfig = ScriptConfig & {
+  command: Exclude<ScriptConfig['command'], undefined>;
+};
 
 /**
- * A single execution of a specific script.
+ * Execution for a {@link OneShotScriptConfig}.
  */
-export class ScriptExecution {
+export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   static execute(
-    script: ScriptConfig,
+    script: OneShotScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new ScriptExecution(
+    return new OneShotExecution(
       script,
       executor,
       workerPool,
@@ -67,31 +58,26 @@ export class ScriptExecution {
     ).#execute();
   }
 
-  readonly #script: ScriptConfig;
-  readonly #executor: Executor;
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
-  readonly #logger: Logger;
 
   private constructor(
-    script: ScriptConfig,
+    script: OneShotScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
   ) {
-    this.#script = script;
-    this.#executor = executor;
+    super(script, executor, logger);
     this.#workerPool = workerPool;
     this.#cache = cache;
-    this.#logger = logger;
   }
 
   async #execute(): Promise<ExecutionResult> {
     if (this.#shouldNotStart) {
       return {ok: false, error: [this.#startCancelledEvent]};
     }
-    const dependencyFingerprints = await this.#executeDependencies();
+    const dependencyFingerprints = await this.executeDependencies();
     if (!dependencyFingerprints.ok) {
       dependencyFingerprints.error.push(this.#startCancelledEvent);
       return dependencyFingerprints;
@@ -103,7 +89,7 @@ export class ScriptExecution {
       return {ok: false, error: [this.#startCancelledEvent]};
     }
 
-    if (this.#script.output?.values.length === 0) {
+    if (this.script.output?.values.length === 0) {
       // If there are explicitly no output files, then it's not actually
       // important to maintain an exclusive lock.
       return this.#executeScript(dependencyFingerprints.value);
@@ -126,7 +112,7 @@ export class ScriptExecution {
    * significant amount of time might have elapsed.
    */
   get #shouldNotStart(): boolean {
-    return this.#executor.shouldStopStartingNewScripts;
+    return this.executor.shouldStopStartingNewScripts;
   }
 
   /**
@@ -134,7 +120,7 @@ export class ScriptExecution {
    */
   get #startCancelledEvent(): StartCancelled {
     return {
-      script: this.#script,
+      script: this.script,
       type: 'failure',
       reason: 'start-cancelled',
     };
@@ -182,8 +168,8 @@ export class ScriptExecution {
         if ((error as {code: string}).code === 'ELOCKED') {
           if (!loggedLocked) {
             // Only log this once.
-            this.#logger.log({
-              script: this.#script,
+            this.logger.log({
+              script: this.script,
               type: 'info',
               detail: 'locked',
             });
@@ -207,7 +193,7 @@ export class ScriptExecution {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const fingerprintData = await this.#computeFingerprint(
+    const fingerprintData = await this.computeFingerprint(
       dependencyFingerprints
     );
     const fingerprint = JSON.stringify(fingerprintData) as FingerprintString;
@@ -223,8 +209,8 @@ export class ScriptExecution {
         this.#replayStdoutIfPresent(),
         this.#replayStderrIfPresent(),
       ]);
-      this.#logger.log({
-        script: this.#script,
+      this.logger.log({
+        script: this.script,
         type: 'success',
         reason: 'fresh',
       });
@@ -244,7 +230,7 @@ export class ScriptExecution {
     await this.#prepareDataDir();
 
     const cacheHit = fingerprintData.cacheable
-      ? await this.#cache?.get(this.#script, fingerprint)
+      ? await this.#cache?.get(this.script, fingerprint)
       : undefined;
 
     const shouldClean = (() => {
@@ -259,7 +245,7 @@ export class ScriptExecution {
         // all, so there is no way for the tool to do any cleanup.
         return true;
       }
-      const cleanValue = this.#script.clean;
+      const cleanValue = this.script.clean;
       switch (cleanValue) {
         case true: {
           return true;
@@ -303,13 +289,13 @@ export class ScriptExecution {
         this.#replayStdoutIfPresent(),
         this.#replayStderrIfPresent(),
       ]);
-      this.#logger.log({
-        script: this.#script,
+      this.logger.log({
+        script: this.script,
         type: 'success',
         reason: 'cached',
       });
     } else {
-      const result = await this.#spawnCommandIfNeeded();
+      const result = await this.#spawnCommand();
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
@@ -351,63 +337,7 @@ export class ScriptExecution {
     return false;
   }
 
-  async #executeDependencies(): Promise<
-    Result<Array<[ScriptReference, Fingerprint]>, Failure[]>
-  > {
-    // Randomize the order we execute dependencies to make it less likely for a
-    // user to inadvertently depend on any specific order, which could indicate
-    // a missing edge in the dependency graph.
-    shuffle(this.#script.dependencies);
-    // Note we use Promise.allSettled instead of Promise.all so that we can
-    // collect all errors, instead of just the first one.
-    const dependencyResults = await Promise.allSettled(
-      this.#script.dependencies.map((dependency) => {
-        return this.#executor.execute(dependency.config);
-      })
-    );
-    const errors = new Set<Failure>();
-    const results: Array<[ScriptReference, Fingerprint]> = [];
-    for (let i = 0; i < dependencyResults.length; i++) {
-      const result = dependencyResults[i];
-      if (result.status === 'rejected') {
-        const error: unknown = result.reason;
-        errors.add({
-          type: 'failure',
-          reason: 'unknown-error-thrown',
-          script: this.#script.dependencies[i].config,
-          error: error,
-        });
-      } else {
-        if (!result.value.ok) {
-          for (const error of result.value.error) {
-            errors.add(error);
-          }
-        } else {
-          results.push([
-            this.#script.dependencies[i].config,
-            result.value.value,
-          ]);
-        }
-      }
-    }
-    if (errors.size > 0) {
-      return {ok: false, error: [...errors]};
-    }
-    return {ok: true, value: results};
-  }
-
-  async #spawnCommandIfNeeded(): Promise<Result<void>> {
-    // It's valid to not have a command defined, since thats a useful way to
-    // alias a group of dependency scripts. In this case, we can return early.
-    if (!this.#script.command) {
-      this.#logger.log({
-        script: this.#script,
-        type: 'success',
-        reason: 'no-command',
-      });
-      return {ok: true, value: undefined};
-    }
-
+  async #spawnCommand(): Promise<Result<void>> {
     return this.#workerPool.run(async (): Promise<Result<void>> => {
       // Significant time could have elapsed since we last checked because of
       // parallelism limits.
@@ -415,8 +345,8 @@ export class ScriptExecution {
         return {ok: false, error: this.#startCancelledEvent};
       }
 
-      this.#logger.log({
-        script: this.#script,
+      this.logger.log({
+        script: this.script,
         type: 'info',
         detail: 'running',
       });
@@ -424,10 +354,10 @@ export class ScriptExecution {
       const child = new ScriptChildProcess(
         // Unfortunately TypeScript doesn't automatically narrow this type
         // based on the undefined-command check we did just above.
-        this.#script as ScriptConfigWithRequiredCommand
+        this.script
       );
 
-      void this.#executor.shouldKillRunningScripts.then(() => {
+      void this.executor.shouldKillRunningScripts.then(() => {
         child.kill();
       });
 
@@ -437,8 +367,8 @@ export class ScriptExecution {
       let stderrReplay: WriteStream | undefined;
 
       child.stdout.on('data', (data: string | Buffer) => {
-        this.#logger.log({
-          script: this.#script,
+        this.logger.log({
+          script: this.script,
           type: 'output',
           stream: 'stdout',
           data,
@@ -450,8 +380,8 @@ export class ScriptExecution {
       });
 
       child.stderr.on('data', (data: string | Buffer) => {
-        this.#logger.log({
-          script: this.#script,
+        this.logger.log({
+          script: this.script,
           type: 'output',
           stream: 'stderr',
           data,
@@ -465,8 +395,8 @@ export class ScriptExecution {
       try {
         const result = await child.completed;
         if (result.ok) {
-          this.#logger.log({
-            script: this.#script,
+          this.logger.log({
+            script: this.script,
             type: 'success',
             reason: 'exit-zero',
           });
@@ -482,7 +412,7 @@ export class ScriptExecution {
           // By directly notifying the Executor about the failure while we are
           // still inside the WorkerPool callback, we prevent this race
           // condition.
-          this.#executor.notifyFailure();
+          this.executor.notifyFailure();
         }
         return result;
       } finally {
@@ -502,14 +432,14 @@ export class ScriptExecution {
   async #saveToCacheIfPossible(
     fingerprint: FingerprintString
   ): Promise<Result<void>> {
-    if (this.#cache === undefined || this.#script.output === undefined) {
+    if (this.#cache === undefined || this.script.output === undefined) {
       return {ok: true, value: undefined};
     }
     let paths;
     try {
       paths = await glob(
         [
-          ...this.#script.output.values,
+          ...this.script.output.values,
           // Also include the "stdout" and "stderr" replay files at their
           // standard location within the ".wireit" directory for this script so
           // that we can replay them after restoring.
@@ -526,14 +456,14 @@ export class ScriptExecution {
           // Convert Windows-style paths to POSIX-style paths if we are on
           // Windows, because fast-glob only understands POSIX-style paths.
           posixifyPathIfOnWindows(
-            pathlib.relative(this.#script.packageDir, this.#stdoutReplayPath)
+            pathlib.relative(this.script.packageDir, this.#stdoutReplayPath)
           ),
           posixifyPathIfOnWindows(
-            pathlib.relative(this.#script.packageDir, this.#stderrReplayPath)
+            pathlib.relative(this.script.packageDir, this.#stderrReplayPath)
           ),
         ],
         {
-          cwd: this.#script.packageDir,
+          cwd: this.script.packageDir,
           absolute: false,
           followSymlinks: false,
           includeDirectories: true,
@@ -551,15 +481,15 @@ export class ScriptExecution {
           error: {
             type: 'failure',
             reason: 'invalid-config-syntax',
-            script: this.#script,
+            script: this.script,
             diagnostic: {
               severity: 'error',
               message: `Output files must be within the package: ${error.message}`,
               location: {
-                file: this.#script.declaringFile,
+                file: this.script.declaringFile,
                 range: {
-                  offset: this.#script.output.node.offset,
-                  length: this.#script.output.node.length,
+                  offset: this.script.output.node.offset,
+                  length: this.script.output.node.length,
                 },
               },
             },
@@ -568,105 +498,15 @@ export class ScriptExecution {
       }
       throw error;
     }
-    await this.#cache.set(this.#script, fingerprint, paths);
+    await this.#cache.set(this.script, fingerprint, paths);
     return {ok: true, value: undefined};
-  }
-
-  /**
-   * Generate the fingerprint data object for this script based on its current
-   * configuration, input files, and the fingerprints of its dependencies.
-   */
-  async #computeFingerprint(
-    dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
-  ): Promise<Fingerprint> {
-    let allDependenciesAreCacheable = true;
-    const filteredDependencyStates: Array<
-      [ScriptReferenceString, Fingerprint]
-    > = [];
-    for (const [dep, depState] of dependencyFingerprints) {
-      if (!depState.cacheable) {
-        allDependenciesAreCacheable = false;
-      }
-      filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
-    }
-
-    let fileHashes: Array<[string, Sha256HexDigest]>;
-    if (this.#script.files?.values.length) {
-      const files = await glob(this.#script.files.values, {
-        cwd: this.#script.packageDir,
-        absolute: false,
-        followSymlinks: true,
-        // TODO(aomarks) This means that empty directories are not reflected in
-        // the fingerprint, however an empty directory could modify the behavior
-        // of a script. We should probably include empty directories; we'll just
-        // need special handling when we compute the fingerprint, because there
-        // is no hash we can compute.
-        includeDirectories: false,
-        // We must expand directories here, because we need the complete
-        // explicit list of files to hash.
-        expandDirectories: true,
-        throwIfOutsideCwd: false,
-      });
-      // TODO(aomarks) Instead of reading and hashing every input file on every
-      // build, use inode/mtime/ctime/size metadata (which is much faster to
-      // read) as a heuristic to detect files that have likely changed, and
-      // otherwise re-use cached hashes that we store in e.g.
-      // ".wireit/<script>/hashes".
-      fileHashes = await Promise.all(
-        files.map(async (file): Promise<[string, Sha256HexDigest]> => {
-          const absolutePath = pathlib.resolve(
-            this.#script.packageDir,
-            file.path
-          );
-          const hash = createHash('sha256');
-          for await (const chunk of createReadStream(absolutePath)) {
-            hash.update(chunk as Buffer);
-          }
-          return [file.path, hash.digest('hex') as Sha256HexDigest];
-        })
-      );
-    } else {
-      fileHashes = [];
-    }
-
-    const cacheable =
-      // If command is undefined, then it's always safe to be cached, because
-      // the script isn't going to do anything anyway. In these cases, the
-      // fingerprint is essentially just the fingerprint of the dependencies.
-      this.#script.command === undefined ||
-      // Otherwise, If files are undefined, then it's not safe to be cached,
-      // because we don't know what the inputs are, so we can't know if the
-      // output of this script could change.
-      (this.#script.files !== undefined &&
-        // Similarly, if any of our dependencies are uncacheable, then we're
-        // uncacheable too, because that dependency could also have an effect on
-        // our output.
-        allDependenciesAreCacheable);
-
-    return {
-      cacheable,
-      platform: process.platform,
-      arch: process.arch,
-      nodeVersion: process.version,
-      command: this.#script.command?.value,
-      clean: this.#script.clean,
-      files: Object.fromEntries(
-        fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
-      ),
-      output: this.#script.output?.values ?? [],
-      dependencies: Object.fromEntries(
-        filteredDependencyStates.sort(([aRef], [bRef]) =>
-          aRef.localeCompare(bRef)
-        )
-      ),
-    };
   }
 
   /**
    * Get the directory name where Wireit data can be saved for this script.
    */
   get #dataDir(): string {
-    return getScriptDataDir(this.#script);
+    return getScriptDataDir(this.script);
   }
 
   /**
@@ -732,13 +572,13 @@ export class ScriptExecution {
    * Delete all files matched by this script's "output" glob patterns.
    */
   async #cleanOutput(): Promise<Result<void>> {
-    if (this.#script.output === undefined) {
+    if (this.script.output === undefined) {
       return {ok: true, value: undefined};
     }
     let absFiles;
     try {
-      absFiles = await glob(this.#script.output.values, {
-        cwd: this.#script.packageDir,
+      absFiles = await glob(this.script.output.values, {
+        cwd: this.script.packageDir,
         absolute: true,
         followSymlinks: false,
         includeDirectories: true,
@@ -755,15 +595,15 @@ export class ScriptExecution {
           error: {
             type: 'failure',
             reason: 'invalid-config-syntax',
-            script: this.#script,
+            script: this.script,
             diagnostic: {
               severity: 'error',
               message: `Output files must be within the package: ${error.message}`,
               location: {
-                file: this.#script.declaringFile,
+                file: this.script.declaringFile,
                 range: {
-                  offset: this.#script.output.node.offset,
-                  length: this.#script.output.node.length,
+                  offset: this.script.output.node.offset,
+                  length: this.script.output.node.length,
                 },
               },
             },
@@ -786,8 +626,8 @@ export class ScriptExecution {
   async #replayStdoutIfPresent(): Promise<void> {
     try {
       for await (const chunk of createReadStream(this.#stdoutReplayPath)) {
-        this.#logger.log({
-          script: this.#script,
+        this.logger.log({
+          script: this.script,
           type: 'output',
           stream: 'stdout',
           data: chunk as Buffer,
@@ -808,8 +648,8 @@ export class ScriptExecution {
   async #replayStderrIfPresent(): Promise<void> {
     try {
       for await (const chunk of createReadStream(this.#stderrReplayPath)) {
-        this.#logger.log({
-          script: this.#script,
+        this.logger.log({
+          script: this.script,
           type: 'output',
           stream: 'stderr',
           data: chunk as Buffer,

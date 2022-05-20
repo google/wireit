@@ -12,7 +12,7 @@ import {
 } from './util/windows.js';
 
 import type {Result} from './error.js';
-import type {ScriptConfigWithRequiredCommand} from './script.js';
+import type {ScriptConfig} from './script.js';
 import type {ChildProcessWithoutNullStreams} from 'child_process';
 import type {ExitNonZero, ExitSignal, SpawnError, Killed} from './event.js';
 
@@ -43,6 +43,13 @@ export type ScriptChildProcessState =
   | 'started'
   | 'killing'
   | 'stopped';
+
+/**
+ * A script config but the command is required.
+ */
+type ScriptConfigWithRequiredCommand = ScriptConfig & {
+  command: Exclude<ScriptConfig['command'], undefined>;
+};
 
 /**
  * A child process spawned during execution of a script.

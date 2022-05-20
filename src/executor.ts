@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {ScriptExecution} from './execution/one-shot.js';
+import {NoOpExecution} from './execution/no-op.js';
+import {OneShotExecution} from './execution/one-shot.js';
 import {scriptReferenceToString} from './script.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
 
-import type {ExecutionResult} from './execution/one-shot.js';
+import type {ExecutionResult} from './execution/base.js';
 import type {ScriptConfig} from './script.js';
 import type {Logger} from './logging/logger.js';
 import type {Cache} from './caching/cache.js';
@@ -114,13 +115,7 @@ export class Executor {
     const executionKey = scriptReferenceToString(script);
     let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
-      promise = ScriptExecution.execute(
-        script,
-        this,
-        this.#workerPool,
-        this.#cache,
-        this.#logger
-      ).then((result) => {
+      promise = this.#executeAccordingToKind(script).then((result) => {
         if (!result.ok) {
           this.notifyFailure();
         }
@@ -129,5 +124,32 @@ export class Executor {
       this.#executions.set(executionKey, promise);
     }
     return promise;
+  }
+
+  /**
+   *
+   */
+  #executeAccordingToKind(script: ScriptConfig): Promise<ExecutionResult> {
+    if (script.command === undefined) {
+      return NoOpExecution.execute(
+        // Unfortunately TypeScript does not narrow this type automatically.
+        script as ScriptConfig & {
+          command: undefined;
+          output: undefined;
+        },
+        this,
+        this.#logger
+      );
+    }
+    return OneShotExecution.execute(
+      // Unfortunately TypeScript does not narrow this type automatically.
+      script as ScriptConfig & {
+        command: Exclude<ScriptConfig['command'], undefined>;
+      },
+      this,
+      this.#workerPool,
+      this.#cache,
+      this.#logger
+    );
   }
 }
