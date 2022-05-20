@@ -860,7 +860,7 @@ test(
 );
 
 test(
-  'script has no command and no dependencies',
+  'script has no command, dependencies, or files',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {
@@ -878,8 +878,37 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:6:5 A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.
+❌ package.json:6:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
         "a": {}
+        ~~~`
+    );
+  })
+);
+
+test(
+  'script has no command and empty dependencies and files',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            files: [],
+            dependencies: [],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ package.json:6:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
+        "a": {
         ~~~`
     );
   })
@@ -1501,10 +1530,10 @@ test(
     assertScriptOutputEquals(
       done.stderr,
       `
-❌ package.json:15:5 A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.
+❌ package.json:15:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
         "b": {},
         ~~~
-❌ package.json:16:5 A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.
+❌ package.json:16:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
         "c": {}
         ~~~`
     );

@@ -402,12 +402,15 @@ export class Analyzer {
       }
     }
 
+    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
+
     if (
       wireitConfig !== undefined &&
-      command === undefined &&
       dependencies.length === 0 &&
       !dependenciesErrored &&
-      !commandError
+      command === undefined &&
+      !commandError &&
+      (files === undefined || files.values.length === 0)
     ) {
       placeholder.failures.push({
         type: 'failure',
@@ -415,7 +418,7 @@ export class Analyzer {
         script: placeholder,
         diagnostic: {
           severity: 'error',
-          message: `A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.`,
+          message: `A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.`,
           location: {
             file: packageJson.jsonFile,
             range: {
@@ -427,7 +430,6 @@ export class Analyzer {
       });
     }
 
-    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
     const output = this.#processOutput(
       placeholder,
       packageJson,
