@@ -8,16 +8,8 @@ import {BaseExecution} from './base.js';
 
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
-import type {ScriptConfig} from '../script.js';
+import type {NoOpScriptConfig} from '../script.js';
 import type {Logger} from '../logging/logger.js';
-
-/**
- * A script that doesn't run or produce anything. A pass-through for dependencies
- * and/or files.
- */
-export type NoOpScriptConfig = ScriptConfig & {
-  command: undefined;
-};
 
 /**
  * Execution for a {@link NoOpScriptConfig}.

@@ -6,12 +6,11 @@
 
 import {NoOpExecution} from './execution/no-op.js';
 import {OneShotExecution} from './execution/one-shot.js';
-import {scriptReferenceToString} from './script.js';
+import {ScriptConfig, scriptReferenceToString} from './script.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
 
 import type {ExecutionResult} from './execution/base.js';
-import type {ScriptConfig} from './script.js';
 import type {Logger} from './logging/logger.js';
 import type {Cache} from './caching/cache.js';
 
@@ -131,21 +130,10 @@ export class Executor {
    */
   #executeAccordingToKind(script: ScriptConfig): Promise<ExecutionResult> {
     if (script.command === undefined) {
-      return NoOpExecution.execute(
-        // Unfortunately TypeScript does not narrow this type automatically.
-        script as ScriptConfig & {
-          command: undefined;
-          output: undefined;
-        },
-        this,
-        this.#logger
-      );
+      return NoOpExecution.execute(script, this, this.#logger);
     }
     return OneShotExecution.execute(
-      // Unfortunately TypeScript does not narrow this type automatically.
-      script as ScriptConfig & {
-        command: Exclude<ScriptConfig['command'], undefined>;
-      },
+      script,
       this,
       this.#workerPool,
       this.#cache,

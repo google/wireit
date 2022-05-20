@@ -34,19 +34,31 @@ export interface Dependency<Config extends PotentiallyValidScriptConfig> {
   astNode: JsonAstNode<string>;
 }
 
+export type ScriptConfig = NoOpScriptConfig | OneShotScriptConfig;
+
+/**
+ * A script that doesn't run or produce anything. A pass-through for
+ * dependencies and/or files.
+ */
+export interface NoOpScriptConfig extends BaseScriptConfig {
+  command: undefined;
+}
+
+/**
+ * A script with a command that exits by itself.
+ */
+export interface OneShotScriptConfig extends BaseScriptConfig {
+  /**
+   * The shell command to execute.
+   */
+  command: JsonAstNode<string>;
+}
+
 /**
  * The name and location of a script, along with its full configuration.
  */
-export interface ScriptConfig extends ScriptReference {
+interface BaseScriptConfig extends ScriptReference {
   state: 'valid';
-
-  /**
-   * The shell command to execute.
-   *
-   * An undefined command is valid as a way to give name to a group of other
-   * scripts (specified as dependencies).
-   */
-  command: JsonAstNode<string> | undefined;
 
   /**
    * Scripts that must run before this one.

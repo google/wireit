@@ -21,7 +21,7 @@ import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
 import type {
-  ScriptConfig,
+  OneShotScriptConfig,
   ScriptReference,
   Fingerprint,
   FingerprintString,
@@ -30,13 +30,6 @@ import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
-
-/**
- * A script with a command that exits by itself.
- */
-export type OneShotScriptConfig = ScriptConfig & {
-  command: Exclude<ScriptConfig['command'], undefined>;
-};
 
 /**
  * Execution for a {@link OneShotScriptConfig}.

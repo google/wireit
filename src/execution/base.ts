@@ -181,9 +181,8 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     }
 
     const cacheable =
-      // If command is undefined, then it's always safe to be cached, because
-      // the script isn't going to do anything anyway. In these cases, the
-      // fingerprint is essentially just the fingerprint of the dependencies.
+      // If command is undefined, then we simply propagate the fingerprints of
+      // our dependencies, and don't have any effect ourselves on cacheability.
       this.script.command === undefined ||
       // Otherwise, If files are undefined, then it's not safe to be cached,
       // because we don't know what the inputs are, so we can't know if the
