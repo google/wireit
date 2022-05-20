@@ -14,8 +14,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Should have no effect.
 
 - If a script does not define a `"command"`, then fingerprints, lock files, and
-  cache entries are no longer written to the `.wireit` directory. This should
-  have no meaningful effect.
+  cache entries are no longer written to the `.wireit` directory. This change
+  should have no user-facing effect apart from a very minor performance
+  improvement.
 
 ## [0.4.3] - 2022-05-15
 

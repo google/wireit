@@ -125,9 +125,6 @@ export class Executor {
     return promise;
   }
 
-  /**
-   *
-   */
   #executeAccordingToKind(script: ScriptConfig): Promise<ExecutionResult> {
     if (script.command === undefined) {
       return NoOpExecution.execute(script, this, this.#logger);
