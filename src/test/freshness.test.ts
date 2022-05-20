@@ -1699,4 +1699,54 @@ test(
   })
 );
 
+test(
+  'file-only rule affects fingerprint of consumers',
+  timeout(async ({rig}) => {
+    const consumer = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          files: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['files'],
+            files: [],
+          },
+          files: {
+            files: ['foo'],
+          },
+        },
+      },
+    });
+
+    // Consumer is initially stale.
+    {
+      await rig.write('foo', 'v0');
+      const exec = rig.exec('npm run consumer');
+      (await consumer.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(consumer.numInvocations, 1);
+    }
+
+    // Nothing changed, consumer is still fresh.
+    {
+      const exec = rig.exec('npm run consumer');
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(consumer.numInvocations, 1);
+    }
+
+    // Changed input file of the file-only script, consumer is now stale.
+    {
+      await rig.write('foo', 'v1');
+      const exec = rig.exec('npm run consumer');
+      (await consumer.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(consumer.numInvocations, 2);
+    }
+  })
+);
+
 test.run();
