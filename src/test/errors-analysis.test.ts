@@ -1697,4 +1697,41 @@ test(`repro an issue with looking for a colon in missing dependency`, async ({
   );
 });
 
+test(
+  'script without command cannot have output',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b'],
+            output: ['foo'],
+          },
+          b: {
+            command: 'true',
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assertScriptOutputEquals(
+      done.stderr,
+      `
+❌ package.json:11:7 "output" can only be set if "command" is also set.
+          "output": [
+          ~~~~~~~~~~~
+            "foo"
+    ~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`
+    );
+  })
+);
+
 test.run();
