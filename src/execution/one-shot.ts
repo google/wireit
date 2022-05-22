@@ -25,7 +25,7 @@ import type {OneShotScriptConfig, ScriptReference} from '../script.js';
 import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
-import type {Cache} from '../caching/cache.js';
+import type {Cache, CacheHit} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
 
 /**
@@ -77,7 +77,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     }
 
     return this.#acquireSystemLockIfNeeded(async () => {
-      return await this.#executeScript(dependencyFingerprints.value);
+      return this.#executeScript(dependencyFingerprints.value);
     });
   }
 
@@ -195,18 +195,15 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       ? await this.#cache?.get(this.script, fingerprint)
       : undefined;
 
+    if (this.#shouldNotStart) {
+      return {ok: false, error: [this.#startCancelledEvent]};
+    }
+
+    if (cacheHit !== undefined) {
+      return this.#handleCacheHit(cacheHit, fingerprint);
+    }
+
     const shouldClean = await (async () => {
-      if (cacheHit !== undefined) {
-        // If we are restoring from cache, we should always delete existing
-        // output. The purpose of "clean:false" and "clean:if-file-deleted" is to
-        // allow tools with incremental build (like tsc --build) to work.
-        //
-        // However, this only applies when the tool is able to observe each
-        // incremental change to the input files. When we restore from cache, we
-        // are directly replacing the output files, and not invoking the tool at
-        // all, so there is no way for the tool to do any cleanup.
-        return true;
-      }
       const cleanValue = this.script.clean;
       switch (cleanValue) {
         case true: {
@@ -249,26 +246,9 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
     }
 
-    if (cacheHit !== undefined) {
-      await cacheHit.apply();
-      // We include stdout and stderr replay files when we save to the cache, so
-      // if there were any, they will now be in place.
-      // TODO(aomarks) Does not preserve original order of stdout vs stderr
-      // chunks. See https://github.com/google/wireit/issues/74.
-      await Promise.all([
-        this.#replayStdoutIfPresent(),
-        this.#replayStderrIfPresent(),
-      ]);
-      this.logger.log({
-        script: this.script,
-        type: 'success',
-        reason: 'cached',
-      });
-    } else {
-      const result = await this.#spawnCommand();
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
-      }
+    const result = await this.#spawnCommand();
+    if (!result.ok) {
+      return {ok: false, error: [result.error]};
     }
 
     // TODO(aomarks) We don't technically need to wait for these to finish to
@@ -312,6 +292,47 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       type: 'success',
       reason: 'fresh',
     });
+    return {ok: true, value: fingerprint};
+  }
+
+  /**
+   * Handle the outcome where the script was stale and we got a cache hit.
+   */
+  async #handleCacheHit(
+    cacheHit: CacheHit,
+    fingerprint: Fingerprint
+  ): Promise<ExecutionResult> {
+    await this.#prepareDataDir();
+
+    // If we are restoring from cache, we should always delete existing output.
+    // The purpose of "clean:false" and "clean:if-file-deleted" is to allow
+    // tools with incremental build (like tsc --build) to work.
+    //
+    // However, this only applies when the tool is able to observe each
+    // incremental change to the input files. When we restore from cache, we are
+    // directly replacing the output files, and not invoking the tool at all, so
+    // there is no way for the tool to do any cleanup.
+    await this.#cleanOutput();
+
+    await cacheHit.apply();
+
+    // We include stdout and stderr replay files when we save to the cache, so
+    // if there were any, they will now be in place.
+    // TODO(aomarks) Does not preserve original order of stdout vs stderr
+    // chunks. See https://github.com/google/wireit/issues/74.
+    await Promise.all([
+      this.#replayStdoutIfPresent(),
+      this.#replayStderrIfPresent(),
+    ]);
+
+    await this.#writeFingerprintFile(fingerprint);
+
+    this.logger.log({
+      script: this.script,
+      type: 'success',
+      reason: 'cached',
+    });
+
     return {ok: true, value: fingerprint};
   }
 
