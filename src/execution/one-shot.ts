@@ -203,66 +203,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       return this.#handleCacheHit(cacheHit, fingerprint);
     }
 
-    const shouldClean = await (async () => {
-      const cleanValue = this.script.clean;
-      switch (cleanValue) {
-        case true: {
-          return true;
-        }
-        case false: {
-          return false;
-        }
-        case 'if-file-deleted': {
-          const prevFingerprint = await this.#readPreviousFingerprint();
-          if (prevFingerprint === undefined) {
-            // If we don't know the previous fingerprint, then we can't know
-            // whether any input files were removed. It's safer to err on the
-            // side of cleaning.
-            return true;
-          }
-          return this.#anyInputFilesDeletedSinceLastRun(
-            fingerprint,
-            prevFingerprint
-          );
-        }
-        default: {
-          throw new Error(
-            `Unhandled clean setting: ${unreachable(cleanValue) as string}`
-          );
-        }
-      }
-    })();
-
-    // It's important that we delete the previous fingerprint and stdio replay
-    // files before running the command or restoring from cache, because if
-    // either fails mid-flight, we don't want to think that the previous
-    // fingerprint is still valid.
-    await this.#prepareDataDir();
-
-    if (shouldClean) {
-      const result = await this.#cleanOutput();
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
-      }
-    }
-
-    const result = await this.#spawnCommand();
-    if (!result.ok) {
-      return {ok: false, error: [result.error]};
-    }
-
-    // TODO(aomarks) We don't technically need to wait for these to finish to
-    // return, we only need to wait in the top-level call to execute. The same
-    // will go for saving output to the cache.
-    await this.#writeFingerprintFile(fingerprint);
-    if (cacheHit === undefined && fingerprint.data.cacheable) {
-      const result = await this.#saveToCacheIfPossible(fingerprint);
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
-      }
-    }
-
-    return {ok: true, value: fingerprint};
+    return this.#handleNeedsRun(fingerprint);
   }
 
   /**
@@ -334,6 +275,72 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     });
 
     return {ok: true, value: fingerprint};
+  }
+
+  /**
+   * Handle the outcome where the script was stale and we need to run it.
+   */
+  async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
+    const shouldClean = await this.#shouldClean(fingerprint);
+
+    // It's important that we delete the previous fingerprint and stdio replay
+    // files before running the command or restoring from cache, because if
+    // either fails mid-flight, we don't want to think that the previous
+    // fingerprint is still valid.
+    await this.#prepareDataDir();
+
+    if (shouldClean) {
+      const result = await this.#cleanOutput();
+      if (!result.ok) {
+        return {ok: false, error: [result.error]};
+      }
+    }
+
+    const result = await this.#spawnCommand();
+    if (!result.ok) {
+      return {ok: false, error: [result.error]};
+    }
+
+    await this.#writeFingerprintFile(fingerprint);
+
+    if (fingerprint.data.cacheable) {
+      const result = await this.#saveToCacheIfPossible(fingerprint);
+      if (!result.ok) {
+        return {ok: false, error: [result.error]};
+      }
+    }
+
+    return {ok: true, value: fingerprint};
+  }
+
+  async #shouldClean(fingerprint: Fingerprint) {
+    const cleanValue = this.script.clean;
+    switch (cleanValue) {
+      case true: {
+        return true;
+      }
+      case false: {
+        return false;
+      }
+      case 'if-file-deleted': {
+        const prevFingerprint = await this.#readPreviousFingerprint();
+        if (prevFingerprint === undefined) {
+          // If we don't know the previous fingerprint, then we can't know
+          // whether any input files were removed. It's safer to err on the
+          // side of cleaning.
+          return true;
+        }
+        return this.#anyInputFilesDeletedSinceLastRun(
+          fingerprint,
+          prevFingerprint
+        );
+      }
+      default: {
+        throw new Error(
+          `Unhandled clean setting: ${unreachable(cleanValue) as string}`
+        );
+      }
+    }
   }
 
   /**
