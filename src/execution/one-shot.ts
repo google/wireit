@@ -21,7 +21,7 @@ import {Fingerprint} from '../fingerprint.js';
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
-import type {OneShotScriptConfig, ScriptReference} from '../script.js';
+import type {OneShotScriptConfig} from '../script.js';
 import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
@@ -296,77 +296,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
     }
 
-    const result = await this.#spawnCommand();
-    if (!result.ok) {
-      return {ok: false, error: [result.error]};
-    }
-
-    await this.#writeFingerprintFile(fingerprint);
-
-    if (fingerprint.data.cacheable) {
-      const result = await this.#saveToCacheIfPossible(fingerprint);
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
-      }
-    }
-
-    return {ok: true, value: fingerprint};
-  }
-
-  async #shouldClean(fingerprint: Fingerprint) {
-    const cleanValue = this.script.clean;
-    switch (cleanValue) {
-      case true: {
-        return true;
-      }
-      case false: {
-        return false;
-      }
-      case 'if-file-deleted': {
-        const prevFingerprint = await this.#readPreviousFingerprint();
-        if (prevFingerprint === undefined) {
-          // If we don't know the previous fingerprint, then we can't know
-          // whether any input files were removed. It's safer to err on the
-          // side of cleaning.
-          return true;
-        }
-        return this.#anyInputFilesDeletedSinceLastRun(
-          fingerprint,
-          prevFingerprint
-        );
-      }
-      default: {
-        throw new Error(
-          `Unhandled clean setting: ${unreachable(cleanValue) as string}`
-        );
-      }
-    }
-  }
-
-  /**
-   * Compares the current set of input file names to the previous set of input
-   * file names, and returns whether any files have been removed.
-   */
-  #anyInputFilesDeletedSinceLastRun(
-    curFingerprint: Fingerprint,
-    prevFingerprint: Fingerprint
-  ): boolean {
-    const curFiles = Object.keys(curFingerprint.data.files);
-    const prevFiles = Object.keys(prevFingerprint.data.files);
-    if (curFiles.length < prevFiles.length) {
-      return true;
-    }
-    const newFilesSet = new Set(curFiles);
-    for (const oldFile of prevFiles) {
-      if (!newFilesSet.has(oldFile)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  async #spawnCommand(): Promise<Result<void>> {
-    return this.#workerPool.run(async (): Promise<Result<void>> => {
+    const childResult = await this.#workerPool.run(async () => {
       // Significant time could have elapsed since we last checked because of
       // parallelism limits.
       if (this.#shouldNotStart) {
@@ -452,6 +382,73 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         }
       }
     });
+
+    if (!childResult.ok) {
+      return {ok: false, error: [childResult.error]};
+    }
+
+    await this.#writeFingerprintFile(fingerprint);
+
+    if (fingerprint.data.cacheable) {
+      const result = await this.#saveToCacheIfPossible(fingerprint);
+      if (!result.ok) {
+        return {ok: false, error: [result.error]};
+      }
+    }
+
+    return {ok: true, value: fingerprint};
+  }
+
+  async #shouldClean(fingerprint: Fingerprint) {
+    const cleanValue = this.script.clean;
+    switch (cleanValue) {
+      case true: {
+        return true;
+      }
+      case false: {
+        return false;
+      }
+      case 'if-file-deleted': {
+        const prevFingerprint = await this.#readPreviousFingerprint();
+        if (prevFingerprint === undefined) {
+          // If we don't know the previous fingerprint, then we can't know
+          // whether any input files were removed. It's safer to err on the
+          // side of cleaning.
+          return true;
+        }
+        return this.#anyInputFilesDeletedSinceLastRun(
+          fingerprint,
+          prevFingerprint
+        );
+      }
+      default: {
+        throw new Error(
+          `Unhandled clean setting: ${unreachable(cleanValue) as string}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Compares the current set of input file names to the previous set of input
+   * file names, and returns whether any files have been removed.
+   */
+  #anyInputFilesDeletedSinceLastRun(
+    curFingerprint: Fingerprint,
+    prevFingerprint: Fingerprint
+  ): boolean {
+    const curFiles = Object.keys(curFingerprint.data.files);
+    const prevFiles = Object.keys(prevFingerprint.data.files);
+    if (curFiles.length < prevFiles.length) {
+      return true;
+    }
+    const newFilesSet = new Set(curFiles);
+    for (const oldFile of prevFiles) {
+      if (!newFilesSet.has(oldFile)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
