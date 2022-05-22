@@ -6,7 +6,7 @@
 
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
-import {optimizeMkdirs} from '../util/optimize-fs-ops.js';
+import {optimizeMkdirs} from '../util/optimize-mkdirs.js';
 import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 
