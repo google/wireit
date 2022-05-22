@@ -515,23 +515,30 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   }
 
   /**
-   * Read this script's fingerprint file.
+   * Read this script's previous fingerprint from `fingerprint` file in the
+   * `.wireit` directory. Cached after first call.
    */
   async #readPreviousFingerprint(): Promise<Fingerprint | undefined> {
-    try {
-      return Fingerprint.fromString(
-        (await fs.readFile(
-          this.#fingerprintFilePath,
-          'utf8'
-        )) as FingerprintString
-      );
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        return undefined;
-      }
-      throw error;
+    if (this.#cachedPreviousFingerprint === undefined) {
+      this.#cachedPreviousFingerprint = (async () => {
+        try {
+          return Fingerprint.fromString(
+            (await fs.readFile(
+              this.#fingerprintFilePath,
+              'utf8'
+            )) as FingerprintString
+          );
+        } catch (error) {
+          if ((error as {code?: string}).code === 'ENOENT') {
+            return undefined;
+          }
+          throw error;
+        }
+      })();
     }
+    return this.#cachedPreviousFingerprint;
   }
+  #cachedPreviousFingerprint?: Promise<Fingerprint | undefined>;
 
   /**
    * Write this script's fingerprint file.
