@@ -9,6 +9,7 @@ import {resolve} from 'path';
 import {createHash} from 'crypto';
 import {glob} from '../util/glob.js';
 import {shuffle} from '../util/shuffle.js';
+import {Fingerprint} from '../fingerprint.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
@@ -18,7 +19,7 @@ import {
   ScriptReferenceString,
   scriptReferenceToString,
 } from '../script.js';
-import type {Fingerprint, Sha256HexDigest} from '../fingerprint.js';
+import type {FingerprintData, Sha256HexDigest} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
 
@@ -91,13 +92,16 @@ export abstract class BaseExecution<T extends ScriptConfig> {
   ): Promise<Fingerprint> {
     let allDependenciesAreCacheable = true;
     const filteredDependencyStates: Array<
-      [ScriptReferenceString, Fingerprint]
+      [ScriptReferenceString, FingerprintData]
     > = [];
-    for (const [dep, depState] of dependencyFingerprints) {
-      if (!depState.cacheable) {
+    for (const [dep, depFingerprint] of dependencyFingerprints) {
+      if (!depFingerprint.data.cacheable) {
         allDependenciesAreCacheable = false;
       }
-      filteredDependencyStates.push([scriptReferenceToString(dep), depState]);
+      filteredDependencyStates.push([
+        scriptReferenceToString(dep),
+        depFingerprint.data,
+      ]);
     }
 
     let fileHashes: Array<[string, Sha256HexDigest]>;
@@ -149,7 +153,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
         // our output.
         allDependenciesAreCacheable);
 
-    return {
+    return Fingerprint.fromData({
       cacheable,
       platform: process.platform,
       arch: process.arch,
@@ -165,6 +169,6 @@ export abstract class BaseExecution<T extends ScriptConfig> {
           aRef.localeCompare(bRef)
         )
       ),
-    };
+    });
   }
 }

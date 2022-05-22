@@ -10,7 +10,7 @@ import type {ScriptReferenceString} from './script.js';
  * All meaningful inputs of a script. Used for determining if a script is fresh,
  * and as the key for storing cached output.
  */
-export interface Fingerprint {
+export interface FingerprintData {
   /**
    * Whether the output for this script can be fresh or cached.
    *
@@ -59,11 +59,11 @@ export interface Fingerprint {
   output: string[];
 
   // Must be sorted.
-  dependencies: {[dependency: ScriptReferenceString]: Fingerprint};
+  dependencies: {[dependency: ScriptReferenceString]: FingerprintData};
 }
 
 /**
- * String serialization of a {@link Fingerprint}.
+ * String serialization of a {@link FingerprintData}.
  */
 export type FingerprintString = string & {
   __FingerprintStringBrand__: never;
@@ -75,3 +75,44 @@ export type FingerprintString = string & {
 export type Sha256HexDigest = string & {
   __Sha256HexDigestBrand__: never;
 };
+
+/**
+ * A script fingerprint. Can be initialized from either an object or a string,
+ * and converts to the other form lazily with caching.
+ */
+export class Fingerprint {
+  static fromString(string: FingerprintString): Fingerprint {
+    const fingerprint = new Fingerprint();
+    fingerprint.#str = string;
+    return fingerprint;
+  }
+
+  static fromData(data: FingerprintData): Fingerprint {
+    const fingerprint = new Fingerprint();
+    fingerprint.#data = data;
+    return fingerprint;
+  }
+
+  #str?: FingerprintString;
+  #data?: FingerprintData;
+
+  get string(): FingerprintString {
+    if (this.#str === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      this.#str = JSON.stringify(this.#data!) as FingerprintString;
+    }
+    return this.#str;
+  }
+
+  get data(): FingerprintData {
+    if (this.#data === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      this.#data = JSON.parse(this.#str!) as FingerprintData;
+    }
+    return this.#data;
+  }
+
+  equal(other: Fingerprint): boolean {
+    return this.string === other.string;
+  }
+}

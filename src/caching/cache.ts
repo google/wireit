@@ -5,7 +5,7 @@
  */
 
 import type {ScriptReference} from '../script.js';
-import type {FingerprintString} from '../fingerprint.js';
+import type {Fingerprint} from '../fingerprint.js';
 import type {RelativeEntry} from '../util/glob.js';
 
 /**
@@ -25,7 +25,7 @@ export interface Cache {
    */
   get(
     script: ScriptReference,
-    fingerprint: FingerprintString
+    fingerprint: Fingerprint
   ): Promise<CacheHit | undefined>;
 
   /**
@@ -42,7 +42,7 @@ export interface Cache {
    */
   set(
     script: ScriptReference,
-    fingerprint: FingerprintString,
+    fingerprint: Fingerprint,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean>;
 }

@@ -16,12 +16,13 @@ import {posixifyPathIfOnWindows} from '../util/windows.js';
 import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from '../script-child-process.js';
 import {BaseExecution} from './base.js';
+import {Fingerprint} from '../fingerprint.js';
 
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
 import type {OneShotScriptConfig, ScriptReference} from '../script.js';
-import type {Fingerprint, FingerprintString} from '../fingerprint.js';
+import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from '../caching/cache.js';
@@ -179,15 +180,12 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     // Note we must wait for dependencies to finish before generating the cache
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
-    const fingerprintData = await this.computeFingerprint(
-      dependencyFingerprints
-    );
-    const fingerprint = JSON.stringify(fingerprintData) as FingerprintString;
+    const fingerprint = await this.computeFingerprint(dependencyFingerprints);
     const prevFingerprint = await this.#readPreviousFingerprint();
     if (
-      fingerprintData.cacheable &&
+      fingerprint.data.cacheable &&
       prevFingerprint !== undefined &&
-      prevFingerprint === fingerprint
+      fingerprint.equal(prevFingerprint)
     ) {
       // TODO(aomarks) Does not preserve original order of stdout vs stderr
       // chunks. See https://github.com/google/wireit/issues/74.
@@ -200,7 +198,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         type: 'success',
         reason: 'fresh',
       });
-      return {ok: true, value: fingerprintData};
+      return {ok: true, value: fingerprint};
     }
 
     // Computing the fingerprint can take some time, and the next operation is
@@ -215,7 +213,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     // fingerprint is still valid.
     await this.#prepareDataDir();
 
-    const cacheHit = fingerprintData.cacheable
+    const cacheHit = fingerprint.data.cacheable
       ? await this.#cache?.get(this.script, fingerprint)
       : undefined;
 
@@ -247,8 +245,8 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
             return true;
           }
           return this.#anyInputFilesDeletedSinceLastRun(
-            fingerprintData,
-            JSON.parse(prevFingerprint) as Fingerprint
+            fingerprint,
+            prevFingerprint
           );
         }
         default: {
@@ -291,14 +289,14 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     // return, we only need to wait in the top-level call to execute. The same
     // will go for saving output to the cache.
     await this.#writeFingerprintFile(fingerprint);
-    if (cacheHit === undefined && fingerprintData.cacheable) {
+    if (cacheHit === undefined && fingerprint.data.cacheable) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
     }
 
-    return {ok: true, value: fingerprintData};
+    return {ok: true, value: fingerprint};
   }
 
   /**
@@ -306,11 +304,11 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
    * file names, and returns whether any files have been removed.
    */
   #anyInputFilesDeletedSinceLastRun(
-    curState: Fingerprint,
-    prevState: Fingerprint
+    curFingerprint: Fingerprint,
+    prevFingerprint: Fingerprint
   ): boolean {
-    const curFiles = Object.keys(curState.files);
-    const prevFiles = Object.keys(prevState.files);
+    const curFiles = Object.keys(curFingerprint.data.files);
+    const prevFiles = Object.keys(prevFingerprint.data.files);
     if (curFiles.length < prevFiles.length) {
       return true;
     }
@@ -416,7 +414,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
    * Save the current output files to the configured cache if possible.
    */
   async #saveToCacheIfPossible(
-    fingerprint: FingerprintString
+    fingerprint: Fingerprint
   ): Promise<Result<void>> {
     if (this.#cache === undefined || this.script.output === undefined) {
       return {ok: true, value: undefined};
@@ -519,12 +517,14 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   /**
    * Read this script's fingerprint file.
    */
-  async #readPreviousFingerprint(): Promise<FingerprintString | undefined> {
+  async #readPreviousFingerprint(): Promise<Fingerprint | undefined> {
     try {
-      return (await fs.readFile(
-        this.#fingerprintFilePath,
-        'utf8'
-      )) as FingerprintString;
+      return Fingerprint.fromString(
+        (await fs.readFile(
+          this.#fingerprintFilePath,
+          'utf8'
+        )) as FingerprintString
+      );
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
         return undefined;
@@ -536,9 +536,9 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   /**
    * Write this script's fingerprint file.
    */
-  async #writeFingerprintFile(fingerprint: FingerprintString): Promise<void> {
+  async #writeFingerprintFile(fingerprint: Fingerprint): Promise<void> {
     await fs.mkdir(this.#dataDir, {recursive: true});
-    await fs.writeFile(this.#fingerprintFilePath, fingerprint, 'utf8');
+    await fs.writeFile(this.#fingerprintFilePath, fingerprint.string, 'utf8');
   }
 
   /**
