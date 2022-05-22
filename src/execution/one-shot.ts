@@ -77,7 +77,34 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     }
 
     return this.#acquireSystemLockIfNeeded(async () => {
-      return this.#executeScript(dependencyFingerprints.value);
+      // Note we must wait for dependencies to finish before generating the
+      // cache key, because a dependency could create or modify an input file to
+      // this script, which would affect the key.
+      const fingerprint = await this.computeFingerprint(
+        dependencyFingerprints.value
+      );
+      if (await this.#fingerprintIsFresh(fingerprint)) {
+        return this.#handleFresh(fingerprint);
+      }
+
+      // Computing the fingerprint can take some time, and the next operation is
+      // destructive. Another good opportunity to check if we should still
+      // start.
+      if (this.#shouldNotStart) {
+        return {ok: false, error: [this.#startCancelledEvent]};
+      }
+
+      const cacheHit = fingerprint.data.cacheable
+        ? await this.#cache?.get(this.script, fingerprint)
+        : undefined;
+      if (this.#shouldNotStart) {
+        return {ok: false, error: [this.#startCancelledEvent]};
+      }
+      if (cacheHit !== undefined) {
+        return this.#handleCacheHit(cacheHit, fingerprint);
+      }
+
+      return this.#handleNeedsRun(fingerprint);
     });
   }
 
@@ -172,38 +199,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         }
       }
     }
-  }
-
-  async #executeScript(
-    dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
-  ): Promise<ExecutionResult> {
-    // Note we must wait for dependencies to finish before generating the cache
-    // key, because a dependency could create or modify an input file to this
-    // script, which would affect the key.
-    const fingerprint = await this.computeFingerprint(dependencyFingerprints);
-    if (await this.#fingerprintIsFresh(fingerprint)) {
-      return this.#handleFresh(fingerprint);
-    }
-
-    // Computing the fingerprint can take some time, and the next operation is
-    // destructive. Another good opportunity to check if we should still start.
-    if (this.#shouldNotStart) {
-      return {ok: false, error: [this.#startCancelledEvent]};
-    }
-
-    const cacheHit = fingerprint.data.cacheable
-      ? await this.#cache?.get(this.script, fingerprint)
-      : undefined;
-
-    if (this.#shouldNotStart) {
-      return {ok: false, error: [this.#startCancelledEvent]};
-    }
-
-    if (cacheHit !== undefined) {
-      return this.#handleCacheHit(cacheHit, fingerprint);
-    }
-
-    return this.#handleNeedsRun(fingerprint);
   }
 
   /**
