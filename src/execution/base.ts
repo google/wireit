@@ -9,7 +9,6 @@ import {resolve} from 'path';
 import {createHash} from 'crypto';
 import {glob} from '../util/glob.js';
 import {shuffle} from '../util/shuffle.js';
-import {getScriptDataDir} from '../util/script-data-dir.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
@@ -22,7 +21,7 @@ import {
   Sha256HexDigest,
 } from '../script.js';
 import type {Logger} from '../logging/logger.js';
-import type {Failure, StartCancelled} from '../event.js';
+import type {Failure} from '../event.js';
 
 export type ExecutionResult = Result<Fingerprint, Failure[]>;
 
@@ -48,34 +47,6 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     this.script = script;
     this.executor = executor;
     this.logger = logger;
-  }
-
-  /**
-   * Whether we should return early instead of starting this script.
-   *
-   * We should check this as the first thing we do, and then after any
-   * significant amount of time might have elapsed.
-   */
-  protected get shouldNotStart(): boolean {
-    return this.executor.shouldStopStartingNewScripts;
-  }
-
-  /**
-   * Convenience to generate a cancellation failure event for this script.
-   */
-  protected get startCancelledEvent(): StartCancelled {
-    return {
-      script: this.script,
-      type: 'failure',
-      reason: 'start-cancelled',
-    };
-  }
-
-  /**
-   * Get the directory name where Wireit data can be saved for this script.
-   */
-  protected get dataDir(): string {
-    return getScriptDataDir(this.script);
   }
 
   /**

@@ -24,10 +24,6 @@ export class NoOpExecution extends BaseExecution<NoOpScriptConfig> {
   }
 
   async #execute(): Promise<ExecutionResult> {
-    if (this.shouldNotStart) {
-      return {ok: false, error: [this.startCancelledEvent]};
-    }
-
     const dependencyFingerprints = await this.executeDependencies();
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;

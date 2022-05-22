@@ -67,9 +67,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   }
 
   async #execute(): Promise<ExecutionResult> {
-    if (this.#shouldNotStart) {
-      return {ok: false, error: [this.#startCancelledEvent]};
-    }
     const dependencyFingerprints = await this.executeDependencies();
     if (!dependencyFingerprints.ok) {
       dependencyFingerprints.error.push(this.#startCancelledEvent);
