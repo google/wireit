@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {Failure} from './event.js';
 import * as pathlib from 'path';
-import {JsonFile, NamedAstNode} from './util/ast.js';
+
+import type {Failure, UnknownErrorThrown} from './event.js';
+import type {JsonFile, NamedAstNode} from './util/ast.js';
+import type {ScriptReference} from './script.js';
 
 export type Result<T, E = Failure> =
   | {ok: true; value: T}
@@ -212,3 +214,24 @@ export const offsetInsideNamedNode = (
     length: totalLength,
   });
 };
+
+/**
+ * Convert an unexpected exception to a {@link UnknownErrorThrown} failure,
+ * which includes the sript context for better debugging.
+ */
+export function convertExceptionToFailure(
+  error: unknown,
+  script: ScriptReference
+): {ok: false; error: [UnknownErrorThrown]} {
+  return {
+    ok: false,
+    error: [
+      {
+        type: 'failure',
+        reason: 'unknown-error-thrown',
+        script,
+        error,
+      },
+    ],
+  };
+}

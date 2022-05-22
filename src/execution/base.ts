@@ -88,36 +88,22 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
     shuffle(this.script.dependencies);
-    // Note we use Promise.allSettled instead of Promise.all so that we can
-    // collect all errors, instead of just the first one.
-    const dependencyResults = await Promise.allSettled(
+
+    const dependencyResults = await Promise.all(
       this.script.dependencies.map((dependency) => {
         return this.executor.execute(dependency.config);
       })
     );
-    const errors = new Set<Failure>();
     const results: Array<[ScriptReference, Fingerprint]> = [];
+    const errors = new Set<Failure>();
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
-      if (result.status === 'rejected') {
-        const error: unknown = result.reason;
-        errors.add({
-          type: 'failure',
-          reason: 'unknown-error-thrown',
-          script: this.script.dependencies[i].config,
-          error: error,
-        });
-      } else {
-        if (!result.value.ok) {
-          for (const error of result.value.error) {
-            errors.add(error);
-          }
-        } else {
-          results.push([
-            this.script.dependencies[i].config,
-            result.value.value,
-          ]);
+      if (!result.ok) {
+        for (const error of result.error) {
+          errors.add(error);
         }
+      } else {
+        results.push([this.script.dependencies[i].config, result.value]);
       }
     }
     if (errors.size > 0) {
