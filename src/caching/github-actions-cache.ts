@@ -15,7 +15,8 @@ import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference, FingerprintString} from '../script.js';
+import type {ScriptReference} from '../script.js';
+import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {RelativeEntry} from '../util/glob.js';
 import type {Result} from '../error.js';

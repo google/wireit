@@ -20,12 +20,8 @@ import {BaseExecution} from './base.js';
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
-import type {
-  OneShotScriptConfig,
-  ScriptReference,
-  Fingerprint,
-  FingerprintString,
-} from '../script.js';
+import type {OneShotScriptConfig, ScriptReference} from '../script.js';
+import type {Fingerprint, FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache} from '../caching/cache.js';

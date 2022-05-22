@@ -13,13 +13,12 @@ import {shuffle} from '../util/shuffle.js';
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
 import {
-  Fingerprint,
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
   scriptReferenceToString,
-  Sha256HexDigest,
 } from '../script.js';
+import type {Fingerprint, Sha256HexDigest} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
 

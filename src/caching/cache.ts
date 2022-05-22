@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {FingerprintString, ScriptReference} from '../script.js';
+import type {ScriptReference} from '../script.js';
+import type {FingerprintString} from '../fingerprint.js';
 import type {RelativeEntry} from '../util/glob.js';
 
 /**
