@@ -79,20 +79,9 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       return {ok: false, error: [this.#startCancelledEvent]};
     }
 
-    if (this.script.output?.values.length === 0) {
-      // If there are explicitly no output files, then it's not actually
-      // important to maintain an exclusive lock.
-      return this.#executeScript(dependencyFingerprints.value);
-    }
-    const releaseLock = await this.#acquireLock();
-    if (!releaseLock.ok) {
-      return {ok: false, error: [releaseLock.error]};
-    }
-    try {
+    return this.#acquireSystemLockIfNeeded(async () => {
       return await this.#executeScript(dependencyFingerprints.value);
-    } finally {
-      await releaseLock.value();
-    }
+    });
   }
 
   /**
@@ -117,9 +106,16 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   }
 
   /**
-   * Acquire a system-wide lock on the execution of this script.
+   * Acquire a system-wide lock on the execution of this script, if the script
+   * has any output files that require it.
    */
-  async #acquireLock(): Promise<Result<() => Promise<void>, StartCancelled>> {
+  async #acquireSystemLockIfNeeded<T>(
+    workFn: () => Promise<T>
+  ): Promise<T | {ok: false; error: [StartCancelled]}> {
+    if (this.script.output?.values.length === 0) {
+      return workFn();
+    }
+
     // The proper-lockfile library is designed to give an exclusive lock for a
     // *file*. That's slightly misaligned with our use-case, because there's no
     // particular file we need a lock for -- our lock is for the execution of
@@ -153,7 +149,11 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
           // the script.
           update: 2000,
         });
-        return {ok: true, value: release};
+        try {
+          return await workFn();
+        } finally {
+          await release();
+        }
       } catch (error) {
         if ((error as {code: string}).code === 'ELOCKED') {
           if (!loggedLocked) {
@@ -168,7 +168,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
           if (this.#shouldNotStart) {
-            return {ok: false, error: this.#startCancelledEvent};
+            return {ok: false, error: [this.#startCancelledEvent]};
           }
         } else {
           throw error;
