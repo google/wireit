@@ -181,24 +181,8 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     // key, because a dependency could create or modify an input file to this
     // script, which would affect the key.
     const fingerprint = await this.computeFingerprint(dependencyFingerprints);
-    const prevFingerprint = await this.#readPreviousFingerprint();
-    if (
-      fingerprint.data.cacheable &&
-      prevFingerprint !== undefined &&
-      fingerprint.equal(prevFingerprint)
-    ) {
-      // TODO(aomarks) Does not preserve original order of stdout vs stderr
-      // chunks. See https://github.com/google/wireit/issues/74.
-      await Promise.all([
-        this.#replayStdoutIfPresent(),
-        this.#replayStderrIfPresent(),
-      ]);
-      this.logger.log({
-        script: this.script,
-        type: 'success',
-        reason: 'fresh',
-      });
-      return {ok: true, value: fingerprint};
+    if (await this.#fingerprintIsFresh(fingerprint)) {
+      return this.#handleFresh(fingerprint);
     }
 
     // Computing the fingerprint can take some time, and the next operation is
@@ -207,17 +191,11 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       return {ok: false, error: [this.#startCancelledEvent]};
     }
 
-    // It's important that we delete the previous fingerprint and stdio replay
-    // files before running the command or restoring from cache, because if
-    // either fails mid-flight, we don't want to think that the previous
-    // fingerprint is still valid.
-    await this.#prepareDataDir();
-
     const cacheHit = fingerprint.data.cacheable
       ? await this.#cache?.get(this.script, fingerprint)
       : undefined;
 
-    const shouldClean = (() => {
+    const shouldClean = await (async () => {
       if (cacheHit !== undefined) {
         // If we are restoring from cache, we should always delete existing
         // output. The purpose of "clean:false" and "clean:if-file-deleted" is to
@@ -238,6 +216,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
           return false;
         }
         case 'if-file-deleted': {
+          const prevFingerprint = await this.#readPreviousFingerprint();
           if (prevFingerprint === undefined) {
             // If we don't know the previous fingerprint, then we can't know
             // whether any input files were removed. It's safer to err on the
@@ -256,6 +235,13 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         }
       }
     })();
+
+    // It's important that we delete the previous fingerprint and stdio replay
+    // files before running the command or restoring from cache, because if
+    // either fails mid-flight, we don't want to think that the previous
+    // fingerprint is still valid.
+    await this.#prepareDataDir();
+
     if (shouldClean) {
       const result = await this.#cleanOutput();
       if (!result.ok) {
@@ -296,6 +282,36 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
     }
 
+    return {ok: true, value: fingerprint};
+  }
+
+  /**
+   * Check whether the given fingerprint matches the current one from the
+   * `.wireit` directory.
+   */
+  async #fingerprintIsFresh(fingerprint: Fingerprint): Promise<boolean> {
+    if (!fingerprint.data.cacheable) {
+      return false;
+    }
+    const prevFingerprint = await this.#readPreviousFingerprint();
+    return prevFingerprint !== undefined && fingerprint.equal(prevFingerprint);
+  }
+
+  /**
+   * Handle the outcome where the script is already fresh.
+   */
+  async #handleFresh(fingerprint: Fingerprint): Promise<ExecutionResult> {
+    // TODO(aomarks) Does not preserve original order of stdout vs stderr
+    // chunks. See https://github.com/google/wireit/issues/74.
+    await Promise.all([
+      this.#replayStdoutIfPresent(),
+      this.#replayStderrIfPresent(),
+    ]);
+    this.logger.log({
+      script: this.script,
+      type: 'success',
+      reason: 'fresh',
+    });
     return {ok: true, value: fingerprint};
   }
 
