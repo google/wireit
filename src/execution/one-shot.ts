@@ -80,7 +80,8 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       // Note we must wait for dependencies to finish before generating the
       // cache key, because a dependency could create or modify an input file to
       // this script, which would affect the key.
-      const fingerprint = await this.computeFingerprint(
+      const fingerprint = await Fingerprint.compute(
+        this.script,
         dependencyFingerprints.value
       );
       if (await this.#fingerprintIsFresh(fingerprint)) {

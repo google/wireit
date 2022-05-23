@@ -5,6 +5,7 @@
  */
 
 import {BaseExecution} from './base.js';
+import {Fingerprint} from '../fingerprint.js';
 
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
@@ -28,7 +29,8 @@ export class NoOpExecution extends BaseExecution<NoOpScriptConfig> {
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;
     }
-    const fingerprint = await this.computeFingerprint(
+    const fingerprint = await Fingerprint.compute(
+      this.script,
       dependencyFingerprints.value
     );
     this.logger.log({
