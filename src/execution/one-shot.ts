@@ -239,6 +239,9 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     cacheHit: CacheHit,
     fingerprint: Fingerprint
   ): Promise<ExecutionResult> {
+    // Delete the fingerprint file and stdio replay files. It's important we do
+    // this before restoring from cache, because we don't want to think that the
+    // previous fingerprint is still valid when it no longer is.
     await this.#prepareDataDir();
 
     // If we are restoring from cache, we should always delete existing output.
@@ -277,12 +280,14 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
    * Handle the outcome where the script was stale and we need to run it.
    */
   async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
+    // Check if we should clean before we delete the fingerprint file, because
+    // we sometimes need to read the previous fingerprint file to determine
+    // this.
     const shouldClean = await this.#shouldClean(fingerprint);
 
-    // It's important that we delete the previous fingerprint and stdio replay
-    // files before running the command or restoring from cache, because if
-    // either fails mid-flight, we don't want to think that the previous
-    // fingerprint is still valid.
+    // Delete the fingerprint file and stdio replay files. It's important we do
+    // this before starting the command, because we don't want to think that the
+    // previous fingerprint is still valid when it no longer is.
     await this.#prepareDataDir();
 
     if (shouldClean) {

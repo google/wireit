@@ -112,14 +112,14 @@ export class Fingerprint {
     dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
   ): Promise<Fingerprint> {
     let allDependenciesAreCacheable = true;
-    const filteredDependencyStates: Array<
+    const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintData]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
       if (!depFingerprint.data.cacheable) {
         allDependenciesAreCacheable = false;
       }
-      filteredDependencyStates.push([
+      filteredDependencyFingerprints.push([
         scriptReferenceToString(dep),
         depFingerprint.data,
       ]);
@@ -190,7 +190,7 @@ export class Fingerprint {
       ),
       output: script.output?.values ?? [],
       dependencies: Object.fromEntries(
-        filteredDependencyStates.sort(([aRef], [bRef]) =>
+        filteredDependencyFingerprints.sort(([aRef], [bRef]) =>
           aRef.localeCompare(bRef)
         )
       ),
