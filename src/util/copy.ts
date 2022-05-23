@@ -6,7 +6,7 @@
 
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
-import {optimizeMkdirs} from './optimize-fs-ops.js';
+import {optimizeMkdirs} from './optimize-mkdirs.js';
 import {constants} from 'fs';
 import {IS_WINDOWS} from '../util/windows.js';
 
