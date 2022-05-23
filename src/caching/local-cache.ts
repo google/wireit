@@ -12,7 +12,8 @@ import {copyEntries} from '../util/copy.js';
 import {glob} from '../util/glob.js';
 
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference, FingerprintString} from '../script.js';
+import type {ScriptReference} from '../script.js';
+import type {Fingerprint} from '../fingerprint.js';
 import type {RelativeEntry} from '../util/glob.js';
 
 /**
@@ -22,7 +23,7 @@ import type {RelativeEntry} from '../util/glob.js';
 export class LocalCache implements Cache {
   async get(
     script: ScriptReference,
-    fingerprint: FingerprintString
+    fingerprint: Fingerprint
   ): Promise<CacheHit | undefined> {
     const cacheDir = this.#getCacheDir(script, fingerprint);
     try {
@@ -38,7 +39,7 @@ export class LocalCache implements Cache {
 
   async set(
     script: ScriptReference,
-    fingerprint: FingerprintString,
+    fingerprint: Fingerprint,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
@@ -60,14 +61,11 @@ export class LocalCache implements Cache {
     return true;
   }
 
-  #getCacheDir(
-    script: ScriptReference,
-    fingerprint: FingerprintString
-  ): string {
+  #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',
-      createHash('sha256').update(fingerprint).digest('hex')
+      createHash('sha256').update(fingerprint.string).digest('hex')
     );
   }
 }

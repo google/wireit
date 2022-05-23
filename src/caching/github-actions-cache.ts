@@ -15,7 +15,8 @@ import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference, FingerprintString} from '../script.js';
+import type {ScriptReference} from '../script.js';
+import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {RelativeEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
@@ -105,7 +106,7 @@ export class GitHubActionsCache implements Cache {
 
   async get(
     script: ScriptReference,
-    fingerprint: FingerprintString
+    fingerprint: Fingerprint
   ): Promise<CacheHit | undefined> {
     if (this.#hitRateLimit) {
       return undefined;
@@ -145,7 +146,7 @@ export class GitHubActionsCache implements Cache {
 
   async set(
     script: ScriptReference,
-    fingerprint: FingerprintString,
+    fingerprint: Fingerprint,
     relativeFiles: RelativeEntry[]
   ): Promise<boolean> {
     if (this.#hitRateLimit) {
@@ -175,7 +176,7 @@ export class GitHubActionsCache implements Cache {
    */
   async #reserveUploadAndCommitTarball(
     script: ScriptReference,
-    fingerprint: FingerprintString,
+    fingerprint: Fingerprint,
     tarballPath: string
   ): Promise<boolean> {
     const tarballStats = await fs.stat(tarballPath);
@@ -364,26 +365,27 @@ export class GitHubActionsCache implements Cache {
       .digest('hex');
   }
 
-  #computeVersion(fingerprint: FingerprintString): string {
+  #computeVersion(fingerprint: Fingerprint): string {
+    const parts: string[] = [
+      fingerprint.string,
+      'gzip', // e.g. zstd, gzip
+      // The ImageOS environment variable tells us which operating system
+      // version is being used for the worker VM (e.g. "ubuntu20",
+      // "macos11"). We already include process.platform in the fingerprint,
+      // but this is more specific.
+      //
+      // There is also an ImageVersion variable (e.g. "20220405.4") which we
+      // could consider including, but it probably changes frequently and is
+      // unlikely to affect output, so we prefer the higher cache hit rate.
+      process.env.ImageOS ?? '',
+      // Versioning salt:
+      //   - <omitted>: Initial version.
+      //   - 2: Removed empty directories manifest.
+      '2',
+    ];
     return createHash('sha256')
       .update(
-        [
-          fingerprint,
-          'gzip', // e.g. zstd, gzip
-          // The ImageOS environment variable tells us which operating system
-          // version is being used for the worker VM (e.g. "ubuntu20",
-          // "macos11"). We already include process.platform in the fingerprint,
-          // but this is more specific.
-          //
-          // There is also an ImageVersion variable (e.g. "20220405.4") which we
-          // could consider including, but it probably changes frequently and is
-          // unlikely to affect output, so we prefer the higher cache hit rate.
-          process.env.ImageOS ?? '',
-          // Versioning salt:
-          //   - <omitted>: Initial version.
-          //   - 2: Removed empty directories manifest.
-          '2',
-        ].join('\x1E') // ASCII record seperator
+        parts.join('\x1E') // ASCII record seperator
       )
       .digest('hex');
   }

@@ -9,6 +9,7 @@ import {OneShotExecution} from './execution/one-shot.js';
 import {ScriptConfig, scriptReferenceToString} from './script.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
+import {convertExceptionToFailure} from './error.js';
 
 import type {ExecutionResult} from './execution/base.js';
 import type {Logger} from './logging/logger.js';
@@ -114,12 +115,14 @@ export class Executor {
     const executionKey = scriptReferenceToString(script);
     let promise = this.#executions.get(executionKey);
     if (promise === undefined) {
-      promise = this.#executeAccordingToKind(script).then((result) => {
-        if (!result.ok) {
-          this.notifyFailure();
-        }
-        return result;
-      });
+      promise = this.#executeAccordingToKind(script)
+        .catch((error) => convertExceptionToFailure(error, script))
+        .then((result) => {
+          if (!result.ok) {
+            this.notifyFailure();
+          }
+          return result;
+        });
       this.#executions.set(executionKey, promise);
     }
     return promise;
