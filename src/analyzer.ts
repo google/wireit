@@ -22,6 +22,11 @@ import type {
   ScriptReferenceString,
 } from './script.js';
 
+export interface AnalyzeResult {
+  config: Result<ScriptConfig, Failure[]>;
+  relevantConfigFilePaths: Set<string>;
+}
+
 /**
  * A script config that might be at any point of the analysis pipeline,
  * or have stalled at any point along that way due to errors.
@@ -93,6 +98,7 @@ export class Analyzer {
   readonly #packageJsonReader;
   readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
   readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
+  readonly #relevantConfigFilePaths = new Set<string>();
 
   constructor(filesystem?: FileSystem) {
     this.#packageJsonReader = new CachingPackageJsonReader(filesystem);
@@ -138,9 +144,7 @@ export class Analyzer {
    * dependencies don't exist, are configured in an invalid way, or if there is
    * a cycle in the dependency graph.
    */
-  async analyze(
-    root: ScriptReference
-  ): Promise<Result<ScriptConfig, Failure[]>> {
+  async analyze(root: ScriptReference): Promise<AnalyzeResult> {
     // We do 2 walks through the dependency graph:
     //
     // 1. A non-deterministically ordered walk, where we traverse edges as soon
@@ -169,7 +173,10 @@ export class Analyzer {
     {
       const errors = await this.#getDiagnostics();
       if (errors.size > 0) {
-        return {ok: false, error: [...errors]};
+        return {
+          config: {ok: false, error: [...errors]},
+          relevantConfigFilePaths: this.#relevantConfigFilePaths,
+        };
       }
     }
 
@@ -186,10 +193,16 @@ export class Analyzer {
       new Set()
     );
     if (!cycleResult.ok) {
-      return {ok: false, error: [cycleResult.error.dependencyFailure]};
+      return {
+        config: {ok: false, error: [cycleResult.error.dependencyFailure]},
+        relevantConfigFilePaths: this.#relevantConfigFilePaths,
+      };
     }
     const validRootConfig = cycleResult.value;
-    return {ok: true, value: validRootConfig};
+    return {
+      config: {ok: true, value: validRootConfig},
+      relevantConfigFilePaths: this.#relevantConfigFilePaths,
+    };
   }
 
   async analyzeIgnoringErrors(
@@ -244,6 +257,7 @@ export class Analyzer {
   }
 
   async getPackageJson(packageDir: string): Promise<Result<PackageJson>> {
+    this.#relevantConfigFilePaths.add(pathlib.join(packageDir, 'package.json'));
     return this.#packageJsonReader.read(packageDir);
   }
 
