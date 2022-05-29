@@ -498,31 +498,102 @@ test(
 );
 
 test(
-  'error from analysis is fatal (temporary)',
+  'recovers from analysis errors',
   timeout(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['a.txt'],
-            dependencies: ['does-not-exist'],
-          },
+    // In this test we do very fast sequences of writes, which causes chokidar
+    // to sometimes not report events, possibly caused by some internal
+    // throttling it apparently does:
+    // https://github.com/paulmillr/chokidar/issues/1084. It seems to affect
+    // Linux and Windows but not macOS. Add a short pause to force it to notice
+    // the write.
+    const pauseToWorkAroundChokidarEventThrottling = () =>
+      new Promise((resolve) => setTimeout(resolve, 50));
+
+    // We use `writeAtomic` in this test because it is otherwise possible for
+    // chokidar to emit a "change" event before the write has completed,
+    // generating JSON syntax errors at unexpected times. The chokidar
+    // `awaitWriteFinish` option can address this problem, but it introduces
+    // latency because it polls until file size has been stable. Since this only
+    // seems to be a problem on CI where the filesystem is slower, we just
+    // workaround it in this test using atomic writes. If it happened to a user
+    // in practice, either chokidar would emit another event when the write
+    // finished and we'd automatically do another run, or the user could save
+    // the file again.
+
+    // The minimum to get npm to invoke Wireit at all.
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+    });
+    const wireit = rig.exec('npm run a watch');
+    await wireit.waitForLog(/no config in the wireit section/);
+
+    // Add a wireit section but without a command.
+    await pauseToWorkAroundChokidarEventThrottling();
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {},
+      },
+    });
+    await wireit.waitForLog(/nothing for wireit to do/);
+
+    // Add the command.
+    const a = await rig.newCommand();
+    await pauseToWorkAroundChokidarEventThrottling();
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: a.command,
         },
       },
-      'a.txt': 'v0',
     });
+    (await a.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[a\] Executed successfully/);
 
-    // TODO(aomarks) Update this test when analysis error recovery is
-    // implemented.
-    const exec = rig.exec('npm run a watch');
-    const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.equal(cmdA.numInvocations, 0);
+    // Add a dependency on another package, but the other package.json has
+    // invalid JSON.
+    await pauseToWorkAroundChokidarEventThrottling();
+    await rig.writeAtomic('other/package.json', 'potato');
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: a.command,
+          dependencies: ['./other:b'],
+        },
+      },
+    });
+    await wireit.waitForLog(/JSON syntax error/);
+
+    // Make the other package config valid.
+    await pauseToWorkAroundChokidarEventThrottling();
+    const b = await rig.newCommand();
+    await rig.writeAtomic('other/package.json', {
+      scripts: {
+        b: 'wireit',
+      },
+      wireit: {
+        b: {
+          command: b.command,
+        },
+      },
+    });
+    (await b.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[other:b\] Executed successfully/);
+    (await a.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[a\] Executed successfully/);
+
+    wireit.kill();
+    await wireit.exit;
   })
 );
 
