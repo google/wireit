@@ -83,6 +83,38 @@ export class FilesystemTestRig {
   }
 
   /**
+   * Like {@link write}, but first writes to a temporary file, and then renames
+   * the file to its final location.
+   */
+  async writeAtomic(file: string, content: unknown): Promise<void>;
+  async writeAtomic(files: {[filename: string]: unknown}): Promise<void>;
+  async writeAtomic(
+    fileOrFiles: string | {[filename: string]: unknown},
+    data?: string
+  ): Promise<void> {
+    this.assertState('running');
+    if (typeof fileOrFiles === 'string') {
+      const actual = pathlib.resolve(this.temp, fileOrFiles);
+      const temp = actual + '.tmp';
+      await this.write(temp, data);
+      await this.rename(temp, actual);
+    } else {
+      await Promise.all(
+        Object.entries(fileOrFiles).map(async ([relative, data]) =>
+          this.writeAtomic(relative, data)
+        )
+      );
+    }
+  }
+
+  /**
+   * Rename a file in the temporary filesystem.
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    await fs.rename(this.resolve(oldPath), this.resolve(newPath));
+  }
+
+  /**
    * Write an empty file to the temporary filesystem.
    */
   async touch(file: string): Promise<void> {
