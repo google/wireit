@@ -27,6 +27,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   should have no user-facing effect apart from a very minor performance
   improvement.
 
+- Analysis errors encountered in watch mode are no longer fatal. If any
+  `package.json` file that was encountered in the failed analysis was modified,
+  a new analysis attempt will start.
+
+- Performance improvements to watch mode. Re-analysis of configuration now only
+  occurs when a relevant `package.json` file was modified, instead of if any
+  file was modified. Filesystem watchers are now re-used across iterations
+  unless they are changed by a config update.
+
 ## [0.4.3] - 2022-05-15
 
 ### Changed

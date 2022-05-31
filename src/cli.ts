@@ -270,9 +270,9 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     );
   } else {
     const analyzer = new Analyzer();
-    const analyzedResult = await analyzer.analyze(options.script);
-    if (!analyzedResult.ok) {
-      return analyzedResult;
+    const {config} = await analyzer.analyze(options.script);
+    if (!config.ok) {
+      return config;
     }
     const executor = new Executor(
       logger,
@@ -281,7 +281,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       options.failureMode,
       abort
     );
-    const result = await executor.execute(analyzedResult.value);
+    const result = await executor.execute(config.value);
     if (!result.ok) {
       return result;
     }

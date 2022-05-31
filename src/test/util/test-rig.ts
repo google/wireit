@@ -319,11 +319,41 @@ class ExecResult {
     }
   }
 
+  readonly #logMatchers: Array<{re: RegExp; deferred: Deferred<void>}> = [];
+
+  /**
+   * Waits for the given content to be logged to either stdout or stderr.
+   *
+   * When it does, it consumes all the stdout and stderr that's been emitted
+   * so far and returns it.
+   */
+  async waitForLog(matcher: RegExp): Promise<{stdout: string; stderr: string}> {
+    const deferred = new Deferred<void>();
+    this.#logMatchers.push({re: matcher, deferred});
+    // In case we've already received the log we're watching for
+    this.#checkMatchersAgainstLogs();
+    await deferred.promise;
+    const stdout = this.#stdout;
+    const stderr = this.#stderr;
+    this.#stdout = '';
+    this.#stderr = '';
+    return {stdout, stderr};
+  }
+
+  #checkMatchersAgainstLogs() {
+    for (const matcher of this.#logMatchers) {
+      if (matcher.re.test(this.#stdout) || matcher.re.test(this.#stderr)) {
+        matcher.deferred.resolve();
+      }
+    }
+  }
+
   readonly #onStdout = (chunk: string | Buffer) => {
     this.#stdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
+    this.#checkMatchersAgainstLogs();
   };
 
   readonly #onStderr = (chunk: string | Buffer) => {
@@ -331,6 +361,7 @@ class ExecResult {
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
+    this.#checkMatchersAgainstLogs();
   };
 }
 
