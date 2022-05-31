@@ -320,14 +320,14 @@ export class Watcher {
 
   #onAbort(): void {
     switch (this.#state) {
-      case 'watching':
-      case 'queued': {
+      case 'watching': {
         this.#state = 'aborted';
         this.#closeAllFileWatchers();
         this.#finished.resolve();
         return;
       }
-      case 'running': {
+      case 'running':
+      case 'queued': {
         this.#state = 'aborted';
         this.#closeAllFileWatchers();
         // Don't resolve #finished immediately so that we will wait for #analyze
