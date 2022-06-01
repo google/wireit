@@ -42,6 +42,7 @@ export type ScriptConfig = NoOpScriptConfig | OneShotScriptConfig;
  */
 export interface NoOpScriptConfig extends BaseScriptConfig {
   command: undefined;
+  extraArgs: undefined;
 }
 
 /**
@@ -52,6 +53,11 @@ export interface OneShotScriptConfig extends BaseScriptConfig {
    * The shell command to execute.
    */
   command: JsonAstNode<string>;
+
+  /**
+   * Extra arguments to pass to the command.
+   */
+  extraArgs: string[] | undefined;
 }
 
 /**

@@ -53,6 +53,7 @@ const logger = new DefaultLogger(packageDir ?? process.cwd());
 interface Options {
   script: ScriptReference;
   watch: boolean;
+  extraArgs: string[] | undefined;
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
   failureMode: FailureMode;
@@ -183,11 +184,41 @@ const getOptions = (): Result<Options> => {
     return failureModeResult;
   }
 
+  let curArg = 2; // Skip over "node" and the "wireit" binary.
+  const watch = process.argv[curArg] === 'watch';
+  if (watch) {
+    curArg++;
+  }
+  let extraArgs = undefined;
+  if (process.argv.length > curArg) {
+    if (process.argv[curArg] === '--') {
+      curArg++;
+      extraArgs = process.argv.slice(curArg);
+    } else {
+      const unrecognized = process.argv.slice(curArg);
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            `Unrecognized Wireit argument(s) ${JSON.stringify(
+              unrecognized
+            )}. ` +
+            `To pass arguments to the command, use two sets of double-dashes, ` +
+            `e.g. "npm run build -- -- --extra-arg"`,
+          script,
+          type: 'failure',
+        },
+      };
+    }
+  }
+
   return {
     ok: true,
     value: {
       script,
-      watch: process.argv[2] === 'watch',
+      watch,
+      extraArgs,
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
@@ -262,6 +293,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     const {Watcher} = await import('./watcher.js');
     await Watcher.watch(
       options.script,
+      options.extraArgs,
       logger,
       workerPool,
       cache,
@@ -270,7 +302,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     );
   } else {
     const analyzer = new Analyzer();
-    const {config} = await analyzer.analyze(options.script);
+    const {config} = await analyzer.analyze(options.script, options.extraArgs);
     if (!config.ok) {
       return config;
     }

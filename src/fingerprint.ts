@@ -50,6 +50,11 @@ export interface FingerprintData {
   command: string | undefined;
 
   /**
+   * Extra arguments to pass to the command.
+   */
+  extraArgs: string[];
+
+  /**
    * The "clean" setting from the Wireit config.
    *
    * This is included in the fingerprint because switching from "false" to "true"
@@ -178,12 +183,13 @@ export class Fingerprint {
 
     // Note: The order of all fields is important so that we can do fast string
     // comparison.
-    fingerprint.#data = {
+    const data: Omit<FingerprintData, '__FingerprintDataBrand__'> = {
       cacheable,
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
       command: script.command?.value,
+      extraArgs: script.extraArgs ?? [],
       clean: script.clean,
       files: Object.fromEntries(
         fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
@@ -194,7 +200,8 @@ export class Fingerprint {
           aRef.localeCompare(bRef)
         )
       ),
-    } as FingerprintData;
+    };
+    fingerprint.#data = data as FingerprintData;
     return fingerprint;
   }
 

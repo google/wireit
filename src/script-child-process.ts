@@ -79,7 +79,7 @@ export class ScriptChildProcess {
 
     // TODO(aomarks) Update npm_ environment variables to reflect the new
     // package.
-    this.#child = spawn(script.command.value, {
+    this.#child = spawn(script.command.value, script.extraArgs, {
       cwd: script.packageDir,
       // Conveniently, "shell:true" has the same shell-selection behavior as
       // "npm run", where on macOS and Linux it is "sh", and on Windows it is
