@@ -291,4 +291,28 @@ test(
   })
 );
 
+test(
+  'unknown args',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'true'},
+        },
+      },
+    });
+    const wireit = rig.exec('npm run main -- --foo -bar baz');
+    const result = await wireit.exit;
+    assert.equal(result.code, 1);
+    assert.match(
+      result.stderr,
+      `
+❌ [main] Invalid usage: Unrecognized Wireit argument(s) ["--foo","-bar","baz"]. To pass arguments to the command, use two sets of double-dashes, e.g. "npm run build -- -- --extra-arg"`.trim()
+    );
+  })
+);
+
 test.run();
