@@ -7,11 +7,10 @@
 import * as net from 'net';
 import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
-
 import {Deferred} from '../../util/deferred.js';
 import {
-  type Message,
   MESSAGE_END_MARKER,
+  RigToChildMessage,
 } from './test-rig-command-interface.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -178,7 +177,7 @@ export class WireitTestRigCommandInvocation {
     this.#sendMessage({type: 'stderr', str});
   }
 
-  #sendMessage(message: Message): void {
+  #sendMessage(message: RigToChildMessage): void {
     this.#assertState('connected');
     this.#socket.write(JSON.stringify(message));
     this.#socket.write(MESSAGE_END_MARKER);
