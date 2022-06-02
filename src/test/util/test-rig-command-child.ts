@@ -38,6 +38,15 @@ for await (const message of client.receive()) {
       process.stderr.write(message.str);
       break;
     }
+    case 'environmentRequest': {
+      client.send({
+        type: 'environmentResponse',
+        cwd: process.cwd(),
+        argv: process.argv,
+        env: process.env,
+      });
+      break;
+    }
     default: {
       console.error(
         `Unhandled message type ${

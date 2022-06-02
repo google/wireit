@@ -10,7 +10,11 @@ import {Deferred} from '../../util/deferred.js';
 /**
  * A message sent from the test rig to a spawned command.
  */
-export type RigToChildMessage = StdoutMessage | StderrMessage | ExitMessage;
+export type RigToChildMessage =
+  | StdoutMessage
+  | StderrMessage
+  | ExitMessage
+  | EnvironmentRequestMessage;
 
 /**
  * Tell the command to emit the given string to its stdout stream.
@@ -37,9 +41,27 @@ export interface ExitMessage {
 }
 
 /**
+ * Ask the command for information about its environment (argv, cwd, env).
+ */
+export interface EnvironmentRequestMessage {
+  type: 'environmentRequest';
+}
+
+/**
  * A message sent from a spawned command to the test rig.
  */
-export type ChildToRigMessage = unknown;
+export type ChildToRigMessage = EnvironmentResponseMessage;
+
+/**
+ * Report to the rig what cwd, argv, and environment variables were set when
+ * Wireit spawned this command.
+ */
+export interface EnvironmentResponseMessage {
+  type: 'environmentResponse';
+  cwd: string;
+  argv: string[];
+  env: {[key: string]: string | undefined};
+}
 
 /**
  * Indicates the end of a JSON message on an IPC data stream. This is the

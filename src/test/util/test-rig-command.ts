@@ -10,7 +10,10 @@ import {fileURLToPath} from 'url';
 import {Deferred} from '../../util/deferred.js';
 import {
   MESSAGE_END_MARKER,
+  IpcClient,
   RigToChildMessage,
+  ChildToRigMessage,
+  EnvironmentResponseMessage,
 } from './test-rig-command-interface.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -137,6 +140,22 @@ export class WireitTestRigCommandInvocation {
       this.#socketClosed.resolve();
     });
     this.command = command;
+  }
+
+  async environment(): Promise<Exclude<EnvironmentResponseMessage, 'type'>> {
+    this.#assertState('connected');
+    const client = new IpcClient<ChildToRigMessage, RigToChildMessage>(
+      this.#socket
+    );
+    client.send({type: 'environmentRequest'});
+    for await (const message of client.receive()) {
+      switch (message.type) {
+        case 'environmentResponse': {
+          return message;
+        }
+      }
+    }
+    throw new Error('Connection closed before environmentResponse received');
   }
 
   #assertState(expected: 'connected' | 'closed') {
