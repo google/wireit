@@ -28,6 +28,7 @@
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
 - [Parallelism](#parallelism)
+- [Extra arguments](#extra-arguments)
 - [Input and output files](#input-and-output-files)
 - [Incremental build](#incremental-build)
 - [Caching](#caching)
@@ -204,6 +205,18 @@ simultaneously, then only one instance will be allowed to run at a time, while
 the others wait their turn. This prevents coordination problems that can result
 in incorrect output files being produced. If `output` is set to an empty array,
 then this restriction is removed.
+
+## Extra arguments
+
+You can pass extra arguments to a Wireit script with _two_ double-dashes:
+
+```sh
+npm run build -- -- --verbose
+```
+
+The first double-dash tells `npm` to pass the remaining arguments to Wireit, and
+the second double-dash tells Wireit to pass the remaining arguments to the
+command. Only the `build` script will receive the `--verbose` argument.
 
 ## Input and output files
 
@@ -589,6 +602,7 @@ build](#incremental-build), and whether its output can be [restored from
 cache](#caching).
 
 - The `command` setting.
+- The [extra arguments](#extra-arguments) set on the command-line.
 - The `clean` setting.
 - The `output` glob patterns.
 - The SHA256 content hashes of all files matching `files`.

@@ -65,6 +65,7 @@ interface FileWatcher {
 export class Watcher {
   static async watch(
     rootScript: ScriptReference,
+    extraArgs: string[] | undefined,
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
@@ -73,6 +74,7 @@ export class Watcher {
   ): Promise<void> {
     const watcher = new Watcher(
       rootScript,
+      extraArgs,
       logger,
       workerPool,
       cache,
@@ -90,6 +92,7 @@ export class Watcher {
   #state: WatcherState = 'watching';
 
   readonly #rootScript: ScriptReference;
+  readonly #extraArgs: string[] | undefined;
   readonly #logger: Logger;
   readonly #workerPool: WorkerPool;
   readonly #cache?: Cache;
@@ -120,6 +123,7 @@ export class Watcher {
 
   private constructor(
     rootScript: ScriptReference,
+    extraArgs: string[] | undefined,
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
@@ -127,6 +131,7 @@ export class Watcher {
     abort: Deferred<void>
   ) {
     this.#rootScript = rootScript;
+    this.#extraArgs = extraArgs;
     this.#logger = logger;
     this.#workerPool = workerPool;
     this.#failureMode = failureMode;
@@ -167,7 +172,7 @@ export class Watcher {
     }
 
     const analyzer = new Analyzer();
-    const result = await analyzer.analyze(this.#rootScript);
+    const result = await analyzer.analyze(this.#rootScript, this.#extraArgs);
     if ((this.#state as WatcherState) === 'aborted') {
       return;
     }

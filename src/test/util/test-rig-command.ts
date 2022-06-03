@@ -7,11 +7,13 @@
 import * as net from 'net';
 import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
-
 import {Deferred} from '../../util/deferred.js';
+import {unreachable} from '../../util/unreachable.js';
 import {
-  type Message,
-  MESSAGE_END_MARKER,
+  IpcClient,
+  RigToChildMessage,
+  ChildToRigMessage,
+  EnvironmentResponseMessage,
 } from './test-rig-command-interface.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -126,21 +128,23 @@ export class WireitTestRigCommand {
 /**
  * One invocation of a {@link WireitTestRigCommand}.
  */
-export class WireitTestRigCommandInvocation {
-  readonly #socket: net.Socket;
-  readonly #socketClosed = new Deferred<void>();
+export class WireitTestRigCommandInvocation extends IpcClient<
+  ChildToRigMessage,
+  RigToChildMessage
+> {
   readonly command: WireitTestRigCommand;
-  #state: 'connected' | 'closed' = 'connected';
+  #state: 'connected' | 'closing' | 'closed' = 'connected';
+  #environmentResponse?: Deferred<EnvironmentResponseMessage>;
 
   constructor(socket: net.Socket, command: WireitTestRigCommand) {
-    this.#socket = socket;
-    this.#socket.on('close', () => {
-      this.#socketClosed.resolve();
-    });
+    super(socket);
     this.command = command;
+    void this.closed.then(() => {
+      this.#state = 'closed';
+    });
   }
 
-  #assertState(expected: 'connected' | 'closed') {
+  #assertState(expected: 'connected' | 'closing' | 'closed') {
     if (this.#state !== expected) {
       throw new Error(
         `Expected state to be ${expected} but was ${this.#state}`
@@ -148,12 +152,38 @@ export class WireitTestRigCommandInvocation {
     }
   }
 
-  /**
-   * Tell this invocation to exit with the given code.
-   */
-  exit(code: number): void {
-    this.#sendMessage({type: 'exit', code});
-    this.#state = 'closed';
+  protected override _onMessage(message: ChildToRigMessage): void {
+    switch (message.type) {
+      case 'environmentResponse': {
+        if (
+          this.#environmentResponse === undefined ||
+          this.#environmentResponse.settled
+        ) {
+          throw new Error('Unexpected environmentResponse');
+        }
+        this.#environmentResponse.resolve(message);
+        break;
+      }
+      default: {
+        throw new Error(
+          `Unhandled message type ${String(unreachable(message.type))}`
+        );
+        break;
+      }
+    }
+  }
+
+  environment(): Promise<Exclude<EnvironmentResponseMessage, 'type'>> {
+    this.#assertState('connected');
+    // TODO(aomarks) If we end up with a more complex API, we might want to
+    // create a proper RPC system with unique IDs for each request that can be
+    // used to map specific responses back to specific requests. But for now our
+    // API is very basic and doesn't require that.
+    if (this.#environmentResponse === undefined) {
+      this.#environmentResponse = new Deferred();
+      this._send({type: 'environmentRequest'});
+    }
+    return this.#environmentResponse.promise;
   }
 
   /**
@@ -161,26 +191,31 @@ export class WireitTestRigCommandInvocation {
    * that the process has exited (or is just about to exit).
    */
   get closed(): Promise<void> {
-    return this.#socketClosed.promise;
+    return this._closed.promise;
+  }
+
+  /**
+   * Tell this invocation to exit with the given code.
+   */
+  exit(code: number): void {
+    this.#assertState('connected');
+    this._send({type: 'exit', code});
+    this.#state = 'closing';
   }
 
   /**
    * Tell this invocation to write the given string to its stdout stream.
    */
   stdout(str: string): void {
-    this.#sendMessage({type: 'stdout', str});
+    this.#assertState('connected');
+    this._send({type: 'stdout', str});
   }
 
   /**
    * Tell this invocation to write the given string to its stderr stream.
    */
   stderr(str: string): void {
-    this.#sendMessage({type: 'stderr', str});
-  }
-
-  #sendMessage(message: Message): void {
     this.#assertState('connected');
-    this.#socket.write(JSON.stringify(message));
-    this.#socket.write(MESSAGE_END_MARKER);
+    this._send({type: 'stderr', str});
   }
 }

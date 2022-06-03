@@ -144,7 +144,10 @@ export class Analyzer {
    * dependencies don't exist, are configured in an invalid way, or if there is
    * a cycle in the dependency graph.
    */
-  async analyze(root: ScriptReference): Promise<AnalyzeResult> {
+  async analyze(
+    root: ScriptReference,
+    extraArgs: string[] | undefined
+  ): Promise<AnalyzeResult> {
     // We do 2 walks through the dependency graph:
     //
     // 1. A non-deterministically ordered walk, where we traverse edges as soon
@@ -199,6 +202,7 @@ export class Analyzer {
       };
     }
     const validRootConfig = cycleResult.value;
+    validRootConfig.extraArgs = extraArgs;
     return {
       config: {ok: true, value: validRootConfig},
       relevantConfigFilePaths: this.#relevantConfigFilePaths,
@@ -208,7 +212,7 @@ export class Analyzer {
   async analyzeIgnoringErrors(
     scriptReference: ScriptReference
   ): Promise<PotentiallyValidScriptConfig> {
-    await this.analyze(scriptReference);
+    await this.analyze(scriptReference, []);
     return this.#getPlaceholder(scriptReference).placeholder;
   }
 
@@ -461,6 +465,7 @@ export class Analyzer {
       state: 'locally-valid',
       failures: placeholder.failures,
       command,
+      extraArgs: undefined,
       dependencies,
       files,
       output,
@@ -989,6 +994,7 @@ export class Analyzer {
     {
       const validConfig: ScriptConfig = {
         ...config,
+        extraArgs: undefined,
         state: 'valid',
         dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
       };
