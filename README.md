@@ -216,7 +216,7 @@ npm run build -- -- --verbose
 
 The first double-dash tells `npm` to pass the remaining arguments to Wireit, and
 the second double-dash tells Wireit to pass the remaining arguments to the
-command.
+command. Only the `build` script will receive the `--verbose` argument.
 
 ## Input and output files
 
