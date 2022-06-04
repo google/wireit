@@ -178,44 +178,169 @@ export const getOptions = (): Result<Options> => {
     return failureModeResult;
   }
 
-  let curArg = 2; // Skip over "node" and the "wireit" binary.
-  const watch = process.argv[curArg] === 'watch';
-  if (watch) {
-    curArg++;
-  }
-  let extraArgs = undefined;
-  if (process.argv.length > curArg) {
-    if (process.argv[curArg] === '--') {
-      curArg++;
-      extraArgs = process.argv.slice(curArg);
-    } else {
-      const unrecognized = process.argv.slice(curArg);
-      return {
-        ok: false,
-        error: {
-          reason: 'invalid-usage',
-          message:
-            `Unrecognized Wireit argument(s) ${JSON.stringify(
-              unrecognized
-            )}. ` +
-            `To pass arguments to the command, use two sets of double-dashes, ` +
-            `e.g. "npm run build -- -- --extra-arg"`,
-          script,
-          type: 'failure',
-        },
-      };
-    }
-  }
-
   return {
     ok: true,
     value: {
       script,
-      watch,
-      extraArgs,
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
+      ...getArgvOptions(script),
     },
   };
 };
+
+/**
+ * Get options that are set as command-line arguments.
+ */
+function getArgvOptions(
+  script: ScriptReference
+): Pick<Options, 'watch' | 'extraArgs'> {
+  // The way command-line arguments are handled in npm, yarn, and pnpm are all
+  // different. Our goal here is for `<agent> --watch -- --extra` to behave the
+  // same in all agents.
+  const agent = getNpmUserAgent();
+  switch (agent) {
+    case 'npm': {
+      // npm 6.14.17
+      //   - Arguments before the "--" in "--flag" style turn into "npm_config_<flag>"
+      //     environment variables.
+      //   - Arguments before the "--" in "plain" style go to argv.
+      //   - Arguments after "--" go to argv.
+      //   - The "npm_config_argv" environment variable contains full details as JSON.
+      //
+      // npm 8.11.0
+      //   - Like npm 6, except there is no "npm_config_argv" environment variable.
+      return {
+        watch: process.env['npm_config_watch'] !== undefined,
+        extraArgs: process.argv.slice(2),
+      };
+    }
+    case 'yarn': {
+      // yarn 1.22.18
+      //   - If there is no "--", all arguments go to argv.
+      //   - If there is a "--", arguments in "--flag" style before it are eaten,
+      //     arguments in "plain" style before it go to argv, and all arguments after
+      //     it go to argv. Also a warning is emitted saying "In a future version, any
+      //     explicit "--" will be forwarded as-is to the scripts."
+      //   - The "npm_config_argv" environment variable contains full details as JSON,
+      //     though it is slightly different to the npm 6 version.
+      return parseRemainingArgs(findRemainingArgsFromNpmConfigArgv(script));
+    }
+    case 'pnpm': {
+      // pnpm 7.1.7
+      //   - Arguments before the script name are pnpm arguments and error if unknown.
+      //   - Arguments after the script name go to argv.
+      return parseRemainingArgs(process.argv.slice(2));
+    }
+    default: {
+      throw new Error(`Unhandled npm agent: ${unreachable(agent) as string}`);
+    }
+  }
+}
+
+/**
+ * Try to find the npm user agent being used. If we can't detect it, assume npm.
+ */
+function getNpmUserAgent(): 'npm' | 'yarn' | 'pnpm' {
+  const userAgent = process.env['npm_config_user_agent'];
+  if (userAgent !== undefined) {
+    const match = userAgent.match(/^(npm|yarn|pnpm)\//);
+    if (match !== null) {
+      return match[1] as 'npm' | 'yarn' | 'pnpm';
+    }
+  }
+  console.error(
+    '⚠️ Wireit could not identify the npm user agent, ' +
+      'assuming it behaves like npm. ' +
+      'Arguments may not be interpreted correctly.'
+  );
+  return 'npm';
+}
+
+/**
+ * Parses the `npm_config_argv` environment variable to find the command-line
+ * arguments that follow the main arguments. For example, given the result of
+ * `"yarn run build --watch -- --extra"`, return `["--watch", "--", "--extra"]`.
+ */
+function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
+  const configArgvStr = process.env['npm_config_argv'];
+  if (!configArgvStr) {
+    console.error(
+      '⚠️ The "npm_config_argv" environment variable was not set. ' +
+        'Arguments may not be interpreted correctly.'
+    );
+    return [];
+  }
+  let configArgv: {
+    /**  Seems to always be empty in Yarn. */
+    remain: string[];
+    /**
+     * E.g. `["run", "main"]`. In Yarn, the first item is always "run", even
+     * when using `yarn test` or `yarn start`.
+     */
+    cooked: string[];
+    /** E.g. `["run", "main", "--watch", "--", "--extra"]` */
+    original: string[];
+  };
+  try {
+    configArgv = JSON.parse(configArgvStr) as typeof configArgv;
+  } catch {
+    console.error(
+      '⚠️ Wireit could not parse the "npm_config_argv" ' +
+        'environment variable as JSON. ' +
+        'Arguments may not be interpreted correctly.'
+    );
+    return [];
+  }
+  // Since the "remain" and "cooked" arrays are unreliable in Yarn, the only
+  // reliable way to find the remaining args is to look for where the script
+  // name first appeared in the "original" array.
+  const scriptNameIdx = configArgv.original.indexOf(script.name);
+  if (scriptNameIdx === -1) {
+    console.error(
+      '⚠️ Wireit could not find the script name in ' +
+        'the "npm_config_argv" environment variable. ' +
+        'Arguments may not be interpreted correctly.'
+    );
+    return [];
+  }
+  return configArgv.original.slice(scriptNameIdx + 1);
+}
+
+/**
+ * Given a list of remaining command-line arguments (the arguments after e.g.
+ * "yarn run build"), parse out the arguments that are Wireit options, warn
+ * about any unrecognized options, and return everything after a `"--"` argument
+ * as `extraArgs` to be passed down to the script.
+ */
+function parseRemainingArgs(
+  args: string[]
+): Pick<Options, 'watch' | 'extraArgs'> {
+  let watch = false;
+  let extraArgs: string[] = [];
+  const unrecognized = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--') {
+      extraArgs = args.slice(i + 1);
+      break;
+    } else if (arg === '--watch') {
+      watch = true;
+    } else {
+      unrecognized.push(arg);
+    }
+  }
+  if (unrecognized.length > 0) {
+    console.error(
+      `⚠️ Unrecognized Wireit argument(s): ` +
+        unrecognized.map((arg) => JSON.stringify(arg)).join(', ') +
+        `. To pass arguments to the script, use a double-dash, ` +
+        `e.g. "npm run build -- --extra".`
+    );
+  }
+  return {
+    watch,
+    extraArgs,
+  };
+}
