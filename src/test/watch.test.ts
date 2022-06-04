@@ -52,7 +52,7 @@ test(
     });
 
     // Initial execution.
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
     const inv = await cmdA.nextInvocation();
     inv.exit(0);
 
@@ -101,7 +101,7 @@ test(
       'input.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -144,7 +144,7 @@ test(
       'input1.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -187,7 +187,7 @@ test(
       input: 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -228,7 +228,7 @@ test(
       'input.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -271,7 +271,7 @@ test(
       },
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -334,7 +334,7 @@ test(
       'b.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Both scripts run initially.
     {
@@ -410,7 +410,7 @@ test(
       'bar/b.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch', {cwd: 'foo'});
+    const exec = rig.exec('npm run a --watch', {cwd: 'foo'});
 
     // Both scripts run initially.
     {
@@ -472,7 +472,7 @@ test(
       'a.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Script fails initially.
     {
@@ -526,7 +526,7 @@ test(
         a: 'wireit',
       },
     });
-    const wireit = rig.exec('npm run a watch');
+    const wireit = rig.exec('npm run a --watch');
     await wireit.waitForLog(/no config in the wireit section/);
 
     // Add a wireit section but without a command.
@@ -617,7 +617,7 @@ test(
       'excluded.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -676,7 +676,7 @@ test(
       '.dotfile.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -721,7 +721,7 @@ test(
       // No parent dir package-lock.json initially.
     });
 
-    const exec = rig.exec('npm run a watch', {cwd: 'foo'});
+    const exec = rig.exec('npm run a --watch', {cwd: 'foo'});
 
     // Initial run.
     {
