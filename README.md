@@ -625,6 +625,9 @@ Wireit is supported on Node Current (18), Active LTS (16), and the most recent
 Maintenance LTS (14). See [Node releases](https://nodejs.org/en/about/releases/)
 for the schedule.
 
+Wireit is supported on the npm versions that ship with the above supported Node
+versions (5 and 6), and on the latest versions of Yarn (1) and pnpm (7).
+
 ## Related tools
 
 Wireit shares a number of features with these other great tools, and we highly
