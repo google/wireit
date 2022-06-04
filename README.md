@@ -208,15 +208,14 @@ then this restriction is removed.
 
 ## Extra arguments
 
-You can pass extra arguments to a Wireit script with _two_ double-dashes:
+As with plain npm scripts, you can pass extra arguments to a Wireit script by
+placing a `--` double-dash argument in front of them. Any arguments after a `--`
+are sent to the underlying command, instead of being interpreted as arguments to
+npm or Wireit:
 
 ```sh
-npm run build -- -- --verbose
+npm run build -- --verbose
 ```
-
-The first double-dash tells `npm` to pass the remaining arguments to Wireit, and
-the second double-dash tells Wireit to pass the remaining arguments to the
-command. Only the `build` script will receive the `--verbose` argument.
 
 ## Input and output files
 
@@ -377,11 +376,11 @@ set the `wireit.<script>.clean` property to one of these values:
 In _watch_ mode, Wireit monitors all `files` of a script, and all `files` of its
 transitive dependencies, and when there is a change, it re-runs only the
 affected scripts. To enable watch mode, ensure that the
-[`files`](#input-and-output-files) array is defined, and add the `watch`
-argument:
+[`files`](#input-and-output-files) array is defined, and add the `--watch`
+flag:
 
 ```sh
-npm run <script> watch
+npm run <script> --watch
 ```
 
 The benefit of Wireit's watch mode over built-in watch modes are:
@@ -650,8 +649,8 @@ Here are some things you might especially like about Wireit:
   services. Just add a single `uses:` line to your workflows.
 
 - **Watch any script**. Want to automatically re-run your build and tests
-  whenever you make a change? Type `npm test watch`. Any script you've
-  configured using Wireit can be watched by typing `watch` after it.
+  whenever you make a change? Type `npm test --watch`. Any script you've
+  configured using Wireit can be watched by typing `--watch` after it.
 
 - **Great for single packages and monorepos**. Wireit has no opinion about how
   your packages are arranged. It works great with single packages, because you
