@@ -11,6 +11,7 @@ import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {Options} from '../cli-options.js';
 import {Result} from '../error.js';
+import {Failure} from '../event.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -82,6 +83,20 @@ async function assertOptions(
     },
   });
 }
+
+async function assertFailure(
+  rig: WireitTestRig,
+  command: string,
+  expected: Failure,
+  env?: Record<string, string | undefined>
+) {
+  const result = await getOptionsResult(rig, command, env);
+  assert.equal(result, {
+    ok: false,
+    error: expected,
+  });
+}
+
 for (const agent of ['npm', 'yarn', 'pnpm']) {
   test(
     `${agent} run main`,
@@ -241,6 +256,24 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
         },
         extraArgs: ['--extra'],
         watch: true,
+      });
+    })
+  );
+
+  test(
+    `temporary error on ${agent} run main watch`,
+    timeout(async ({rig}) => {
+      await assertFailure(rig, `${agent} run main watch`, {
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
+        },
+        type: 'failure',
+        reason: 'invalid-usage',
+        message:
+          `As of wireit v0.6, use "--watch" instead of "watch". ` +
+          `In an upcoming release, the "watch" argument will be passed to the script, ` +
+          `consistent with how npm usually behaves.`,
       });
     })
   );

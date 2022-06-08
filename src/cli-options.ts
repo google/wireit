@@ -178,6 +178,22 @@ export const getOptions = (): Result<Options> => {
     return failureModeResult;
   }
 
+  if (process.argv[2] === 'watch') {
+    // TODO(aomarks) Remove in upcoming release.
+    return {
+      ok: false,
+      error: {
+        script,
+        type: 'failure',
+        reason: 'invalid-usage',
+        message:
+          `As of wireit v0.6, use "--watch" instead of "watch". ` +
+          `In an upcoming release, the "watch" argument will be passed to the script, ` +
+          `consistent with how npm usually behaves.`,
+      },
+    };
+  }
+
   return {
     ok: true,
     value: {

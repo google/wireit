@@ -16,7 +16,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - [**Breaking**] Watch mode is now set using `--watch` instead of `watch`, e.g.
-  `npm run build --watch`.
+  `npm run build --watch`. Using the old `watch` style argument will error until
+  an upcoming release, at which point it will be sent to the underlying script,
+  consistent with how npm usually behaves.
 
 ## [0.5.0] - 2022-05-31
 
