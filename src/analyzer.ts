@@ -335,7 +335,11 @@ export class Analyzer {
     const scriptCommand = syntaxInfo.scriptNode;
     const wireitConfig = syntaxInfo.wireitConfigNode;
 
-    if (wireitConfig !== undefined && scriptCommand.value !== 'wireit') {
+    if (
+      wireitConfig !== undefined &&
+      scriptCommand.value !== 'wireit' &&
+      scriptCommand.value !== 'yarn run -T -B wireit'
+    ) {
       const configName = wireitConfig.name;
       placeholder.failures.push({
         type: 'failure',

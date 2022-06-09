@@ -13,6 +13,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - You can now pass arbitrary extra arguments to a script by setting them after a
   double-dash, e.g. `npm run build -- --verbose`.
 
+- If you're using Yarn Berry, you can invoke the shared instance of wireit at
+  the root of your workspace from any package's `scripts` entry:
+
+  ```json
+  "scripts": {
+    "build": "yarn run -T -B wireit"
+  },
+  ```
+
 ### Changed
 
 - [**Breaking**] Watch mode is now set using `--watch` instead of `watch`, e.g.
