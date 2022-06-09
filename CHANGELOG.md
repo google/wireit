@@ -10,12 +10,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- You can now pass arbitrary extra arguments to a script by setting them after
-  two double-dashes, e.g. `npm run build -- -- --verbose`.
+- You can now pass arbitrary extra arguments to a script by setting them after a
+  double-dash, e.g. `npm run build -- --verbose`.
 
 ### Changed
 
-- [**Breaking**] Setting unrecognized command-line arguments is now an error.
+- [**Breaking**] Watch mode is now set using `--watch` instead of `watch`, e.g.
+  `npm run build --watch`. Using the old `watch` style argument will error until
+  an upcoming release, at which point it will be sent to the underlying script,
+  consistent with how npm usually behaves.
 
 ## [0.5.0] - 2022-05-31
 

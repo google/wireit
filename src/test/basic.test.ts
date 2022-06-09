@@ -939,58 +939,60 @@ test(
   })
 );
 
-test(
-  'can pass extra args with -- --',
-  timeout(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            // Explicit empty input files so that we can be fresh.
-            files: [],
+for (const agent of ['npm', 'yarn', 'pnpm']) {
+  test(
+    `can pass extra args with using "${agent} run --"`,
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              // Explicit empty input files so that we can be fresh.
+              files: [],
+            },
           },
         },
-      },
-    });
+      });
 
-    // Initially stale.
-    {
-      const wireit = rig.exec('npm run a -- -- foo -bar --baz');
-      const inv = await cmdA.nextInvocation();
-      assert.equal((await inv.environment()).argv.slice(3), [
-        'foo',
-        '-bar',
-        '--baz',
-      ]);
-      inv.exit(0);
-      assert.equal((await wireit.exit).code, 0);
-    }
+      // Initially stale.
+      {
+        const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
+        const inv = await cmdA.nextInvocation();
+        assert.equal((await inv.environment()).argv.slice(3), [
+          'foo',
+          '-bar',
+          '--baz',
+        ]);
+        inv.exit(0);
+        assert.equal((await wireit.exit).code, 0);
+      }
 
-    // Nothing changed, fresh.
-    {
-      const wireit = rig.exec('npm run a -- -- foo -bar --baz');
-      assert.equal((await wireit.exit).code, 0);
-    }
+      // Nothing changed, fresh.
+      {
+        const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
+        assert.equal((await wireit.exit).code, 0);
+      }
 
-    // Changing the extra args should change the fingerprint so that we're
-    // stale.
-    {
-      const wireit = rig.exec('npm run a -- -- FOO -BAR --BAZ');
-      const inv = await cmdA.nextInvocation();
-      assert.equal((await inv.environment()).argv.slice(3), [
-        'FOO',
-        '-BAR',
-        '--BAZ',
-      ]);
-      inv.exit(0);
-      assert.equal((await wireit.exit).code, 0);
-    }
-  })
-);
+      // Changing the extra args should change the fingerprint so that we're
+      // stale.
+      {
+        const wireit = rig.exec(`${agent} run a -- FOO -BAR --BAZ`);
+        const inv = await cmdA.nextInvocation();
+        assert.equal((await inv.environment()).argv.slice(3), [
+          'FOO',
+          '-BAR',
+          '--BAZ',
+        ]);
+        inv.exit(0);
+        assert.equal((await wireit.exit).code, 0);
+      }
+    })
+  );
+}
 
 test.run();

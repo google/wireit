@@ -32,6 +32,7 @@
     "test:cache-github": "wireit",
     "test:cache-local": "wireit",
     "test:clean": "wireit",
+    "test:cli-options": "wireit",
     "test:codeactions": "wireit",
     "test:copy": "wireit",
     "test:delete": "wireit",
@@ -73,6 +74,7 @@
         "test:cache-github",
         "test:cache-local",
         "test:clean",
+        "test:cli-options",
         "test:codeactions",
         "test:copy",
         "test:delete",
@@ -130,6 +132,14 @@
     },
     "test:clean": {
       "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"clean\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:cli-options": {
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"cli-options\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
