@@ -6,15 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+<!-- ## [Unreleased] -->
+
+## [0.6.0] - 2022-06-09
 
 ### Added
 
 - You can now pass arbitrary extra arguments to a script by setting them after a
   double-dash, e.g. `npm run build -- --verbose`.
 
-- If you're using Yarn Berry, you can invoke the shared instance of wireit at
-  the root of your workspace from any package's `scripts` entry:
+- If you're using Yarn Berry, you can now invoke the shared instance of wireit
+  at the root of your workspace from any package's `scripts` entry:
 
   ```json
   "scripts": {
