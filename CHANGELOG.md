@@ -22,6 +22,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   },
   ```
 
+### Fixed
+
+- Yarn Berry now supports watch mode.
+
 ### Changed
 
 - [**Breaking**] Watch mode is now set using `--watch` instead of `watch`, e.g.

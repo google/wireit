@@ -96,8 +96,9 @@ and replace the original script with the `wireit` command.
 </table>
 
 Now when you run `npm run build`, Wireit upgrades the script to be smarter and
-more efficient. Wireit works with [yarn](https://yarnpkg.com/) and
-[pnpm](https://pnpm.io/), too.
+more efficient. Wireit works with [yarn](https://yarnpkg.com/)
+(both 1.X "[Classic](https://classic.yarnpkg.com/)" and its successor "Berry")
+and [pnpm](https://pnpm.io/), too.
 
 You should also add `.wireit` to your `.gitignore` file. Wireit uses the
 `.wireit` directory to store caches and other data for your scripts.
@@ -626,7 +627,8 @@ Maintenance LTS (14). See [Node releases](https://nodejs.org/en/about/releases/)
 for the schedule.
 
 Wireit is supported on the npm versions that ship with the above supported Node
-versions (5 and 6), and on the latest versions of Yarn (1) and pnpm (7).
+versions (5 and 6), Yarn Classic (1), and on the latest versions of Yarn Berry
+(3) and pnpm (7).
 
 ## Related tools
 
