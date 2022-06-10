@@ -18,7 +18,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
   ```json
   "scripts": {
-    "build": "yarn run -T -B wireit"
+    "build": "yarn run -TB wireit"
   },
   ```
 
