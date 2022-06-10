@@ -1103,7 +1103,7 @@ export const registerCommonCacheTests = (
       const exec = rig.exec('npm run a', {cwd: 'foo'});
       const res = await exec.exit;
       assert.equal(res.code, 1);
-      assert.match(
+      assert.equal(
         removeAciiColors(res.stderr.trim()),
         `
 ❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(

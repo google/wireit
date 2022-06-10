@@ -269,7 +269,15 @@ class ExecResult {
         code,
         signal,
         stdout: this.#stdout,
-        stderr: this.#stderr,
+        // TODO(aomarks) Temporary fix for
+        // https://github.com/npm/cli/issues/4980#issuecomment-1145334203.
+        // Remove when resolved.
+        stderr: IS_WINDOWS
+          ? this.#stderr.replace(
+              /npm WARN config global `--global`, `--local` are deprecated. Use `--location=global` instead.\n/,
+              ''
+            )
+          : this.#stderr,
       });
     });
 
