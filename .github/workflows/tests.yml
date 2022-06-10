@@ -8,7 +8,7 @@ jobs:
       # We support Node Latest, Active LTS, and the most recent Maintenance LTS.
       # See https://nodejs.org/en/about/releases/ for Node release schedule.
       matrix:
-        version: [
+        node: [
             # Skip 14 for now. See https://github.com/google/wireit/issues/294
             # 14,
             16,
@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.version }}
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - uses: google/wireit@setup-github-actions-caching/v1
@@ -47,14 +47,14 @@ jobs:
 
       # Don't bother running the vscode-extension tests on Node 14, because the
       # minimum version of VSCode we support uses Node 16.
-      - if: matrix.version == 14
+      - if: matrix.node == 14
         run: npm run test:headless
 
       # See https://code.visualstudio.com/api/working-with-extensions/continuous-integration#github-actions for why we need xvfb-run
       - run: npm test
-        if: runner.os != 'Linux' && matrix.version != 14
+        if: runner.os != 'Linux' && matrix.node != 14
       - run: xvfb-run -a npm test
-        if: runner.os == 'Linux' && matrix.version != 14
+        if: runner.os == 'Linux' && matrix.node != 14
 
   lint-and-format:
     timeout-minutes: 5
