@@ -8,7 +8,12 @@ jobs:
       # We support Node Latest, Active LTS, and the most recent Maintenance LTS.
       # See https://nodejs.org/en/about/releases/ for Node release schedule.
       matrix:
-        version: [14, 16, 18]
+        version: [
+            # Skip 14 for now. See https://github.com/google/wireit/issues/294
+            # 14,
+            16,
+            18,
+          ]
         os: [ubuntu-20.04, macos-11, windows-2022]
 
       # Allow all matrix configurations to complete, instead of cancelling as
