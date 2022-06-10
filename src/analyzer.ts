@@ -338,7 +338,7 @@ export class Analyzer {
     if (
       wireitConfig !== undefined &&
       scriptCommand.value !== 'wireit' &&
-      scriptCommand.value !== 'yarn run -T -B wireit'
+      scriptCommand.value !== 'yarn run -TB wireit'
     ) {
       const configName = wireitConfig.name;
       placeholder.failures.push({
