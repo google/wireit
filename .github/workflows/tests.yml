@@ -36,6 +36,8 @@ jobs:
 
       - uses: google/wireit@setup-github-actions-caching/v1
 
+      - run: node --version; npm --version
+
       - run: npm ci
 
       # Don't bother running the vscode-extension tests on Node 14, because the
