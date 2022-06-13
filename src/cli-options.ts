@@ -232,7 +232,7 @@ function getArgvOptions(
         extraArgs: process.argv.slice(2),
       };
     }
-    case 'yarn': {
+    case 'yarnClassic': {
       // yarn 1.22.18
       //   - If there is no "--", all arguments go to argv.
       //   - If there is a "--", arguments in "--flag" style before it are eaten,
@@ -243,7 +243,11 @@ function getArgvOptions(
       //     though it is slightly different to the npm 6 version.
       return parseRemainingArgs(findRemainingArgsFromNpmConfigArgv(script));
     }
+    case 'yarnBerry':
     case 'pnpm': {
+      // yarn 3.2.1
+      //   - Arguments before the script name are yarn arguments and error if unknown.
+      //   - Arguments after the script name go to argv.
       // pnpm 7.1.7
       //   - Arguments before the script name are pnpm arguments and error if unknown.
       //   - Arguments after the script name go to argv.
@@ -258,12 +262,16 @@ function getArgvOptions(
 /**
  * Try to find the npm user agent being used. If we can't detect it, assume npm.
  */
-function getNpmUserAgent(): 'npm' | 'yarn' | 'pnpm' {
+function getNpmUserAgent(): 'npm' | 'yarnClassic' | 'yarnBerry' | 'pnpm' {
   const userAgent = process.env['npm_config_user_agent'];
   if (userAgent !== undefined) {
     const match = userAgent.match(/^(npm|yarn|pnpm)\//);
     if (match !== null) {
-      return match[1] as 'npm' | 'yarn' | 'pnpm';
+      if (match[1] === 'yarn') {
+        return /^yarn\/[01]\./.test(userAgent) ? 'yarnClassic' : 'yarnBerry';
+      }
+
+      return match[1] as 'npm' | 'pnpm';
     }
   }
   console.error(
