@@ -143,6 +143,7 @@ export class WireitTestRig extends FilesystemTestRig {
       // Unset GitHub Actions caching environment variables that are set when we
       // are running these tests in CI.
       WIREIT_CACHE: undefined,
+      WIREIT_FAILURES: undefined,
       ACTIONS_CACHE_URL: undefined,
       ACTIONS_RUNTIME_TOKEN: undefined,
       // In npm 6 (which ships with Node 14), "npm run" only includes the
