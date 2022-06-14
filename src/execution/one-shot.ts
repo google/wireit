@@ -27,6 +27,7 @@ import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache, CacheHit} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 
 type OneShotExecutionState = 'before-running' | 'running' | 'after-running';
 
@@ -474,44 +475,86 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   async #saveToCacheIfPossible(
     fingerprint: Fingerprint
   ): Promise<Result<void>> {
-    if (this.#cache === undefined || this.script.output === undefined) {
+    if (this.#cache === undefined) {
       return {ok: true, value: undefined};
     }
-    let paths;
-    try {
-      paths = await glob(
+    const paths = await this.#globOutputFilesAfterRunning();
+    if (!paths.ok) {
+      return paths;
+    }
+    if (paths.value === undefined) {
+      return {ok: true, value: undefined};
+    }
+    // Also include the "stdout" and "stderr" replay files at their standard
+    // location within the ".wireit" directory for this script so that we can
+    // replay them after restoring.
+    paths.value.push(
+      // We're passing this to glob because we only want to list them if they
+      // exist, and because we need a dirent.
+      ...(await glob(
         [
-          ...this.script.output.values,
-          // Also include the "stdout" and "stderr" replay files at their
-          // standard location within the ".wireit" directory for this script so
-          // that we can replay them after restoring.
-          //
-          // We're passing this to #glob because it's an easy way to only
-          // include them only if they exist. We don't want to include files
-          // that don't exist becuase then we'll make empty directories and will
-          // get an error from fs.cp.
-          //
-          // Convert to relative paths because we want to pass relative paths to
-          // Cache.set, but fast-glob doesn't automatically relativize to the
-          // cwd when passing an absolute path.
-          //
-          // Convert Windows-style paths to POSIX-style paths if we are on
-          // Windows, because fast-glob only understands POSIX-style paths.
-          posixifyPathIfOnWindows(
-            pathlib.relative(this.script.packageDir, this.#stdoutReplayPath)
-          ),
-          posixifyPathIfOnWindows(
-            pathlib.relative(this.script.packageDir, this.#stderrReplayPath)
-          ),
+          // Convert Windows-style paths to POSIX-style paths if we are on Windows,
+          // because fast-glob only understands POSIX-style paths.
+          posixifyPathIfOnWindows(this.#stdoutReplayPath),
+          posixifyPathIfOnWindows(this.#stderrReplayPath),
         ],
         {
+          // The replay paths are absolute.
+          cwd: '/',
+          expandDirectories: false,
+          followSymlinks: false,
+          includeDirectories: false,
+          throwIfOutsideCwd: false,
+        }
+      ))
+    );
+    await this.#cache.set(this.script, fingerprint, paths.value);
+    return {ok: true, value: undefined};
+  }
+
+  /**
+   * Glob the output files for this script and cache them, but throw unless the
+   * script has not yet started running or been restored from cache.
+   */
+  #globOutputFilesBeforeRunning(): Promise<
+    Result<AbsoluteEntry[] | undefined>
+  > {
+    this.#ensureState('before-running');
+    return (this.#cachedOutputFilesBeforeRunning ??= this.#globOutputFiles());
+  }
+  #cachedOutputFilesBeforeRunning?: Promise<
+    Result<AbsoluteEntry[] | undefined>
+  >;
+
+  /**
+   * Glob the output files for this script and cache them, but throw unless the
+   * script has finished running or been restored from cache.
+   */
+  #globOutputFilesAfterRunning(): Promise<Result<AbsoluteEntry[] | undefined>> {
+    this.#ensureState('after-running');
+    return (this.#cachedOutputFilesAfterRunning ??= this.#globOutputFiles());
+  }
+  #cachedOutputFilesAfterRunning?: Promise<Result<AbsoluteEntry[] | undefined>>;
+
+  /**
+   * Glob the output files for this script, or return undefined if output files
+   * are not defined.
+   */
+  async #globOutputFiles(): Promise<Result<AbsoluteEntry[] | undefined>> {
+    if (this.script.output === undefined) {
+      return {ok: true, value: undefined};
+    }
+    try {
+      return {
+        ok: true,
+        value: await glob(this.script.output.values, {
           cwd: this.script.packageDir,
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
           throwIfOutsideCwd: true,
-        }
-      );
+        }),
+      };
     } catch (error) {
       if (error instanceof GlobOutsideCwdError) {
         // TODO(aomarks) It would be better to do this in the Analyzer by
@@ -539,8 +582,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
       throw error;
     }
-    await this.#cache.set(this.script, fingerprint, paths);
-    return {ok: true, value: undefined};
   }
 
   /**
@@ -622,49 +663,14 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
    * Delete all files matched by this script's "output" glob patterns.
    */
   async #cleanOutput(): Promise<Result<void>> {
-    if (this.script.output === undefined) {
+    const files = await this.#globOutputFilesBeforeRunning();
+    if (!files.ok) {
+      return files;
+    }
+    if (files.value === undefined) {
       return {ok: true, value: undefined};
     }
-    let absFiles;
-    try {
-      absFiles = await glob(this.script.output.values, {
-        cwd: this.script.packageDir,
-        followSymlinks: false,
-        includeDirectories: true,
-        expandDirectories: true,
-        throwIfOutsideCwd: true,
-      });
-    } catch (error) {
-      if (error instanceof GlobOutsideCwdError) {
-        // TODO(aomarks) It would be better to do this in the Analyzer by
-        // looking at the output glob patterns. See
-        // https://github.com/google/wireit/issues/64.
-        return {
-          ok: false,
-          error: {
-            type: 'failure',
-            reason: 'invalid-config-syntax',
-            script: this.script,
-            diagnostic: {
-              severity: 'error',
-              message: `Output files must be within the package: ${error.message}`,
-              location: {
-                file: this.script.declaringFile,
-                range: {
-                  offset: this.script.output.node.offset,
-                  length: this.script.output.node.length,
-                },
-              },
-            },
-          },
-        };
-      }
-      throw error;
-    }
-    if (absFiles.length === 0) {
-      return {ok: true, value: undefined};
-    }
-    await deleteEntries(absFiles);
+    await deleteEntries(files.value);
     return {ok: true, value: undefined};
   }
 
