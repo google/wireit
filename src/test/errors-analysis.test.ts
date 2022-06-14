@@ -9,36 +9,10 @@ import * as assert from 'uvu/assert';
 import * as pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
-import {NODE_MAJOR_VERSION} from './util/node-version.js';
-import {removeAciiColors} from './util/colors.js';
 import {IS_WINDOWS} from '../util/windows.js';
+import {checkScriptOutput} from './util/check-script-output.js';
 
 const test = suite<{rig: WireitTestRig}>();
-
-// The npm version that ships with with Node 14 produces a bunch of additional
-// logs when running a script, so we need to use the less strict assert.match.
-// assert.equal gives a better error message.
-const assertScriptOutputEquals = (
-  actual: string,
-  expected: string,
-  message?: string
-) => {
-  const assertOutputEqualish =
-    NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
-
-  actual = removeAciiColors(actual.trim());
-  expected = expected.trim();
-  if (actual !== expected) {
-    console.log(`Copy-pastable output:\n${actual}`);
-    for (let i = 0; i < actual.length; i++) {
-      if (actual[i] !== expected[i]) {
-        console.log(`${i}: ${actual[i]} !== ${expected[i]}`);
-        break;
-      }
-    }
-  }
-  assertOutputEqualish(actual, expected, message);
-};
 
 test.before.each(async (ctx) => {
   try {
@@ -77,7 +51,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:5:13 Expected an object, but was array.
@@ -106,7 +80,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:6:10 Expected an object, but was array.
@@ -140,7 +114,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:11:5 Script "b" not found in the scripts section of this package.json.
@@ -168,7 +142,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:7:23 Expected an array, but was object.
@@ -196,7 +170,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Expected a string, but was array.
@@ -224,7 +198,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Expected this field to be nonempty
@@ -252,7 +226,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:7:18 Expected a string, but was array.
@@ -280,7 +254,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:7:18 Expected this field to be nonempty
@@ -309,7 +283,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:16 Expected an array, but was object.
@@ -338,7 +312,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 Expected a string, but was number.
@@ -367,7 +341,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 Expected this field to be nonempty
@@ -396,7 +370,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:17 Expected an array, but was object.
@@ -425,7 +399,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 Expected a string, but was number.
@@ -454,7 +428,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 Expected this field to be nonempty
@@ -483,7 +457,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:16 The "clean" property must be either true, false, or "if-file-deleted".
@@ -512,7 +486,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:23 Expected an array, but was number.
@@ -541,7 +515,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 Expected a string, but was number.
@@ -570,7 +544,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 Expected this field to be nonempty
@@ -599,7 +573,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:9:9 A package lock must be a filename, not a path
@@ -627,7 +601,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Cannot find script named "missing" in package "${rig.temp}"
@@ -658,7 +632,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:18 Cannot find script named "missing" in package "${rig.resolve(
@@ -688,7 +662,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Cannot find script named "test:missing" in package "${rig.temp}"
@@ -722,7 +696,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       String.raw`
 ❌ package.json:8:23 Cannot find script named "mis\t\\ sing" in package "${rig.resolve(
@@ -752,7 +726,7 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       String.raw`
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
@@ -783,7 +757,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:10:9 This dependency is listed multiple times
@@ -819,7 +793,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:4:10 This command should just be "wireit", as this script is configured in the wireit section.
@@ -848,7 +822,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
@@ -875,7 +849,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:6:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
@@ -904,7 +878,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:6:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
@@ -932,7 +906,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no ":" character in "../foo".
@@ -961,7 +935,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no script name in "../foo:".
@@ -990,7 +964,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Cross-package dependency ".:b" resolved to the same package.
@@ -1019,7 +993,7 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:9 Cross-package dependency "../foo:b" resolved to the same package.
@@ -1048,7 +1022,7 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
@@ -1079,7 +1053,7 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ ..${pathlib.sep}bar${pathlib.sep}package.json:1:16 JSON syntax error
@@ -1115,7 +1089,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:6:5 Cycle detected in dependencies of "a".
@@ -1156,7 +1130,7 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       stderr,
       `
 ❌ package.json:7:5 Cycle detected in dependencies of "a".
@@ -1205,7 +1179,7 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       stderr,
       `
 ❌ package.json:8:5 Cycle detected in dependencies of "a".
@@ -1254,7 +1228,7 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       stderr,
       `
 ❌ package.json:7:5 Cycle detected in dependencies of "a".
@@ -1307,7 +1281,7 @@ test(
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       stderr,
       `
 ❌ package.json:15:5 Cycle detected in dependencies of "b".
@@ -1367,7 +1341,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:16:5 Cycle detected in dependencies of "b".
@@ -1430,7 +1404,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
   ❌ package.json:16:5 Cycle detected in dependencies of "b".
@@ -1485,7 +1459,7 @@ test(
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const {code, stderr} = await result.exit;
     assert.equal(code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       stderr,
       `
 ❌ package.json:6:5 Cycle detected in dependencies of "a".
@@ -1527,7 +1501,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:15:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
@@ -1570,7 +1544,7 @@ test(`we don't produce a duplicate analysis error for the same dependency`, asyn
   const result = rig.exec('npm run a');
   const done = await result.exit;
   assert.equal(done.code, 1);
-  assertScriptOutputEquals(
+  checkScriptOutput(
     done.stderr,
     `
 ❌ package.json:26:18 Expected a string, but was object.
@@ -1597,7 +1571,7 @@ test(`we don't produce a duplicate not found error when there's multiple deps in
   const result = rig.exec('npm run a');
   const done = await result.exit;
   assert.equal(done.code, 1);
-  assertScriptOutputEquals(
+  checkScriptOutput(
     done.stderr,
     `
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
@@ -1634,7 +1608,7 @@ test(`we don't produce a duplicate error when there's multiple deps into the sam
   const result = rig.exec('npm run a');
   const done = await result.exit;
   assert.equal(done.code, 1);
-  assertScriptOutputEquals(
+  checkScriptOutput(
     done.stderr,
     `
 ❌ child${pathlib.sep}package.json:2:14 Expected an object, but was string.
@@ -1687,7 +1661,7 @@ test(`we don't produce a duplicate error when there's multiple deps on a script 
   await invok.closed;
   const done = await result.exit;
   assert.equal(done.code, 1);
-  assertScriptOutputEquals(
+  checkScriptOutput(
     done.stderr,
     `
 ❌ [errors] Failed with exit status 1`
@@ -1717,7 +1691,7 @@ test(`repro an issue with looking for a colon in missing dependency`, async ({
   const execResult = rig.exec(`npm run a`);
   const done = await execResult.exit;
   assert.equal(done.code, 1);
-  assertScriptOutputEquals(
+  checkScriptOutput(
     done.stderr,
     `
 ❌ package.json:9:9 Cannot find script named "c" in package "${rig.temp}"
@@ -1749,7 +1723,7 @@ test(
     const result = rig.exec('npm run a');
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assertScriptOutputEquals(
+    checkScriptOutput(
       done.stderr,
       `
 ❌ package.json:11:7 "output" can only be set if "command" is also set.
