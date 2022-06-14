@@ -14,7 +14,7 @@ import {glob} from '../util/glob.js';
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../script.js';
 import type {Fingerprint} from '../fingerprint.js';
-import type {RelativeEntry} from '../util/glob.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 
 /**
  * Caches script output to each package's
@@ -40,7 +40,7 @@ export class LocalCache implements Cache {
   async set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    relativeFiles: RelativeEntry[]
+    absoluteFiles: AbsoluteEntry[]
   ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
     // We'll have the "clean" command to help with manual cleanup, but we'll
@@ -57,7 +57,7 @@ export class LocalCache implements Cache {
       // checked for an existing cache hit.
       throw new Error(`Did not expect ${absCacheDir} to already exist.`);
     }
-    await copyEntries(relativeFiles, script.packageDir, absCacheDir);
+    await copyEntries(absoluteFiles, script.packageDir, absCacheDir);
     return true;
   }
 
@@ -90,7 +90,6 @@ class LocalCacheHit implements CacheHit {
   async apply(): Promise<void> {
     const entries = await glob(['**'], {
       cwd: this.#source,
-      absolute: false,
       followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,

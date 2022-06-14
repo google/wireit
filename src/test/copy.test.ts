@@ -13,20 +13,20 @@ import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 import {copyEntries} from '../util/copy.js';
 
-import type {RelativeEntry} from '../util/glob.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 
 const test = suite<{
   src: FilesystemTestRig;
   dst: FilesystemTestRig;
 
-  /** Make a fake glob RelativeEntry that looks like a regular file. */
-  file: (path: string) => RelativeEntry;
+  /** Make a fake glob AbsoluteEntry that looks like a regular file. */
+  file: (path: string) => AbsoluteEntry;
 
-  /** Make a fake glob RelativeEntry that looks like a directory. */
-  dir: (path: string) => RelativeEntry;
+  /** Make a fake glob AbsoluteEntry that looks like a directory. */
+  dir: (path: string) => AbsoluteEntry;
 
-  /** Make a fake glob RelativeEntry that looks like a symbolic link. */
-  symlink: (path: string) => RelativeEntry;
+  /** Make a fake glob AbsoluteEntry that looks like a symbolic link. */
+  symlink: (path: string) => AbsoluteEntry;
 }>();
 
 test.before.each(async (ctx) => {
@@ -38,33 +38,33 @@ test.before.each(async (ctx) => {
 
     ctx.file = (path) =>
       ({
-        path: windowsifyPathIfOnWindows(path),
+        path: ctx.src.resolve(windowsifyPathIfOnWindows(path)),
         dirent: {
           isFile: () => true,
           isDirectory: () => false,
           isSymbolicLink: () => false,
         },
-      } as RelativeEntry);
+      } as AbsoluteEntry);
 
     ctx.dir = (path) =>
       ({
-        path: windowsifyPathIfOnWindows(path),
+        path: ctx.src.resolve(windowsifyPathIfOnWindows(path)),
         dirent: {
           isFile: () => false,
           isDirectory: () => true,
           isSymbolicLink: () => false,
         },
-      } as RelativeEntry);
+      } as AbsoluteEntry);
 
     ctx.symlink = (path) =>
       ({
-        path: windowsifyPathIfOnWindows(path),
+        path: ctx.src.resolve(windowsifyPathIfOnWindows(path)),
         dirent: {
           isFile: () => false,
           isDirectory: () => false,
           isSymbolicLink: () => true,
         },
-      } as RelativeEntry);
+      } as AbsoluteEntry);
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
     // see https://github.com/lukeed/uvu/issues/191.
@@ -267,8 +267,9 @@ test('stress test', async ({src, dst, file, dir}) => {
       entries.push(dir(dirPath));
       for (let f = 0; f < filesPerDir; f++) {
         const filePath = pathlib.join(dirPath, `f${f}`);
+        const entry = file(filePath);
         entries.push(file(filePath));
-        await src.write(filePath, `content for ${filePath}`);
+        await src.write(filePath, `content for ${entry.path}`);
       }
     }
   }

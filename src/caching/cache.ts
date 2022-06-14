@@ -6,7 +6,7 @@
 
 import type {ScriptReference} from '../script.js';
 import type {Fingerprint} from '../fingerprint.js';
-import type {RelativeEntry} from '../util/glob.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 
 /**
  * Saves and restores output files to some cache store (e.g. local disk or
@@ -43,7 +43,7 @@ export interface Cache {
   set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    relativeFiles: RelativeEntry[]
+    relativeFiles: AbsoluteEntry[]
   ): Promise<boolean>;
 }
 

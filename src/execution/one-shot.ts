@@ -490,7 +490,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         ],
         {
           cwd: this.script.packageDir,
-          absolute: false,
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
@@ -614,7 +613,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     try {
       absFiles = await glob(this.script.output.values, {
         cwd: this.script.packageDir,
-        absolute: true,
         followSymlinks: false,
         includeDirectories: true,
         expandDirectories: true,

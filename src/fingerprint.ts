@@ -6,7 +6,6 @@
 
 import {createHash} from 'crypto';
 import {createReadStream} from 'fs';
-import {resolve} from 'path';
 import {glob} from './util/glob.js';
 import {scriptReferenceToString} from './script.js';
 
@@ -134,7 +133,6 @@ export class Fingerprint {
     if (script.files?.values.length) {
       const files = await glob(script.files.values, {
         cwd: script.packageDir,
-        absolute: false,
         followSymlinks: true,
         // TODO(aomarks) This means that empty directories are not reflected in
         // the fingerprint, however an empty directory could modify the behavior
@@ -154,7 +152,7 @@ export class Fingerprint {
       // ".wireit/<script>/hashes".
       fileHashes = await Promise.all(
         files.map(async (file): Promise<[string, Sha256HexDigest]> => {
-          const absolutePath = resolve(script.packageDir, file.path);
+          const absolutePath = file.path;
           const hash = createHash('sha256');
           for await (const chunk of createReadStream(absolutePath)) {
             hash.update(chunk as Buffer);

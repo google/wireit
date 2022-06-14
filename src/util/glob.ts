@@ -11,7 +11,6 @@ import * as pathlib from 'path';
 import type {Entry} from 'fast-glob';
 
 export type AbsoluteEntry = Entry & {_AbsoluteEntryBrand_: never};
-export type RelativeEntry = Entry & {_RelativeEntryBrand_: never};
 
 /**
  * The error raised when {@link glob} matches a path that is outside of
@@ -31,12 +30,6 @@ export interface GlobOptions {
    * The directory that glob patterns are interpreted relative to.
    */
   cwd: string;
-
-  /**
-   * If true, always return absolute paths. If false, always return relative
-   * paths, including when a match is outside of the cwd (e.g. "../foo").
-   */
-  absolute: boolean;
 
   /**
    * If true, symlinks are followed, and the entry dirents will identify as
@@ -78,6 +71,7 @@ interface GlobGroup {
  * - Empty or blank patterns throw.
  * - The order of "!exclusion" patterns matter (i.e. files can be "re-included"
  *   after exclusion).
+ * - Results are always absolute.
  *
  * @param patterns The glob patterns to match. Must use forward-slash separator,
  * even on Windows.
@@ -85,20 +79,8 @@ interface GlobGroup {
  */
 export async function glob(
   patterns: string[],
-  opts: GlobOptions & {absolute: true}
-): Promise<AbsoluteEntry[]>;
-export async function glob(
-  patterns: string[],
-  opts: GlobOptions & {absolute: false}
-): Promise<RelativeEntry[]>;
-export async function glob(
-  patterns: string[],
   opts: GlobOptions
-): Promise<AbsoluteEntry[] | RelativeEntry[]>;
-export async function glob(
-  patterns: string[],
-  opts: GlobOptions
-): Promise<AbsoluteEntry[] | RelativeEntry[]> {
+): Promise<AbsoluteEntry[]> {
   if (patterns.length === 0) {
     return [];
   }
@@ -212,7 +194,7 @@ export async function glob(
         cwd: normalizedCwd,
         dot: true,
         onlyFiles: !opts.includeDirectories,
-        absolute: opts.absolute,
+        absolute: true,
         followSymbolicLinks: opts.followSymlinks,
         // This should have no overhead because fast-glob already uses these
         // objects for its internal representation:
@@ -239,9 +221,7 @@ export async function glob(
         //    absolute).
         match.path = pathlib.normalize(match.path.replace(/\/+$/g, ''));
         if (opts.throwIfOutsideCwd) {
-          const absPath = opts.absolute
-            ? match.path
-            : pathlib.resolve(normalizedCwd, match.path);
+          const absPath = match.path;
           if (
             // Match "parent/child" and "parent", but not "parentx".
             !absPath.startsWith(normalizedCwdWithTrailingSep) &&
@@ -260,7 +240,7 @@ export async function glob(
     })
   );
 
-  return [...combinedMap.values()] as AbsoluteEntry[] | RelativeEntry[];
+  return [...combinedMap.values()] as AbsoluteEntry[];
 }
 
 const isRecursive = (pattern: string): boolean =>
