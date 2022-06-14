@@ -5,7 +5,7 @@
  */
 
 import * as assert from 'uvu/assert';
-import {removeAciiColors} from './colors.js';
+import {removeAnsiColors} from './colors.js';
 import {NODE_MAJOR_VERSION} from './node-version.js';
 
 /**
@@ -19,7 +19,7 @@ export function checkScriptOutput(
   expected: string,
   message?: string
 ) {
-  actual = removeAciiColors(actual.trim());
+  actual = removeAnsiColors(actual.trim());
   expected = expected.trim();
   if (actual !== expected) {
     console.log(`Copy-pastable output:\n${actual}`);
