@@ -17,6 +17,7 @@ import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from '../script-child-process.js';
 import {BaseExecution} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
+import {computeManifestEntry} from '../util/manifest.js';
 
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
@@ -28,6 +29,7 @@ import type {WriteStream} from 'fs';
 import type {Cache, CacheHit} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
+import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
 
 type OneShotExecutionState = 'before-running' | 'running' | 'after-running';
 
@@ -97,7 +99,13 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         dependencyFingerprints.value
       );
       if (await this.#fingerprintIsFresh(fingerprint)) {
-        return this.#handleFresh(fingerprint);
+        const manifestFresh = await this.#outputManifestIsFresh();
+        if (!manifestFresh.ok) {
+          return {ok: false, error: [manifestFresh.error]};
+        }
+        if (manifestFresh.value) {
+          return this.#handleFresh(fingerprint);
+        }
       }
 
       // Computing the fingerprint can take some time, and the next operation is
@@ -278,7 +286,17 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       this.#replayStderrIfPresent(),
     ]);
 
-    await this.#writeFingerprintFile(fingerprint);
+    const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
+    const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
+    if (!outputFilesAfterRunning.ok) {
+      return {ok: false, error: [outputFilesAfterRunning.error]};
+    }
+    if (outputFilesAfterRunning.value !== undefined) {
+      await this.#writeOutputManifest(
+        await this.#computeOutputManifest(outputFilesAfterRunning.value)
+      );
+    }
+    await writeFingerprintPromise;
 
     this.logger.log({
       script: this.script,
@@ -404,8 +422,17 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       return {ok: false, error: [childResult.error]};
     }
 
-    await this.#writeFingerprintFile(fingerprint);
-    this.#state = 'after-running';
+    const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
+    const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
+    if (!outputFilesAfterRunning.ok) {
+      return {ok: false, error: [outputFilesAfterRunning.error]};
+    }
+    if (outputFilesAfterRunning.value !== undefined) {
+      await this.#writeOutputManifest(
+        await this.#computeOutputManifest(outputFilesAfterRunning.value)
+      );
+    }
+    await writeFingerprintPromise;
 
     if (fingerprint.data.cacheable) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
@@ -717,6 +744,91 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
       throw error;
     }
+  }
+
+  /**
+   * Compute the output manifest for this script, which is the sorted list of
+   * all output filenames, along with filesystem metadata that we assume is good
+   * enough for checking that a file hasn't changed: ctime, mtime, and bytes.
+   */
+  async #computeOutputManifest(
+    outputEntries: AbsoluteEntry[]
+  ): Promise<FileManifestString> {
+    outputEntries.sort((a, b) => a.path.localeCompare(b.path));
+    const stats = await Promise.all(
+      outputEntries.map((entry) => fs.lstat(entry.path))
+    );
+    const manifest: Record<string, FileManifestEntry> = {};
+    for (let i = 0; i < outputEntries.length; i++) {
+      manifest[outputEntries[i].path] = computeManifestEntry(stats[i]);
+    }
+    return JSON.stringify(manifest) as FileManifestString;
+  }
+
+  /**
+   * Check whether the current manifest of output files matches the one from the
+   * `.wireit` directory.
+   */
+  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+    const oldManifestPromise = this.#readPreviousOutputManifest();
+    const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
+    if (!outputFilesBeforeRunning.ok) {
+      return outputFilesBeforeRunning;
+    }
+    if (outputFilesBeforeRunning.value === undefined) {
+      return {ok: true, value: false};
+    }
+    const newManifest = await this.#computeOutputManifest(
+      outputFilesBeforeRunning.value
+    );
+    const oldManifest = await oldManifestPromise;
+    if (oldManifest === undefined) {
+      return {ok: true, value: false};
+    }
+    const equal = newManifest === oldManifest;
+    if (!equal) {
+      this.logger.log({
+        script: this.script,
+        type: 'info',
+        detail: 'output-modified',
+      });
+    }
+    return {ok: true, value: equal};
+  }
+
+  /**
+   * Read this script's previous output manifest file from the `manifest` file
+   * in the `.wireit` directory. Not cached.
+   */
+  async #readPreviousOutputManifest(): Promise<FileManifestString | undefined> {
+    try {
+      return (await fs.readFile(
+        this.#outputManifestFilePath,
+        'utf8'
+      )) as FileManifestString;
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Write this script's output manifest file.
+   */
+  async #writeOutputManifest(
+    outputManifest: FileManifestString
+  ): Promise<void> {
+    await fs.mkdir(this.#dataDir, {recursive: true});
+    await fs.writeFile(this.#outputManifestFilePath, outputManifest, 'utf8');
+  }
+
+  /**
+   * Get the path where the current output manifest is saved for this script.
+   */
+  get #outputManifestFilePath(): string {
+    return pathlib.join(this.#dataDir, 'manifest');
   }
 }
 
