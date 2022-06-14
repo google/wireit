@@ -28,6 +28,8 @@ import type {WriteStream} from 'fs';
 import type {Cache, CacheHit} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
 
+type OneShotExecutionState = 'before-running' | 'running' | 'after-running';
+
 /**
  * Execution for a {@link OneShotScriptConfig}.
  */
@@ -48,6 +50,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     ).#execute();
   }
 
+  #state: OneShotExecutionState = 'before-running';
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
 
@@ -63,7 +66,15 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     this.#cache = cache;
   }
 
+  #ensureState(state: OneShotExecutionState): void {
+    if (this.#state !== state) {
+      throw new Error(`Expected state ${state} but was ${this.#state}`);
+    }
+  }
+
   async #execute(): Promise<ExecutionResult> {
+    this.#ensureState('before-running');
+
     const dependencyFingerprints = await this.executeDependencies();
     if (!dependencyFingerprints.ok) {
       dependencyFingerprints.error.push(this.#startCancelledEvent);
@@ -255,6 +266,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     await this.#cleanOutput();
 
     await cacheHit.apply();
+    this.#state = 'after-running';
 
     // We include stdout and stderr replay files when we save to the cache, so
     // if there were any, they will now be in place.
@@ -304,6 +316,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         return {ok: false, error: this.#startCancelledEvent};
       }
 
+      this.#state = 'running';
       this.logger.log({
         script: this.script,
         type: 'info',
@@ -384,11 +397,14 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
     });
 
+    this.#state = 'after-running';
+
     if (!childResult.ok) {
       return {ok: false, error: [childResult.error]};
     }
 
     await this.#writeFingerprintFile(fingerprint);
+    this.#state = 'after-running';
 
     if (fingerprint.data.cacheable) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
