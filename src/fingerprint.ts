@@ -168,13 +168,18 @@ export class Fingerprint {
       // If command is undefined, then we simply propagate the fingerprints of
       // our dependencies, and don't have any effect ourselves on cacheability.
       script.command === undefined ||
-      // Otherwise, If files are undefined, then it's not safe to be cached,
-      // because we don't know what the inputs are, so we can't know if the
-      // output of this script could change.
+      // If input files are undefined, then it's not safe to be fresh or cached,
+      // because we wouldn't know when an input file has changed that could
+      // affect the output.
       (script.files !== undefined &&
-        // Similarly, if any of our dependencies are uncacheable, then we're
-        // uncacheable too, because that dependency could also have an effect on
-        // our output.
+        // If output files are undefined, then it's not safe to be fresh,
+        // because we aren't able to check whether the output files were
+        // independently modified since the last run. It's also not possible to
+        // be cached, because we wouldn't know what to put in the cache.
+        script.output !== undefined &&
+        // If any of our dependencies are uncacheable, then we're uncacheable
+        // too, because that dependency could be producing an output that is an
+        // untracked input of ours.
         allDependenciesAreCacheable);
 
     const fingerprint = new Fingerprint();

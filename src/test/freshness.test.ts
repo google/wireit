@@ -49,6 +49,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -88,6 +89,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -132,6 +134,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input'],
+            output: [],
           },
         },
       },
@@ -177,6 +180,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['symlink'],
+            output: [],
           },
         },
       },
@@ -221,6 +225,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/**', '!input/subdir/**', 'input/subdir/reincluded'],
+            output: [],
           },
         },
       },
@@ -277,6 +282,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -320,6 +326,7 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
+            output: [],
           },
         },
       },
@@ -353,7 +360,52 @@ test(
 );
 
 test(
-  'script with undefined input files and undefined command can be fresh',
+  'script with undefined output files is always stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            input: [],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    // Initially stale, so command is invoked.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // No input file changed, but input files are undefined, so script is still
+    // stale, and command is invoked.
+    {
+      await rig.write({
+        'input.txt': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'script with undefined input/output files and undefined command can be fresh',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdC = await rig.newCommand();
@@ -368,6 +420,7 @@ test(
           a: {
             command: cmdA.command,
             files: [],
+            output: [],
             dependencies: ['b'],
           },
           b: {
@@ -379,6 +432,7 @@ test(
           c: {
             command: cmdC.command,
             files: [],
+            output: [],
           },
         },
       },
@@ -424,6 +478,7 @@ test(
           a: {
             command: cmdA.command,
             files: [],
+            output: [],
           },
         },
       },
@@ -462,6 +517,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/**'],
+            output: [],
           },
         },
       },
@@ -504,6 +560,7 @@ test(
             command: cmdA.command,
             dependencies: ['../bar:b'],
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -516,6 +573,7 @@ test(
           b: {
             command: cmdB.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -589,6 +647,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['../outside.txt'],
+            output: [],
           },
         },
       },
@@ -647,10 +706,12 @@ test(
           b: {
             command: cmdB.command,
             files: ['input.txt'],
+            output: [],
           },
           c: {
             command: cmdC.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -710,6 +771,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['src/**/*.txt'],
+            output: [],
           },
         },
       },
@@ -754,6 +816,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['src/*.txt', '!src/excluded.txt'],
+            output: [],
           },
         },
       },
@@ -815,6 +878,7 @@ test(
           [name]: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -867,6 +931,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -909,6 +974,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -918,7 +984,9 @@ test(
     // Initially stale, so command is invoked. It succeeds, so a fingerprint
     // file is written.
     {
-      const exec = rig.exec('npm run a');
+      // Disable caching so that we can more straightforwardly check freshness
+      // behavior.
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
@@ -936,7 +1004,7 @@ test(
       await rig.write({
         'input.txt': 'v1',
       });
-      const exec = rig.exec('npm run a');
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
       const inv = await cmdA.nextInvocation();
       inv.exit(1);
       const res = await exec.exit;
@@ -952,7 +1020,7 @@ test(
       await rig.write({
         'input.txt': 'v0',
       });
-      const exec = rig.exec('npm run a');
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
@@ -978,10 +1046,12 @@ test(
             command: cmdA.command,
             dependencies: ['b'],
             files: ['a.txt'],
+            output: [],
           },
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
         },
       },
@@ -1054,6 +1124,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['a.txt'],
+            output: [],
             dependencies: ['b'],
           },
           b: {
@@ -1108,6 +1179,7 @@ test(
           a: {
             command: cmdA1.command,
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -1135,6 +1207,7 @@ test(
           a: {
             command: cmdA2.command,
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -1223,6 +1296,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -1250,6 +1324,7 @@ test(
             a: {
               command: cmdA.command,
               files: ['a.txt'],
+              output: [],
               clean: false,
             },
           },
@@ -1278,6 +1353,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/a', 'input/b'],
+            output: [],
           },
         },
       },
@@ -1305,6 +1381,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/b', 'input/a'],
+            output: [],
           },
         },
       },
@@ -1351,26 +1428,32 @@ test(
             command: cmdA.command,
             dependencies: ['b', 'c', 'd', 'e', 'f'],
             files: ['a.txt'],
+            output: [],
           },
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
           c: {
             command: cmdC.command,
             files: ['c.txt'],
+            output: [],
           },
           d: {
             command: cmdD.command,
             files: ['d.txt'],
+            output: [],
           },
           e: {
             command: cmdE.command,
             files: ['e.txt'],
+            output: [],
           },
           f: {
             command: cmdF.command,
             files: ['f.txt'],
+            output: [],
           },
         },
       },
@@ -1435,9 +1518,10 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // Note we must define files, or else we would never be fresh
+            // Note we must define files/output, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
           },
         },
       },
@@ -1498,9 +1582,10 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // Note we must define files, or else we would never be fresh
+            // Note we must define files/output, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
             packageLocks: [],
           },
         },
@@ -1549,9 +1634,10 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // Note we must define files, or else we would never be fresh
+            // Note we must define files/output, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
             packageLocks: ['yarn.lock'],
           },
         },
@@ -1605,6 +1691,7 @@ test(
             // Note we must define files, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
             packageLocks: ['lock1', 'lock2'],
           },
         },
@@ -1668,6 +1755,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['/input.txt'],
+            output: [],
           },
         },
       },
@@ -1714,6 +1802,7 @@ test(
             command: consumer.command,
             dependencies: ['files'],
             files: [],
+            output: [],
           },
           files: {
             files: ['foo'],
