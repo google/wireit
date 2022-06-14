@@ -1838,4 +1838,107 @@ test(
   })
 );
 
+test(
+  'script is not fresh if output file is modified externally',
+  timeout(async ({rig}) => {
+    const main = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {
+            command: main.command,
+            files: [],
+            output: ['output/**', '!output/subdir/excluded'],
+          },
+        },
+      },
+    });
+
+    // Stale because it's the first time.
+    {
+      const exec = rig.exec('npm run main');
+      const inv = await main.nextInvocation();
+      // Write some output.
+      await rig.write('output/subdir/foo', '1');
+      inv.exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 1);
+    }
+
+    // Fresh because nothing changed.
+    {
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 1);
+    }
+
+    // Change the output externally from Wireit, which makes the script stale.
+    {
+      await rig.write('output/subdir/foo', '2');
+      const exec = rig.exec('npm run main', {
+        env: {
+          // Disable caching so that we re-run the script when stale, instead of
+          // restoring it from cache.
+          WIREIT_CACHE: 'none',
+        },
+      });
+      await exec.waitForLog(
+        /Output files were modified since the previous run/
+      );
+      const inv = await main.nextInvocation();
+      inv.exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+    }
+
+    // Fresh again because nothing changed.
+    {
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+    }
+
+    // Add a new file that matches the output globs, which also counts as a
+    // change. Should be restored from cache.
+    {
+      await rig.write('output/subdir/bar', '0');
+      // Don't disable caching this time.
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(
+        /Output files were modified since the previous run/
+      );
+      await exec.waitForLog(/Restored from cache/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+      assert.equal(await rig.read('output/subdir/foo'), '1');
+      assert.not(await rig.exists('output/subdir/bar'));
+    }
+
+    // Fresh again because nothing changed.
+    {
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+      assert.equal(await rig.read('output/subdir/foo'), '1');
+      assert.not(await rig.exists('output/subdir/bar'));
+    }
+
+    // Adding an excluded file inside a directory that is included should not
+    // change the manifest, because we ignore mtime/ctime of directories.
+    {
+      await rig.touch('output/subdir/excluded');
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+    }
+  })
+);
+
 test.run();
