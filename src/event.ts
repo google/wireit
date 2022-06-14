@@ -305,6 +305,7 @@ export interface Stderr extends OutputBase {
 type Info =
   | ScriptRunning
   | ScriptLocked
+  | OutputModified
   | WatchRunStart
   | WatchRunEnd
   | GenericInfo;
@@ -326,6 +327,15 @@ export interface ScriptRunning extends InfoBase<ScriptConfig> {
  */
 export interface ScriptLocked extends InfoBase<ScriptConfig> {
   detail: 'locked';
+}
+
+/**
+ * A script that would otherwise have been skipped as fresh is being treated as
+ * stale, because one or more output files from the previous run have been
+ * added, removed, or changed.
+ */
+export interface OutputModified extends InfoBase<ScriptConfig> {
+  detail: 'output-modified';
 }
 
 /**

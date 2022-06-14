@@ -243,7 +243,13 @@ export class DefaultLogger implements Logger {
           }
           case 'locked': {
             console.log(
-              `💤 ${prefix} Waiting for another process which is already running this script.`
+              `💤${prefix} Waiting for another process which is already running this script.`
+            );
+            break;
+          }
+          case 'output-modified': {
+            console.log(
+              `ℹ️${prefix} Output files were modified since the previous run.`
             );
             break;
           }
