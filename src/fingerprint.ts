@@ -6,7 +6,6 @@
 
 import {createHash} from 'crypto';
 import {createReadStream} from 'fs';
-import {resolve} from 'path';
 import {glob} from './util/glob.js';
 import {scriptReferenceToString} from './script.js';
 
@@ -134,7 +133,6 @@ export class Fingerprint {
     if (script.files?.values.length) {
       const files = await glob(script.files.values, {
         cwd: script.packageDir,
-        absolute: false,
         followSymlinks: true,
         // TODO(aomarks) This means that empty directories are not reflected in
         // the fingerprint, however an empty directory could modify the behavior
@@ -154,7 +152,7 @@ export class Fingerprint {
       // ".wireit/<script>/hashes".
       fileHashes = await Promise.all(
         files.map(async (file): Promise<[string, Sha256HexDigest]> => {
-          const absolutePath = resolve(script.packageDir, file.path);
+          const absolutePath = file.path;
           const hash = createHash('sha256');
           for await (const chunk of createReadStream(absolutePath)) {
             hash.update(chunk as Buffer);
@@ -170,13 +168,18 @@ export class Fingerprint {
       // If command is undefined, then we simply propagate the fingerprints of
       // our dependencies, and don't have any effect ourselves on cacheability.
       script.command === undefined ||
-      // Otherwise, If files are undefined, then it's not safe to be cached,
-      // because we don't know what the inputs are, so we can't know if the
-      // output of this script could change.
+      // If input files are undefined, then it's not safe to be fresh or cached,
+      // because we wouldn't know when an input file has changed that could
+      // affect the output.
       (script.files !== undefined &&
-        // Similarly, if any of our dependencies are uncacheable, then we're
-        // uncacheable too, because that dependency could also have an effect on
-        // our output.
+        // If output files are undefined, then it's not safe to be fresh,
+        // because we aren't able to check whether the output files were
+        // independently modified since the last run. It's also not possible to
+        // be cached, because we wouldn't know what to put in the cache.
+        script.output !== undefined &&
+        // If any of our dependencies are uncacheable, then we're uncacheable
+        // too, because that dependency could be producing an output that is an
+        // untracked input of ours.
         allDependenciesAreCacheable);
 
     const fingerprint = new Fingerprint();

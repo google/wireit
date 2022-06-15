@@ -952,8 +952,9 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
           wireit: {
             a: {
               command: cmdA.command,
-              // Explicit empty input files so that we can be fresh.
+              // Explicit empty input and output files so that we can be fresh.
               files: [],
+              output: [],
             },
           },
         },

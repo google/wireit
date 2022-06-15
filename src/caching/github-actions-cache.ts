@@ -18,7 +18,7 @@ import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../script.js';
 import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
-import type {RelativeEntry} from '../util/glob.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
 
 /**
@@ -147,18 +147,18 @@ export class GitHubActionsCache implements Cache {
   async set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    relativeFiles: RelativeEntry[]
+    absFiles: AbsoluteEntry[]
   ): Promise<boolean> {
     if (this.#hitRateLimit) {
       return false;
     }
 
-    const absFiles = relativeFiles.map((rel) =>
-      pathlib.join(script.packageDir, rel.path)
-    );
     const tempDir = await makeTempDir(script);
     try {
-      const tarballPath = await this.#makeTarball([...absFiles], tempDir);
+      const tarballPath = await this.#makeTarball(
+        [...absFiles.map((file) => file.path)],
+        tempDir
+      );
       return await this.#reserveUploadAndCommitTarball(
         script,
         fingerprint,

@@ -323,10 +323,12 @@ test(
             command: cmdA.command,
             dependencies: ['b'],
             files: ['a.txt'],
+            output: [],
           },
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
         },
       },
@@ -392,6 +394,7 @@ test(
             command: cmdA.command,
             dependencies: ['../bar:b'],
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -404,6 +407,7 @@ test(
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
         },
       },

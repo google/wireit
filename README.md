@@ -230,9 +230,9 @@ Setting these properties allow you to use more features of Wireit:
 |                                             | Requires<br>`files` | Requires<br>`output` |
 | ------------------------------------------: | :-----------------: | :------------------: |
 |       [**Dependency graph**](#dependencies) |          -          |          -           |
-| [**Incremental build**](#incremental-build) |         ☑️          |          -           |
 |               [**Watch mode**](#watch-mode) |         ☑️          |          -           |
 |         [**Clean build**](#cleaning-output) |          -          |          ☑️          |
+| [**Incremental build**](#incremental-build) |         ☑️          |          ☑️          |
 |                     [**Caching**](#caching) |         ☑️          |          ☑️          |
 
 #### Example configuration
@@ -266,13 +266,15 @@ would cause it to produce different output since the last time it ran. This is
 called _incremental build_. When a script is skipped, any `stdout` or `stderr`
 that it produced in the previous run is replayed.
 
-To enable incremental build, configure the input files for each script by
-specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list.
+To enable incremental build, configure the input and output files for each
+script by specifying [glob patterns](#glob-patterns) in the
+`wireit.<script>.files` and `wireit.<script>.output` arrays.
 
-> ℹ️ If a script doesn't have a `files` list defined at all, then it will _always_
-> run, because Wireit doesn't know which files to check for changes. To tell
-> Wireit it is safe to skip execution of a script that definitely has no input
-> files, set `files` to an empty array (`files: []`).
+> ℹ️ If a script doesn't have a `files` or `output` list defined at all, then it
+> will _always_ run, because Wireit doesn't know which files to check for
+> changes. To tell Wireit it is safe to skip execution of a script that
+> definitely has no input and/or files, set `files` and/or `output` to an empty
+> array (`files: [], output: []`).
 
 ## Caching
 

@@ -17,6 +17,7 @@ import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from '../script-child-process.js';
 import {BaseExecution} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
+import {computeManifestEntry} from '../util/manifest.js';
 
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
@@ -27,6 +28,10 @@ import type {Logger} from '../logging/logger.js';
 import type {WriteStream} from 'fs';
 import type {Cache, CacheHit} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
+import type {AbsoluteEntry} from '../util/glob.js';
+import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
+
+type OneShotExecutionState = 'before-running' | 'running' | 'after-running';
 
 /**
  * Execution for a {@link OneShotScriptConfig}.
@@ -48,6 +53,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     ).#execute();
   }
 
+  #state: OneShotExecutionState = 'before-running';
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
 
@@ -63,7 +69,15 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     this.#cache = cache;
   }
 
+  #ensureState(state: OneShotExecutionState): void {
+    if (this.#state !== state) {
+      throw new Error(`Expected state ${state} but was ${this.#state}`);
+    }
+  }
+
   async #execute(): Promise<ExecutionResult> {
+    this.#ensureState('before-running');
+
     const dependencyFingerprints = await this.executeDependencies();
     if (!dependencyFingerprints.ok) {
       dependencyFingerprints.error.push(this.#startCancelledEvent);
@@ -85,7 +99,13 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         dependencyFingerprints.value
       );
       if (await this.#fingerprintIsFresh(fingerprint)) {
-        return this.#handleFresh(fingerprint);
+        const manifestFresh = await this.#outputManifestIsFresh();
+        if (!manifestFresh.ok) {
+          return {ok: false, error: [manifestFresh.error]};
+        }
+        if (manifestFresh.value) {
+          return this.#handleFresh(fingerprint);
+        }
       }
 
       // Computing the fingerprint can take some time, and the next operation is
@@ -255,6 +275,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     await this.#cleanOutput();
 
     await cacheHit.apply();
+    this.#state = 'after-running';
 
     // We include stdout and stderr replay files when we save to the cache, so
     // if there were any, they will now be in place.
@@ -265,7 +286,17 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       this.#replayStderrIfPresent(),
     ]);
 
-    await this.#writeFingerprintFile(fingerprint);
+    const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
+    const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
+    if (!outputFilesAfterRunning.ok) {
+      return {ok: false, error: [outputFilesAfterRunning.error]};
+    }
+    if (outputFilesAfterRunning.value !== undefined) {
+      await this.#writeOutputManifest(
+        await this.#computeOutputManifest(outputFilesAfterRunning.value)
+      );
+    }
+    await writeFingerprintPromise;
 
     this.logger.log({
       script: this.script,
@@ -304,6 +335,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         return {ok: false, error: this.#startCancelledEvent};
       }
 
+      this.#state = 'running';
       this.logger.log({
         script: this.script,
         type: 'info',
@@ -384,11 +416,23 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
     });
 
+    this.#state = 'after-running';
+
     if (!childResult.ok) {
       return {ok: false, error: [childResult.error]};
     }
 
-    await this.#writeFingerprintFile(fingerprint);
+    const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
+    const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
+    if (!outputFilesAfterRunning.ok) {
+      return {ok: false, error: [outputFilesAfterRunning.error]};
+    }
+    if (outputFilesAfterRunning.value !== undefined) {
+      await this.#writeOutputManifest(
+        await this.#computeOutputManifest(outputFilesAfterRunning.value)
+      );
+    }
+    await writeFingerprintPromise;
 
     if (fingerprint.data.cacheable) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
@@ -458,45 +502,86 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   async #saveToCacheIfPossible(
     fingerprint: Fingerprint
   ): Promise<Result<void>> {
-    if (this.#cache === undefined || this.script.output === undefined) {
+    if (this.#cache === undefined) {
       return {ok: true, value: undefined};
     }
-    let paths;
-    try {
-      paths = await glob(
+    const paths = await this.#globOutputFilesAfterRunning();
+    if (!paths.ok) {
+      return paths;
+    }
+    if (paths.value === undefined) {
+      return {ok: true, value: undefined};
+    }
+    // Also include the "stdout" and "stderr" replay files at their standard
+    // location within the ".wireit" directory for this script so that we can
+    // replay them after restoring.
+    paths.value.push(
+      // We're passing this to glob because we only want to list them if they
+      // exist, and because we need a dirent.
+      ...(await glob(
         [
-          ...this.script.output.values,
-          // Also include the "stdout" and "stderr" replay files at their
-          // standard location within the ".wireit" directory for this script so
-          // that we can replay them after restoring.
-          //
-          // We're passing this to #glob because it's an easy way to only
-          // include them only if they exist. We don't want to include files
-          // that don't exist becuase then we'll make empty directories and will
-          // get an error from fs.cp.
-          //
-          // Convert to relative paths because we want to pass relative paths to
-          // Cache.set, but fast-glob doesn't automatically relativize to the
-          // cwd when passing an absolute path.
-          //
-          // Convert Windows-style paths to POSIX-style paths if we are on
-          // Windows, because fast-glob only understands POSIX-style paths.
-          posixifyPathIfOnWindows(
-            pathlib.relative(this.script.packageDir, this.#stdoutReplayPath)
-          ),
-          posixifyPathIfOnWindows(
-            pathlib.relative(this.script.packageDir, this.#stderrReplayPath)
-          ),
+          // Convert Windows-style paths to POSIX-style paths if we are on Windows,
+          // because fast-glob only understands POSIX-style paths.
+          posixifyPathIfOnWindows(this.#stdoutReplayPath),
+          posixifyPathIfOnWindows(this.#stderrReplayPath),
         ],
         {
+          // The replay paths are absolute.
+          cwd: '/',
+          expandDirectories: false,
+          followSymlinks: false,
+          includeDirectories: false,
+          throwIfOutsideCwd: false,
+        }
+      ))
+    );
+    await this.#cache.set(this.script, fingerprint, paths.value);
+    return {ok: true, value: undefined};
+  }
+
+  /**
+   * Glob the output files for this script and cache them, but throw unless the
+   * script has not yet started running or been restored from cache.
+   */
+  #globOutputFilesBeforeRunning(): Promise<
+    Result<AbsoluteEntry[] | undefined>
+  > {
+    this.#ensureState('before-running');
+    return (this.#cachedOutputFilesBeforeRunning ??= this.#globOutputFiles());
+  }
+  #cachedOutputFilesBeforeRunning?: Promise<
+    Result<AbsoluteEntry[] | undefined>
+  >;
+
+  /**
+   * Glob the output files for this script and cache them, but throw unless the
+   * script has finished running or been restored from cache.
+   */
+  #globOutputFilesAfterRunning(): Promise<Result<AbsoluteEntry[] | undefined>> {
+    this.#ensureState('after-running');
+    return (this.#cachedOutputFilesAfterRunning ??= this.#globOutputFiles());
+  }
+  #cachedOutputFilesAfterRunning?: Promise<Result<AbsoluteEntry[] | undefined>>;
+
+  /**
+   * Glob the output files for this script, or return undefined if output files
+   * are not defined.
+   */
+  async #globOutputFiles(): Promise<Result<AbsoluteEntry[] | undefined>> {
+    if (this.script.output === undefined) {
+      return {ok: true, value: undefined};
+    }
+    try {
+      return {
+        ok: true,
+        value: await glob(this.script.output.values, {
           cwd: this.script.packageDir,
-          absolute: false,
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
           throwIfOutsideCwd: true,
-        }
-      );
+        }),
+      };
     } catch (error) {
       if (error instanceof GlobOutsideCwdError) {
         // TODO(aomarks) It would be better to do this in the Analyzer by
@@ -524,8 +609,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
       throw error;
     }
-    await this.#cache.set(this.script, fingerprint, paths);
-    return {ok: true, value: undefined};
   }
 
   /**
@@ -607,50 +690,14 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
    * Delete all files matched by this script's "output" glob patterns.
    */
   async #cleanOutput(): Promise<Result<void>> {
-    if (this.script.output === undefined) {
+    const files = await this.#globOutputFilesBeforeRunning();
+    if (!files.ok) {
+      return files;
+    }
+    if (files.value === undefined) {
       return {ok: true, value: undefined};
     }
-    let absFiles;
-    try {
-      absFiles = await glob(this.script.output.values, {
-        cwd: this.script.packageDir,
-        absolute: true,
-        followSymlinks: false,
-        includeDirectories: true,
-        expandDirectories: true,
-        throwIfOutsideCwd: true,
-      });
-    } catch (error) {
-      if (error instanceof GlobOutsideCwdError) {
-        // TODO(aomarks) It would be better to do this in the Analyzer by
-        // looking at the output glob patterns. See
-        // https://github.com/google/wireit/issues/64.
-        return {
-          ok: false,
-          error: {
-            type: 'failure',
-            reason: 'invalid-config-syntax',
-            script: this.script,
-            diagnostic: {
-              severity: 'error',
-              message: `Output files must be within the package: ${error.message}`,
-              location: {
-                file: this.script.declaringFile,
-                range: {
-                  offset: this.script.output.node.offset,
-                  length: this.script.output.node.length,
-                },
-              },
-            },
-          },
-        };
-      }
-      throw error;
-    }
-    if (absFiles.length === 0) {
-      return {ok: true, value: undefined};
-    }
-    await deleteEntries(absFiles);
+    await deleteEntries(files.value);
     return {ok: true, value: undefined};
   }
 
@@ -697,6 +744,91 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
       }
       throw error;
     }
+  }
+
+  /**
+   * Compute the output manifest for this script, which is the sorted list of
+   * all output filenames, along with filesystem metadata that we assume is good
+   * enough for checking that a file hasn't changed: ctime, mtime, and bytes.
+   */
+  async #computeOutputManifest(
+    outputEntries: AbsoluteEntry[]
+  ): Promise<FileManifestString> {
+    outputEntries.sort((a, b) => a.path.localeCompare(b.path));
+    const stats = await Promise.all(
+      outputEntries.map((entry) => fs.lstat(entry.path))
+    );
+    const manifest: Record<string, FileManifestEntry> = {};
+    for (let i = 0; i < outputEntries.length; i++) {
+      manifest[outputEntries[i].path] = computeManifestEntry(stats[i]);
+    }
+    return JSON.stringify(manifest) as FileManifestString;
+  }
+
+  /**
+   * Check whether the current manifest of output files matches the one from the
+   * `.wireit` directory.
+   */
+  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+    const oldManifestPromise = this.#readPreviousOutputManifest();
+    const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
+    if (!outputFilesBeforeRunning.ok) {
+      return outputFilesBeforeRunning;
+    }
+    if (outputFilesBeforeRunning.value === undefined) {
+      return {ok: true, value: false};
+    }
+    const newManifest = await this.#computeOutputManifest(
+      outputFilesBeforeRunning.value
+    );
+    const oldManifest = await oldManifestPromise;
+    if (oldManifest === undefined) {
+      return {ok: true, value: false};
+    }
+    const equal = newManifest === oldManifest;
+    if (!equal) {
+      this.logger.log({
+        script: this.script,
+        type: 'info',
+        detail: 'output-modified',
+      });
+    }
+    return {ok: true, value: equal};
+  }
+
+  /**
+   * Read this script's previous output manifest file from the `manifest` file
+   * in the `.wireit` directory. Not cached.
+   */
+  async #readPreviousOutputManifest(): Promise<FileManifestString | undefined> {
+    try {
+      return (await fs.readFile(
+        this.#outputManifestFilePath,
+        'utf8'
+      )) as FileManifestString;
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Write this script's output manifest file.
+   */
+  async #writeOutputManifest(
+    outputManifest: FileManifestString
+  ): Promise<void> {
+    await fs.mkdir(this.#dataDir, {recursive: true});
+    await fs.writeFile(this.#outputManifestFilePath, outputManifest, 'utf8');
+  }
+
+  /**
+   * Get the path where the current output manifest is saved for this script.
+   */
+  get #outputManifestFilePath(): string {
+    return pathlib.join(this.#dataDir, 'manifest');
   }
 }
 

@@ -24,11 +24,11 @@ interface TestCase {
   patterns: string[];
   expected: string[] | 'ERROR';
   cwd?: string;
-  absolute?: boolean;
   followSymlinks?: boolean;
   includeDirectories?: boolean;
   expandDirectories?: boolean;
   throwIfOutsideCwd?: boolean;
+  stats?: boolean;
 }
 
 const test = suite<{
@@ -46,7 +46,6 @@ test.before.each(async (ctx) => {
       patterns,
       expected,
       cwd = '.',
-      absolute = false,
       followSymlinks = true,
       includeDirectories = false,
       expandDirectories = false,
@@ -67,16 +66,20 @@ test.before.each(async (ctx) => {
         }
       }
 
-      if (pathlib.sep === '\\' && expected !== 'ERROR') {
-        // On Windows we expect to get results back with "\" as the separator.
-        expected = expected.map((path) => path.replace(/\//g, '\\'));
+      if (expected !== 'ERROR') {
+        // It's more convenient to write relative paths in expectations, but we
+        // always get back absolute paths.
+        expected = expected.map((path) => rig.resolve(path));
+        if (pathlib.sep === '\\') {
+          // On Windows we expect to get results back with "\" as the separator.
+          expected = expected.map((path) => path.replace(/\//g, '\\'));
+        }
       }
 
       let actual, error;
       try {
         actual = await glob(patterns, {
           cwd: rig.resolve(cwd),
-          absolute,
           followSymlinks,
           includeDirectories,
           expandDirectories,
@@ -124,34 +127,18 @@ test('empty patterns', ({check}) =>
     expected: [],
   }));
 
-test('normalizes trailing / in pattern (relative)', ({check}) =>
+test('normalizes trailing / in pattern', ({check}) =>
   check({
     files: ['foo'],
     patterns: ['foo/'],
     expected: ['foo'],
   }));
 
-test('normalizes ../ in pattern (relative)', ({check}) =>
+test('normalizes ../ in pattern', ({check}) =>
   check({
     files: ['foo'],
     patterns: ['bar/../foo'],
     expected: ['foo'],
-  }));
-
-test('normalizes trailing / in pattern (absolute)', ({check, rig}) =>
-  check({
-    files: ['foo'],
-    patterns: ['foo/'],
-    expected: [rig.resolve('foo')],
-    absolute: true,
-  }));
-
-test('normalizes ../ in pattern (absolute)', ({check, rig}) =>
-  check({
-    files: ['foo'],
-    patterns: ['bar/../foo'],
-    expected: [rig.resolve('foo')],
-    absolute: true,
   }));
 
 test('explicit file that does not exist', ({check}) =>
@@ -201,14 +188,6 @@ test('matches explicit symlink', ({check}) =>
     files: ['target', {target: 'target', path: 'symlink', windowsType: 'file'}],
     patterns: ['symlink'],
     expected: ['symlink'],
-  }));
-
-test('absolute', ({check, rig}) =>
-  check({
-    files: ['foo'],
-    patterns: ['foo'],
-    expected: [rig.resolve('foo')],
-    absolute: true,
   }));
 
 test('explicit directory excluded when includeDirectories=false', ({check}) =>
@@ -430,14 +409,13 @@ test('dirent tags files', async ({rig}) => {
   await rig.touch('foo');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
-    absolute: false,
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
     throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
-  assert.equal(actual[0].path, 'foo');
+  assert.equal(actual[0].path, rig.resolve('foo'));
   assert.ok(actual[0].dirent.isFile());
   assert.not(actual[0].dirent.isDirectory());
   assert.not(actual[0].dirent.isSymbolicLink());
@@ -447,14 +425,13 @@ test('dirent tags directories', async ({rig}) => {
   await rig.mkdir('foo');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
-    absolute: false,
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
     throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
-  assert.equal(actual[0].path, 'foo');
+  assert.equal(actual[0].path, rig.resolve('foo'));
   assert.not(actual[0].dirent.isFile());
   assert.ok(actual[0].dirent.isDirectory());
   assert.not(actual[0].dirent.isSymbolicLink());
@@ -464,14 +441,13 @@ test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
   await rig.symlink('target', 'foo', 'file');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
-    absolute: false,
     followSymlinks: false,
     includeDirectories: true,
     expandDirectories: false,
     throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
-  assert.equal(actual[0].path, 'foo');
+  assert.equal(actual[0].path, rig.resolve('foo'));
   assert.not(actual[0].dirent.isFile());
   assert.not(actual[0].dirent.isDirectory());
   assert.ok(actual[0].dirent.isSymbolicLink());
@@ -484,14 +460,13 @@ test('dirent tags symlinks to files as files when followSymlinks=true', async ({
   await rig.touch('target');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
-    absolute: false,
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
     throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
-  assert.equal(actual[0].path, 'foo');
+  assert.equal(actual[0].path, rig.resolve('foo'));
   assert.ok(actual[0].dirent.isFile());
   assert.not(actual[0].dirent.isDirectory());
   assert.not(actual[0].dirent.isSymbolicLink());
@@ -504,14 +479,13 @@ test('dirent tags symlinks to directories as directories when followSymlinks=tru
   await rig.mkdir('target');
   const actual = await glob(['foo'], {
     cwd: rig.temp,
-    absolute: false,
     followSymlinks: true,
     includeDirectories: true,
     expandDirectories: false,
     throwIfOutsideCwd: false,
   });
   assert.equal(actual.length, 1);
-  assert.equal(actual[0].path, 'foo');
+  assert.equal(actual[0].path, rig.resolve('foo'));
   assert.not(actual[0].dirent.isFile());
   assert.ok(actual[0].dirent.isDirectory());
   assert.not(actual[0].dirent.isSymbolicLink());
@@ -536,7 +510,7 @@ test('re-rooting allows ../', ({check}) =>
     cwd: 'subdir',
     files: ['foo', 'subdir/'],
     patterns: ['../foo'],
-    expected: ['../foo'],
+    expected: ['foo'],
   }));
 
 test('re-rooting handles /./foo', ({check}) =>
@@ -551,7 +525,7 @@ test('re-rooting handles /../foo', ({check}) =>
     cwd: 'subdir',
     files: ['foo', 'subdir/'],
     patterns: ['/../foo'],
-    expected: ['../foo'],
+    expected: ['foo'],
   }));
 
 test('re-rooting handles /bar/../foo/', ({check}) =>
@@ -584,24 +558,12 @@ test('disallows path outside cwd when throwIfOutsideCwd=true', ({check}) =>
     throwIfOutsideCwd: true,
   }));
 
-test('disallows path outside cwd when throwIfOutsideCwd=true and absolute=true', ({
-  check,
-}) =>
-  check({
-    cwd: 'subdir',
-    files: ['foo', 'subdir/'],
-    patterns: ['../foo'],
-    expected: 'ERROR',
-    throwIfOutsideCwd: true,
-    absolute: true,
-  }));
-
 test('allows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
   check({
     cwd: 'subdir',
     files: ['foo', 'subdir/'],
     patterns: ['../foo'],
-    expected: ['../foo'],
+    expected: ['foo'],
     throwIfOutsideCwd: false,
   }));
 
@@ -611,18 +573,6 @@ test('allows path inside cwd when throwIfOutsideCwd=true', ({check}) =>
     patterns: ['foo'],
     expected: ['foo'],
     throwIfOutsideCwd: true,
-  }));
-
-test('allows path inside cwd when throwIfOutsideCwd=true and absolute=true', ({
-  check,
-  rig,
-}) =>
-  check({
-    files: ['foo'],
-    patterns: ['foo'],
-    expected: [rig.resolve('foo')],
-    throwIfOutsideCwd: true,
-    absolute: true,
   }));
 
 test.run();
