@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [0.6.1] - 2022-06-15
+
+### Fixed
+
+- Fix out of date files from `0.6.0`.
+
 ## [0.6.0] - 2022-06-15
 
 ### Added
