@@ -31,7 +31,7 @@ export interface FileManifestEntry {
  * A JSON-serialized manifest of files.
  */
 export type FileManifestString = string & {
-  __OutputManifestStringBrand__: never;
+  __FileManifestStringBrand__: never;
 };
 
 export function computeManifestEntry(stats: Stats): FileManifestEntry {

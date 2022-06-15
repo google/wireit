@@ -37,13 +37,13 @@ export interface Cache {
    *
    * @param script The script whose output will be saved to the cache.
    * @param fingerprint The string-encoded fingerprint for the script.
-   * @param relativeFiles The package-relative output files to cache.
+   * @param absoluteFiles The absolute output files to cache.
    * @returns Whether the cache was written.
    */
   set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    relativeFiles: AbsoluteEntry[]
+    absoluteFiles: AbsoluteEntry[]
   ): Promise<boolean>;
 }
 
