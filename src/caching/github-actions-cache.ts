@@ -156,7 +156,7 @@ export class GitHubActionsCache implements Cache {
     const tempDir = await makeTempDir(script);
     try {
       const tarballPath = await this.#makeTarball(
-        [...absFiles.map((file) => file.path)],
+        absFiles.map((file) => file.path),
         tempDir
       );
       return await this.#reserveUploadAndCommitTarball(
