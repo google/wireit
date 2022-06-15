@@ -20,9 +20,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
   ```json
   "scripts": {
-    "build": "yarn run -T -B wireit"
+    "build": "yarn run -TB wireit"
   },
   ```
+
+### Fixed
+
+- Yarn Berry now supports watch mode.
 
 ### Changed
 
@@ -30,6 +34,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `npm run build --watch`. Using the old `watch` style argument will error until
   an upcoming release, at which point it will be sent to the underlying script,
   consistent with how npm usually behaves.
+
+- Scripts are no longer skipped as fresh if any `output` files were changed,
+  added, or removed since the previous run.
+
+- In order for a script to be skipped as fresh, it is now required to specify
+  the `output` files. Previously only input `files` were required.
 
 ## [0.5.0] - 2022-05-31
 

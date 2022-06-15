@@ -8,7 +8,7 @@ import * as assert from 'uvu/assert';
 import * as pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {sep} from 'path';
-import {removeAciiColors} from './util/colors.js';
+import {checkScriptOutput} from './util/check-script-output.js';
 
 import type {Test} from 'uvu';
 import type {WireitTestRig} from './util/test-rig.js';
@@ -1103,8 +1103,8 @@ export const registerCommonCacheTests = (
       const exec = rig.exec('npm run a', {cwd: 'foo'});
       const res = await exec.exit;
       assert.equal(res.code, 1);
-      assert.equal(
-        removeAciiColors(res.stderr.trim()),
+      checkScriptOutput(
+        res.stderr,
         `
 ❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(
           pathlib.join(rig.temp, 'outside')
@@ -1114,7 +1114,7 @@ export const registerCommonCacheTests = (
             "../outside"
     ~~~~~~~~~~~~~~~~~~~~
           ],
-    ~~~~~~~`.trim()
+    ~~~~~~~`
       );
       assert.equal(cmdA.numInvocations, 0);
 

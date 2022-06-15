@@ -47,6 +47,7 @@ test(
           a: {
             command: cmdA.command,
             files: [],
+            output: [],
           },
         },
       },
@@ -88,6 +89,7 @@ test(
           a: {
             command: cmdA.command,
             files: [],
+            output: [],
           },
         },
       },
@@ -129,6 +131,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input'],
+            output: [],
           },
         },
       },
