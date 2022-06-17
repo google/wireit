@@ -11,8 +11,7 @@ eleventyNavigation:
 
 If a script has previously succeeded with the same configuration and input
 files, then Wireit can copy the output from a cache, instead of running the
-command. This can significantly improve build and test time. When a script is
-restored from cache, any `stdout` or `stderr` is replayed.
+command. This can significantly improve build and test time.
 
 To enable caching for a script, ensure you have defined both the [`files` and
 `output`](../files/) arrays.
