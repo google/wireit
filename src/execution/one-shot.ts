@@ -6,13 +6,11 @@
 
 import * as pathlib from 'path';
 import * as fs from 'fs/promises';
-import {createReadStream, createWriteStream} from 'fs';
 import {WorkerPool} from '../util/worker-pool.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {unreachable} from '../util/unreachable.js';
 import {glob, GlobOutsideCwdError} from '../util/glob.js';
 import {deleteEntries} from '../util/delete.js';
-import {posixifyPathIfOnWindows} from '../util/windows.js';
 import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from '../script-child-process.js';
 import {BaseExecution} from './base.js';
@@ -25,7 +23,6 @@ import type {Executor} from '../executor.js';
 import type {OneShotScriptConfig} from '../script.js';
 import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
-import type {WriteStream} from 'fs';
 import type {Cache, CacheHit} from '../caching/cache.js';
 import type {StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
@@ -237,13 +234,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   /**
    * Handle the outcome where the script is already fresh.
    */
-  async #handleFresh(fingerprint: Fingerprint): Promise<ExecutionResult> {
-    // TODO(aomarks) Does not preserve original order of stdout vs stderr
-    // chunks. See https://github.com/google/wireit/issues/74.
-    await Promise.all([
-      this.#replayStdoutIfPresent(),
-      this.#replayStderrIfPresent(),
-    ]);
+  #handleFresh(fingerprint: Fingerprint): ExecutionResult {
     this.logger.log({
       script: this.script,
       type: 'success',
@@ -259,9 +250,9 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     cacheHit: CacheHit,
     fingerprint: Fingerprint
   ): Promise<ExecutionResult> {
-    // Delete the fingerprint file and stdio replay files. It's important we do
-    // this before restoring from cache, because we don't want to think that the
-    // previous fingerprint is still valid when it no longer is.
+    // Delete the fingerprint and other files. It's important we do this before
+    // restoring from cache, because we don't want to think that the previous
+    // fingerprint is still valid when it no longer is.
     await this.#prepareDataDir();
 
     // If we are restoring from cache, we should always delete existing output.
@@ -276,15 +267,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
 
     await cacheHit.apply();
     this.#state = 'after-running';
-
-    // We include stdout and stderr replay files when we save to the cache, so
-    // if there were any, they will now be in place.
-    // TODO(aomarks) Does not preserve original order of stdout vs stderr
-    // chunks. See https://github.com/google/wireit/issues/74.
-    await Promise.all([
-      this.#replayStdoutIfPresent(),
-      this.#replayStderrIfPresent(),
-    ]);
 
     const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
     const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
@@ -316,9 +298,9 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     // this.
     const shouldClean = await this.#shouldClean(fingerprint);
 
-    // Delete the fingerprint file and stdio replay files. It's important we do
-    // this before starting the command, because we don't want to think that the
-    // previous fingerprint is still valid when it no longer is.
+    // Delete the fingerprint and other files. It's important we do this before
+    // starting the command, because we don't want to think that the previous
+    // fingerprint is still valid when it no longer is.
     await this.#prepareDataDir();
 
     if (shouldClean) {
@@ -352,11 +334,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         child.kill();
       });
 
-      // Only create the stdout/stderr replay files if we encounter anything on
-      // this streams.
-      let stdoutReplay: WriteStream | undefined;
-      let stderrReplay: WriteStream | undefined;
-
       child.stdout.on('data', (data: string | Buffer) => {
         this.logger.log({
           script: this.script,
@@ -364,10 +341,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
           stream: 'stdout',
           data,
         });
-        if (stdoutReplay === undefined) {
-          stdoutReplay = createWriteStream(this.#stdoutReplayPath);
-        }
-        stdoutReplay.write(data);
       });
 
       child.stderr.on('data', (data: string | Buffer) => {
@@ -377,43 +350,30 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
           stream: 'stderr',
           data,
         });
-        if (stderrReplay === undefined) {
-          stderrReplay = createWriteStream(this.#stderrReplayPath);
-        }
-        stderrReplay.write(data);
       });
 
-      try {
-        const result = await child.completed;
-        if (result.ok) {
-          this.logger.log({
-            script: this.script,
-            type: 'success',
-            reason: 'exit-zero',
-          });
-        } else {
-          // This failure will propagate to the Executor eventually anyway, but
-          // asynchronously.
-          //
-          // The problem with that is that when parallelism is constrained, the
-          // next script waiting on this WorkerPool might start running before
-          // the failure information propagates, because returning from this
-          // function immediately unblocks the next worker.
-          //
-          // By directly notifying the Executor about the failure while we are
-          // still inside the WorkerPool callback, we prevent this race
-          // condition.
-          this.executor.notifyFailure();
-        }
-        return result;
-      } finally {
-        if (stdoutReplay !== undefined) {
-          await closeWriteStream(stdoutReplay);
-        }
-        if (stderrReplay !== undefined) {
-          await closeWriteStream(stderrReplay);
-        }
+      const result = await child.completed;
+      if (result.ok) {
+        this.logger.log({
+          script: this.script,
+          type: 'success',
+          reason: 'exit-zero',
+        });
+      } else {
+        // This failure will propagate to the Executor eventually anyway, but
+        // asynchronously.
+        //
+        // The problem with that is that when parallelism is constrained, the
+        // next script waiting on this WorkerPool might start running before
+        // the failure information propagates, because returning from this
+        // function immediately unblocks the next worker.
+        //
+        // By directly notifying the Executor about the failure while we are
+        // still inside the WorkerPool callback, we prevent this race
+        // condition.
+        this.executor.notifyFailure();
       }
+      return result;
     });
 
     this.#state = 'after-running';
@@ -512,29 +472,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     if (paths.value === undefined) {
       return {ok: true, value: undefined};
     }
-    // Also include the "stdout" and "stderr" replay files at their standard
-    // location within the ".wireit" directory for this script so that we can
-    // replay them after restoring.
-    paths.value.push(
-      // We're passing this to glob because we only want to list them if they
-      // exist, and because we need a dirent.
-      ...(await glob(
-        [
-          // Convert Windows-style paths to POSIX-style paths if we are on Windows,
-          // because fast-glob only understands POSIX-style paths.
-          posixifyPathIfOnWindows(this.#stdoutReplayPath),
-          posixifyPathIfOnWindows(this.#stderrReplayPath),
-        ],
-        {
-          // The replay paths are absolute.
-          cwd: '/',
-          expandDirectories: false,
-          followSymlinks: false,
-          includeDirectories: false,
-          throwIfOutsideCwd: false,
-        }
-      ))
-    );
     await this.#cache.set(this.script, fingerprint, paths.value);
     return {ok: true, value: undefined};
   }
@@ -626,20 +563,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   }
 
   /**
-   * Get the path where the stdout replay is saved for this script.
-   */
-  get #stdoutReplayPath(): string {
-    return pathlib.join(this.#dataDir, 'stdout');
-  }
-
-  /**
-   * Get the path where the stderr replay is saved for this script.
-   */
-  get #stderrReplayPath(): string {
-    return pathlib.join(this.#dataDir, 'stderr');
-  }
-
-  /**
    * Read this script's previous fingerprint from `fingerprint` file in the
    * `.wireit` directory. Cached after first call.
    */
@@ -674,14 +597,12 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
   }
 
   /**
-   * Delete the fingerprint file and any stdio replays for this script from the
-   * previous run, and ensure the data directory exists.
+   * Delete the fingerprint and other files for this script from the previous
+   * run, and ensure the data directory exists.
    */
   async #prepareDataDir(): Promise<void> {
     await Promise.all([
       fs.rm(this.#fingerprintFilePath, {force: true}),
-      fs.rm(this.#stdoutReplayPath, {force: true}),
-      fs.rm(this.#stderrReplayPath, {force: true}),
       fs.mkdir(this.#dataDir, {recursive: true}),
     ]);
   }
@@ -699,51 +620,6 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     }
     await deleteEntries(files.value);
     return {ok: true, value: undefined};
-  }
-
-  /**
-   * Write this script's stdout replay to stdout if it exists, otherwise do
-   * nothing.
-   */
-  async #replayStdoutIfPresent(): Promise<void> {
-    try {
-      for await (const chunk of createReadStream(this.#stdoutReplayPath)) {
-        this.logger.log({
-          script: this.script,
-          type: 'output',
-          stream: 'stdout',
-          data: chunk as Buffer,
-        });
-      }
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        // There is no saved replay.
-        return;
-      }
-    }
-  }
-
-  /**
-   * Write this script's stderr replay to stderr if it exists, otherwise do
-   * nothing.
-   */
-  async #replayStderrIfPresent(): Promise<void> {
-    try {
-      for await (const chunk of createReadStream(this.#stderrReplayPath)) {
-        this.logger.log({
-          script: this.script,
-          type: 'output',
-          stream: 'stderr',
-          data: chunk as Buffer,
-        });
-      }
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        // There is no saved replay.
-        return;
-      }
-      throw error;
-    }
   }
 
   /**
@@ -831,19 +707,3 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     return pathlib.join(this.#dataDir, 'manifest');
   }
 }
-
-/**
- * Close the given write stream and resolve or reject the returned promise when
- * completed or failed.
- */
-const closeWriteStream = (stream: WriteStream): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    stream.close((error) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
-  });
-};

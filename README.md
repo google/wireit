@@ -263,8 +263,7 @@ Setting these properties allow you to use more features of Wireit:
 
 Wireit can automatically skip execution of a script if nothing has changed that
 would cause it to produce different output since the last time it ran. This is
-called _incremental build_. When a script is skipped, any `stdout` or `stderr`
-that it produced in the previous run is replayed.
+called _incremental build_.
 
 To enable incremental build, configure the input and output files for each
 script by specifying [glob patterns](#glob-patterns) in the
@@ -280,8 +279,7 @@ script by specifying [glob patterns](#glob-patterns) in the
 
 If a script has previously succeeded with the same configuration and input
 files, then Wireit can copy the output from a cache, instead of running the
-command. This can significantly improve build and test time. When a script is
-restored from cache, any `stdout` or `stderr` is replayed.
+command. This can significantly improve build and test time.
 
 To enable caching for a script, ensure you have defined both the [`files` and
 `output`](#input-and-output-files) arrays.
