@@ -7,3 +7,5 @@
 /vscode-extension/.wireit
 /vscode-extension/lib
 /vscode-extension/built
+/website/.wireit
+/website/_site
