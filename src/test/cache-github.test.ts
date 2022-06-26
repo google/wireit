@@ -216,95 +216,97 @@ test(
   })
 );
 
-test(
-  'recovers from rate limit',
-  timeout(async ({rig, server}) => {
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-          b: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: 'true',
-            files: ['input'],
-            output: [],
-            dependencies: ['b'],
+for (const code of [429, 503]) {
+  test(
+    `recovers from ${code} error`,
+    timeout(async ({rig, server}) => {
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+            b: 'wireit',
           },
-          b: {
-            command: 'true',
-            files: ['input'],
-            output: [],
+          wireit: {
+            a: {
+              command: 'true',
+              files: ['input'],
+              output: [],
+              dependencies: ['b'],
+            },
+            b: {
+              command: 'true',
+              files: ['input'],
+              output: [],
+            },
           },
         },
-      },
-    });
+      });
 
-    // Check API
-    server.rateLimitNextRequest('check');
-    server.resetMetrics();
-    await rig.write('input', '0');
-    assert.equal((await rig.exec('npm run a').exit).code, 0);
-    assert.equal(server.metrics, {
-      // Note that because we turn off GitHub Actions Caching after the first
-      // rate limit error, "b" fails and then "a" skips, so this count is 1
-      // instead of 2.
-      check: 1,
-      reserve: 0,
-      upload: 0,
-      commit: 0,
-      download: 0,
-    });
+      // Check API
+      server.forceErrorOnNextRequest('check', code);
+      server.resetMetrics();
+      await rig.write('input', '0');
+      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assert.equal(server.metrics, {
+        // Note that because we turn off GitHub Actions Caching after the first
+        // rate limit error, "b" fails and then "a" skips, so this count is 1
+        // instead of 2.
+        check: 1,
+        reserve: 0,
+        upload: 0,
+        commit: 0,
+        download: 0,
+      });
 
-    // Reserve API
-    server.rateLimitNextRequest('reserve');
-    server.resetMetrics();
-    await rig.write('input', '1');
-    assert.equal((await rig.exec('npm run a').exit).code, 0);
-    assert.equal(server.metrics, {
-      check: 1,
-      reserve: 1,
-      upload: 0,
-      commit: 0,
-      download: 0,
-    });
+      // Reserve API
+      server.forceErrorOnNextRequest('reserve', code);
+      server.resetMetrics();
+      await rig.write('input', '1');
+      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        upload: 0,
+        commit: 0,
+        download: 0,
+      });
 
-    // Upload API
-    server.rateLimitNextRequest('upload');
-    server.resetMetrics();
-    await rig.write('input', '2');
-    assert.equal((await rig.exec('npm run a').exit).code, 0);
-    assert.equal(server.metrics, {
-      check: 1,
-      reserve: 1,
-      upload: 1,
-      commit: 0,
-      download: 0,
-    });
+      // Upload API
+      server.forceErrorOnNextRequest('upload', code);
+      server.resetMetrics();
+      await rig.write('input', '2');
+      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        upload: 1,
+        commit: 0,
+        download: 0,
+      });
 
-    // Commit API
-    server.rateLimitNextRequest('commit');
-    server.resetMetrics();
-    await rig.write('input', '3');
-    assert.equal((await rig.exec('npm run a').exit).code, 0);
-    assert.equal(server.metrics, {
-      check: 1,
-      reserve: 1,
-      upload: 1,
-      commit: 1,
-      download: 0,
-    });
+      // Commit API
+      server.forceErrorOnNextRequest('commit', code);
+      server.resetMetrics();
+      await rig.write('input', '3');
+      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assert.equal(server.metrics, {
+        check: 1,
+        reserve: 1,
+        upload: 1,
+        commit: 1,
+        download: 0,
+      });
 
-    // Download API
-    //
-    // TODO(aomarks) The GitHub Actions caching library doesn't surface HTTP
-    // errors during download. Instead it seems to create invalid tarballs. This
-    // might not really be a problem in reality, because tarballs come from a
-    // different CDN server, so probably have a separate rate limit from the
-    // rest of the caching APIs.
-  })
-);
+      // Download API
+      //
+      // TODO(aomarks) The GitHub Actions caching library doesn't surface HTTP
+      // errors during download. Instead it seems to create invalid tarballs. This
+      // might not really be a problem in reality, because tarballs come from a
+      // different CDN server, so probably have a separate rate limit from the
+      // rest of the caching APIs.
+    })
+  );
+}
 
 test(
   'uploads large tarball in multiple chunks',

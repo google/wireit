@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Fixed
+
+- 503 "Service Unavailable" HTTP errors returned by the GitHub Actions caching
+  service are no longer fatal. Instead, caching will be skipped for the
+  remainder of the Wireit run, similar to how 429 "Too Many Requests" errors are
+  handled.
 
 ## [0.7.0] - 2022-06-17
 

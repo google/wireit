@@ -106,7 +106,7 @@ export class FakeGitHubActionsCacheServer {
   };
 
   #nextEntryId = 0;
-  #rateLimitNextRequest = new Set<ApiName>();
+  #forcedErrors = new Map<ApiName, number>();
   readonly #entryIdToEntry = new Map<EntryId, CacheEntry>();
   readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
   readonly #tarballIdToEntryId = new Map<TarballId, EntryId>();
@@ -155,8 +155,8 @@ export class FakeGitHubActionsCacheServer {
     });
   }
 
-  rateLimitNextRequest(apiName: ApiName): void {
-    this.#rateLimitNextRequest.add(apiName);
+  forceErrorOnNextRequest(apiName: ApiName, code: number): void {
+    this.#forcedErrors.set(apiName, code);
   }
 
   #readBody(request: http.IncomingMessage): Promise<Buffer> {
@@ -183,8 +183,17 @@ export class FakeGitHubActionsCacheServer {
     response.end();
   }
 
-  #rateLimit(response: http.ServerResponse): void {
-    return this.#respond(response, /* Too Many Requests */ 429);
+  #maybeServeForcedError(
+    response: http.ServerResponse,
+    apiName: ApiName
+  ): boolean {
+    const code = this.#forcedErrors.get(apiName);
+    if (code !== undefined) {
+      this.#forcedErrors.delete(apiName);
+      this.#respond(response, code, `Forcing ${code} error for ${apiName}`);
+      return true;
+    }
+    return false;
   }
 
   #checkAuthorization(
@@ -317,8 +326,8 @@ export class FakeGitHubActionsCacheServer {
     url: URL
   ): void {
     this.metrics.check++;
-    if (this.#rateLimitNextRequest.delete('check')) {
-      return this.#rateLimit(response);
+    if (this.#maybeServeForcedError(response, 'check')) {
+      return;
     }
     if (!this.#checkAuthorization(request, response)) {
       return;
@@ -384,8 +393,8 @@ export class FakeGitHubActionsCacheServer {
     response: http.ServerResponse
   ): Promise<void> {
     this.metrics.reserve++;
-    if (this.#rateLimitNextRequest.delete('reserve')) {
-      return this.#rateLimit(response);
+    if (this.#maybeServeForcedError(response, 'reserve')) {
+      return;
     }
     if (!this.#checkAuthorization(request, response)) {
       return;
@@ -434,8 +443,8 @@ export class FakeGitHubActionsCacheServer {
     idStr: string
   ): Promise<void> {
     this.metrics.upload++;
-    if (this.#rateLimitNextRequest.delete('upload')) {
-      return this.#rateLimit(response);
+    if (this.#maybeServeForcedError(response, 'upload')) {
+      return;
     }
     if (!this.#checkAuthorization(request, response)) {
       return;
@@ -513,8 +522,8 @@ export class FakeGitHubActionsCacheServer {
     idStr: string
   ): Promise<void> {
     this.metrics.commit++;
-    if (this.#rateLimitNextRequest.delete('commit')) {
-      return this.#rateLimit(response);
+    if (this.#maybeServeForcedError(response, 'commit')) {
+      return;
     }
     if (!this.#checkAuthorization(request, response)) {
       return;
@@ -588,8 +597,8 @@ export class FakeGitHubActionsCacheServer {
     tarballId: string
   ): void {
     this.metrics.download++;
-    if (this.#rateLimitNextRequest.delete('download')) {
-      return this.#rateLimit(response);
+    if (this.#maybeServeForcedError(response, 'download')) {
+      return;
     }
     if (!this.#checkContentType(request, response, undefined)) {
       return;
