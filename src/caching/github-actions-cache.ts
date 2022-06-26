@@ -30,14 +30,14 @@ export class GitHubActionsCache implements Cache {
   readonly #logger: Logger;
 
   /**
-   * Once we've hit a 429 rate limit error from GitHub, simply stop hitting the
-   * cache for the remainder of this Wireit process. Caching is not critical,
-   * it's just an optimization.
+   * Once we've hit a rate limit or service availability error, simply stop
+   * hitting the cache for the remainder of this Wireit process. Caching is not
+   * critical, it's just an optimization.
    *
    * TODO(aomarks) We could be a little smarter and do retries, but this at
    * least should stop builds breaking in the short-term.
    */
-  #hitRateLimit = false;
+  #serviceIsDown = false;
 
   private constructor(logger: Logger, baseUrl: string, authToken: string) {
     this.#baseUrl = baseUrl;
@@ -108,7 +108,7 @@ export class GitHubActionsCache implements Cache {
     script: ScriptReference,
     fingerprint: Fingerprint
   ): Promise<CacheHit | undefined> {
-    if (this.#hitRateLimit) {
+    if (this.#serviceIsDown) {
       return undefined;
     }
 
@@ -133,9 +133,8 @@ export class GitHubActionsCache implements Cache {
       return new GitHubActionsCacheHit(script, archiveLocation);
     }
 
-    if (res.statusCode === /* Too Many Requests */ 429) {
-      this.#onRateLimit(script);
-      return;
+    if (this.#maybeHandleServiceDown(res, script)) {
+      return undefined;
     }
 
     throw new Error(
@@ -149,7 +148,7 @@ export class GitHubActionsCache implements Cache {
     fingerprint: Fingerprint,
     absFiles: AbsoluteEntry[]
   ): Promise<boolean> {
-    if (this.#hitRateLimit) {
+    if (this.#serviceIsDown) {
       return false;
     }
 
@@ -266,8 +265,7 @@ export class GitHubActionsCache implements Cache {
 
         const res = await resPromise;
 
-        if (res.statusCode === /* Too Many Requests */ 429) {
-          this.#onRateLimit(script);
+        if (this.#maybeHandleServiceDown(res, script)) {
           return false;
         }
 
@@ -310,8 +308,7 @@ export class GitHubActionsCache implements Cache {
     req.end(reqBody);
     const res = await resPromise;
 
-    if (res.statusCode === /* Too Many Requests */ 429) {
-      this.#onRateLimit(script);
+    if (this.#maybeHandleServiceDown(res, script)) {
       return false;
     }
 
@@ -343,20 +340,42 @@ export class GitHubActionsCache implements Cache {
   }
 
   /**
-   * Log a message about hitting a rate limit, and disable caching for the
-   * remainder of this process.
+   * If we received an error that indicates something is wrong with the GitHub
+   * Actions service that is not our fault, log an error and return true.
+   * Otherwise return false.
    */
-  #onRateLimit(script: ScriptReference): void {
-    if (this.#hitRateLimit) {
-      return;
+  #maybeHandleServiceDown(
+    res: http.IncomingMessage,
+    script: ScriptReference
+  ): boolean {
+    if (this.#serviceIsDown) {
+      return true;
     }
-    this.#logger.log({
-      script,
-      type: 'info',
-      detail: 'generic',
-      message: `Hit GitHub Actions cache rate limit, caching disabled.`,
-    });
-    this.#hitRateLimit = true;
+    switch (res.statusCode) {
+      default: {
+        return false;
+      }
+      case /* Too Many Requests */ 429: {
+        this.#logger.log({
+          script,
+          type: 'info',
+          detail: 'generic',
+          message: `Hit GitHub Actions cache rate limit, caching disabled.`,
+        });
+        break;
+      }
+      case /* Service Unavailable */ 503: {
+        this.#logger.log({
+          script,
+          type: 'info',
+          detail: 'generic',
+          message: `GitHub Actions service is unavailable, caching disabled.`,
+        });
+        break;
+      }
+    }
+    this.#serviceIsDown = true;
+    return true;
   }
 
   #computeCacheKey(script: ScriptReference): string {
@@ -480,8 +499,7 @@ export class GitHubActionsCache implements Cache {
       return undefined;
     }
 
-    if (res.statusCode === /* Too Many Requests */ 429) {
-      this.#onRateLimit(script);
+    if (this.#maybeHandleServiceDown(res, script)) {
       return undefined;
     }
 
