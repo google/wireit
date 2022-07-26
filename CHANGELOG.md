@@ -10,7 +10,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Default number of scripts run in parallel is now 2x CPU thread count instead
+- Default number of scripts run in parallel is now 2x logical CPU cores instead
   of 4x.
 
 ## [0.7.1] - 2022-06-27

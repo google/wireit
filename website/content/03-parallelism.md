@@ -33,12 +33,12 @@ graph TD
 
 <img src ="../images/parallel-diagram.svg" height="204" width="198">
 
-By default, Wireit will run up to 2 scripts in parallel for every CPU thread
-detected on your system. To change this default, set the `WIREIT_PARALLEL`
-[environment variable](../reference/#environment-variables) to a positive integer, or
-`infinity` to run without a limit. You may want to lower this number if you
-experience resource starvation in large builds. For example, to run only one
-script at a time:
+By default, Wireit will run up to 2 scripts in parallel for every logical CPU
+core detected on your system. To change this default, set the `WIREIT_PARALLEL`
+[environment variable](../reference/#environment-variables) to a positive
+integer, or `infinity` to run without a limit. You may want to lower this number
+if you experience resource starvation in large builds. For example, to run only
+one script at a time:
 
 ```bash
 export WIREIT_PARALLEL=1
