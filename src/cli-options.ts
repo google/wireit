@@ -89,7 +89,7 @@ export const getOptions = (): Result<Options> => {
     const workerString = process.env['WIREIT_PARALLEL'] ?? '';
     // Many scripts will be IO blocked rather than CPU blocked, so running
     // multiple scripts per CPU will help keep things moving.
-    const defaultValue = os.cpus().length * 4;
+    const defaultValue = os.cpus().length * 2;
     if (workerString.match(/^infinity$/i)) {
       return {ok: true, value: Infinity};
     }

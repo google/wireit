@@ -189,8 +189,8 @@ graph TD
   end
 ```
 
-By default, Wireit will run up to 4 scripts in parallel for every CPU core
-detected on your system. To change this default, set the `WIREIT_PARALLEL`
+By default, Wireit will run up to 2 scripts in parallel for every logical CPU
+core detected on your system. To change this default, set the `WIREIT_PARALLEL`
 [environment variable](#environment-variables) to a positive integer, or
 `infinity` to run without a limit. You may want to lower this number if you
 experience resource starvation in large builds. For example, to run only one
@@ -561,7 +561,7 @@ The following environment variables affect the behavior of Wireit:
 | Variable          | Description                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `WIREIT_FAILURES` | [How to handle script failures](#failures-and-errors).<br><br>Options:<br><ul><li>[`no-new`](#failures-and-errors) (default): Allow running scripts to finish, but don't start new ones.</li><li>[`continue`](#continue): Allow running scripts to continue, and start new ones unless any of their dependencies failed.</li><li>[`kill`](#kill): Immediately kill running scripts, and don't start new ones.</li></ul>              |
-| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                            |
+| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 2×logical CPU cores.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                               |
 | `WIREIT_CACHE`    | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v1`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul> |
 | `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`.                                                                            |
 
