@@ -10,6 +10,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- stdout color output is now forced when Wireit is run with a text terminal
+  attached.
+
 - Default number of scripts run in parallel is now 2x logical CPU cores instead
   of 4x.
 

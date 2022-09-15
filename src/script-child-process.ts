@@ -91,6 +91,10 @@ export class ScriptChildProcess {
       //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
       shell: true,
       env: augmentProcessEnvSafelyIfOnWindows({
+        FORCE_COLOR:
+          process.stdout.isTTY && process.env.FORCE_COLOR === undefined
+            ? 'true'
+            : process.env.FORCE_COLOR,
         PATH: this.#pathEnvironmentVariable,
       }),
       // Set "detached" on Linux and macOS so that we create a new process
