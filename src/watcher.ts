@@ -163,6 +163,9 @@ export class Watcher {
   }
 
   #startDebounce(): void {
+    if (this.#debounceTimeoutId !== undefined) {
+      throw new Error('Expected #debounceTimeoutId to be undefined');
+    }
     this.#debounceTimeoutId = setTimeout(() => {
       this.#onDebounced();
     }, DEBOUNCE_MS);
