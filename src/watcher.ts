@@ -20,22 +20,32 @@ import {
 
 /**
  * ```
- *                                  <START>
- *                                     │
- *       ╭────◄──── RUN_DONE ──◄────╮  │  ╭──◄─── RUN_DONE ────◄───╮
- *       │                          │  │  │                        │
- *  ┌────▼─────┐                  ┌─┴──▼──▼─┐                  ┌───┴────┐
- *  │ watching ├── FILE_CHANGED ──► running ├── FILE_CHANGED ──► queued │
- *  └────┬─────┘                  └────┬────┘                  └───┬────┘
- *       │                             │                           │
- *     ABORT                         ABORT                       ABORT
- *       │                             │                           │
- *       ▼                        ┌────▼────┐                      ▼
- *       ╰────────────►───────────► aborted ◄───────────◄──────────╯
- *                                └─────────┘
+ *                                                            ┌─────────┐
+ *                                                            │ initial │
+ *                                                            └────┬────┘
+ *                                                                 │
+ *       ╭────────────◄────────── RUN_DONE ────────◄────────────╮  │
+ *       │                                                      │  │
+ *       │                    FILE_CHANGED  ╭─────────◄─────────│──│─────◄─── RUN_DONE ────◄───╮
+ *       │                          │ ▲     │                   │  │                           │
+ *  ┌────▼─────┐                  ┌─▼─┴─────▼──┐              ┌─┴──▼────┐                  ┌───┴────┐
+ *  │ watching ├── FILE_CHANGED ──► debouncing ├─ DEBOUNCED ──► running ├── FILE_CHANGED ──► queued │
+ *  └────┬─────┘                  └─────┬──────┘              └────┬────┘                  └───┬────┘
+ *       │                              │                          │                           │
+ *     ABORT                          ABORT                      ABORT                       ABORT
+ *       │                              ╰───────────╮   ╭──────────╯                           │
+ *       ▼                                       ┌──▼───▼──┐                                   ▼
+ *       ╰────────────────────►──────────────────► aborted ◄─────────────────◄─────────────────╯
+ *                                               └─────────┘
  * ```
  */
-type WatcherState = 'watching' | 'running' | 'queued' | 'aborted';
+type WatcherState =
+  | 'initial'
+  | 'watching'
+  | 'debouncing'
+  | 'running'
+  | 'queued'
+  | 'aborted';
 
 function unknownState(state: never) {
   throw new Error(`Unknown watcher state ${String(state)}`);
@@ -53,6 +63,18 @@ interface FileWatcher {
   patterns: string[];
   watcher: chokidar.FSWatcher;
 }
+
+/**
+ * The minimum time that must elapse after the last file change was detected
+ * before we begin a new run. Also the minimum time between successive runs.
+ *
+ * Note even 0 is a useful value here, because that defers new runs to the next
+ * JS task. This is important because if multiple scripts are watching the same
+ * file that changed, we get a file watcher event for each of them. Without
+ * debouncing, a second run will be immediately queued after the first event
+ * starts the run.
+ */
+const DEBOUNCE_MS = 0;
 
 /**
  * Watches a script for changes in its input files, and in the input files of
@@ -89,7 +111,7 @@ export class Watcher {
   }
 
   /** See {@link WatcherState} */
-  #state: WatcherState = 'watching';
+  #state: WatcherState = 'initial';
 
   readonly #rootScript: ScriptReference;
   readonly #extraArgs: string[] | undefined;
@@ -98,6 +120,7 @@ export class Watcher {
   readonly #cache?: Cache;
   readonly #failureMode: FailureMode;
   readonly #abort: Deferred<void>;
+  #debounceTimeoutId?: NodeJS.Timeout = undefined;
 
   /**
    * The most recent analysis of the root script. As soon as we detect it might
@@ -139,10 +162,41 @@ export class Watcher {
     this.#abort = abort;
   }
 
+  #startDebounce(): void {
+    this.#debounceTimeoutId = setTimeout(() => {
+      this.#onDebounced();
+    }, DEBOUNCE_MS);
+  }
+
+  #cancelDebounce(): void {
+    clearTimeout(this.#debounceTimeoutId);
+    this.#debounceTimeoutId = undefined;
+  }
+
+  #onDebounced(): void {
+    switch (this.#state) {
+      case 'debouncing': {
+        this.#debounceTimeoutId = undefined;
+        this.#startRun();
+        return;
+      }
+      case 'initial':
+      case 'watching':
+      case 'queued':
+      case 'running':
+      case 'aborted': {
+        throw unexpectedState(this.#state);
+      }
+      default: {
+        throw unknownState(this.#state);
+      }
+    }
+  }
+
   #startRun(): void {
     switch (this.#state) {
-      case 'watching':
-      case 'queued': {
+      case 'initial':
+      case 'debouncing': {
         this.#state = 'running';
         this.#logger.log({
           script: this.#rootScript,
@@ -156,6 +210,8 @@ export class Watcher {
         }
         return;
       }
+      case 'watching':
+      case 'queued':
       case 'running':
       case 'aborted': {
         throw unexpectedState(this.#state);
@@ -237,7 +293,14 @@ export class Watcher {
     });
     switch (this.#state) {
       case 'queued': {
-        void this.#startRun();
+        // Note that the debounce time could actually have already elapsed since
+        // the last file change while we were running, but we don't start the
+        // debounce timer until the run finishes. This means that the debounce
+        // interval is also the minimum time between successive runs. This seems
+        // fine and probably good, and is simpler than maintaining a separate
+        // "queued-debouncing" state.
+        this.#state = 'debouncing';
+        void this.#startDebounce();
         return;
       }
       case 'running': {
@@ -248,7 +311,9 @@ export class Watcher {
         this.#finished.resolve();
         return;
       }
-      case 'watching': {
+      case 'initial':
+      case 'watching':
+      case 'debouncing': {
         throw unexpectedState(this.#state);
       }
       default: {
@@ -265,7 +330,13 @@ export class Watcher {
   #fileChanged = (): void => {
     switch (this.#state) {
       case 'watching': {
-        void this.#startRun();
+        this.#state = 'debouncing';
+        void this.#startDebounce();
+        return;
+      }
+      case 'debouncing': {
+        void this.#cancelDebounce();
+        void this.#startDebounce();
         return;
       }
       case 'running': {
@@ -275,6 +346,9 @@ export class Watcher {
       case 'queued':
       case 'aborted': {
         return;
+      }
+      case 'initial': {
+        throw unexpectedState(this.#state);
       }
       default: {
         throw unknownState(this.#state);
@@ -325,7 +399,11 @@ export class Watcher {
 
   #onAbort(): void {
     switch (this.#state) {
+      case 'debouncing':
       case 'watching': {
+        if (this.#state === 'debouncing') {
+          this.#cancelDebounce();
+        }
         this.#state = 'aborted';
         this.#closeAllFileWatchers();
         this.#finished.resolve();
@@ -341,6 +419,9 @@ export class Watcher {
       }
       case 'aborted': {
         return;
+      }
+      case 'initial': {
+        throw unexpectedState(this.#state);
       }
       default: {
         throw unknownState(this.#state);
