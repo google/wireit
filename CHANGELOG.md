@@ -8,6 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed issue where a redundant extra run could be triggered in watch mode when
+  multiple scripts were watching the same file(s).
+
 ### Changed
 
 - stdout color output is now forced when Wireit is run with a text terminal
