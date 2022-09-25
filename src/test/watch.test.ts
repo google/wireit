@@ -755,4 +755,67 @@ test(
   })
 );
 
+test(
+  'debounces when two scripts are watching the same file',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b'],
+            files: ['input.txt'],
+            // Note it's important for this test that we don't have output set,
+            // because otherwise the potential third run would be restored from
+            // cache, and we wouldn't detect it anyway.
+          },
+          b: {
+            command: cmdB.command,
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    const exec = rig.exec('npm run a --watch');
+
+    // Initial run.
+    {
+      (await cmdB.nextInvocation()).exit(0);
+      (await cmdA.nextInvocation()).exit(0);
+    }
+
+    // Wait until wireit is in the "watching" state, otherwise the double file
+    // change events would occur in the "running" state, which wouldn't trigger
+    // the double runs.
+    await exec.waitForLog(/Watching for file changes/);
+
+    // Changing an input file should cause one more run.
+    {
+      await rig.writeAtomic({
+        'input.txt': 'v1',
+      });
+      (await cmdB.nextInvocation()).exit(0);
+      (await cmdA.nextInvocation()).exit(0);
+    }
+
+    await exec.waitForLog(/Watching for file changes/);
+
+    // Wait a moment to ensure a third run doesn't occur.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    exec.kill();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+    assert.equal(cmdB.numInvocations, 2);
+  })
+);
+
 test.run();
