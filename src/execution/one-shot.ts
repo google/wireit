@@ -112,7 +112,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
         return {ok: false, error: [this.#startCancelledEvent]};
       }
 
-      const cacheHit = fingerprint.data.cacheable
+      const cacheHit = fingerprint.data.fullyTracked
         ? await this.#cache?.get(this.script, fingerprint)
         : undefined;
       if (this.#shouldNotStart) {
@@ -224,7 +224,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
    * `.wireit` directory.
    */
   async #fingerprintIsFresh(fingerprint: Fingerprint): Promise<boolean> {
-    if (!fingerprint.data.cacheable) {
+    if (!fingerprint.data.fullyTracked) {
       return false;
     }
     const prevFingerprint = await this.#readPreviousFingerprint();
@@ -394,7 +394,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     }
     await writeFingerprintPromise;
 
-    if (fingerprint.data.cacheable) {
+    if (fingerprint.data.fullyTracked) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
       if (!result.ok) {
         return {ok: false, error: [result.error]};
