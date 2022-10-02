@@ -9,19 +9,19 @@ import {Fingerprint} from '../fingerprint.js';
 
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
-import type {NoOpScriptConfig} from '../script.js';
+import type {NoCommandScriptConfig} from '../script.js';
 import type {Logger} from '../logging/logger.js';
 
 /**
- * Execution for a {@link NoOpScriptConfig}.
+ * Execution for a {@link NoCommandScriptConfig}.
  */
-export class NoOpExecution extends BaseExecution<NoOpScriptConfig> {
+export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfig> {
   static execute(
-    script: NoOpScriptConfig,
+    script: NoCommandScriptConfig,
     executor: Executor,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new NoOpExecution(script, executor, logger).#execute();
+    return new NoCommandScriptExecution(script, executor, logger).#execute();
   }
 
   async #execute(): Promise<ExecutionResult> {

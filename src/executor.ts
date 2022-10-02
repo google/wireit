@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {NoOpExecution} from './execution/no-op.js';
-import {OneShotExecution} from './execution/one-shot.js';
+import {NoCommandScriptExecution} from './execution/no-command.js';
+import {StandardScriptExecution} from './execution/standard.js';
 import {ScriptConfig, scriptReferenceToString} from './script.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
@@ -130,9 +130,9 @@ export class Executor {
 
   #executeAccordingToKind(script: ScriptConfig): Promise<ExecutionResult> {
     if (script.command === undefined) {
-      return NoOpExecution.execute(script, this, this.#logger);
+      return NoCommandScriptExecution.execute(script, this, this.#logger);
     }
-    return OneShotExecution.execute(
+    return StandardScriptExecution.execute(
       script,
       this,
       this.#workerPool,

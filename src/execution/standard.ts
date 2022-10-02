@@ -20,7 +20,7 @@ import {computeManifestEntry} from '../util/manifest.js';
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
-import type {OneShotScriptConfig} from '../script.js';
+import type {StandardScriptConfig} from '../script.js';
 import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Cache, CacheHit} from '../caching/cache.js';
@@ -28,20 +28,23 @@ import type {StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
 
-type OneShotExecutionState = 'before-running' | 'running' | 'after-running';
+type StandardScriptExecutionState =
+  | 'before-running'
+  | 'running'
+  | 'after-running';
 
 /**
- * Execution for a {@link OneShotScriptConfig}.
+ * Execution for a {@link StandardScriptConfig}.
  */
-export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
+export class StandardScriptExecution extends BaseExecution<StandardScriptConfig> {
   static execute(
-    script: OneShotScriptConfig,
+    script: StandardScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new OneShotExecution(
+    return new StandardScriptExecution(
       script,
       executor,
       workerPool,
@@ -50,12 +53,12 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     ).#execute();
   }
 
-  #state: OneShotExecutionState = 'before-running';
+  #state: StandardScriptExecutionState = 'before-running';
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
 
   private constructor(
-    script: OneShotScriptConfig,
+    script: StandardScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
@@ -66,7 +69,7 @@ export class OneShotExecution extends BaseExecution<OneShotScriptConfig> {
     this.#cache = cache;
   }
 
-  #ensureState(state: OneShotExecutionState): void {
+  #ensureState(state: StandardScriptExecutionState): void {
     if (this.#state !== state) {
       throw new Error(`Expected state ${state} but was ${this.#state}`);
     }
