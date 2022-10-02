@@ -44,7 +44,7 @@ export type PotentiallyValidScriptConfig =
  * A script with an invalid config may stay a placeholder forever.
  */
 export type UnvalidatedConfig = ScriptReference &
-  Omit<Omit<Partial<ScriptConfig>, 'state'>, 'dependencies'> & {
+  Omit<Partial<ScriptConfig>, 'state' | 'dependencies'> & {
     state: 'unvalidated';
     failures: Failure[];
     dependencies?: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -55,8 +55,8 @@ export type UnvalidatedConfig = ScriptReference &
  * resolved and checked for circular dependency errors yet.
  */
 export type LocallyValidScriptConfig = Omit<
-  Omit<ScriptConfig, 'state'>,
-  'dependencies'
+  ScriptConfig,
+  'state' | 'dependencies'
 > & {
   state: 'locally-valid';
   dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -71,8 +71,8 @@ export type LocallyValidScriptConfig = Omit<
  * script for cycles at most once.
  */
 export type InvalidScriptConfig = Omit<
-  Omit<ScriptConfig, 'state'>,
-  'dependencies'
+  ScriptConfig,
+  'state' | 'dependencies'
 > & {
   state: 'invalid';
   dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
