@@ -29,17 +29,17 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  readonly #executions = new Map<string, Promise<ExecutionResult>>();
-  readonly #logger: Logger;
-  readonly #workerPool: WorkerPool;
-  readonly #cache?: Cache;
+  private readonly _executions = new Map<string, Promise<ExecutionResult>>();
+  private readonly _logger: Logger;
+  private readonly _workerPool: WorkerPool;
+  private readonly _cache?: Cache;
 
   /** Resolves when the first failure occurs in any script. */
-  readonly #failureOccured = new Deferred<void>();
+  private readonly _failureOccured = new Deferred<void>();
   /** Resolves when we decide that new scripts should not be started. */
-  readonly #stopStartingNewScripts = new Deferred<void>();
+  private readonly _stopStartingNewScripts = new Deferred<void>();
   /** Resolves when we decide that running scripts should be killed. */
-  readonly #killRunningScripts = new Deferred<void>();
+  private readonly _killRunningScripts = new Deferred<void>();
 
   constructor(
     logger: Logger,
@@ -48,32 +48,32 @@ export class Executor {
     failureMode: FailureMode,
     abort: Deferred<void>
   ) {
-    this.#logger = logger;
-    this.#workerPool = workerPool;
-    this.#cache = cache;
+    this._logger = logger;
+    this._workerPool = workerPool;
+    this._cache = cache;
 
     // If this entire execution is aborted because e.g. the user sent a SIGINT
     // to the Wireit process, then dont start new scripts, and kill running
     // ones.
     void abort.promise.then(() => {
-      this.#stopStartingNewScripts.resolve();
-      this.#killRunningScripts.resolve();
+      this._stopStartingNewScripts.resolve();
+      this._killRunningScripts.resolve();
     });
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
-    void this.#failureOccured.promise.then(() => {
+    void this._failureOccured.promise.then(() => {
       switch (failureMode) {
         case 'continue': {
           break;
         }
         case 'no-new': {
-          this.#stopStartingNewScripts.resolve();
+          this._stopStartingNewScripts.resolve();
           break;
         }
         case 'kill': {
-          this.#stopStartingNewScripts.resolve();
-          this.#killRunningScripts.resolve();
+          this._stopStartingNewScripts.resolve();
+          this._killRunningScripts.resolve();
           break;
         }
         default: {
@@ -94,28 +94,28 @@ export class Executor {
    * but scripts can also call it directly to synchronously signal a failure.
    */
   notifyFailure(): void {
-    this.#failureOccured.resolve();
+    this._failureOccured.resolve();
   }
 
   /**
    * Synchronously check if new scripts should stop being started.
    */
   get shouldStopStartingNewScripts(): boolean {
-    return this.#stopStartingNewScripts.settled;
+    return this._stopStartingNewScripts.settled;
   }
 
   /**
    * A promise which resolves if we should kill running scripts.
    */
   get shouldKillRunningScripts(): Promise<void> {
-    return this.#killRunningScripts.promise;
+    return this._killRunningScripts.promise;
   }
 
   async execute(script: ScriptConfig): Promise<ExecutionResult> {
     const executionKey = scriptReferenceToString(script);
-    let promise = this.#executions.get(executionKey);
+    let promise = this._executions.get(executionKey);
     if (promise === undefined) {
-      promise = this.#executeAccordingToKind(script)
+      promise = this._executeAccordingToKind(script)
         .catch((error) => convertExceptionToFailure(error, script))
         .then((result) => {
           if (!result.ok) {
@@ -123,21 +123,23 @@ export class Executor {
           }
           return result;
         });
-      this.#executions.set(executionKey, promise);
+      this._executions.set(executionKey, promise);
     }
     return promise;
   }
 
-  #executeAccordingToKind(script: ScriptConfig): Promise<ExecutionResult> {
+  private _executeAccordingToKind(
+    script: ScriptConfig
+  ): Promise<ExecutionResult> {
     if (script.command === undefined) {
-      return NoCommandScriptExecution.execute(script, this, this.#logger);
+      return NoCommandScriptExecution.execute(script, this, this._logger);
     }
     return StandardScriptExecution.execute(
       script,
       this,
-      this.#workerPool,
-      this.#cache,
-      this.#logger
+      this._workerPool,
+      this._cache,
+      this._logger
     );
   }
 }

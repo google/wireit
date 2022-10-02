@@ -55,9 +55,9 @@ type ScriptConfigWithRequiredCommand = ScriptConfig & {
  * A child process spawned during execution of a script.
  */
 export class ScriptChildProcess {
-  readonly #script: ScriptConfigWithRequiredCommand;
-  readonly #child: ChildProcessWithoutNullStreams;
-  #state: ScriptChildProcessState = 'starting';
+  private readonly _script: ScriptConfigWithRequiredCommand;
+  private readonly _child: ChildProcessWithoutNullStreams;
+  private _state: ScriptChildProcessState = 'starting';
 
   /**
    * Resolves when this child process ends.
@@ -67,19 +67,19 @@ export class ScriptChildProcess {
   >;
 
   get stdout() {
-    return this.#child.stdout;
+    return this._child.stdout;
   }
 
   get stderr() {
-    return this.#child.stderr;
+    return this._child.stderr;
   }
 
   constructor(script: ScriptConfigWithRequiredCommand) {
-    this.#script = script;
+    this._script = script;
 
     // TODO(aomarks) Update npm_ environment variables to reflect the new
     // package.
-    this.#child = spawn(script.command.value, script.extraArgs, {
+    this._child = spawn(script.command.value, script.extraArgs, {
       cwd: script.packageDir,
       // Conveniently, "shell:true" has the same shell-selection behavior as
       // "npm run", where on macOS and Linux it is "sh", and on Windows it is
@@ -95,7 +95,7 @@ export class ScriptChildProcess {
           process.stdout.isTTY && process.env.FORCE_COLOR === undefined
             ? 'true'
             : process.env.FORCE_COLOR,
-        PATH: this.#pathEnvironmentVariable,
+        PATH: this._pathEnvironmentVariable,
       }),
       // Set "detached" on Linux and macOS so that we create a new process
       // group, instead of being added to the process group for this Wireit
@@ -114,16 +114,16 @@ export class ScriptChildProcess {
     });
 
     this.completed = new Promise((resolve, reject) => {
-      this.#child.on('spawn', () => {
-        switch (this.#state) {
+      this._child.on('spawn', () => {
+        switch (this._state) {
           case 'starting': {
-            this.#state = 'started';
+            this._state = 'started';
             break;
           }
           case 'killing': {
             // We received a kill request while we were still starting. Kill now
             // that we're started.
-            this.#actuallyKill();
+            this._actuallyKill();
             break;
           }
           case 'started':
@@ -131,13 +131,13 @@ export class ScriptChildProcess {
             reject(
               new Error(
                 `Internal error: Expected ScriptChildProcessState ` +
-                  `to be "started" or "killing" but was "${this.#state}"`
+                  `to be "started" or "killing" but was "${this._state}"`
               )
             );
             break;
           }
           default: {
-            const never: never = this.#state;
+            const never: never = this._state;
             reject(
               new Error(
                 `Internal error: unexpected ScriptChildProcessState: ${String(
@@ -149,7 +149,7 @@ export class ScriptChildProcess {
         }
       });
 
-      this.#child.on('error', (error) => {
+      this._child.on('error', (error) => {
         resolve({
           ok: false,
           error: {
@@ -159,11 +159,11 @@ export class ScriptChildProcess {
             message: error.message,
           },
         });
-        this.#state = 'stopped';
+        this._state = 'stopped';
       });
 
-      this.#child.on('close', (status, signal) => {
-        if (this.#state === 'killing') {
+      this._child.on('close', (status, signal) => {
+        if (this._state === 'killing') {
           resolve({
             ok: false,
             error: {
@@ -199,7 +199,7 @@ export class ScriptChildProcess {
         } else {
           resolve({ok: true, value: undefined});
         }
-        this.#state = 'stopped';
+        this._state = 'stopped';
       });
     });
   }
@@ -212,16 +212,16 @@ export class ScriptChildProcess {
    * actually killed, use the {@link completed} promise.
    */
   kill(): void {
-    switch (this.#state) {
+    switch (this._state) {
       case 'started': {
-        this.#actuallyKill();
+        this._actuallyKill();
         return;
       }
       case 'starting': {
         // We're still starting up, and it's not possible to abort. When we get
         // the "spawn" event, we'll notice the "killing" state and actually kill
         // then.
-        this.#state = 'killing';
+        this._state = 'killing';
         return;
       }
       case 'killing':
@@ -230,7 +230,7 @@ export class ScriptChildProcess {
         return;
       }
       default: {
-        const never: never = this.#state;
+        const never: never = this._state;
         throw new Error(
           `Internal error: unexpected ScriptChildProcessState: ${String(never)}`
         );
@@ -238,11 +238,11 @@ export class ScriptChildProcess {
     }
   }
 
-  #actuallyKill(): void {
-    if (this.#child.pid === undefined) {
+  private _actuallyKill(): void {
+    if (this._child.pid === undefined) {
       throw new Error(
         `Internal error: Can't kill child process because it has no pid. ` +
-          `Command: ${JSON.stringify(this.#script.command)}.`
+          `Command: ${JSON.stringify(this._script.command)}.`
       );
     }
     if (IS_WINDOWS) {
@@ -253,7 +253,7 @@ export class ScriptChildProcess {
       // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
       spawn('taskkill', [
         '/pid',
-        this.#child.pid.toString(),
+        this._child.pid.toString(),
         /* End child processes */ '/t',
         /* Force. Killing does not seem reliable otherwise. */ '/f',
       ]);
@@ -262,20 +262,20 @@ export class ScriptChildProcess {
       // process group. Passing the negative of a pid kills all processes in
       // that group (without the negative, only the leader "sh" process would be
       // killed).
-      process.kill(-this.#child.pid, 'SIGINT');
+      process.kill(-this._child.pid, 'SIGINT');
     }
-    this.#state = 'killing';
+    this._state = 'killing';
   }
 
   /**
    * Generates the PATH environment variable that should be set when this
    * script's command is spawned.
    */
-  get #pathEnvironmentVariable(): string {
+  private get _pathEnvironmentVariable(): string {
     // Given package "/foo/bar", walk up the path hierarchy to generate
     // "/foo/bar/node_modules/.bin:/foo/node_modules/.bin:/node_modules/.bin".
     const entries = [];
-    let cur = this.#script.packageDir;
+    let cur = this._script.packageDir;
     while (true) {
       entries.push(pathlib.join(cur, 'node_modules', '.bin'));
       const parent = pathlib.dirname(cur);

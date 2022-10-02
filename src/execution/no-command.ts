@@ -21,10 +21,10 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
     executor: Executor,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new NoCommandScriptExecution(script, executor, logger).#execute();
+    return new NoCommandScriptExecution(script, executor, logger)._execute();
   }
 
-  async #execute(): Promise<ExecutionResult> {
+  private async _execute(): Promise<ExecutionResult> {
     const dependencyFingerprints = await this.executeDependencies();
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;

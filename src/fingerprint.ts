@@ -101,7 +101,7 @@ export type Sha256HexDigest = string & {
 export class Fingerprint {
   static fromString(string: FingerprintString): Fingerprint {
     const fingerprint = new Fingerprint();
-    fingerprint.#str = string;
+    fingerprint._str = string;
     return fingerprint;
   }
 
@@ -194,27 +194,27 @@ export class Fingerprint {
         )
       ),
     };
-    fingerprint.#data = data as FingerprintData;
+    fingerprint._data = data as FingerprintData;
     return fingerprint;
   }
 
-  #str?: FingerprintString;
-  #data?: FingerprintData;
+  private _str?: FingerprintString;
+  private _data?: FingerprintData;
 
   get string(): FingerprintString {
-    if (this.#str === undefined) {
+    if (this._str === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this.#str = JSON.stringify(this.#data!) as FingerprintString;
+      this._str = JSON.stringify(this._data!) as FingerprintString;
     }
-    return this.#str;
+    return this._str;
   }
 
   get data(): FingerprintData {
-    if (this.#data === undefined) {
+    if (this._data === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this.#data = JSON.parse(this.#str!) as FingerprintData;
+      this._data = JSON.parse(this._str!) as FingerprintData;
     }
-    return this.#data;
+    return this._data;
   }
 
   equal(other: Fingerprint): boolean {
