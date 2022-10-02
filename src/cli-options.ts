@@ -9,7 +9,7 @@ import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {Result} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
-import {ScriptReference} from './script.js';
+import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
 import {unreachable} from './util/unreachable.js';
 

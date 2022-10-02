@@ -12,7 +12,7 @@ import {copyEntries} from '../util/copy.js';
 import {glob} from '../util/glob.js';
 
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference} from '../script.js';
+import type {ScriptReference} from '../config.js';
 import type {Fingerprint} from '../fingerprint.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 
@@ -25,7 +25,7 @@ export class LocalCache implements Cache {
     script: ScriptReference,
     fingerprint: Fingerprint
   ): Promise<CacheHit | undefined> {
-    const cacheDir = this.#getCacheDir(script, fingerprint);
+    const cacheDir = this._getCacheDir(script, fingerprint);
     try {
       await fs.access(cacheDir);
     } catch (error) {
@@ -47,7 +47,7 @@ export class LocalCache implements Cache {
     // almost certainly want an automated way to limit the size of the cache
     // directory (e.g. LRU capped to some number of entries).
     // https://github.com/google/wireit/issues/71
-    const absCacheDir = this.#getCacheDir(script, fingerprint);
+    const absCacheDir = this._getCacheDir(script, fingerprint);
     // Note fs.mkdir returns the first created directory, or undefined if no
     // directory was created.
     const existed =
@@ -61,7 +61,10 @@ export class LocalCache implements Cache {
     return true;
   }
 
-  #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
+  private _getCacheDir(
+    script: ScriptReference,
+    fingerprint: Fingerprint
+  ): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',
@@ -74,28 +77,28 @@ class LocalCacheHit implements CacheHit {
   /**
    * The folder where the cached output is stored. Assumed to exist.
    */
-  readonly #source: string;
+  private readonly _source: string;
 
   /**
    * The folder where the cached output should be written when {@link apply} is
    * called.
    */
-  readonly #destination: string;
+  private readonly _destination: string;
 
   constructor(source: string, destination: string) {
-    this.#source = source;
-    this.#destination = destination;
+    this._source = source;
+    this._destination = destination;
   }
 
   async apply(): Promise<void> {
     const entries = await glob(['**'], {
-      cwd: this.#source,
+      cwd: this._source,
       followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,
       // Shouldn't ever happen, but would be really weird.
       throwIfOutsideCwd: true,
     });
-    await copyEntries(entries, this.#source, this.#destination);
+    await copyEntries(entries, this._source, this._destination);
   }
 }

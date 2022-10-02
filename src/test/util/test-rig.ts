@@ -26,8 +26,8 @@ const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
  * A test rig for managing a temporary filesystem and executing Wireit.
  */
 export class WireitTestRig extends FilesystemTestRig {
-  readonly #activeChildProcesses = new Set<ExecResult>();
-  readonly #commands: Array<WireitTestRigCommand> = [];
+  private readonly _activeChildProcesses = new Set<ExecResult>();
+  private readonly _commands: Array<WireitTestRigCommand> = [];
 
   /**
    * Environment variables to set on spawned child processes.
@@ -80,8 +80,8 @@ export class WireitTestRig extends FilesystemTestRig {
   }) {
     this.assertState('running');
 
-    binaryPath = this.#resolve(binaryPath);
-    installPath = this.#resolve(installPath);
+    binaryPath = this._resolve(binaryPath);
+    installPath = this._resolve(installPath);
     const binaryContent = IS_WINDOWS
       ? // This incantation works on Windows but not Linux, because real "env"
         // requires an "-S" flag to pass arguments to a binary, but cmd-shim
@@ -111,15 +111,15 @@ export class WireitTestRig extends FilesystemTestRig {
    * Delete the temporary filesystem and perform other cleanup.
    */
   async cleanup(): Promise<void> {
-    for (const child of this.#activeChildProcesses) {
+    await Promise.all(this._commands.map((command) => command.close()));
+    for (const child of this._activeChildProcesses) {
       child.kill();
       await child.exit;
     }
-    await Promise.all(this.#commands.map((command) => command.close()));
     await super.cleanup();
   }
 
-  #resolve(filename: string): string {
+  private _resolve(filename: string): string {
     return pathlib.resolve(this.temp, filename);
   }
 
@@ -131,7 +131,7 @@ export class WireitTestRig extends FilesystemTestRig {
     opts?: {cwd?: string; env?: Record<string, string | undefined>}
   ): ExecResult {
     this.assertState('running');
-    const cwd = this.#resolve(opts?.cwd ?? '.');
+    const cwd = this._resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
       // We hard code the parallelism here because by default we infer a value
       // based on the number of cores we find on the machine, but we want tests
@@ -171,8 +171,8 @@ export class WireitTestRig extends FilesystemTestRig {
       // Environment variables specific to this test case.
       ...(opts?.env ?? {}),
     });
-    this.#activeChildProcesses.add(result);
-    result.exit.finally(() => this.#activeChildProcesses.delete(result));
+    this._activeChildProcesses.add(result);
+    result.exit.finally(() => this._activeChildProcesses.delete(result));
     return result;
   }
 
@@ -203,7 +203,7 @@ export class WireitTestRig extends FilesystemTestRig {
       await fs.mkdir(pathlib.dirname(ipcPath), {recursive: true});
     }
     const command = new WireitTestRigCommand(ipcPath);
-    this.#commands.push(command);
+    this._commands.push(command);
     await command.listen();
     return command;
   }
@@ -215,11 +215,11 @@ export type {ExecResult};
  * The object returned by {@link WireitTestRig.exec}.
  */
 class ExecResult {
-  readonly #child: ChildProcessWithoutNullStreams;
-  readonly #exited = new Deferred<ExitResult>();
-  #running = true;
-  #stdout = '';
-  #stderr = '';
+  private readonly _child: ChildProcessWithoutNullStreams;
+  private readonly _exited = new Deferred<ExitResult>();
+  private _running = true;
+  private _stdout = '';
+  private _stderr = '';
 
   constructor(
     command: string,
@@ -238,7 +238,7 @@ class ExecResult {
         .filter((name) => /^npm_/i.test(name))
         .map((name) => [name, undefined])
     );
-    this.#child = spawn(command, {
+    this._child = spawn(command, {
       cwd,
       shell: true,
       env: augmentProcessEnvSafelyIfOnWindows({
@@ -261,29 +261,29 @@ class ExecResult {
       detached: !IS_WINDOWS,
     });
 
-    this.#child.stdout.on('data', this.#onStdout);
-    this.#child.stderr.on('data', this.#onStderr);
+    this._child.stdout.on('data', this._onStdout);
+    this._child.stderr.on('data', this._onStderr);
 
-    this.#child.on('close', (code, signal) => {
-      this.#running = false;
-      this.#exited.resolve({
+    this._child.on('close', (code, signal) => {
+      this._running = false;
+      this._exited.resolve({
         code,
         signal,
-        stdout: this.#stdout,
+        stdout: this._stdout,
         // TODO(aomarks) Temporary fix for
         // https://github.com/npm/cli/issues/4980#issuecomment-1145334203.
         // Remove when resolved.
         stderr: IS_WINDOWS
-          ? this.#stderr.replace(
+          ? this._stderr.replace(
               /npm WARN config global `--global`, `--local` are deprecated. Use `--location=global` instead.\n/,
               ''
             )
-          : this.#stderr,
+          : this._stderr,
       });
     });
 
-    this.#child.on('error', (error: Error) => {
-      this.#exited.reject(error);
+    this._child.on('error', (error: Error) => {
+      this._exited.reject(error);
     });
   }
 
@@ -291,7 +291,7 @@ class ExecResult {
    * Whether this child process is still running.
    */
   get running(): boolean {
-    return this.#running;
+    return this._running;
   }
 
   /**
@@ -299,7 +299,7 @@ class ExecResult {
    * the execution.
    */
   get exit(): Promise<ExitResult> {
-    return this.#exited.promise;
+    return this._exited.promise;
   }
 
   /**
@@ -309,7 +309,7 @@ class ExecResult {
     if (!this.running) {
       throw new Error("Can't kill child process because it is not running");
     }
-    if (this.#child.pid === undefined) {
+    if (this._child.pid === undefined) {
       throw new Error("Can't kill child process because it has no pid");
     }
     if (IS_WINDOWS) {
@@ -318,17 +318,18 @@ class ExecResult {
       // seems to leave streams and file handles open. The taskkill command does
       // a much better job at cleanly killing the process:
       // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
-      spawn('taskkill', ['/pid', this.#child.pid.toString(), '/t', '/f']);
+      spawn('taskkill', ['/pid', this._child.pid.toString(), '/t', '/f']);
     } else {
       // We used "detached" when we spawned, so our child is the leader of its
       // own process group. Passing the negative of the child's pid kills all
       // processes in the group (without the negative only the leader "sh"
       // process would be killed).
-      process.kill(-this.#child.pid, 'SIGINT');
+      process.kill(-this._child.pid, 'SIGINT');
     }
   }
 
-  readonly #logMatchers: Array<{re: RegExp; deferred: Deferred<void>}> = [];
+  private readonly _logMatchers: Array<{re: RegExp; deferred: Deferred<void>}> =
+    [];
 
   /**
    * Waits for the given content to be logged to either stdout or stderr.
@@ -338,39 +339,39 @@ class ExecResult {
    */
   async waitForLog(matcher: RegExp): Promise<{stdout: string; stderr: string}> {
     const deferred = new Deferred<void>();
-    this.#logMatchers.push({re: matcher, deferred});
+    this._logMatchers.push({re: matcher, deferred});
     // In case we've already received the log we're watching for
-    this.#checkMatchersAgainstLogs();
+    this._checkMatchersAgainstLogs();
     await deferred.promise;
-    const stdout = this.#stdout;
-    const stderr = this.#stderr;
-    this.#stdout = '';
-    this.#stderr = '';
+    const stdout = this._stdout;
+    const stderr = this._stderr;
+    this._stdout = '';
+    this._stderr = '';
     return {stdout, stderr};
   }
 
-  #checkMatchersAgainstLogs() {
-    for (const matcher of this.#logMatchers) {
-      if (matcher.re.test(this.#stdout) || matcher.re.test(this.#stderr)) {
+  private _checkMatchersAgainstLogs() {
+    for (const matcher of this._logMatchers) {
+      if (matcher.re.test(this._stdout) || matcher.re.test(this._stderr)) {
         matcher.deferred.resolve();
       }
     }
   }
 
-  readonly #onStdout = (chunk: string | Buffer) => {
-    this.#stdout += chunk;
+  private readonly _onStdout = (chunk: string | Buffer) => {
+    this._stdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
-    this.#checkMatchersAgainstLogs();
+    this._checkMatchersAgainstLogs();
   };
 
-  readonly #onStderr = (chunk: string | Buffer) => {
-    this.#stderr += chunk;
+  private readonly _onStderr = (chunk: string | Buffer) => {
+    this._stderr += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
-    this.#checkMatchersAgainstLogs();
+    this._checkMatchersAgainstLogs();
   };
 }
 

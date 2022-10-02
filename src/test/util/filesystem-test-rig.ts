@@ -19,12 +19,12 @@ const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
  */
 export class FilesystemTestRig {
   readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
-  #state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
+  private _state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
 
   protected assertState(expected: 'uninitialized' | 'running' | 'done') {
-    if (this.#state !== expected) {
+    if (this._state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this.#state}`
+        `Expected state to be ${expected} but was ${this._state}`
       );
     }
   }
@@ -34,7 +34,7 @@ export class FilesystemTestRig {
    */
   async setup() {
     this.assertState('uninitialized');
-    this.#state = 'running';
+    this._state = 'running';
     await this.mkdir('.');
   }
 
@@ -44,7 +44,7 @@ export class FilesystemTestRig {
   async cleanup(): Promise<void> {
     this.assertState('running');
     await this.delete('.');
-    this.#state = 'done';
+    this._state = 'done';
   }
 
   /**

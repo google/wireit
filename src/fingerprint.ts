@@ -7,13 +7,13 @@
 import {createHash} from 'crypto';
 import {createReadStream} from 'fs';
 import {glob} from './util/glob.js';
-import {scriptReferenceToString} from './script.js';
+import {scriptReferenceToString} from './config.js';
 
 import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-} from './script.js';
+} from './config.js';
 
 /**
  * All meaningful inputs of a script. Used for determining if a script is fresh,
@@ -27,12 +27,10 @@ export interface FingerprintData {
   __FingerprintDataBrand__: never;
 
   /**
-   * Whether the output for this script can be fresh or cached.
-   *
-   * True only if the "files" array was defined for this script, and for all of
-   * this script's transitive dependencies.
+   * Whether all input and output files are known for this script, as well as
+   * that of all of its transitive dependencies.
    */
-  cacheable: boolean;
+  fullyTracked: boolean;
 
   /** E.g. linux, win32 */
   platform: NodeJS.Platform;
@@ -103,7 +101,7 @@ export type Sha256HexDigest = string & {
 export class Fingerprint {
   static fromString(string: FingerprintString): Fingerprint {
     const fingerprint = new Fingerprint();
-    fingerprint.#str = string;
+    fingerprint._str = string;
     return fingerprint;
   }
 
@@ -115,13 +113,13 @@ export class Fingerprint {
     script: ScriptConfig,
     dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
   ): Promise<Fingerprint> {
-    let allDependenciesAreCacheable = true;
+    let allDependenciesAreFullyTracked = true;
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintData]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
-      if (!depFingerprint.data.cacheable) {
-        allDependenciesAreCacheable = false;
+      if (!depFingerprint.data.fullyTracked) {
+        allDependenciesAreFullyTracked = false;
       }
       filteredDependencyFingerprints.push([
         scriptReferenceToString(dep),
@@ -164,30 +162,22 @@ export class Fingerprint {
       fileHashes = [];
     }
 
-    const cacheable =
-      // If command is undefined, then we simply propagate the fingerprints of
-      // our dependencies, and don't have any effect ourselves on cacheability.
-      script.command === undefined ||
-      // If input files are undefined, then it's not safe to be fresh or cached,
-      // because we wouldn't know when an input file has changed that could
-      // affect the output.
-      (script.files !== undefined &&
-        // If output files are undefined, then it's not safe to be fresh,
-        // because we aren't able to check whether the output files were
-        // independently modified since the last run. It's also not possible to
-        // be cached, because we wouldn't know what to put in the cache.
-        script.output !== undefined &&
-        // If any of our dependencies are uncacheable, then we're uncacheable
-        // too, because that dependency could be producing an output that is an
-        // untracked input of ours.
-        allDependenciesAreCacheable);
+    const fullyTracked =
+      // If any any dependency is not fully tracked, then we can't be either,
+      // because we can't know if there was an undeclared input that this script
+      // depends on.
+      allDependenciesAreFullyTracked &&
+      // A no-op script. Can't produce output, so always trackable.
+      (script.command === undefined ||
+        // A one-shot script. Trackable if we know both its inputs and outputs.
+        (script.files !== undefined && script.output !== undefined));
 
     const fingerprint = new Fingerprint();
 
     // Note: The order of all fields is important so that we can do fast string
     // comparison.
     const data: Omit<FingerprintData, '__FingerprintDataBrand__'> = {
-      cacheable,
+      fullyTracked,
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
@@ -204,27 +194,27 @@ export class Fingerprint {
         )
       ),
     };
-    fingerprint.#data = data as FingerprintData;
+    fingerprint._data = data as FingerprintData;
     return fingerprint;
   }
 
-  #str?: FingerprintString;
-  #data?: FingerprintData;
+  private _str?: FingerprintString;
+  private _data?: FingerprintData;
 
   get string(): FingerprintString {
-    if (this.#str === undefined) {
+    if (this._str === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this.#str = JSON.stringify(this.#data!) as FingerprintString;
+      this._str = JSON.stringify(this._data!) as FingerprintString;
     }
-    return this.#str;
+    return this._str;
   }
 
   get data(): FingerprintData {
-    if (this.#data === undefined) {
+    if (this._data === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this.#data = JSON.parse(this.#str!) as FingerprintData;
+      this._data = JSON.parse(this._str!) as FingerprintData;
     }
-    return this.#data;
+    return this._data;
   }
 
   equal(other: Fingerprint): boolean {

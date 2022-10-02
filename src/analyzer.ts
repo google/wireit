@@ -9,7 +9,7 @@ import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {Dependency, scriptReferenceToString} from './script.js';
+import {Dependency, scriptReferenceToString} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
@@ -20,7 +20,7 @@ import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-} from './script.js';
+} from './config.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -44,7 +44,7 @@ export type PotentiallyValidScriptConfig =
  * A script with an invalid config may stay a placeholder forever.
  */
 export type UnvalidatedConfig = ScriptReference &
-  Omit<Omit<Partial<ScriptConfig>, 'state'>, 'dependencies'> & {
+  Omit<Partial<ScriptConfig>, 'state' | 'dependencies'> & {
     state: 'unvalidated';
     failures: Failure[];
     dependencies?: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -55,8 +55,8 @@ export type UnvalidatedConfig = ScriptReference &
  * resolved and checked for circular dependency errors yet.
  */
 export type LocallyValidScriptConfig = Omit<
-  Omit<ScriptConfig, 'state'>,
-  'dependencies'
+  ScriptConfig,
+  'state' | 'dependencies'
 > & {
   state: 'locally-valid';
   dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -71,8 +71,8 @@ export type LocallyValidScriptConfig = Omit<
  * script for cycles at most once.
  */
 export type InvalidScriptConfig = Omit<
-  Omit<ScriptConfig, 'state'>,
-  'dependencies'
+  ScriptConfig,
+  'state' | 'dependencies'
 > & {
   state: 'invalid';
   dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -95,13 +95,16 @@ interface PlaceholderInfo {
  * dependencies, producing a build graph that is ready to be executed.
  */
 export class Analyzer {
-  readonly #packageJsonReader;
-  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
-  readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
-  readonly #relevantConfigFilePaths = new Set<string>();
+  private readonly _packageJsonReader;
+  private readonly _placeholders = new Map<
+    ScriptReferenceString,
+    PlaceholderInfo
+  >();
+  private readonly _ongoingWorkPromises: Array<Promise<undefined>> = [];
+  private readonly _relevantConfigFilePaths = new Set<string>();
 
   constructor(filesystem?: FileSystem) {
-    this.#packageJsonReader = new CachingPackageJsonReader(filesystem);
+    this._packageJsonReader = new CachingPackageJsonReader(filesystem);
   }
 
   /**
@@ -117,22 +120,22 @@ export class Analyzer {
         }
         for (const script of fileResult.value.scripts) {
           // This starts analysis of each of the scripts in our root files.
-          this.#getPlaceholder({name: script.name, packageDir});
+          this._getPlaceholder({name: script.name, packageDir});
         }
       })
     );
-    await this.#waitForAnalysisToComplete();
+    await this._waitForAnalysisToComplete();
     // Check for cycles.
-    for (const info of this.#placeholders.values()) {
+    for (const info of this._placeholders.values()) {
       if (info.placeholder.state === 'unvalidated') {
         continue;
       }
       // We don't care about the result, if there's a cycle error it'll
       // be added to the scripts' diagnostics.
-      this.#checkForCyclesAndSortDependencies(info.placeholder, new Set());
+      this._checkForCyclesAndSortDependencies(info.placeholder, new Set());
     }
 
-    return this.#getDiagnostics();
+    return this._getDiagnostics();
   }
 
   /**
@@ -168,17 +171,17 @@ export class Analyzer {
     // dependencies (which would lead to a promise cycle if there was a cycle in
     // the configuration), we wait for all placeholders to upgrade to full
     // configs asynchronously.
-    const rootPlaceholder = this.#getPlaceholder(root);
+    const rootPlaceholder = this._getPlaceholder(root);
 
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
-    await this.#waitForAnalysisToComplete();
+    await this._waitForAnalysisToComplete();
     {
-      const errors = await this.#getDiagnostics();
+      const errors = await this._getDiagnostics();
       if (errors.size > 0) {
         return {
           config: {ok: false, error: [...errors]},
-          relevantConfigFilePaths: this.#relevantConfigFilePaths,
+          relevantConfigFilePaths: this._relevantConfigFilePaths,
         };
       }
     }
@@ -191,21 +194,21 @@ export class Analyzer {
         `Internal error: script ${root.name} in ${root.packageDir} is still unvalidated but had no failures`
       );
     }
-    const cycleResult = this.#checkForCyclesAndSortDependencies(
+    const cycleResult = this._checkForCyclesAndSortDependencies(
       rootConfig,
       new Set()
     );
     if (!cycleResult.ok) {
       return {
         config: {ok: false, error: [cycleResult.error.dependencyFailure]},
-        relevantConfigFilePaths: this.#relevantConfigFilePaths,
+        relevantConfigFilePaths: this._relevantConfigFilePaths,
       };
     }
     const validRootConfig = cycleResult.value;
     validRootConfig.extraArgs = extraArgs;
     return {
       config: {ok: true, value: validRootConfig},
-      relevantConfigFilePaths: this.#relevantConfigFilePaths,
+      relevantConfigFilePaths: this._relevantConfigFilePaths,
     };
   }
 
@@ -213,15 +216,15 @@ export class Analyzer {
     scriptReference: ScriptReference
   ): Promise<PotentiallyValidScriptConfig> {
     await this.analyze(scriptReference, []);
-    return this.#getPlaceholder(scriptReference).placeholder;
+    return this._getPlaceholder(scriptReference).placeholder;
   }
 
-  async #getDiagnostics(): Promise<Set<Failure>> {
+  private async _getDiagnostics(): Promise<Set<Failure>> {
     const failures = new Set<Failure>();
-    for await (const failure of this.#packageJsonReader.getFailures()) {
+    for await (const failure of this._packageJsonReader.getFailures()) {
       failures.add(failure);
     }
-    for (const info of this.#placeholders.values()) {
+    for (const info of this._placeholders.values()) {
       for (const failure of info.placeholder.failures) {
         failures.add(failure);
       }
@@ -236,10 +239,10 @@ export class Analyzer {
     return failures;
   }
 
-  async #waitForAnalysisToComplete() {
-    while (this.#ongoingWorkPromises.length > 0) {
+  private async _waitForAnalysisToComplete() {
+    while (this._ongoingWorkPromises.length > 0) {
       const promise =
-        this.#ongoingWorkPromises[this.#ongoingWorkPromises.length - 1];
+        this._ongoingWorkPromises[this._ongoingWorkPromises.length - 1];
       await promise;
       // Need to be careful here. The contract of this method is that it does
       // not return until all pending analysis work is completed.
@@ -253,25 +256,25 @@ export class Analyzer {
       // case is fine.
       if (
         promise ===
-        this.#ongoingWorkPromises[this.#ongoingWorkPromises.length - 1]
+        this._ongoingWorkPromises[this._ongoingWorkPromises.length - 1]
       ) {
-        void this.#ongoingWorkPromises.pop();
+        void this._ongoingWorkPromises.pop();
       }
     }
   }
 
   async getPackageJson(packageDir: string): Promise<Result<PackageJson>> {
-    this.#relevantConfigFilePaths.add(pathlib.join(packageDir, 'package.json'));
-    return this.#packageJsonReader.read(packageDir);
+    this._relevantConfigFilePaths.add(pathlib.join(packageDir, 'package.json'));
+    return this._packageJsonReader.read(packageDir);
   }
 
   /**
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */
-  #getPlaceholder(reference: ScriptReference): PlaceholderInfo {
+  private _getPlaceholder(reference: ScriptReference): PlaceholderInfo {
     const scriptKey = scriptReferenceToString(reference);
-    let placeholderInfo = this.#placeholders.get(scriptKey);
+    let placeholderInfo = this._placeholders.get(scriptKey);
     if (placeholderInfo === undefined) {
       const placeholder: UnvalidatedConfig = {
         ...reference,
@@ -280,10 +283,10 @@ export class Analyzer {
       };
       placeholderInfo = {
         placeholder: placeholder,
-        upgradeComplete: this.#upgradePlaceholder(placeholder),
+        upgradeComplete: this._upgradePlaceholder(placeholder),
       };
-      this.#placeholders.set(scriptKey, placeholderInfo);
-      this.#ongoingWorkPromises.push(placeholderInfo.upgradeComplete);
+      this._placeholders.set(scriptKey, placeholderInfo);
+      this._ongoingWorkPromises.push(placeholderInfo.upgradeComplete);
     }
     return placeholderInfo;
   }
@@ -295,7 +298,7 @@ export class Analyzer {
    * Note this method does not block on the script's dependencies being
    * upgraded; dependencies are upgraded asynchronously.
    */
-  async #upgradePlaceholder(
+  private async _upgradePlaceholder(
     placeholder: UnvalidatedConfig
   ): Promise<undefined> {
     const packageJsonResult = await this.getPackageJson(placeholder.packageDir);
@@ -391,7 +394,7 @@ export class Analyzer {
     }
 
     const {dependencies, encounteredError: dependenciesErrored} =
-      this.#processDependencies(placeholder, packageJson, syntaxInfo);
+      this._processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
@@ -424,7 +427,7 @@ export class Analyzer {
       }
     }
 
-    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
+    const files = this._processFiles(placeholder, packageJson, syntaxInfo);
 
     if (
       wireitConfig !== undefined &&
@@ -452,14 +455,14 @@ export class Analyzer {
       });
     }
 
-    const output = this.#processOutput(
+    const output = this._processOutput(
       placeholder,
       packageJson,
       syntaxInfo,
       command
     );
-    const clean = this.#processClean(placeholder, packageJson, syntaxInfo);
-    this.#processPackageLocks(placeholder, packageJson, syntaxInfo, files);
+    const clean = this._processClean(placeholder, packageJson, syntaxInfo);
+    this._processPackageLocks(placeholder, packageJson, syntaxInfo, files);
 
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
@@ -481,7 +484,7 @@ export class Analyzer {
     Object.assign(placeholder, remainingConfig);
   }
 
-  #processDependencies(
+  private _processDependencies(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     scriptInfo: ScriptSyntaxInfo
@@ -522,7 +525,7 @@ export class Analyzer {
         continue;
       }
       const unresolved = stringResult.value;
-      const result = this.#resolveDependency(
+      const result = this._resolveDependency(
         unresolved,
         placeholder,
         packageJson.jsonFile
@@ -569,12 +572,12 @@ export class Analyzer {
           });
         }
         uniqueDependencies.set(uniqueKey, unresolved);
-        const placeHolderInfo = this.#getPlaceholder(resolved);
+        const placeHolderInfo = this._getPlaceholder(resolved);
         dependencies.push({
           astNode: unresolved,
           config: placeHolderInfo.placeholder,
         });
-        this.#ongoingWorkPromises.push(
+        this._ongoingWorkPromises.push(
           (async () => {
             await placeHolderInfo.upgradeComplete;
             const failures = placeHolderInfo.placeholder.failures;
@@ -648,7 +651,7 @@ export class Analyzer {
     return {dependencies, encounteredError};
   }
 
-  #processFiles(
+  private _processFiles(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
@@ -681,7 +684,7 @@ export class Analyzer {
     return {node: filesNode, values};
   }
 
-  #processOutput(
+  private _processOutput(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
@@ -734,7 +737,7 @@ export class Analyzer {
     return {node: outputNode, values};
   }
 
-  #processClean(
+  private _processClean(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
@@ -771,7 +774,7 @@ export class Analyzer {
     return clean?.value;
   }
 
-  #processPackageLocks(
+  private _processPackageLocks(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
@@ -850,7 +853,7 @@ export class Analyzer {
    * This is where we check for cycles in dependencies, but it's also the
    * place where we transform LocallyValidScriptConfigs to ScriptConfigs.
    */
-  #checkForCyclesAndSortDependencies(
+  private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
     trail: Set<ScriptReferenceString>
   ): Result<ScriptConfig, InvalidScriptConfig> {
@@ -876,7 +879,7 @@ export class Analyzer {
         i++;
       }
       const trailArray = [...trail].map((key) => {
-        const placeholderInfo = this.#placeholders.get(key);
+        const placeholderInfo = this._placeholders.get(key);
         if (placeholderInfo == null) {
           throw new Error(
             `Internal error: placeholder not found for ${key} during cycle detection`
@@ -950,7 +953,7 @@ export class Analyzer {
         script: config,
         diagnostic,
       };
-      return {ok: false, error: this.#markAsInvalid(config, failure)};
+      return {ok: false, error: this._markAsInvalid(config, failure)};
     }
     if (config.dependencies != null && config.dependencies.length > 0) {
       // Sorting means that if the user re-orders the same set of dependencies,
@@ -970,14 +973,14 @@ export class Analyzer {
           dependencyStillUnvalidated = dependency.config;
           continue;
         }
-        const result = this.#checkForCyclesAndSortDependencies(
+        const result = this._checkForCyclesAndSortDependencies(
           dependency.config,
           trail
         );
         if (!result.ok) {
           return {
             ok: false,
-            error: this.#markAsInvalid(config, result.error.dependencyFailure),
+            error: this._markAsInvalid(config, result.error.dependencyFailure),
           };
         }
       }
@@ -993,7 +996,7 @@ export class Analyzer {
         script: config,
         dependency: dependencyStillUnvalidated,
       };
-      return {ok: false, error: this.#markAsInvalid(config, failure)};
+      return {ok: false, error: this._markAsInvalid(config, failure)};
     }
     {
       const validConfig: ScriptConfig = {
@@ -1011,7 +1014,7 @@ export class Analyzer {
     return {ok: true, value: config as unknown as ScriptConfig};
   }
 
-  #markAsInvalid(
+  private _markAsInvalid(
     config: LocallyValidScriptConfig,
     failure: Failure
   ): InvalidScriptConfig {
@@ -1032,7 +1035,7 @@ export class Analyzer {
    *
    * Note this can return 0, 1, or >1 script references.
    */
-  #resolveDependency(
+  private _resolveDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
     referencingFile: JsonFile
@@ -1041,7 +1044,7 @@ export class Analyzer {
     if (dependency.value.startsWith('.')) {
       // TODO(aomarks) It is technically valid for an npm script to start with a
       // ".". We should support that edge case with backslash escaping.
-      const result = this.#resolveCrossPackageDependency(
+      const result = this._resolveCrossPackageDependency(
         dependency,
         context,
         referencingFile
@@ -1061,7 +1064,7 @@ export class Analyzer {
    * Resolve a cross-package dependency (e.g. "../other-package:build").
    * Cross-package dependencies always start with a ".".
    */
-  #resolveCrossPackageDependency(
+  private _resolveCrossPackageDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
     referencingFile: JsonFile

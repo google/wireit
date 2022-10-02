@@ -34,13 +34,13 @@ export interface Dependency<Config extends PotentiallyValidScriptConfig> {
   astNode: JsonAstNode<string>;
 }
 
-export type ScriptConfig = NoOpScriptConfig | OneShotScriptConfig;
+export type ScriptConfig = NoCommandScriptConfig | StandardScriptConfig;
 
 /**
  * A script that doesn't run or produce anything. A pass-through for
  * dependencies and/or files.
  */
-export interface NoOpScriptConfig extends BaseScriptConfig {
+export interface NoCommandScriptConfig extends BaseScriptConfig {
   command: undefined;
   extraArgs: undefined;
 }
@@ -48,7 +48,7 @@ export interface NoOpScriptConfig extends BaseScriptConfig {
 /**
  * A script with a command that exits by itself.
  */
-export interface OneShotScriptConfig extends BaseScriptConfig {
+export interface StandardScriptConfig extends BaseScriptConfig {
   /**
    * The shell command to execute.
    */

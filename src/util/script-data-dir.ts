@@ -6,7 +6,7 @@
 
 import * as pathlib from 'path';
 
-import type {ScriptReference} from '../script.js';
+import type {ScriptReference} from '../config.js';
 
 /**
  * Get the directory name where Wireit data can be saved for a script.
