@@ -6,7 +6,7 @@
 
 import {NoCommandScriptExecution} from './execution/no-command.js';
 import {StandardScriptExecution} from './execution/standard.js';
-import {ScriptConfig, scriptReferenceToString} from './script.js';
+import {ScriptConfig, scriptReferenceToString} from './config.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
 import {convertExceptionToFailure} from './error.js';

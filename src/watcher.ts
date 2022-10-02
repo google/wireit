@@ -16,7 +16,7 @@ import {
   ScriptReference,
   ScriptReferenceString,
   scriptReferenceToString,
-} from './script.js';
+} from './config.js';
 
 /**
  * ```

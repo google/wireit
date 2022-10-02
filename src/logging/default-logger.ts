@@ -9,7 +9,7 @@ import {unreachable} from '../util/unreachable.js';
 
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
-import type {PackageReference, ScriptReference} from '../script.js';
+import type {PackageReference, ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
 

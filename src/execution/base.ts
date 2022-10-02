@@ -9,7 +9,7 @@ import {Fingerprint} from '../fingerprint.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
-import type {ScriptConfig, ScriptReference} from '../script.js';
+import type {ScriptConfig, ScriptReference} from '../config.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
 

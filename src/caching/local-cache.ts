@@ -12,7 +12,7 @@ import {copyEntries} from '../util/copy.js';
 import {glob} from '../util/glob.js';
 
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference} from '../script.js';
+import type {ScriptReference} from '../config.js';
 import type {Fingerprint} from '../fingerprint.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 

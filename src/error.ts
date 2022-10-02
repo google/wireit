@@ -8,7 +8,7 @@ import * as pathlib from 'path';
 
 import type {Failure, UnknownErrorThrown} from './event.js';
 import type {JsonFile, NamedAstNode} from './util/ast.js';
-import type {ScriptReference} from './script.js';
+import type {ScriptReference} from './config.js';
 
 export type Result<T, E = Failure> =
   | {ok: true; value: T}

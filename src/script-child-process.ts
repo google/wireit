@@ -12,7 +12,7 @@ import {
 } from './util/windows.js';
 
 import type {Result} from './error.js';
-import type {ScriptConfig} from './script.js';
+import type {ScriptConfig} from './config.js';
 import type {ChildProcessWithoutNullStreams} from 'child_process';
 import type {ExitNonZero, ExitSignal, SpawnError, Killed} from './event.js';
 

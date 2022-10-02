@@ -8,14 +8,14 @@ import * as pathlib from 'path';
 import * as fs from 'fs/promises';
 import * as https from 'https';
 import {createHash} from 'crypto';
-import {scriptReferenceToString} from '../script.js';
+import {scriptReferenceToString} from '../config.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {execFile} from 'child_process';
 import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
-import type {ScriptReference} from '../script.js';
+import type {ScriptReference} from '../config.js';
 import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';

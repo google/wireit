@@ -20,7 +20,7 @@ import {computeManifestEntry} from '../util/manifest.js';
 import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
-import type {StandardScriptConfig} from '../script.js';
+import type {StandardScriptConfig} from '../config.js';
 import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Cache, CacheHit} from '../caching/cache.js';

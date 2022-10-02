@@ -9,7 +9,7 @@ import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {Dependency, scriptReferenceToString} from './script.js';
+import {Dependency, scriptReferenceToString} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
@@ -20,7 +20,7 @@ import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-} from './script.js';
+} from './config.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;

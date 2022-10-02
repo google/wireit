@@ -7,13 +7,13 @@
 import {createHash} from 'crypto';
 import {createReadStream} from 'fs';
 import {glob} from './util/glob.js';
-import {scriptReferenceToString} from './script.js';
+import {scriptReferenceToString} from './config.js';
 
 import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-} from './script.js';
+} from './config.js';
 
 /**
  * All meaningful inputs of a script. Used for determining if a script is fresh,

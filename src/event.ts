@@ -10,7 +10,7 @@ import type {
   ScriptConfig,
   ScriptReference,
   PackageReference,
-} from './script.js';
+} from './config.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
