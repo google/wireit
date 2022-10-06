@@ -14,10 +14,6 @@
 - ♻️ Cache output locally and remotely on GitHub Actions for free
 - 🛠️ Works with single packages, npm workspaces, and other monorepos
 
-## Alpha
-
-> ### 🚧 Wireit is alpha software — in active but early development. You are welcome to try it out, but note there a number of [missing features and issues](https://github.com/google/wireit/issues) that you may run into! 🚧
-
 ## Contents
 
 - [Features](#features)
