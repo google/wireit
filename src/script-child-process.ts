@@ -10,6 +10,7 @@ import {
   augmentProcessEnvSafelyIfOnWindows,
   IS_WINDOWS,
 } from './util/windows.js';
+import {Deferred} from './util/deferred.js';
 
 import type {Result} from './error.js';
 import type {ScriptConfig} from './config.js';
@@ -57,14 +58,27 @@ type ScriptConfigWithRequiredCommand = ScriptConfig & {
 export class ScriptChildProcess {
   private readonly _script: ScriptConfigWithRequiredCommand;
   private readonly _child: ChildProcessWithoutNullStreams;
+  private readonly _started = new Deferred<Result<void, SpawnError>>();
+  private readonly _completed = new Deferred<
+    Result<void, SpawnError | ExitSignal | ExitNonZero | Killed>
+  >();
   private _state: ScriptChildProcessState = 'starting';
+
+  /**
+   * Resolves when this process starts
+   */
+  get started(): Promise<Result<void, SpawnError>> {
+    return this._started.promise;
+  }
 
   /**
    * Resolves when this child process ends.
    */
-  readonly completed: Promise<
+  get completed(): Promise<
     Result<void, SpawnError | ExitSignal | ExitNonZero | Killed>
-  >;
+  > {
+    return this._completed.promise;
+  }
 
   get stdout() {
     return this._child.stdout;
@@ -113,94 +127,96 @@ export class ScriptChildProcess {
       detached: !IS_WINDOWS,
     });
 
-    this.completed = new Promise((resolve, reject) => {
-      this._child.on('spawn', () => {
-        switch (this._state) {
-          case 'starting': {
-            this._state = 'started';
-            break;
-          }
-          case 'killing': {
-            // We received a kill request while we were still starting. Kill now
-            // that we're started.
-            this._actuallyKill();
-            break;
-          }
-          case 'started':
-          case 'stopped': {
-            reject(
-              new Error(
-                `Internal error: Expected ScriptChildProcessState ` +
-                  `to be "started" or "killing" but was "${this._state}"`
-              )
-            );
-            break;
-          }
-          default: {
-            const never: never = this._state;
-            reject(
-              new Error(
-                `Internal error: unexpected ScriptChildProcessState: ${String(
-                  never
-                )}`
-              )
-            );
-          }
+    this._child.on('spawn', () => {
+      switch (this._state) {
+        case 'starting': {
+          this._started.resolve({ok: true, value: undefined});
+          this._state = 'started';
+          break;
         }
-      });
+        case 'killing': {
+          this._started.resolve({ok: true, value: undefined});
+          // We received a kill request while we were still starting. Kill now
+          // that we're started.
+          this._actuallyKill();
+          break;
+        }
+        case 'started':
+        case 'stopped': {
+          const exception = new Error(
+            `Internal error: Expected ScriptChildProcessState ` +
+              `to be "started" or "killing" but was "${this._state}"`
+          );
+          this._started.reject(exception);
+          this._completed.reject(exception);
+          break;
+        }
+        default: {
+          const never: never = this._state;
+          const exception = new Error(
+            `Internal error: unexpected ScriptChildProcessState: ${String(
+              never
+            )}`
+          );
+          this._started.reject(exception);
+          this._completed.reject(exception);
+        }
+      }
+    });
 
-      this._child.on('error', (error) => {
-        resolve({
+    this._child.on('error', (error) => {
+      const result = {
+        ok: false,
+        error: {
+          script,
+          type: 'failure',
+          reason: 'spawn-error',
+          message: error.message,
+        },
+      } as const;
+      this._started.resolve(result);
+      this._completed.resolve(result);
+      this._state = 'stopped';
+    });
+
+    this._child.on('close', (status, signal) => {
+      if (this._state === 'killing') {
+        this._completed.resolve({
           ok: false,
           error: {
             script,
             type: 'failure',
-            reason: 'spawn-error',
-            message: error.message,
+            reason: 'killed',
           },
         });
-        this._state = 'stopped';
-      });
-
-      this._child.on('close', (status, signal) => {
-        if (this._state === 'killing') {
-          resolve({
-            ok: false,
-            error: {
-              script,
-              type: 'failure',
-              reason: 'killed',
-            },
-          });
-        } else if (signal !== null) {
-          resolve({
-            ok: false,
-            error: {
-              script,
-              type: 'failure',
-              reason: 'signal',
-              signal,
-            },
-          });
-        } else if (status !== 0) {
-          resolve({
-            ok: false,
-            error: {
-              script,
-              type: 'failure',
-              reason: 'exit-non-zero',
-              // status should only ever be null if signal was not null, but
-              // this isn't reflected in the TypeScript types. Just in case, and
-              // to make TypeScript happy, fall back to -1 (which is a
-              // conventional exit status used for "exited with signal").
-              status: status ?? -1,
-            },
-          });
-        } else {
-          resolve({ok: true, value: undefined});
-        }
-        this._state = 'stopped';
-      });
+      } else if (signal !== null) {
+        this._completed.resolve({
+          ok: false,
+          error: {
+            script,
+            type: 'failure',
+            reason: 'signal',
+            signal,
+          },
+        });
+      } else if (status !== 0) {
+        this._completed.resolve({
+          ok: false,
+          error: {
+            script,
+            type: 'failure',
+            reason: 'exit-non-zero',
+            // status should only ever be null if signal was not null, but
+            // this isn't reflected in the TypeScript types. Just in case, and
+            // to make TypeScript happy, fall back to -1 (which is a
+            // conventional exit status used for "exited with signal").
+            status: status ?? -1,
+          },
+        });
+      } else {
+        this._completed.resolve({ok: true, value: undefined});
+      }
+      this._state = 'stopped';
     });
   }
 
