@@ -29,6 +29,21 @@ export interface ScriptReference extends PackageReference {
   name: string;
 }
 
+/**
+ * A script with a defined command.
+ */
+export interface ScriptReferenceWithCommand extends ScriptReference {
+  /**
+   * The shell command to execute.
+   */
+  command: JsonAstNode<string>;
+
+  /**
+   * Extra arguments to pass to the command.
+   */
+  extraArgs: string[] | undefined;
+}
+
 export interface Dependency<Config extends PotentiallyValidScriptConfig> {
   config: Config;
   astNode: JsonAstNode<string>;
@@ -48,17 +63,9 @@ export interface NoCommandScriptConfig extends BaseScriptConfig {
 /**
  * A script with a command that exits by itself.
  */
-export interface StandardScriptConfig extends BaseScriptConfig {
-  /**
-   * The shell command to execute.
-   */
-  command: JsonAstNode<string>;
-
-  /**
-   * Extra arguments to pass to the command.
-   */
-  extraArgs: string[] | undefined;
-}
+export interface StandardScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {}
 
 /**
  * The name and location of a script, along with its full configuration.
