@@ -45,7 +45,7 @@
             "type": "array"
           },
           "service": {
-            "markdownDescription": "If true, treat this script as a long-running process.\nServices are automatically brought up and down as they depended upon by other scripts. If invoked directly, services continue running until Wireit is killed with Ctrl-C.\nFor more info, see: https://github.com/google/wireit#services",
+            "markdownDescription": "If true, treat this script as a long-running process.\nServices are automatically brought up and down as they are depended upon by other scripts. If invoked directly, services continue running until Wireit is killed with Ctrl-C.\nFor more info, see: https://github.com/google/wireit#services",
             "type": "boolean"
           }
         },
