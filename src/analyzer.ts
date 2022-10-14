@@ -462,6 +462,13 @@ export class Analyzer {
       command
     );
     const clean = this._processClean(placeholder, packageJson, syntaxInfo);
+    const service = this._processService(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      command,
+      output
+    );
     this._processPackageLocks(placeholder, packageJson, syntaxInfo, files);
 
     // It's important to in-place update the placeholder object, instead of
@@ -476,7 +483,8 @@ export class Analyzer {
       dependencies,
       files,
       output,
-      clean: clean ?? true,
+      clean,
+      service,
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
@@ -741,9 +749,10 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
-  ): undefined | boolean | 'if-file-deleted' {
+  ): boolean | 'if-file-deleted' {
+    const defaultValue = true;
     if (syntaxInfo.wireitConfigNode == null) {
-      return;
+      return defaultValue;
     }
     const clean = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['clean']) as
       | undefined
@@ -767,11 +776,86 @@ export class Analyzer {
           },
         },
       });
-      // We shouldn't execute if there's failures, but just in case, this is
-      // likely the safest option.
-      return false;
+      return defaultValue;
     }
-    return clean?.value;
+    return clean?.value ?? defaultValue;
+  }
+
+  private _processService(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined,
+    output: ArrayNode<string> | undefined
+  ): boolean {
+    const defaultValue = false;
+    if (syntaxInfo.wireitConfigNode == null) {
+      return defaultValue;
+    }
+    const node = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'service',
+    ]) as undefined | JsonAstNode<true | false>;
+    if (node == null) {
+      return defaultValue;
+    }
+    if (node.value !== true && node.value !== false) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `The "service" property must be either true or false.`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: node.length, offset: node.offset},
+          },
+        },
+      });
+      return defaultValue;
+    }
+
+    const value = node?.value ?? defaultValue;
+
+    if (value === true && command == null) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A "service" script must have a "command".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: node.length,
+              offset: node.offset,
+            },
+          },
+        },
+      });
+    }
+
+    if (value === true && output != null) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A "service" script cannot have an "output".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: output.node.length,
+              offset: output.node.offset,
+            },
+          },
+        },
+      });
+    }
+
+    return value;
   }
 
   private _processPackageLocks(
