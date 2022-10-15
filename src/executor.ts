@@ -6,6 +6,7 @@
 
 import {NoCommandScriptExecution} from './execution/no-command.js';
 import {StandardScriptExecution} from './execution/standard.js';
+import {ServiceScriptExecution} from './execution/service.js';
 import {ScriptConfig, scriptReferenceToString} from './config.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
@@ -133,6 +134,9 @@ export class Executor {
   ): Promise<ExecutionResult> {
     if (script.command === undefined) {
       return NoCommandScriptExecution.execute(script, this, this._logger);
+    }
+    if (script.service) {
+      return ServiceScriptExecution.execute(script, this, this._logger);
     }
     return StandardScriptExecution.execute(
       script,

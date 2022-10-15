@@ -49,7 +49,10 @@ export interface Dependency<Config extends PotentiallyValidScriptConfig> {
   astNode: JsonAstNode<string>;
 }
 
-export type ScriptConfig = NoCommandScriptConfig | StandardScriptConfig;
+export type ScriptConfig =
+  | NoCommandScriptConfig
+  | StandardScriptConfig
+  | ServiceScriptConfig;
 
 /**
  * A script that doesn't run or produce anything. A pass-through for
@@ -58,6 +61,7 @@ export type ScriptConfig = NoCommandScriptConfig | StandardScriptConfig;
 export interface NoCommandScriptConfig extends BaseScriptConfig {
   command: undefined;
   extraArgs: undefined;
+  service: false;
 }
 
 /**
@@ -65,7 +69,18 @@ export interface NoCommandScriptConfig extends BaseScriptConfig {
  */
 export interface StandardScriptConfig
   extends BaseScriptConfig,
-    ScriptReferenceWithCommand {}
+    ScriptReferenceWithCommand {
+  service: false;
+}
+
+/**
+ * A service script.
+ */
+export interface ServiceScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: true;
+}
 
 /**
  * The name and location of a script, along with its full configuration.
