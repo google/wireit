@@ -90,7 +90,8 @@ export type Failure =
   | UnknownErrorThrown
   | DependencyOnMissingPackageJson
   | DependencyOnMissingScript
-  | DependencyInvalid;
+  | DependencyInvalid
+  | ServiceExitedUnexpectedly;
 
 interface ErrorBase<T extends PackageReference> extends EventBase<T> {
   type: 'failure';
@@ -242,6 +243,13 @@ export interface DependencyOnMissingScript extends ErrorBase<ScriptReference> {
 }
 
 /**
+ * A service exited before it was supposed to.
+ */
+export interface ServiceExitedUnexpectedly extends ErrorBase<ScriptReference> {
+  reason: 'service-exited-unexpectedly';
+}
+
+/**
  * We reached the point of doing cyclic dependency checking, and one of our
  * transitive dependencies had not transitioned to being locally validated.
  * This should generally only happen if we ignored the diagnostics after
@@ -308,6 +316,8 @@ type Info =
   | OutputModified
   | WatchRunStart
   | WatchRunEnd
+  | ServiceStarted
+  | ServiceStopped
   | GenericInfo;
 
 interface InfoBase<T extends ScriptReference> extends EventBase<T> {
@@ -350,6 +360,20 @@ export interface WatchRunStart extends InfoBase<ScriptReference> {
  */
 export interface WatchRunEnd extends InfoBase<ScriptReference> {
   detail: 'watch-run-end';
+}
+
+/**
+ * A service started running.
+ */
+export interface ServiceStarted extends InfoBase<ScriptReference> {
+  detail: 'service-started';
+}
+
+/**
+ * A service stopped running.
+ */
+export interface ServiceStopped extends InfoBase<ScriptReference> {
+  detail: 'service-stopped';
 }
 
 /**

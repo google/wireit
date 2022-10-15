@@ -198,6 +198,11 @@ export class DefaultLogger implements Logger {
                 event.dependency
               )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`
             );
+            break;
+          }
+          case 'service-exited-unexpectedly': {
+            console.error(`❌${prefix} Service exited unexpectedly`);
+            break;
           }
         }
         break;
@@ -273,6 +278,14 @@ export class DefaultLogger implements Logger {
           }
           case 'generic': {
             console.log(`ℹ️${prefix} ${event.message}`);
+            break;
+          }
+          case 'service-started': {
+            console.log(`⬆️${prefix} Service started`);
+            break;
+          }
+          case 'service-stopped': {
+            console.log(`⬇️${prefix} Service stopped`);
             break;
           }
         }
