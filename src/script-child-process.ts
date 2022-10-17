@@ -60,18 +60,12 @@ export class ScriptChildProcess {
   /**
    * Resolves when this process starts
    */
-  get started(): Promise<Result<void, SpawnError>> {
-    return this._started.promise;
-  }
+  readonly started = this._started.promise;
 
   /**
    * Resolves when this child process ends.
    */
-  get completed(): Promise<
-    Result<void, SpawnError | ExitSignal | ExitNonZero | Killed>
-  > {
-    return this._completed.promise;
-  }
+  readonly completed = this._completed.promise;
 
   get stdout() {
     return this._child.stdout;
