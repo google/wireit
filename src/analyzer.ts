@@ -1082,19 +1082,44 @@ export class Analyzer {
       };
       return {ok: false, error: this._markAsInvalid(config, failure)};
     }
-    {
-      const validConfig: ScriptConfig = {
+
+    let validConfig: ScriptConfig;
+    if (config.service) {
+      // We should already have created an invalid script at this point, so we
+      // should never get here. We throw here to convince TypeScript that this
+      // is guaranteed.
+      if (config.command === undefined) {
+        throw new Error(
+          'Internal error: Supposedly valid service did not have command'
+        );
+      }
+      validConfig = {
         ...config,
-        extraArgs: undefined,
         state: 'valid',
+        extraArgs: undefined,
         dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        // Unfortunately TypeScript doesn't narrow the ...config spread, so we
+        // have to assign explicitly.
+        command: config.command,
       };
-      // We want to keep the original reference, but get type checking that
-      // the only difference between a ScriptConfig and a
-      // LocallyValidScriptConfig is that the state is 'valid' and the
-      // dependencies are also valid, which we confirmed above.
-      Object.assign(config, validConfig);
+    } else {
+      validConfig = {
+        ...config,
+        state: 'valid',
+        extraArgs: undefined,
+        dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        // Unfortunately TypeScript doesn't narrow the ...config spread, so we
+        // have to assign explicitly.
+        service: config.service,
+      };
     }
+
+    // We want to keep the original reference, but get type checking that
+    // the only difference between a ScriptConfig and a
+    // LocallyValidScriptConfig is that the state is 'valid' and the
+    // dependencies are also valid, which we confirmed above.
+    Object.assign(config, validConfig);
+
     return {ok: true, value: config as unknown as ScriptConfig};
   }
 

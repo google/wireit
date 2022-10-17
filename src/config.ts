@@ -29,26 +29,10 @@ export interface ScriptReference extends PackageReference {
   name: string;
 }
 
-export interface Dependency<Config extends PotentiallyValidScriptConfig> {
-  config: Config;
-  astNode: JsonAstNode<string>;
-}
-
-export type ScriptConfig = NoCommandScriptConfig | StandardScriptConfig;
-
 /**
- * A script that doesn't run or produce anything. A pass-through for
- * dependencies and/or files.
+ * A script with a defined command.
  */
-export interface NoCommandScriptConfig extends BaseScriptConfig {
-  command: undefined;
-  extraArgs: undefined;
-}
-
-/**
- * A script with a command that exits by itself.
- */
-export interface StandardScriptConfig extends BaseScriptConfig {
+export interface ScriptReferenceWithCommand extends ScriptReference {
   /**
    * The shell command to execute.
    */
@@ -58,6 +42,44 @@ export interface StandardScriptConfig extends BaseScriptConfig {
    * Extra arguments to pass to the command.
    */
   extraArgs: string[] | undefined;
+}
+
+export interface Dependency<Config extends PotentiallyValidScriptConfig> {
+  config: Config;
+  astNode: JsonAstNode<string>;
+}
+
+export type ScriptConfig =
+  | NoCommandScriptConfig
+  | StandardScriptConfig
+  | ServiceScriptConfig;
+
+/**
+ * A script that doesn't run or produce anything. A pass-through for
+ * dependencies and/or files.
+ */
+export interface NoCommandScriptConfig extends BaseScriptConfig {
+  command: undefined;
+  extraArgs: undefined;
+  service: false;
+}
+
+/**
+ * A script with a command that exits by itself.
+ */
+export interface StandardScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: false;
+}
+
+/**
+ * A service script.
+ */
+export interface ServiceScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: true;
 }
 
 /**
