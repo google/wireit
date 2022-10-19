@@ -84,3 +84,12 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     return {ok: true, value: results};
   }
 }
+
+/**
+ * A single execution of a specific script which has a command.
+ */
+export abstract class BaseExecutionWithCommand<
+  T extends ScriptConfig & {
+    command: Exclude<ScriptConfig['command'], undefined>;
+  }
+> extends BaseExecution<T> {}

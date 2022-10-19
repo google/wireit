@@ -13,7 +13,7 @@ import {glob, GlobOutsideCwdError} from '../util/glob.js';
 import {deleteEntries} from '../util/delete.js';
 import lockfile from 'proper-lockfile';
 import {ScriptChildProcess} from '../script-child-process.js';
-import {BaseExecution} from './base.js';
+import {BaseExecutionWithCommand} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
 import {computeManifestEntry} from '../util/manifest.js';
 
@@ -36,7 +36,7 @@ type StandardScriptExecutionState =
 /**
  * Execution for a {@link StandardScriptConfig}.
  */
-export class StandardScriptExecution extends BaseExecution<StandardScriptConfig> {
+export class StandardScriptExecution extends BaseExecutionWithCommand<StandardScriptConfig> {
   private _state: StandardScriptExecutionState = 'before-running';
   private readonly _cache?: Cache;
   private readonly _workerPool: WorkerPool;
