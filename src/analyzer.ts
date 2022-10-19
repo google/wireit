@@ -132,7 +132,11 @@ export class Analyzer {
       }
       // We don't care about the result, if there's a cycle error it'll
       // be added to the scripts' diagnostics.
-      this._checkForCyclesAndSortDependencies(info.placeholder, new Set());
+      this._checkForCyclesAndSortDependencies(
+        info.placeholder,
+        new Set(),
+        true
+      );
     }
 
     return this._getDiagnostics();
@@ -196,7 +200,8 @@ export class Analyzer {
     }
     const cycleResult = this._checkForCyclesAndSortDependencies(
       rootConfig,
-      new Set()
+      new Set(),
+      true
     );
     if (!cycleResult.ok) {
       return {
@@ -488,6 +493,7 @@ export class Analyzer {
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
+      services: [],
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -939,7 +945,8 @@ export class Analyzer {
    */
   private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
-    trail: Set<ScriptReferenceString>
+    trail: Set<ScriptReferenceString>,
+    isDirectlyInvoked: boolean
   ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
@@ -1057,15 +1064,35 @@ export class Analyzer {
           dependencyStillUnvalidated = dependency.config;
           continue;
         }
-        const result = this._checkForCyclesAndSortDependencies(
-          dependency.config,
-          trail
-        );
-        if (!result.ok) {
+        const validDependencyConfigResult =
+          this._checkForCyclesAndSortDependencies(
+            dependency.config,
+            trail,
+            // Walk through no-command scripts when determining if something is
+            // being directly invoked (e.g. if the top-level script has no command
+            // and simply delegates to one or more other scripts, then those
+            // dependencies are effectively being directly invoked).
+            isDirectlyInvoked && config.command === undefined
+          );
+        if (!validDependencyConfigResult.ok) {
           return {
             ok: false,
-            error: this._markAsInvalid(config, result.error.dependencyFailure),
+            error: this._markAsInvalid(
+              config,
+              validDependencyConfigResult.error.dependencyFailure
+            ),
           };
+        }
+        const validDependencyConfig = validDependencyConfigResult.value;
+        if (validDependencyConfig.service) {
+          // We directly depend on a service.
+          config.services.push(validDependencyConfig);
+        } else if (validDependencyConfig.command === undefined) {
+          // We depend on a no-command script, so in effect we depend on all of
+          // the services it depends on.
+          for (const service of validDependencyConfig.services) {
+            config.services.push(service);
+          }
         }
       }
       trail.delete(trailKey);
@@ -1101,6 +1128,8 @@ export class Analyzer {
         // Unfortunately TypeScript doesn't narrow the ...config spread, so we
         // have to assign explicitly.
         command: config.command,
+        isDirectlyInvoked,
+        serviceConsumers: [],
       };
     } else {
       validConfig = {
@@ -1112,6 +1141,19 @@ export class Analyzer {
         // have to assign explicitly.
         service: config.service,
       };
+    }
+
+    // Propagate reverse service dependencies.
+    if (validConfig.command) {
+      for (const dependency of validConfig.dependencies) {
+        if (dependency.config.service) {
+          dependency.config.serviceConsumers.push(validConfig);
+        } else if (dependency.config.command === undefined) {
+          for (const service of dependency.config.services) {
+            service.serviceConsumers.push(validConfig);
+          }
+        }
+      }
     }
 
     // We want to keep the original reference, but get type checking that

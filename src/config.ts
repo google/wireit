@@ -80,6 +80,16 @@ export interface ServiceScriptConfig
   extends BaseScriptConfig,
     ScriptReferenceWithCommand {
   service: true;
+
+  /**
+   * Whether this service is being invoked directly (e.g. `npm run serve`).
+   */
+  isDirectlyInvoked: boolean;
+
+  /**
+   * Scripts that depend on this service.
+   */
+  serviceConsumers: Array<ServiceScriptConfig | StandardScriptConfig>;
 }
 
 /**
@@ -96,6 +106,11 @@ interface BaseScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: Array<Dependency<ScriptConfig>>;
+
+  /**
+   * The services that need to be started before we can run.
+   */
+  services: Array<ServiceScriptConfig>;
 
   /**
    * Input file globs for this script.

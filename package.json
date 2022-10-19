@@ -29,6 +29,7 @@
     "format:check": "prettier . -c",
     "test": "wireit",
     "test:headless": "wireit",
+    "test:analysis": "wireit",
     "test:basic": "wireit",
     "test:cache-github": "wireit",
     "test:cache-local": "wireit",
@@ -71,6 +72,7 @@
     },
     "test:headless": {
       "dependencies": [
+        "test:analysis",
         "test:basic",
         "test:cache-github",
         "test:cache-local",
@@ -107,8 +109,16 @@
       ],
       "output": []
     },
+    "test:analysis": {
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^analysis\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
     "test:basic": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"basic\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^basic\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -116,7 +126,7 @@
       "output": []
     },
     "test:cache-github": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"cache-github\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^cache-github\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -124,7 +134,7 @@
       "output": []
     },
     "test:cache-local": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"cache-local\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^cache-local\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -132,7 +142,7 @@
       "output": []
     },
     "test:clean": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"clean\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^clean\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -140,7 +150,7 @@
       "output": []
     },
     "test:cli-options": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"cli-options\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^cli-options\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -148,7 +158,7 @@
       "output": []
     },
     "test:codeactions": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"codeactions\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^codeactions\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -156,7 +166,7 @@
       "output": []
     },
     "test:copy": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"copy\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^copy\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -164,7 +174,7 @@
       "output": []
     },
     "test:delete": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"delete\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^delete\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -172,7 +182,7 @@
       "output": []
     },
     "test:diagnostic": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"diagnostic\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^diagnostic\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -180,7 +190,7 @@
       "output": []
     },
     "test:errors-analysis": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"errors-analysis\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^errors-analysis\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -188,7 +198,7 @@
       "output": []
     },
     "test:errors-usage": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"errors-usage\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^errors-usage\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -196,7 +206,7 @@
       "output": []
     },
     "test:failures": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"failures\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^failures\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -204,7 +214,7 @@
       "output": []
     },
     "test:freshness": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"freshness\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^freshness\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -212,7 +222,7 @@
       "output": []
     },
     "test:glob": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"glob\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^glob\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -220,7 +230,7 @@
       "output": []
     },
     "test:ide": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"ide\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^ide\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -228,7 +238,7 @@
       "output": []
     },
     "test:json-schema": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"json-schema\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^json-schema\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -238,7 +248,7 @@
       "output": []
     },
     "test:optimize-mkdirs": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"optimize-mkdirs\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^optimize-mkdirs\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -246,7 +256,7 @@
       "output": []
     },
     "test:parallelism": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"parallelism\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^parallelism\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -254,7 +264,7 @@
       "output": []
     },
     "test:service": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"service\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^service\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
@@ -262,7 +272,7 @@
       "output": []
     },
     "test:watch": {
-      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"watch\\.test\\.js$\"",
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^watch\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
