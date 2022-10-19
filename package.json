@@ -29,6 +29,7 @@
     "format:check": "prettier . -c",
     "test": "wireit",
     "test:headless": "wireit",
+    "test:analysis": "wireit",
     "test:basic": "wireit",
     "test:cache-github": "wireit",
     "test:cache-local": "wireit",
@@ -71,6 +72,7 @@
     },
     "test:headless": {
       "dependencies": [
+        "test:analysis",
         "test:basic",
         "test:cache-github",
         "test:cache-local",
@@ -105,6 +107,14 @@
         "src/**/*.ts",
         "vscode-extension/src/**/*.ts"
       ],
+      "output": []
+    },
+    "test:analysis": {
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^analysis\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
       "output": []
     },
     "test:basic": {
