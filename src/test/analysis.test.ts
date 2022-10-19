@@ -97,8 +97,8 @@ test('analyzes services', async ({rig}) => {
   if (!b.service) {
     throw new Error('Expected service');
   }
-  assert.equal(b.reverseEffectiveServiceDependencies.length, 1);
-  assert.equal(b.reverseEffectiveServiceDependencies[0].name, 'd');
+  assert.equal(b.serviceConsumers.length, 1);
+  assert.equal(b.serviceConsumers[0].name, 'd');
   assert.equal(b.isDirectlyInvoked, true);
 
   // c
@@ -108,24 +108,24 @@ test('analyzes services', async ({rig}) => {
     throw new Error('Expected service');
   }
   assert.equal(c.isDirectlyInvoked, true);
-  assert.equal(c.reverseEffectiveServiceDependencies.length, 0);
-  assert.equal(c.effectiveServiceDependencies.length, 0);
+  assert.equal(c.serviceConsumers.length, 0);
+  assert.equal(c.services.length, 0);
 
   // d
   const d = a.dependencies[2].config;
   assert.equal(d.name, 'd');
-  assert.equal(d.effectiveServiceDependencies.length, 2);
-  assert.equal(d.effectiveServiceDependencies[0].name, 'b');
-  assert.equal(d.effectiveServiceDependencies[1].name, 'e');
+  assert.equal(d.services.length, 2);
+  assert.equal(d.services[0].name, 'b');
+  assert.equal(d.services[1].name, 'e');
 
   // e
-  const e = d.effectiveServiceDependencies[1];
+  const e = d.services[1];
   assert.equal(e.name, 'e');
   if (!e.service) {
     throw new Error('Expected service');
   }
   assert.equal(e.isDirectlyInvoked, false);
-  assert.equal(e.reverseEffectiveServiceDependencies.length, 1);
+  assert.equal(e.serviceConsumers.length, 1);
 });
 
 test.run();

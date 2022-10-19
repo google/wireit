@@ -87,14 +87,9 @@ export interface ServiceScriptConfig
   isDirectlyInvoked: boolean;
 
   /**
-   * Which scripts depend on this service.
-   *
-   * "Effective" meaning these are not necessarily our direct dependents, since
-   * we include transitive service dependencies through no-command scripts.
+   * Scripts that depend on this service.
    */
-  reverseEffectiveServiceDependencies: Array<
-    ServiceScriptConfig | StandardScriptConfig
-  >;
+  serviceConsumers: Array<ServiceScriptConfig | StandardScriptConfig>;
 }
 
 /**
@@ -114,12 +109,8 @@ interface BaseScriptConfig extends ScriptReference {
 
   /**
    * The services that need to be started before we can run.
-   *
-   * "Effective" meaning these are not necessarily direct dependencies, since we
-   * include transitive service dependencies through no-command scripts as our
-   * own.
    */
-  effectiveServiceDependencies: Array<ServiceScriptConfig>;
+  services: Array<ServiceScriptConfig>;
 
   /**
    * Input file globs for this script.

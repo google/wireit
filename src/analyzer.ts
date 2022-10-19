@@ -493,7 +493,7 @@ export class Analyzer {
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
-      effectiveServiceDependencies: [],
+      services: [],
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -1086,12 +1086,12 @@ export class Analyzer {
         const validDependencyConfig = validDependencyConfigResult.value;
         if (validDependencyConfig.service) {
           // We directly depend on a service.
-          config.effectiveServiceDependencies.push(validDependencyConfig);
+          config.services.push(validDependencyConfig);
         } else if (validDependencyConfig.command === undefined) {
           // We depend on a no-command script, so in effect we depend on all of
           // the services it depends on.
-          for (const service of validDependencyConfig.effectiveServiceDependencies) {
-            config.effectiveServiceDependencies.push(service);
+          for (const service of validDependencyConfig.services) {
+            config.services.push(service);
           }
         }
       }
@@ -1129,7 +1129,7 @@ export class Analyzer {
         // have to assign explicitly.
         command: config.command,
         isDirectlyInvoked,
-        reverseEffectiveServiceDependencies: [],
+        serviceConsumers: [],
       };
     } else {
       validConfig = {
@@ -1147,13 +1147,10 @@ export class Analyzer {
     if (validConfig.command) {
       for (const dependency of validConfig.dependencies) {
         if (dependency.config.service) {
-          dependency.config.reverseEffectiveServiceDependencies.push(
-            validConfig
-          );
+          dependency.config.serviceConsumers.push(validConfig);
         } else if (dependency.config.command === undefined) {
-          for (const service of dependency.config
-            .effectiveServiceDependencies) {
-            service.reverseEffectiveServiceDependencies.push(validConfig);
+          for (const service of dependency.config.services) {
+            service.serviceConsumers.push(validConfig);
           }
         }
       }
