@@ -103,6 +103,15 @@ interface BaseScriptConfig extends ScriptReference {
   dependencies: Array<Dependency<ScriptConfig>>;
 
   /**
+   * The services that need to be started before we can run.
+   *
+   * "Effective" meaning these are not necessarily direct dependencies, since we
+   * include transitive service dependencies through no-command scripts as our
+   * own.
+   */
+  effectiveServiceDependencies: Array<ServiceScriptConfig>;
+
+  /**
    * Input file globs for this script.
    *
    * If undefined, the input files are unknown (meaning the script cannot safely

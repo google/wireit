@@ -493,6 +493,7 @@ export class Analyzer {
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
+      effectiveServiceDependencies: [],
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -1063,20 +1064,35 @@ export class Analyzer {
           dependencyStillUnvalidated = dependency.config;
           continue;
         }
-        const result = this._checkForCyclesAndSortDependencies(
-          dependency.config,
-          trail,
-          // Walk through no-command scripts when determining if something is
-          // being directly invoked (e.g. if the top-level script has no command
-          // and simply delegates to one or more other scripts, then those
-          // dependencies are effectively being directly invoked).
-          isDirectlyInvoked && config.command === undefined
-        );
-        if (!result.ok) {
+        const validDependencyConfigResult =
+          this._checkForCyclesAndSortDependencies(
+            dependency.config,
+            trail,
+            // Walk through no-command scripts when determining if something is
+            // being directly invoked (e.g. if the top-level script has no command
+            // and simply delegates to one or more other scripts, then those
+            // dependencies are effectively being directly invoked).
+            isDirectlyInvoked && config.command === undefined
+          );
+        if (!validDependencyConfigResult.ok) {
           return {
             ok: false,
-            error: this._markAsInvalid(config, result.error.dependencyFailure),
+            error: this._markAsInvalid(
+              config,
+              validDependencyConfigResult.error.dependencyFailure
+            ),
           };
+        }
+        const validDependencyConfig = validDependencyConfigResult.value;
+        if (validDependencyConfig.service) {
+          // We directly depend on a service.
+          config.effectiveServiceDependencies.push(validDependencyConfig);
+        } else if (validDependencyConfig.command === undefined) {
+          // We depend on a no-command script, so in effect we depend on all of
+          // the services it depends on.
+          for (const service of validDependencyConfig.effectiveServiceDependencies) {
+            config.effectiveServiceDependencies.push(service);
+          }
         }
       }
       trail.delete(trailKey);
