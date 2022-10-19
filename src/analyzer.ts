@@ -132,7 +132,11 @@ export class Analyzer {
       }
       // We don't care about the result, if there's a cycle error it'll
       // be added to the scripts' diagnostics.
-      this._checkForCyclesAndSortDependencies(info.placeholder, new Set());
+      this._checkForCyclesAndSortDependencies(
+        info.placeholder,
+        new Set(),
+        true
+      );
     }
 
     return this._getDiagnostics();
@@ -196,7 +200,8 @@ export class Analyzer {
     }
     const cycleResult = this._checkForCyclesAndSortDependencies(
       rootConfig,
-      new Set()
+      new Set(),
+      true
     );
     if (!cycleResult.ok) {
       return {
@@ -939,7 +944,8 @@ export class Analyzer {
    */
   private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
-    trail: Set<ScriptReferenceString>
+    trail: Set<ScriptReferenceString>,
+    isDirectlyInvoked: boolean
   ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
@@ -1059,7 +1065,12 @@ export class Analyzer {
         }
         const result = this._checkForCyclesAndSortDependencies(
           dependency.config,
-          trail
+          trail,
+          // Walk through no-command scripts when determining if something is
+          // being directly invoked (e.g. if the top-level script has no command
+          // and simply delegates to one or more other scripts, then those
+          // dependencies are effectively being directly invoked).
+          isDirectlyInvoked && config.command === undefined
         );
         if (!result.ok) {
           return {
@@ -1101,6 +1112,7 @@ export class Analyzer {
         // Unfortunately TypeScript doesn't narrow the ...config spread, so we
         // have to assign explicitly.
         command: config.command,
+        isDirectlyInvoked,
       };
     } else {
       validConfig = {

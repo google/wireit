@@ -80,6 +80,11 @@ export interface ServiceScriptConfig
   extends BaseScriptConfig,
     ScriptReferenceWithCommand {
   service: true;
+
+  /**
+   * Whether this service is being invoked directly (e.g. `npm run serve`).
+   */
+  isDirectlyInvoked: boolean;
 }
 
 /**
