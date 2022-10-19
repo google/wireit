@@ -85,6 +85,16 @@ export interface ServiceScriptConfig
    * Whether this service is being invoked directly (e.g. `npm run serve`).
    */
   isDirectlyInvoked: boolean;
+
+  /**
+   * Which scripts depend on this service.
+   *
+   * "Effective" meaning these are not necessarily our direct dependents, since
+   * we include transitive service dependencies through no-command scripts.
+   */
+  reverseEffectiveServiceDependencies: Array<
+    ServiceScriptConfig | StandardScriptConfig
+  >;
 }
 
 /**

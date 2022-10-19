@@ -1129,6 +1129,7 @@ export class Analyzer {
         // have to assign explicitly.
         command: config.command,
         isDirectlyInvoked,
+        reverseEffectiveServiceDependencies: [],
       };
     } else {
       validConfig = {
@@ -1140,6 +1141,22 @@ export class Analyzer {
         // have to assign explicitly.
         service: config.service,
       };
+    }
+
+    // Propagate reverse service dependencies.
+    if (validConfig.command) {
+      for (const dependency of validConfig.dependencies) {
+        if (dependency.config.service) {
+          dependency.config.reverseEffectiveServiceDependencies.push(
+            validConfig
+          );
+        } else if (dependency.config.command === undefined) {
+          for (const service of dependency.config
+            .effectiveServiceDependencies) {
+            service.reverseEffectiveServiceDependencies.push(validConfig);
+          }
+        }
+      }
     }
 
     // We want to keep the original reference, but get type checking that
