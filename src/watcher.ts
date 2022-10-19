@@ -48,11 +48,11 @@ type WatcherState =
   | 'aborted';
 
 function unknownState(state: never) {
-  throw new Error(`Unknown watcher state ${String(state)}`);
+  return new Error(`Unknown watcher state ${String(state)}`);
 }
 
 function unexpectedState(state: WatcherState) {
-  throw new Error(`Unexpected watcher state ${state}`);
+  return new Error(`Unexpected watcher state ${state}`);
 }
 
 /**
