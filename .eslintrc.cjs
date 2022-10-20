@@ -16,3 +16,5 @@ module.exports = {
     'no-only-tests/no-only-tests': 'error',
   },
 };
+
+test
