@@ -38,14 +38,14 @@ type StandardScriptExecutionState =
  */
 export class StandardScriptExecution extends BaseExecution<StandardScriptConfig> {
   static execute(
-    script: StandardScriptConfig,
+    config: StandardScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
   ): Promise<ExecutionResult> {
     return new StandardScriptExecution(
-      script,
+      config,
       executor,
       workerPool,
       cache,
@@ -58,13 +58,13 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
   private readonly _workerPool: WorkerPool;
 
   private constructor(
-    script: StandardScriptConfig,
+    config: StandardScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger
   ) {
-    super(script, executor, logger);
+    super(config, executor, logger);
     this._workerPool = workerPool;
     this._cache = cache;
   }
@@ -95,7 +95,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
       // cache key, because a dependency could create or modify an input file to
       // this script, which would affect the key.
       const fingerprint = await Fingerprint.compute(
-        this.script,
+        this.config,
         dependencyFingerprints.value
       );
       if (await this._fingerprintIsFresh(fingerprint)) {
@@ -116,7 +116,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
       }
 
       const cacheHit = fingerprint.data.fullyTracked
-        ? await this._cache?.get(this.script, fingerprint)
+        ? await this._cache?.get(this.config, fingerprint)
         : undefined;
       if (this._shouldNotStart) {
         return {ok: false, error: [this._startCancelledEvent]};
@@ -144,7 +144,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
    */
   private get _startCancelledEvent(): StartCancelled {
     return {
-      script: this.script,
+      script: this.config,
       type: 'failure',
       reason: 'start-cancelled',
     };
@@ -157,7 +157,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
   private async _acquireSystemLockIfNeeded<T>(
     workFn: () => Promise<T>
   ): Promise<T | {ok: false; error: [StartCancelled]}> {
-    if (this.script.output?.values.length === 0) {
+    if (this.config.output?.values.length === 0) {
       return workFn();
     }
 
@@ -204,7 +204,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
           if (!loggedLocked) {
             // Only log this once.
             this.logger.log({
-              script: this.script,
+              script: this.config,
               type: 'info',
               detail: 'locked',
             });
@@ -241,7 +241,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
    */
   private _handleFresh(fingerprint: Fingerprint): ExecutionResult {
     this.logger.log({
-      script: this.script,
+      script: this.config,
       type: 'success',
       reason: 'fresh',
     });
@@ -286,7 +286,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
     await writeFingerprintPromise;
 
     this.logger.log({
-      script: this.script,
+      script: this.config,
       type: 'success',
       reason: 'cached',
     });
@@ -326,7 +326,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
 
       this._state = 'running';
       this.logger.log({
-        script: this.script,
+        script: this.config,
         type: 'info',
         detail: 'running',
       });
@@ -334,7 +334,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
       const child = new ScriptChildProcess(
         // Unfortunately TypeScript doesn't automatically narrow this type
         // based on the undefined-command check we did just above.
-        this.script
+        this.config
       );
 
       void this.executor.shouldKillRunningScripts.then(() => {
@@ -343,7 +343,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
 
       child.stdout.on('data', (data: string | Buffer) => {
         this.logger.log({
-          script: this.script,
+          script: this.config,
           type: 'output',
           stream: 'stdout',
           data,
@@ -352,7 +352,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
 
       child.stderr.on('data', (data: string | Buffer) => {
         this.logger.log({
-          script: this.script,
+          script: this.config,
           type: 'output',
           stream: 'stderr',
           data,
@@ -362,7 +362,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
       const result = await child.completed;
       if (result.ok) {
         this.logger.log({
-          script: this.script,
+          script: this.config,
           type: 'success',
           reason: 'exit-zero',
         });
@@ -412,7 +412,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
   }
 
   private async _shouldClean(fingerprint: Fingerprint) {
-    const cleanValue = this.script.clean;
+    const cleanValue = this.config.clean;
     switch (cleanValue) {
       case true: {
         return true;
@@ -479,7 +479,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
     if (paths.value === undefined) {
       return {ok: true, value: undefined};
     }
-    await this._cache.set(this.script, fingerprint, paths.value);
+    await this._cache.set(this.config, fingerprint, paths.value);
     return {ok: true, value: undefined};
   }
 
@@ -518,14 +518,14 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
   private async _globOutputFiles(): Promise<
     Result<AbsoluteEntry[] | undefined>
   > {
-    if (this.script.output === undefined) {
+    if (this.config.output === undefined) {
       return {ok: true, value: undefined};
     }
     try {
       return {
         ok: true,
-        value: await glob(this.script.output.values, {
-          cwd: this.script.packageDir,
+        value: await glob(this.config.output.values, {
+          cwd: this.config.packageDir,
           followSymlinks: false,
           includeDirectories: true,
           expandDirectories: true,
@@ -542,15 +542,15 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
           error: {
             type: 'failure',
             reason: 'invalid-config-syntax',
-            script: this.script,
+            script: this.config,
             diagnostic: {
               severity: 'error',
               message: `Output files must be within the package: ${error.message}`,
               location: {
-                file: this.script.declaringFile,
+                file: this.config.declaringFile,
                 range: {
-                  offset: this.script.output.node.offset,
-                  length: this.script.output.node.length,
+                  offset: this.config.output.node.offset,
+                  length: this.config.output.node.length,
                 },
               },
             },
@@ -565,7 +565,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
    * Get the directory name where Wireit data can be saved for this script.
    */
   private get _dataDir(): string {
-    return getScriptDataDir(this.script);
+    return getScriptDataDir(this.config);
   }
 
   /**
@@ -677,7 +677,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
     const equal = newManifest === oldManifest;
     if (!equal) {
       this.logger.log({
-        script: this.script,
+        script: this.config,
         type: 'info',
         detail: 'output-modified',
       });

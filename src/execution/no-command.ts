@@ -17,11 +17,11 @@ import type {Logger} from '../logging/logger.js';
  */
 export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfig> {
   static execute(
-    script: NoCommandScriptConfig,
+    config: NoCommandScriptConfig,
     executor: Executor,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new NoCommandScriptExecution(script, executor, logger)._execute();
+    return new NoCommandScriptExecution(config, executor, logger)._execute();
   }
 
   private async _execute(): Promise<ExecutionResult> {
@@ -30,11 +30,11 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
       return dependencyFingerprints;
     }
     const fingerprint = await Fingerprint.compute(
-      this.script,
+      this.config,
       dependencyFingerprints.value
     );
     this.logger.log({
-      script: this.script,
+      script: this.config,
       type: 'success',
       reason: 'no-command',
     });

@@ -17,11 +17,11 @@ import type {Logger} from '../logging/logger.js';
  */
 export class ServiceScriptExecution extends BaseExecution<ServiceScriptConfig> {
   static execute(
-    script: ServiceScriptConfig,
+    config: ServiceScriptConfig,
     executor: Executor,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new ServiceScriptExecution(script, executor, logger)._execute();
+    return new ServiceScriptExecution(config, executor, logger)._execute();
   }
 
   private async _execute(): Promise<ExecutionResult> {
@@ -30,7 +30,7 @@ export class ServiceScriptExecution extends BaseExecution<ServiceScriptConfig> {
       return dependencyFingerprints;
     }
     const fingerprint = await Fingerprint.compute(
-      this.script,
+      this.config,
       dependencyFingerprints.value
     );
     return {ok: true, value: fingerprint};

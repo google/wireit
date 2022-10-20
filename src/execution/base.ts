@@ -29,12 +29,12 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
  * A single execution of a specific script.
  */
 export abstract class BaseExecution<T extends ScriptConfig> {
-  protected readonly script: T;
+  protected readonly config: T;
   protected readonly executor: Executor;
   protected readonly logger: Logger;
 
-  protected constructor(script: T, executor: Executor, logger: Logger) {
-    this.script = script;
+  protected constructor(config: T, executor: Executor, logger: Logger) {
+    this.config = config;
     this.executor = executor;
     this.logger = logger;
   }
@@ -48,10 +48,10 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
-    shuffle(this.script.dependencies);
+    shuffle(this.config.dependencies);
 
     const dependencyResults = await Promise.all(
-      this.script.dependencies.map((dependency) => {
+      this.config.dependencies.map((dependency) => {
         return this.executor.execute(dependency.config);
       })
     );
@@ -64,7 +64,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
           errors.add(error);
         }
       } else {
-        results.push([this.script.dependencies[i].config, result.value]);
+        results.push([this.config.dependencies[i].config, result.value]);
       }
     }
     if (errors.size > 0) {
