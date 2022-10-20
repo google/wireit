@@ -38,7 +38,7 @@ export class WireitTestRig extends FilesystemTestRig {
    * Initialize the temporary filesystem, and set up the wireit binary to be
    * runnable as though it had been installed there through npm.
    */
-  async setup() {
+  override async setup() {
     await super.setup();
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
@@ -110,7 +110,7 @@ export class WireitTestRig extends FilesystemTestRig {
   /**
    * Delete the temporary filesystem and perform other cleanup.
    */
-  async cleanup(): Promise<void> {
+  override async cleanup(): Promise<void> {
     await Promise.all(this._commands.map((command) => command.close()));
     for (const child of this._activeChildProcesses) {
       child.kill();
