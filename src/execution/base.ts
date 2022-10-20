@@ -63,7 +63,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
 
     const dependencyResults = await Promise.all(
       this._config.dependencies.map((dependency) => {
-        return this._executor.execute(dependency.config);
+        return this._executor.getExecution(dependency.config).execute();
       })
     );
     const results: Array<[ScriptReference, Fingerprint]> = [];

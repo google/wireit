@@ -11,7 +11,6 @@ import {ScriptReferenceString, scriptReferenceToString} from './config.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
 
-import type {ExecutionResult} from './execution/base.js';
 import type {Logger} from './logging/logger.js';
 import type {Cache} from './caching/cache.js';
 import type {
@@ -157,10 +156,5 @@ export class Executor {
     // execution type guarantees. We could make a smarter Map type, but not
     // really worth it here.
     return execution as ConfigToExecution<T>;
-  }
-
-  async execute(config: ScriptConfig): Promise<ExecutionResult> {
-    const execution = this.getExecution(config);
-    return execution.execute();
   }
 }
