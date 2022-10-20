@@ -34,7 +34,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
   protected readonly _logger: Logger;
   private _fingerprint?: Promise<ExecutionResult>;
 
-  protected constructor(config: T, executor: Executor, logger: Logger) {
+  constructor(config: T, executor: Executor, logger: Logger) {
     this._config = config;
     this._executor = executor;
     this._logger = logger;

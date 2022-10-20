@@ -8,22 +8,12 @@ import {BaseExecution} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
 
 import type {ExecutionResult} from './base.js';
-import type {Executor} from '../executor.js';
 import type {NoCommandScriptConfig} from '../config.js';
-import type {Logger} from '../logging/logger.js';
 
 /**
  * Execution for a {@link NoCommandScriptConfig}.
  */
 export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfig> {
-  static execute(
-    config: NoCommandScriptConfig,
-    executor: Executor,
-    logger: Logger
-  ): Promise<ExecutionResult> {
-    return new NoCommandScriptExecution(config, executor, logger)._execute();
-  }
-
   protected override async _execute(): Promise<ExecutionResult> {
     const dependencyFingerprints = await this._executeDependencies();
     if (!dependencyFingerprints.ok) {

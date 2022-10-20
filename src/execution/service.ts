@@ -9,21 +9,11 @@ import {Fingerprint} from '../fingerprint.js';
 
 import type {ExecutionResult} from './base.js';
 import type {ServiceScriptConfig} from '../config.js';
-import type {Logger} from '../logging/logger.js';
-import type {Executor} from '../executor.js';
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
  */
 export class ServiceScriptExecution extends BaseExecution<ServiceScriptConfig> {
-  static execute(
-    script: ServiceScriptConfig,
-    executor: Executor,
-    logger: Logger
-  ): Promise<ExecutionResult> {
-    return new ServiceScriptExecution(script, executor, logger)._execute();
-  }
-
   /**
    * Note `execute` is a bit of a misnomer here, because we don't actually
    * execute the command at this stage in the case of services.

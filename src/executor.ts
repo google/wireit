@@ -133,17 +133,17 @@ export class Executor {
     script: ScriptConfig
   ): Promise<ExecutionResult> {
     if (script.command === undefined) {
-      return NoCommandScriptExecution.execute(script, this, this._logger);
+      return new NoCommandScriptExecution(script, this, this._logger).execute();
     }
     if (script.service) {
-      return ServiceScriptExecution.execute(script, this, this._logger);
+      return new ServiceScriptExecution(script, this, this._logger).execute();
     }
-    return StandardScriptExecution.execute(
+    return new StandardScriptExecution(
       script,
       this,
       this._workerPool,
       this._cache,
       this._logger
-    );
+    ).execute();
   }
 }

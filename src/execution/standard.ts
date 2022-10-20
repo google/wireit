@@ -37,27 +37,11 @@ type StandardScriptExecutionState =
  * Execution for a {@link StandardScriptConfig}.
  */
 export class StandardScriptExecution extends BaseExecution<StandardScriptConfig> {
-  static execute(
-    config: StandardScriptConfig,
-    executor: Executor,
-    workerPool: WorkerPool,
-    cache: Cache | undefined,
-    logger: Logger
-  ): Promise<ExecutionResult> {
-    return new StandardScriptExecution(
-      config,
-      executor,
-      workerPool,
-      cache,
-      logger
-    )._execute();
-  }
-
   private _state: StandardScriptExecutionState = 'before-running';
   private readonly _cache?: Cache;
   private readonly _workerPool: WorkerPool;
 
-  private constructor(
+  constructor(
     config: StandardScriptConfig,
     executor: Executor,
     workerPool: WorkerPool,
