@@ -7,14 +7,32 @@
 import {NoCommandScriptExecution} from './execution/no-command.js';
 import {StandardScriptExecution} from './execution/standard.js';
 import {ServiceScriptExecution} from './execution/service.js';
-import {ScriptConfig, scriptReferenceToString} from './config.js';
+import {ScriptReferenceString, scriptReferenceToString} from './config.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
-import {convertExceptionToFailure} from './error.js';
 
 import type {ExecutionResult} from './execution/base.js';
 import type {Logger} from './logging/logger.js';
 import type {Cache} from './caching/cache.js';
+import type {
+  ScriptConfig,
+  NoCommandScriptConfig,
+  ServiceScriptConfig,
+  StandardScriptConfig,
+} from './config.js';
+
+type Execution =
+  | NoCommandScriptExecution
+  | StandardScriptExecution
+  | ServiceScriptExecution;
+
+type ConfigToExecution<T extends ScriptConfig> = T extends NoCommandScriptConfig
+  ? NoCommandScriptExecution
+  : T extends StandardScriptConfig
+  ? StandardScriptExecution
+  : T extends ServiceScriptConfig
+  ? ServiceScriptExecution
+  : never;
 
 /**
  * What to do when a script failure occurs:
@@ -30,7 +48,7 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  private readonly _executions = new Map<string, Promise<ExecutionResult>>();
+  private readonly _executions = new Map<ScriptReferenceString, Execution>();
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
@@ -112,38 +130,37 @@ export class Executor {
     return this._killRunningScripts.promise;
   }
 
-  async execute(script: ScriptConfig): Promise<ExecutionResult> {
-    const executionKey = scriptReferenceToString(script);
-    let promise = this._executions.get(executionKey);
-    if (promise === undefined) {
-      promise = this._executeAccordingToKind(script)
-        .catch((error) => convertExceptionToFailure(error, script))
-        .then((result) => {
-          if (!result.ok) {
-            this.notifyFailure();
-          }
-          return result;
-        });
-      this._executions.set(executionKey, promise);
+  /**
+   * Get the execution instance for a script config, creating one if it doesn't
+   * already exist.
+   */
+  getExecution<T extends ScriptConfig>(config: T): ConfigToExecution<T> {
+    const key = scriptReferenceToString(config);
+    let execution = this._executions.get(key);
+    if (execution === undefined) {
+      if (config.command === undefined) {
+        execution = new NoCommandScriptExecution(config, this, this._logger);
+      } else if (config.service) {
+        execution = new ServiceScriptExecution(config, this, this._logger);
+      } else {
+        execution = new StandardScriptExecution(
+          config,
+          this,
+          this._workerPool,
+          this._cache,
+          this._logger
+        );
+      }
+      this._executions.set(key, execution);
     }
-    return promise;
+    // Cast needed because our Map type doesn't know about the config ->
+    // execution type guarantees. We could make a smarter Map type, but not
+    // really worth it here.
+    return execution as ConfigToExecution<T>;
   }
 
-  private _executeAccordingToKind(
-    script: ScriptConfig
-  ): Promise<ExecutionResult> {
-    if (script.command === undefined) {
-      return new NoCommandScriptExecution(script, this, this._logger).execute();
-    }
-    if (script.service) {
-      return new ServiceScriptExecution(script, this, this._logger).execute();
-    }
-    return new StandardScriptExecution(
-      script,
-      this,
-      this._workerPool,
-      this._cache,
-      this._logger
-    ).execute();
+  async execute(config: ScriptConfig): Promise<ExecutionResult> {
+    const execution = this.getExecution(config);
+    return execution.execute();
   }
 }
