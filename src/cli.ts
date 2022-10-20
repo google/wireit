@@ -100,7 +100,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       options.failureMode,
       abort
     );
-    const result = await executor.execute(config.value);
+    const result = await executor.getExecution(config.value).execute();
     if (!result.ok) {
       return result;
     }

@@ -20,9 +20,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..');
 
-const SELF_SIGNED_CERT = selfsigned.generate([
-  {name: 'commonName', value: 'localhost'},
-]);
+const SELF_SIGNED_CERT = selfsigned.generate(
+  [{name: 'commonName', value: 'localhost'}],
+  // More recent versions of TLS require a larger minimum key size than the
+  // default of this library (1024). Let's also upgrade from sha1 to sha256
+  // while we're at it.
+  {keySize: 2048, algorithm: 'sha256'}
+);
 const SELF_SIGNED_CERT_PATH = pathlib.resolve(
   repoRoot,
   'temp',

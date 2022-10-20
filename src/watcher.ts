@@ -282,7 +282,7 @@ export class Watcher {
       this._failureMode,
       this._abort
     );
-    const result = await executor.execute(script);
+    const result = await executor.getExecution(script).execute();
     if (!result.ok) {
       for (const error of result.error) {
         this._logger.log(error);

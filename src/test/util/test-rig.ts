@@ -38,7 +38,7 @@ export class WireitTestRig extends FilesystemTestRig {
    * Initialize the temporary filesystem, and set up the wireit binary to be
    * runnable as though it had been installed there through npm.
    */
-  async setup() {
+  override async setup() {
     await super.setup();
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
@@ -78,7 +78,7 @@ export class WireitTestRig extends FilesystemTestRig {
     binaryPath: string;
     installPath: string;
   }) {
-    this.assertState('running');
+    this._assertState('running');
 
     binaryPath = this._resolve(binaryPath);
     installPath = this._resolve(installPath);
@@ -110,7 +110,7 @@ export class WireitTestRig extends FilesystemTestRig {
   /**
    * Delete the temporary filesystem and perform other cleanup.
    */
-  async cleanup(): Promise<void> {
+  override async cleanup(): Promise<void> {
     await Promise.all(this._commands.map((command) => command.close()));
     for (const child of this._activeChildProcesses) {
       child.kill();
@@ -130,7 +130,7 @@ export class WireitTestRig extends FilesystemTestRig {
     command: string,
     opts?: {cwd?: string; env?: Record<string, string | undefined>}
   ): ExecResult {
-    this.assertState('running');
+    this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
       // We hard code the parallelism here because by default we infer a value
@@ -180,7 +180,7 @@ export class WireitTestRig extends FilesystemTestRig {
    * Create a new test command.
    */
   async newCommand(): Promise<WireitTestRigCommand> {
-    this.assertState('running');
+    this._assertState('running');
     // On Windows, Node IPC is implemented with named pipes, which must be
     // prefixed by "\\?\pipe\". On Linux/macOS it's a unix domain socket, which
     // can be any filepath. See https://nodejs.org/api/net.html#ipc-support for

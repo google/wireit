@@ -15,6 +15,7 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "useUnknownInCatchVariables": true,
+    "noImplicitOverride": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "composite": true
