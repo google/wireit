@@ -24,7 +24,7 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
     return new NoCommandScriptExecution(config, executor, logger)._execute();
   }
 
-  private async _execute(): Promise<ExecutionResult> {
+  protected override async _execute(): Promise<ExecutionResult> {
     const dependencyFingerprints = await this._executeDependencies();
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;

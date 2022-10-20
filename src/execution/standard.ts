@@ -75,7 +75,7 @@ export class StandardScriptExecution extends BaseExecution<StandardScriptConfig>
     }
   }
 
-  private async _execute(): Promise<ExecutionResult> {
+  protected async _execute(): Promise<ExecutionResult> {
     this._ensureState('before-running');
 
     const dependencyFingerprints = await this._executeDependencies();

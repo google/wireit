@@ -32,12 +32,23 @@ export abstract class BaseExecution<T extends ScriptConfig> {
   protected readonly _config: T;
   protected readonly _executor: Executor;
   protected readonly _logger: Logger;
+  private _fingerprint?: Promise<ExecutionResult>;
 
   protected constructor(config: T, executor: Executor, logger: Logger) {
     this._config = config;
     this._executor = executor;
     this._logger = logger;
   }
+
+  /**
+   * Execute this script and return its fingerprint. Cached, so safe to call
+   * multiple times.
+   */
+  execute(): Promise<ExecutionResult> {
+    return (this._fingerprint ??= this._execute());
+  }
+
+  protected abstract _execute(): Promise<ExecutionResult>;
 
   /**
    * Execute all of this script's dependencies.

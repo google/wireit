@@ -8,23 +8,27 @@ import {BaseExecution} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
 
 import type {ExecutionResult} from './base.js';
-import type {Executor} from '../executor.js';
 import type {ServiceScriptConfig} from '../config.js';
 import type {Logger} from '../logging/logger.js';
+import type {Executor} from '../executor.js';
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
  */
 export class ServiceScriptExecution extends BaseExecution<ServiceScriptConfig> {
   static execute(
-    config: ServiceScriptConfig,
+    script: ServiceScriptConfig,
     executor: Executor,
     logger: Logger
   ): Promise<ExecutionResult> {
-    return new ServiceScriptExecution(config, executor, logger)._execute();
+    return new ServiceScriptExecution(script, executor, logger)._execute();
   }
 
-  private async _execute(): Promise<ExecutionResult> {
+  /**
+   * Note `execute` is a bit of a misnomer here, because we don't actually
+   * execute the command at this stage in the case of services.
+   */
+  protected override async _execute(): Promise<ExecutionResult> {
     const dependencyFingerprints = await this._executeDependencies();
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;
