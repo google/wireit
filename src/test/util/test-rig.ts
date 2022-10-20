@@ -78,7 +78,7 @@ export class WireitTestRig extends FilesystemTestRig {
     binaryPath: string;
     installPath: string;
   }) {
-    this.assertState('running');
+    this._assertState('running');
 
     binaryPath = this._resolve(binaryPath);
     installPath = this._resolve(installPath);
@@ -130,7 +130,7 @@ export class WireitTestRig extends FilesystemTestRig {
     command: string,
     opts?: {cwd?: string; env?: Record<string, string | undefined>}
   ): ExecResult {
-    this.assertState('running');
+    this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
       // We hard code the parallelism here because by default we infer a value
@@ -180,7 +180,7 @@ export class WireitTestRig extends FilesystemTestRig {
    * Create a new test command.
    */
   async newCommand(): Promise<WireitTestRigCommand> {
-    this.assertState('running');
+    this._assertState('running');
     // On Windows, Node IPC is implemented with named pipes, which must be
     // prefixed by "\\?\pipe\". On Linux/macOS it's a unix domain socket, which
     // can be any filepath. See https://nodejs.org/api/net.html#ipc-support for

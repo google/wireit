@@ -25,12 +25,12 @@ export class ServiceScriptExecution extends BaseExecution<ServiceScriptConfig> {
   }
 
   private async _execute(): Promise<ExecutionResult> {
-    const dependencyFingerprints = await this.executeDependencies();
+    const dependencyFingerprints = await this._executeDependencies();
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;
     }
     const fingerprint = await Fingerprint.compute(
-      this.config,
+      this._config,
       dependencyFingerprints.value
     );
     return {ok: true, value: fingerprint};
