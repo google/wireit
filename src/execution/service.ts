@@ -6,6 +6,7 @@
 
 import {BaseExecutionWithCommand} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
+import {Deferred} from '../util/deferred.js';
 
 import type {ExecutionResult} from './base.js';
 import type {ServiceScriptConfig} from '../config.js';
@@ -18,6 +19,18 @@ import type {Result} from '../error.js';
  * Execution for a {@link ServiceScriptConfig}.
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
+  private readonly _terminated = new Deferred<Result<void, Failure>>();
+
+  /**
+   * Resolves as "ok" when this script decides it is no longer needed, and
+   * either has begun shutting down, or never needed to start in the first
+   * place.
+   *
+   * Resolves with an error if this service exited unexpectedly, or if any of
+   * its own service dependencies exited unexpectedly.
+   */
+  readonly terminated = this._terminated.promise;
+
   constructor(
     config: ServiceScriptConfig,
     executor: Executor,

@@ -104,6 +104,16 @@ export abstract class BaseExecutionWithCommand<
   readonly servicesNotNeeded = this._servicesNotNeeded.promise;
 
   /**
+   * Resolves when any of the services this script depends on have terminated
+   * (see {@link ServiceScriptExecution.terminated} for exact definiton).
+   */
+  readonly anyServiceTerminated = Promise.race(
+    this._config.services.map(
+      (service) => this._executor.getExecution(service).terminated
+    )
+  );
+
+  /**
    * Ensure that all of the services this script depends on are running.
    */
   protected async _startServices(): Promise<Result<void, Failure[]>> {
