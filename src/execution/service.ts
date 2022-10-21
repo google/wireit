@@ -11,6 +11,8 @@ import type {ExecutionResult} from './base.js';
 import type {ServiceScriptConfig} from '../config.js';
 import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
+import type {Failure} from '../event.js';
+import type {Result} from '../error.js';
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
@@ -42,5 +44,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     return {ok: true, value: fingerprint};
   }
 
-  // TODO(aomarks) Implement service starting/stopping.
+  /**
+   * Start this service if it isn't already started.
+   */
+  start(): Promise<Result<void, Failure[]>> {
+    // TODO(aomarks) Implement service starting/stopping.
+    throw new Error('Not implemented');
+  }
 }
