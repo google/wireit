@@ -6,16 +6,31 @@
 
 import {BaseExecutionWithCommand} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
+import {Deferred} from '../util/deferred.js';
 
 import type {ExecutionResult} from './base.js';
 import type {ServiceScriptConfig} from '../config.js';
 import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
+import type {Failure} from '../event.js';
+import type {Result} from '../error.js';
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
+  private readonly _terminated = new Deferred<Result<void, Failure>>();
+
+  /**
+   * Resolves as "ok" when this script decides it is no longer needed, and
+   * either has begun shutting down, or never needed to start in the first
+   * place.
+   *
+   * Resolves with an error if this service exited unexpectedly, or if any of
+   * its own service dependencies exited unexpectedly.
+   */
+  readonly terminated = this._terminated.promise;
+
   constructor(
     config: ServiceScriptConfig,
     executor: Executor,
@@ -42,5 +57,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     return {ok: true, value: fingerprint};
   }
 
-  // TODO(aomarks) Implement service starting/stopping.
+  /**
+   * Start this service if it isn't already started.
+   */
+  start(): Promise<Result<void, Failure[]>> {
+    // TODO(aomarks) Implement service starting/stopping.
+    throw new Error('Not implemented');
+  }
 }

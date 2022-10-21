@@ -24,7 +24,7 @@ import type {StandardScriptConfig} from '../config.js';
 import type {FingerprintString} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Cache, CacheHit} from '../caching/cache.js';
-import type {StartCancelled} from '../event.js';
+import type {Failure, StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
 
@@ -316,6 +316,41 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         return {ok: false, error: this._startCancelledEvent};
       }
 
+      let earlyServiceTermination: Failure | undefined;
+      if (this._config.services.length > 0) {
+        const servicesStarted = await this._startServices();
+        if (!servicesStarted.ok) {
+          return servicesStarted;
+        }
+
+        void this.anyServiceTerminated.then((result) => {
+          if (this._state === 'after-running') {
+            // This is expected after we're done.
+            return;
+          }
+          if (result.ok) {
+            // This should never happen and indicates an internal error. The
+            // service believed that nothing was depending on it anymore, but
+            // we're still running.
+            earlyServiceTermination = {
+              script: this._config,
+              type: 'failure',
+              reason: 'unknown-error-thrown',
+              error: new Error(
+                'Internal error: service dependency terminated unexpectedly'
+              ),
+            };
+          } else {
+            // The service knows it exited too early. Propagate that error.
+            earlyServiceTermination = result.error;
+          }
+          // Stop running. If a service we depend on is down, then we know we're
+          // in an invalid state too.
+          child.kill();
+          this._executor.notifyFailure();
+        });
+      }
+
       this._state = 'running';
       this._logger.log({
         script: this._config,
@@ -353,11 +388,15 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
 
       const result = await child.completed;
       if (result.ok) {
-        this._logger.log({
-          script: this._config,
-          type: 'success',
-          reason: 'exit-zero',
-        });
+        if (earlyServiceTermination !== undefined) {
+          return {ok: false, error: earlyServiceTermination};
+        } else {
+          this._logger.log({
+            script: this._config,
+            type: 'success',
+            reason: 'exit-zero',
+          });
+        }
       } else {
         // This failure will propagate to the Executor eventually anyway, but
         // asynchronously.
@@ -378,7 +417,12 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     this._state = 'after-running';
 
     if (!childResult.ok) {
-      return {ok: false, error: [childResult.error]};
+      return {
+        ok: false,
+        error: Array.isArray(childResult.error)
+          ? childResult.error
+          : [childResult.error],
+      };
     }
 
     // Optimization: early signal that services are no longer needed while we're

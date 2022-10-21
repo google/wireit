@@ -102,4 +102,37 @@ export abstract class BaseExecutionWithCommand<
    * needed to run at all.
    */
   readonly servicesNotNeeded = this._servicesNotNeeded.promise;
+
+  /**
+   * Resolves when any of the services this script depends on have terminated
+   * (see {@link ServiceScriptExecution.terminated} for exact definiton).
+   */
+  readonly anyServiceTerminated = Promise.race(
+    this._config.services.map(
+      (service) => this._executor.getExecution(service).terminated
+    )
+  );
+
+  /**
+   * Ensure that all of the services this script depends on are running.
+   */
+  protected async _startServices(): Promise<Result<void, Failure[]>> {
+    if (this._config.services.length > 0) {
+      const results = await Promise.all(
+        this._config.services.map((service) =>
+          this._executor.getExecution(service).start()
+        )
+      );
+      const errors: Failure[] = [];
+      for (const result of results) {
+        if (!result.ok) {
+          errors.push(...result.error);
+        }
+      }
+      if (errors.length > 0) {
+        return {ok: false, error: errors};
+      }
+    }
+    return {ok: true, value: undefined};
+  }
 }
