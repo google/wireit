@@ -60,57 +60,61 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   }
 
   protected async _execute(): Promise<ExecutionResult> {
-    this._ensureState('before-running');
+    try {
+      this._ensureState('before-running');
 
-    const dependencyFingerprints = await this._executeDependencies();
-    if (!dependencyFingerprints.ok) {
-      dependencyFingerprints.error.push(this._startCancelledEvent);
-      return dependencyFingerprints;
-    }
-
-    // Significant time could have elapsed since we last checked because our
-    // dependencies had to finish.
-    if (this._shouldNotStart) {
-      return {ok: false, error: [this._startCancelledEvent]};
-    }
-
-    return this._acquireSystemLockIfNeeded(async () => {
-      // Note we must wait for dependencies to finish before generating the
-      // cache key, because a dependency could create or modify an input file to
-      // this script, which would affect the key.
-      const fingerprint = await Fingerprint.compute(
-        this._config,
-        dependencyFingerprints.value
-      );
-      if (await this._fingerprintIsFresh(fingerprint)) {
-        const manifestFresh = await this._outputManifestIsFresh();
-        if (!manifestFresh.ok) {
-          return {ok: false, error: [manifestFresh.error]};
-        }
-        if (manifestFresh.value) {
-          return this._handleFresh(fingerprint);
-        }
+      const dependencyFingerprints = await this._executeDependencies();
+      if (!dependencyFingerprints.ok) {
+        dependencyFingerprints.error.push(this._startCancelledEvent);
+        return dependencyFingerprints;
       }
 
-      // Computing the fingerprint can take some time, and the next operation is
-      // destructive. Another good opportunity to check if we should still
-      // start.
+      // Significant time could have elapsed since we last checked because our
+      // dependencies had to finish.
       if (this._shouldNotStart) {
         return {ok: false, error: [this._startCancelledEvent]};
       }
 
-      const cacheHit = fingerprint.data.fullyTracked
-        ? await this._cache?.get(this._config, fingerprint)
-        : undefined;
-      if (this._shouldNotStart) {
-        return {ok: false, error: [this._startCancelledEvent]};
-      }
-      if (cacheHit !== undefined) {
-        return this._handleCacheHit(cacheHit, fingerprint);
-      }
+      return this._acquireSystemLockIfNeeded(async () => {
+        // Note we must wait for dependencies to finish before generating the
+        // cache key, because a dependency could create or modify an input file to
+        // this script, which would affect the key.
+        const fingerprint = await Fingerprint.compute(
+          this._config,
+          dependencyFingerprints.value
+        );
+        if (await this._fingerprintIsFresh(fingerprint)) {
+          const manifestFresh = await this._outputManifestIsFresh();
+          if (!manifestFresh.ok) {
+            return {ok: false, error: [manifestFresh.error]};
+          }
+          if (manifestFresh.value) {
+            return this._handleFresh(fingerprint);
+          }
+        }
 
-      return this._handleNeedsRun(fingerprint);
-    });
+        // Computing the fingerprint can take some time, and the next operation is
+        // destructive. Another good opportunity to check if we should still
+        // start.
+        if (this._shouldNotStart) {
+          return {ok: false, error: [this._startCancelledEvent]};
+        }
+
+        const cacheHit = fingerprint.data.fullyTracked
+          ? await this._cache?.get(this._config, fingerprint)
+          : undefined;
+        if (this._shouldNotStart) {
+          return {ok: false, error: [this._startCancelledEvent]};
+        }
+        if (cacheHit !== undefined) {
+          return this._handleCacheHit(cacheHit, fingerprint);
+        }
+
+        return this._handleNeedsRun(fingerprint);
+      });
+    } finally {
+      this._servicesNotNeeded.resolve();
+    }
   }
 
   /**
@@ -239,6 +243,10 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     cacheHit: CacheHit,
     fingerprint: Fingerprint
   ): Promise<ExecutionResult> {
+    // Optimization: early signal that services are not needed while we're still
+    // restoring from cache.
+    this._servicesNotNeeded.resolve();
+
     // Delete the fingerprint and other files. It's important we do this before
     // restoring from cache, because we don't want to think that the previous
     // fingerprint is still valid when it no longer is.
@@ -372,6 +380,10 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     if (!childResult.ok) {
       return {ok: false, error: [childResult.error]};
     }
+
+    // Optimization: early signal that services are no longer needed while we're
+    // still writing the fingerprint file etc.
+    this._servicesNotNeeded.resolve();
 
     const writeFingerprintPromise = this._writeFingerprintFile(fingerprint);
     const outputFilesAfterRunning = await this._globOutputFilesAfterRunning();
