@@ -6,6 +6,7 @@
 
 import {shuffle} from '../util/shuffle.js';
 import {Fingerprint} from '../fingerprint.js';
+import {Deferred} from '../util/deferred.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
@@ -83,4 +84,22 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     }
     return {ok: true, value: results};
   }
+}
+
+/**
+ * A single execution of a specific script which has a command.
+ */
+export abstract class BaseExecutionWithCommand<
+  T extends ScriptConfig & {
+    command: Exclude<ScriptConfig['command'], undefined>;
+  }
+> extends BaseExecution<T> {
+  protected readonly _servicesNotNeeded = new Deferred<void>();
+
+  /**
+   * Resolves when this script no longer needs any of its service dependencies
+   * to be running. This could happen because it finished, failed, or never
+   * needed to run at all.
+   */
+  readonly servicesNotNeeded = this._servicesNotNeeded.promise;
 }

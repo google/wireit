@@ -51,6 +51,7 @@ export class Executor {
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
+  private readonly _abort: Deferred<void>;
 
   /** Resolves when the first failure occurs in any script. */
   private readonly _failureOccured = new Deferred<void>();
@@ -69,6 +70,7 @@ export class Executor {
     this._logger = logger;
     this._workerPool = workerPool;
     this._cache = cache;
+    this._abort = abort;
 
     // If this entire execution is aborted because e.g. the user sent a SIGINT
     // to the Wireit process, then dont start new scripts, and kill running
@@ -140,7 +142,12 @@ export class Executor {
       if (config.command === undefined) {
         execution = new NoCommandScriptExecution(config, this, this._logger);
       } else if (config.service) {
-        execution = new ServiceScriptExecution(config, this, this._logger);
+        execution = new ServiceScriptExecution(
+          config,
+          this,
+          this._logger,
+          this._abort.promise
+        );
       } else {
         execution = new StandardScriptExecution(
           config,

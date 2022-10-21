@@ -4,16 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {BaseExecution} from './base.js';
+import {BaseExecutionWithCommand} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
 
 import type {ExecutionResult} from './base.js';
 import type {ServiceScriptConfig} from '../config.js';
+import type {Executor} from '../executor.js';
+import type {Logger} from '../logging/logger.js';
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
  */
-export class ServiceScriptExecution extends BaseExecution<ServiceScriptConfig> {
+export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
+  constructor(
+    config: ServiceScriptConfig,
+    executor: Executor,
+    logger: Logger,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _abort: Promise<void>
+  ) {
+    super(config, executor, logger);
+  }
+
   /**
    * Note `execute` is a bit of a misnomer here, because we don't actually
    * execute the command at this stage in the case of services.
