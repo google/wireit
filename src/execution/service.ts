@@ -18,6 +18,13 @@ import type {Result} from '../error.js';
 /**
  * Execution for a {@link ServiceScriptConfig}.
  *
+ * Note that this class represents a service _bound to one particular execution_
+ * of the script graph. In non-watch mode (`npm run ...`), there will be one
+ * instance of this class per service. In watch mode (`npm run --watch ...`),
+ * there will be one instance of this class per service _per watch iteration_,
+ * and the underlying child process will be transfered between instances of this
+ * class whenever possible to avoid restarts.
+ *
  * ```
  *                    ┌─────────┐
  *     ╭─◄─ abort ────┤ INITIAL │
