@@ -17,6 +17,69 @@ import type {Result} from '../error.js';
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
+ *
+ * Note that this class represents a service _bound to one particular execution_
+ * of the script graph. In non-watch mode (`npm run ...`), there will be one
+ * instance of this class per service. In watch mode (`npm run --watch ...`),
+ * there will be one instance of this class per service _per watch iteration_,
+ * and the underlying child process will be transfered between instances of this
+ * class whenever possible to avoid restarts.
+ *
+ * ```
+ *                    ┌─────────┐
+ *     ╭─◄─ abort ────┤ INITIAL │
+ *     │              └────┬────┘
+ *     │                   │
+ *     ▼                execute
+ *     │                   │
+ *     │           ┌───────▼────────┐
+ *     ├─◄─ abort ─┤ FINGERPRINTING ├──── depExecErr ────►───╮
+ *     │           └───────┬────────┘                        │
+ *     │                   │                                 │
+ *     ▼             fingerprinted                           │
+ *     │                   │                                 │
+ *     │             ┌─────▼─────┐                           │
+ *     ├─◄─ abort ───┤ UNSTARTED │                           │
+ *     │             └─────┬─────┘                           ▼
+ *     │                   │                                 │
+ *     │                 start                               │
+ *     │                   │  ╭─╮                            │
+ *     │                   │  │ start                        │
+ *     │              ┌────▼──▼─┴┐                           │
+ *     │    ╭◄─ abort ┤ STARTING ├─── startErr or ────►──────┤
+ *     │    │         └────┬────┬┘    depServiceStartErr     │
+ *     ▼    │              │    │                            │
+ *     │    │              │    ▼                            │
+ *     │    │              │    ╰─── depServiceExit ──►──╮   │
+ *     │    │           started                          │   │
+ *     │    ▼              │ ╭─╮                         ▼   │
+ *     │    │              │ │ start                     │   │
+ *     │    │         ┌────▼─▼─┴┐                        │   │
+ *     │    ├◄─ abort ┤ STARTED ├── exit ─────────────►──│───┤
+ *     │    │         └────┬─┬─┬┘                        │   │
+ *     │    │              │ │ ╰─── detach ──╮           │   │
+ *     │    │              │ ▼               │           │   │
+ *     │    │              │ ╰───── depServiceExit ───►──┤   │
+ *     │    │              │                 │           │   │
+ *     │    │        allConsumersDone        │           │   │
+ *     │    ▼    (unless directly invoked)   │           │   │
+ *     │    │              │                 ▼           ▼   ▼
+ *     ▼    │              │  ╭─╮            │           │   │
+ *     │    │              │  │ start        │           │   │
+ *     │    │         ┌────▼──▼─┴┐           │           │   │
+ *     │    ╰─────────► STOPPING ◄─────────────◄─────────╯   │
+ *     │              └┬─▲─┬─────┘           │               │
+ *     │           abort │ │                 │               │
+ *     │               ╰─╯ │                 │               │
+ *     │                  exit               │               │
+ *     │                   │ ╭─╮             │               │ ╭─╮
+ *     │                   │ │ start         │               │ │ start
+ *     │              ┌────▼─▼─┴┐       ┌────▼─────┐     ┌───▼─▼─┴┐
+ *     ╰──────────────► STOPPED │       │ DETACHED │     │ FAILED │
+ *                    └┬─▲──────┘       └┬─▲───────┘     └┬─▲─────┘
+ *                 abort │           *all* │          abort │
+ *                     ╰─╯               ╰─╯              ╰─╯
+ * ```
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
   private readonly _terminated = new Deferred<Result<void, Failure>>();
