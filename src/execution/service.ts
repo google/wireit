@@ -28,6 +28,10 @@ type ServiceState =
     }
   | {id: 'unstarted'}
   | {
+      id: 'depsStarting';
+      started: Deferred<Result<void, Failure[]>>;
+    }
+  | {
       id: 'starting';
       child: ScriptChildProcess;
       started: Deferred<Result<void, Failure[]>>;
@@ -82,12 +86,18 @@ function unexpectedState(state: ServiceState) {
  *     ├─◄─ abort ───┤ UNSTARTED │                           │
  *     │             └─────┬─────┘                           ▼
  *     │                   │                                 │
- *     │                 start                               │
+ *     │                 start  ╭─╮                          │
+ *     │                   │    │ start                      │
+ *     │           ┌───────▼────▼─┴┐                         │
+ *     ├─◄─ abort ─┤ DEPS_STARTING ├───── depStartErr ───►───┤
+ *     │           └───────┬───────┘                         │
+ *     │                   │                                 │
+ *     │              depsStarted                            │
  *     │                   │  ╭─╮                            │
  *     │                   │  │ start                        │
  *     │              ┌────▼──▼─┴┐                           │
- *     │    ╭◄─ abort ┤ STARTING ├─── startErr or ────►──────┤
- *     │    │         └────┬────┬┘    depServiceStartErr     │
+ *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►──────┤
+ *     │    │         └────┬────┬┘                           │
  *     ▼    │              │    │                            │
  *     │    │              │    ▼                            │
  *     │    │              │    ╰─── depServiceExit ──►──╮   │
@@ -168,6 +178,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
@@ -199,6 +210,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'initial':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
@@ -220,6 +232,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'initial':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
@@ -242,6 +255,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'initial':
       case 'executingDeps':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
@@ -261,9 +275,37 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'unstarted': {
         this._state = {
+          id: 'depsStarting',
+          started: new Deferred(),
+        };
+        void this._startServices().then(() => {
+          this._onDepsStarted();
+        });
+        return this._state.started.promise;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'depsStarting':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onDepsStarted() {
+    switch (this._state.id) {
+      case 'depsStarting': {
+        this._state = {
           id: 'starting',
           child: new ScriptChildProcess(this._config),
-          started: new Deferred(),
+          started: this._state.started,
         };
         void this._state.child.started.then(() => {
           this._onChildStarted();
@@ -287,11 +329,12 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             data,
           });
         });
-        return this._state.started.promise;
+        return;
       }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'unstarted':
       case 'starting':
       case 'started':
       case 'stopping':
@@ -332,6 +375,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'started':
       case 'stopping':
       case 'stopped': {
@@ -354,6 +398,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'stopping':
       case 'stopped': {
@@ -369,6 +414,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'stopping': {
         this._state = {id: 'stopped'};
+        this._servicesNotNeeded.resolve();
         this._logger.log({
           script: this._config,
           type: 'info',
@@ -380,6 +426,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopped': {

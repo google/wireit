@@ -92,4 +92,89 @@ test(
   })
 );
 
+test(
+  'service with standard and service deps',
+  timeout(async ({rig}) => {
+    //  consumer
+    //     |
+    //     v
+    //  service ---> serviceDep
+    //     |
+    //     v
+    // standardDep
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    const standardDep = await rig.newCommand();
+    const serviceDep = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+          standardDep: 'wireit',
+          serviceDep: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+            dependencies: ['standardDep', 'serviceDep'],
+          },
+          standardDep: {
+            command: standardDep.command,
+          },
+          serviceDep: {
+            command: serviceDep.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run consumer');
+
+    // The service's standard dep must finish before the service can start
+    const standardDepInv = await standardDep.nextInvocation();
+    // Wait a moment to ensure the service hasn't started yet
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(service.numInvocations, 0);
+    assert.equal(serviceDep.numInvocations, 0);
+    assert.equal(consumer.numInvocations, 0);
+    standardDepInv.exit(0);
+
+    // The service's own service dep must start first
+    const serviceDepInv = await serviceDep.nextInvocation();
+    await wireit.waitForLog(/\[serviceDep\] Service started/);
+
+    // Now the main service can start
+    const serviceInv = await service.nextInvocation();
+    await wireit.waitForLog(/\[service\] Service started/);
+
+    // The consumer starts and finishes
+    const consumerInv = await consumer.nextInvocation();
+    // Wait a moment to ensure the services stay running
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.ok(serviceInv.isRunning);
+    assert.ok(serviceDepInv.isRunning);
+    consumerInv.exit(0);
+
+    // Services shut down in reverse order
+    await serviceInv.closed;
+    await wireit.waitForLog(/\[service\] Service stopped/);
+    await serviceDepInv.closed;
+    await wireit.waitForLog(/\[serviceDep\] Service stopped/);
+
+    await wireit.exit;
+    assert.equal(standardDep.numInvocations, 1);
+    assert.equal(serviceDep.numInvocations, 1);
+    assert.equal(service.numInvocations, 1);
+    assert.equal(consumer.numInvocations, 1);
+  })
+);
+
 test.run();
