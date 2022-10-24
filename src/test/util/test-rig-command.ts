@@ -195,6 +195,13 @@ export class WireitTestRigCommandInvocation extends IpcClient<
   }
 
   /**
+   * Return whether this invocation is still running.
+   */
+  get isRunning(): boolean {
+    return this._state === 'connected';
+  }
+
+  /**
    * Tell this invocation to exit with the given code.
    */
   exit(code: number): void {
