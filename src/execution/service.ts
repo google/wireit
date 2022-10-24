@@ -10,7 +10,7 @@ import {Deferred} from '../util/deferred.js';
 import {ScriptChildProcess} from '../script-child-process.js';
 
 import type {ExecutionResult} from './base.js';
-import type {ServiceScriptConfig} from '../config.js';
+import type {ScriptReference, ServiceScriptConfig} from '../config.js';
 import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
@@ -18,7 +18,14 @@ import type {Result} from '../error.js';
 
 type ServiceState =
   | {id: 'initial'}
-  | {id: 'fingerprinting'}
+  | {
+      id: 'executingDeps';
+      fingerprint: Deferred<ExecutionResult>;
+    }
+  | {
+      id: 'fingerprinting';
+      fingerprint: Deferred<ExecutionResult>;
+    }
   | {id: 'unstarted'}
   | {
       id: 'starting';
@@ -60,7 +67,13 @@ function unexpectedState(state: ServiceState) {
  *     ▼                execute
  *     │                   │
  *     │           ┌───────▼────────┐
- *     ├─◄─ abort ─┤ FINGERPRINTING ├──── depExecErr ────►───╮
+ *     ├─◄─ abort ─┤ EXECUTING_DEPS ├──── depExecErr ────►───╮
+ *     │           └───────┬────────┘                        │
+ *     │                   │                                 │
+ *     ▼              depsExecuted                           │
+ *     │                   │                                 │
+ *     │           ┌───────▼────────┐                        │
+ *     ├─◄─ abort ─┤ FINGERPRINTING │                        │
  *     │           └───────┬────────┘                        │
  *     │                   │                                 │
  *     ▼             fingerprinted                           │
@@ -136,22 +149,98 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * Note `execute` is a bit of a misnomer here, because we don't actually
    * execute the command at this stage in the case of services.
    */
-  protected override async _execute(): Promise<ExecutionResult> {
+  protected override _execute(): Promise<ExecutionResult> {
     switch (this._state.id) {
       case 'initial': {
-        this._state = {id: 'fingerprinting'};
-        const dependencyFingerprints = await this._executeDependencies();
-        if (!dependencyFingerprints.ok) {
-          return dependencyFingerprints;
-        }
-        const fingerprint = await Fingerprint.compute(
-          this._config,
-          dependencyFingerprints.value
-        );
-        this._state = {id: 'unstarted'};
-        return {ok: true, value: fingerprint};
+        this._state = {
+          id: 'executingDeps',
+          fingerprint: new Deferred(),
+        };
+        void this._executeDependencies().then((result) => {
+          if (result.ok) {
+            this._onDepsExecuted(result.value);
+          } else {
+            this._onDepExecErr(result);
+          }
+        });
+        return this._state.fingerprint.promise;
       }
+      case 'executingDeps':
       case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onDepsExecuted(
+    depFingerprints: Array<[ScriptReference, Fingerprint]>
+  ): void {
+    switch (this._state.id) {
+      case 'executingDeps': {
+        this._state = {
+          id: 'fingerprinting',
+          fingerprint: this._state.fingerprint,
+        };
+        void Fingerprint.compute(this._config, depFingerprints).then(
+          (result) => {
+            this._onFingerprinted(result);
+          }
+        );
+        return;
+      }
+      case 'initial':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onDepExecErr(result: ExecutionResult & {ok: false}) {
+    switch (this._state.id) {
+      case 'executingDeps': {
+        this._state.fingerprint.resolve(result);
+        return;
+      }
+      case 'initial':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onFingerprinted(fingerprint: Fingerprint) {
+    switch (this._state.id) {
+      case 'fingerprinting': {
+        this._state.fingerprint.resolve({ok: true, value: fingerprint});
+        this._state = {id: 'unstarted'};
+        return;
+      }
+      case 'initial':
+      case 'executingDeps':
       case 'unstarted':
       case 'starting':
       case 'started':
@@ -168,7 +257,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   /**
    * Start this service if it isn't already started.
    */
-  async start(): Promise<Result<void, Failure[]>> {
+  start(): Promise<Result<void, Failure[]>> {
     switch (this._state.id) {
       case 'unstarted': {
         this._state = {
@@ -185,6 +274,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return this._state.started.promise;
       }
       case 'initial':
+      case 'executingDeps':
       case 'fingerprinting':
       case 'starting':
       case 'started':
@@ -223,6 +313,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'initial':
+      case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
       case 'started':
@@ -244,6 +335,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'initial':
+      case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
       case 'starting':
@@ -269,6 +361,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'initial':
+      case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
       case 'starting':

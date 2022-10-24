@@ -73,7 +73,7 @@ test(
     const consumerInv = await consumer.nextInvocation();
     // Wait a moment to ensure the service stays running
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.ok(serviceInv.running);
+    assert.ok(serviceInv.isRunning);
     consumerInv.exit(0);
 
     // The service stops because the consumer is done

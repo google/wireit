@@ -197,7 +197,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
   /**
    * Return whether this invocation is still running.
    */
-  get running(): boolean {
+  get isRunning(): boolean {
     return this._state === 'connected';
   }
 
