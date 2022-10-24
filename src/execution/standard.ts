@@ -75,7 +75,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         return {ok: false, error: [this._startCancelledEvent]};
       }
 
-      return this._acquireSystemLockIfNeeded(async () => {
+      return await this._acquireSystemLockIfNeeded(async () => {
         // Note we must wait for dependencies to finish before generating the
         // cache key, because a dependency could create or modify an input file to
         // this script, which would affect the key.
