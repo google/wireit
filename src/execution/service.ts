@@ -7,6 +7,7 @@
 import {BaseExecutionWithCommand} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
 import {Deferred} from '../util/deferred.js';
+import {ScriptChildProcess} from '../script-child-process.js';
 
 import type {ExecutionResult} from './base.js';
 import type {ServiceScriptConfig} from '../config.js';
@@ -14,6 +15,32 @@ import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
 import type {Result} from '../error.js';
+
+type ServiceState =
+  | {id: 'initial'}
+  | {id: 'fingerprinting'}
+  | {id: 'unstarted'}
+  | {
+      id: 'starting';
+      child: ScriptChildProcess;
+      started: Deferred<Result<void, Failure[]>>;
+    }
+  | {
+      id: 'started';
+      child: ScriptChildProcess;
+    }
+  | {id: 'stopping'}
+  | {id: 'stopped'};
+
+function unknownState(state: never) {
+  return new Error(
+    `Unknown service state ${String((state as ServiceState).id)}`
+  );
+}
+
+function unexpectedState(state: ServiceState) {
+  return new Error(`Unexpected service state ${state.id}`);
+}
 
 /**
  * Execution for a {@link ServiceScriptConfig}.
@@ -82,6 +109,7 @@ import type {Result} from '../error.js';
  * ```
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
+  private _state: ServiceState = {id: 'initial'};
   private readonly _terminated = new Deferred<Result<void, Failure>>();
 
   /**
@@ -109,22 +137,148 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * execute the command at this stage in the case of services.
    */
   protected override async _execute(): Promise<ExecutionResult> {
-    const dependencyFingerprints = await this._executeDependencies();
-    if (!dependencyFingerprints.ok) {
-      return dependencyFingerprints;
+    switch (this._state.id) {
+      case 'initial': {
+        this._state = {id: 'fingerprinting'};
+        const dependencyFingerprints = await this._executeDependencies();
+        if (!dependencyFingerprints.ok) {
+          return dependencyFingerprints;
+        }
+        const fingerprint = await Fingerprint.compute(
+          this._config,
+          dependencyFingerprints.value
+        );
+        this._state = {id: 'unstarted'};
+        return {ok: true, value: fingerprint};
+      }
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
     }
-    const fingerprint = await Fingerprint.compute(
-      this._config,
-      dependencyFingerprints.value
-    );
-    return {ok: true, value: fingerprint};
   }
 
   /**
    * Start this service if it isn't already started.
    */
-  start(): Promise<Result<void, Failure[]>> {
-    // TODO(aomarks) Implement service starting/stopping.
-    throw new Error('Not implemented');
+  async start(): Promise<Result<void, Failure[]>> {
+    switch (this._state.id) {
+      case 'unstarted': {
+        this._state = {
+          id: 'starting',
+          child: new ScriptChildProcess(this._config),
+          started: new Deferred(),
+        };
+        void this._state.child.started.then(() => {
+          this._onChildStarted();
+        });
+        void this._state.child.completed.then(() => {
+          this._onChildExited();
+        });
+        return this._state.started.promise;
+      }
+      case 'initial':
+      case 'fingerprinting':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onChildStarted() {
+    switch (this._state.id) {
+      case 'starting': {
+        this._state.started.resolve({ok: true, value: undefined});
+        this._logger.log({
+          script: this._config,
+          type: 'info',
+          detail: 'service-started',
+        });
+        this._state = {
+          id: 'started',
+          child: this._state.child,
+        };
+        const allConsumersDone = Promise.all(
+          this._config.serviceConsumers.map(
+            (consumer) =>
+              this._executor.getExecution(consumer).servicesNotNeeded
+          )
+        );
+        void allConsumersDone.then(() => {
+          this._allConsumersDone();
+        });
+        return;
+      }
+      case 'initial':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _allConsumersDone() {
+    switch (this._state.id) {
+      case 'started': {
+        this._state.child.kill();
+        this._state = {id: 'stopping'};
+        return;
+      }
+      case 'initial':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onChildExited() {
+    switch (this._state.id) {
+      case 'stopping': {
+        this._state = {id: 'stopped'};
+        this._logger.log({
+          script: this._config,
+          type: 'info',
+          detail: 'service-stopped',
+        });
+        return;
+      }
+      case 'initial':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
   }
 }
