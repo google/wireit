@@ -35,7 +35,7 @@ test.after.each(async (ctx) => {
 });
 
 test(
-  'simple consumer and service',
+  'simple consumer and service with stdout',
   timeout(async ({rig}) => {
     // consumer
     //    |
@@ -68,6 +68,12 @@ test(
     // The service starts because the consumer depends on it
     const serviceInv = await service.nextInvocation();
     await wireit.waitForLog(/Service started/);
+
+    // Confirm we show stdout/stderr from services
+    serviceInv.stdout('service stdout');
+    await wireit.waitForLog(/service stdout/);
+    serviceInv.stderr('service stderr');
+    await wireit.waitForLog(/service stderr/);
 
     // The consumer starts and finishes
     const consumerInv = await consumer.nextInvocation();

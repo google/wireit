@@ -271,6 +271,22 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         void this._state.child.completed.then(() => {
           this._onChildExited();
         });
+        this._state.child.stdout.on('data', (data: string | Buffer) => {
+          this._logger.log({
+            script: this._config,
+            type: 'output',
+            stream: 'stdout',
+            data,
+          });
+        });
+        this._state.child.stderr.on('data', (data: string | Buffer) => {
+          this._logger.log({
+            script: this._config,
+            type: 'output',
+            stream: 'stderr',
+            data,
+          });
+        });
         return this._state.started.promise;
       }
       case 'initial':
