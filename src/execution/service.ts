@@ -436,7 +436,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           )
         );
         void allConsumersDone.then(() => {
-          this._allConsumersDone();
+          this._onAllConsumersDone();
         });
         return;
       }
@@ -458,7 +458,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
-  private _allConsumersDone() {
+  private _onAllConsumersDone() {
     switch (this._state.id) {
       case 'started': {
         this._state.child.kill();
