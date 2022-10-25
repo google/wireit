@@ -308,4 +308,72 @@ test(
   })
 );
 
+test(
+  'service shuts down when service dependency exits unexpectedly',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service1
+    //    |
+    //    v
+    // service2
+
+    const consumer = await rig.newCommand();
+    const service1 = await rig.newCommand();
+    const service2 = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service1: 'wireit',
+          service2: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service1'],
+          },
+          service1: {
+            command: service1.command,
+            service: true,
+            dependencies: ['service2'],
+          },
+          service2: {
+            command: service2.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run consumer');
+
+    // Service2 starts
+    const service2Inv = await service2.nextInvocation();
+
+    // Service1 starts
+    const service1Inv = await service1.nextInvocation();
+
+    // Consumer starts
+    const consumerInv = await consumer.nextInvocation();
+
+    // Service 2 exits unexpectedly
+    service2Inv.exit(1);
+    await wireit.waitForLog(/\[service2\] Service exited unexpectedly/);
+
+    // Consumer killed
+    await consumerInv.closed;
+
+    // Service 1 shuts down
+    await service1Inv.closed;
+
+    // Wireit exits with an error code
+    assert.equal((await wireit.exit).code, 1);
+    assert.equal(consumer.numInvocations, 1);
+    assert.equal(service1.numInvocations, 1);
+    assert.equal(service2.numInvocations, 1);
+  })
+);
+
 test.run();
