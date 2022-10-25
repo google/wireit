@@ -227,4 +227,85 @@ test(
   })
 );
 
+test(
+  'service remembers unexpected exit failure for next start call',
+  timeout(async ({rig}) => {
+    //     entrypoint
+    //     /        \
+    //    v          v
+    // consumer1   consumer2
+    //    \         /    \
+    //     \       /      v
+    //      v     v     blocker
+    //      service
+
+    const consumer1 = await rig.newCommand();
+    const consumer2 = await rig.newCommand();
+    const service = await rig.newCommand();
+    const blocker = await rig.newCommand();
+
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          consumer1: 'wireit',
+          consumer2: 'wireit',
+          service: 'wireit',
+          blocker: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['consumer1', 'consumer2'],
+          },
+          consumer1: {
+            command: consumer1.command,
+            dependencies: ['service'],
+          },
+          consumer2: {
+            command: consumer2.command,
+            dependencies: ['service', 'blocker'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+          blocker: {
+            command: blocker.command,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run entrypoint', {
+      env: {
+        // Set "continue" failure mode so that consumer2 tries to start the
+        // service even though consumer1 will have already failed.
+        WIREIT_FAILURES: 'continue',
+      },
+    });
+
+    // Service starts
+    const serviceInv = await service.nextInvocation();
+
+    // Blocker starts
+    const blockerInv = await blocker.nextInvocation();
+
+    // Consumer 1 starts
+    const consumer1Inv = await consumer1.nextInvocation();
+
+    // Service fails
+    serviceInv.exit(1);
+
+    // Consumer 1 is killed
+    await consumer1Inv.closed;
+
+    // Blocker unblocks
+    blockerInv.exit(0);
+
+    // Consumer 2 can't start becuase the consumer already failed, so wireit
+    // exits.
+    assert.equal((await wireit.exit).code, 1);
+  })
+);
+
 test.run();

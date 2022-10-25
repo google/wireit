@@ -41,7 +41,11 @@ type ServiceState =
       child: ScriptChildProcess;
     }
   | {id: 'stopping'}
-  | {id: 'stopped'};
+  | {id: 'stopped'}
+  | {
+      id: 'failed';
+      failure: Failure;
+    };
 
 function unknownState(state: never) {
   return new Error(
@@ -182,7 +186,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failed': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -207,6 +212,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         );
         return;
       }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'fingerprinting':
       case 'unstarted':
@@ -227,6 +235,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'executingDeps': {
         this._state.fingerprint.resolve(result);
+        return;
+      }
+      case 'failed': {
         return;
       }
       case 'initial':
@@ -250,6 +261,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'fingerprinting': {
         this._state.fingerprint.resolve({ok: true, value: fingerprint});
         this._state = {id: 'unstarted'};
+        return;
+      }
+      case 'failed': {
         return;
       }
       case 'initial':
@@ -282,6 +296,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           this._onDepsStarted();
         });
         return this._state.started.promise;
+      }
+      case 'failed': {
+        return Promise.resolve({ok: false, error: [this._state.failure]});
       }
       case 'initial':
       case 'executingDeps':
@@ -331,6 +348,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
         return;
       }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
@@ -378,7 +398,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'depsStarting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failed': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -392,6 +413,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'started': {
         this._state.child.kill();
         this._state = {id: 'stopping'};
+        return;
+      }
+      case 'failed': {
         return;
       }
       case 'initial':
@@ -413,7 +437,10 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onChildExited() {
     switch (this._state.id) {
       case 'stopping': {
-        this._state = {id: 'stopped'};
+        this._state = {
+          id: 'stopped',
+        };
+        this._terminated.resolve({ok: true, value: undefined});
         this._servicesNotNeeded.resolve();
         this._logger.log({
           script: this._config,
@@ -423,14 +450,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'started': {
-        const failure = {
+        this._fail({
           script: this._config,
           type: 'failure',
           reason: 'service-exited-unexpectedly',
-        } as const;
-        this._terminated.resolve({ok: false, error: failure});
-        this._servicesNotNeeded.resolve();
-        this._logger.log(failure);
+        });
+        return;
+      }
+      case 'failed': {
         return;
       }
       case 'initial':
@@ -446,5 +473,15 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         throw unknownState(this._state);
       }
     }
+  }
+
+  private _fail(failure: Failure) {
+    this._state = {
+      id: 'failed',
+      failure,
+    };
+    this._terminated.resolve({ok: false, error: failure});
+    this._servicesNotNeeded.resolve();
+    this._logger.log(failure);
   }
 }
