@@ -422,13 +422,23 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
         return;
       }
+      case 'started': {
+        const failure = {
+          script: this._config,
+          type: 'failure',
+          reason: 'service-exited-unexpectedly',
+        } as const;
+        this._terminated.resolve({ok: false, error: failure});
+        this._servicesNotNeeded.resolve();
+        this._logger.log(failure);
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
-      case 'started':
       case 'stopped': {
         throw unexpectedState(this._state);
       }

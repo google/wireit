@@ -177,4 +177,54 @@ test(
   })
 );
 
+test(
+  'standard scripts are killed when service exits unexpectedly',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run consumer');
+
+    // Service starts
+    const serviceInv = await service.nextInvocation();
+
+    // Consumer starts
+    const consumerInv = await consumer.nextInvocation();
+
+    // Service exits unexpectedly
+    serviceInv.exit(1);
+    await wireit.waitForLog(/\[service\] Service exited unexpectedly/);
+
+    // Consumer is killed
+    await consumerInv.closed;
+    await wireit.waitForLog(/\[consumer\] Killed/);
+
+    // Wireit exits with an error code
+    assert.equal((await wireit.exit).code, 1);
+  })
+);
+
 test.run();
