@@ -276,13 +276,14 @@ export class Watcher {
       throw unexpectedState(this._state);
     }
     const executor = new Executor(
+      script,
       this._logger,
       this._workerPool,
       this._cache,
       this._failureMode,
       this._abort
     );
-    const result = await executor.getExecution(script).execute();
+    const result = await executor.execute();
     if (!result.ok) {
       for (const error of result.error) {
         this._logger.log(error);

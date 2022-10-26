@@ -323,7 +323,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           return servicesStarted;
         }
 
-        void this.anyServiceTerminated.then((result) => {
+        void this._anyServiceTerminated.then((result) => {
           if (this._state === 'after-running') {
             // This is expected after we're done.
             return;

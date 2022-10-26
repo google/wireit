@@ -28,6 +28,10 @@ type ServiceState =
     }
   | {id: 'unstarted'}
   | {
+      id: 'depsStarting';
+      started: Deferred<Result<void, Failure[]>>;
+    }
+  | {
       id: 'starting';
       child: ScriptChildProcess;
       started: Deferred<Result<void, Failure[]>>;
@@ -37,7 +41,15 @@ type ServiceState =
       child: ScriptChildProcess;
     }
   | {id: 'stopping'}
-  | {id: 'stopped'};
+  | {id: 'stopped'}
+  | {
+      id: 'failing';
+      failure: Failure;
+    }
+  | {
+      id: 'failed';
+      failure: Failure;
+    };
 
 function unknownState(state: never) {
   return new Error(
@@ -76,45 +88,54 @@ function unexpectedState(state: ServiceState) {
  *     ├─◄─ abort ─┤ FINGERPRINTING │                        │
  *     │           └───────┬────────┘                        │
  *     │                   │                                 │
- *     ▼             fingerprinted                           │
+ *     ▼             fingerprinted                           ▼
  *     │                   │                                 │
  *     │             ┌─────▼─────┐                           │
  *     ├─◄─ abort ───┤ UNSTARTED │                           │
- *     │             └─────┬─────┘                           ▼
+ *     │             └─────┬─────┘                           │
  *     │                   │                                 │
- *     │                 start                               │
+ *     │                 start  ╭─╮                          │
+ *     │                   │    │ start                      │
+ *     │           ┌───────▼────▼─┴┐                         │
+ *     ├─◄─ abort ─┤ DEPS_STARTING ├───── depStartErr ───►───┤
+ *     │           └───────┬───────┘                         │
+ *     │                   │                                 │
+ *     │              depsStarted                            ▼
  *     │                   │  ╭─╮                            │
  *     │                   │  │ start                        │
  *     │              ┌────▼──▼─┴┐                           │
- *     │    ╭◄─ abort ┤ STARTING ├─── startErr or ────►──────┤
- *     │    │         └────┬────┬┘    depServiceStartErr     │
- *     ▼    │              │    │                            │
- *     │    │              │    ▼                            │
- *     │    │              │    ╰─── depServiceExit ──►──╮   │
- *     │    │           started                          │   │
- *     │    ▼              │ ╭─╮                         ▼   │
- *     │    │              │ │ start                     │   │
- *     │    │         ┌────▼─▼─┴┐                        │   │
- *     │    ├◄─ abort ┤ STARTED ├── exit ─────────────►──│───┤
- *     │    │         └────┬─┬─┬┘                        │   │
- *     │    │              │ │ ╰─── detach ──╮           │   │
- *     │    │              │ ▼               │           │   │
- *     │    │              │ ╰───── depServiceExit ───►──┤   │
- *     │    │              │                 │           │   │
- *     │    │        allConsumersDone        │           │   │
- *     │    ▼    (unless directly invoked)   │           │   │
- *     │    │              │                 ▼           ▼   ▼
- *     ▼    │              │  ╭─╮            │           │   │
- *     │    │              │  │ start        │           │   │
- *     │    │         ┌────▼──▼─┴┐           │           │   │
- *     │    ╰─────────► STOPPING ◄─────────────◄─────────╯   │
- *     │              └┬─▲─┬─────┘           │               │
- *     │           abort │ │                 │               │
- *     │               ╰─╯ │                 │               │
- *     │                  exit               │               │
- *     │                   │ ╭─╮             │               │ ╭─╮
- *     │                   │ │ start         │               │ │ start
- *     │              ┌────▼─▼─┴┐       ┌────▼─────┐     ┌───▼─▼─┴┐
+ *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►──────┤
+ *     │    │         └────┬────┬┘                           │
+ *     │    │              │    │                            │
+ *     │    │              │    ╰─ depServiceExit ─►─╮       │
+ *     ▼    │              │                         │       │
+ *     │    │              │                         │       │
+ *     │    ▼              │                         ▼       ▼
+ *     │    │           started                      │       │
+ *     │    │              │ ╭─╮                     │       │
+ *     │    │              │ │ start                 │       │
+ *     │    │         ┌────▼─▼─┴┐                    │       │
+ *     │    ├◄─ abort ┤ STARTED ├── exit ────────────────────┤
+ *     │    │         └────┬─┬─┬┘                    │       │
+ *     │    │              │ │ │                     │       │
+ *     │    │              │ │ ╰── depServiceExit ─►─┤       │
+ *     │    │              │ │                       │       │
+ *     │    │              │ ╰───── detach ──╮       │       │
+ *     │    ▼              │                 │       │       │
+ *     │    │        allConsumersDone        │       │       │
+ *     │    │    (unless directly invoked)   │       │       │
+ *     │    │              │                 ▼       │       ▼
+ *     ▼    │              │  ╭─╮            │       │       │
+ *     │    │              │  │ start        │       │       │
+ *     │    │         ┌────▼──▼─┴┐           │  ┌────▼────┐  │
+ *     │    ╰─────────► STOPPING │           │  │ FAILING │  │
+ *     │              └┬─▲─┬─────┘           │  └────┬────┘  │
+ *     │           abort │ │                 │       │       │
+ *     │               ╰─╯ │                 │      exit     │
+ *     │                  exit               │       │       │
+ *     │                   │ ╭─╮             │       ╰─────╮ │ ╭─╮
+ *     │                   │ │ start         │             │ │ │ start
+ *     │              ┌────▼─▼─┴┐       ┌────▼─────┐     ┌─▼─▼─▼─┴┐
  *     ╰──────────────► STOPPED │       │ DETACHED │     │ FAILED │
  *                    └┬─▲──────┘       └┬─▲───────┘     └┬─▲─────┘
  *                 abort │           *all* │          abort │
@@ -168,10 +189,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failed':
+      case 'failing': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -196,13 +220,18 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         );
         return;
       }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failing': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -217,13 +246,18 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state.fingerprint.resolve(result);
         return;
       }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failing': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -239,13 +273,18 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {id: 'unstarted'};
         return;
       }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failing': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -261,9 +300,44 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'unstarted': {
         this._state = {
+          id: 'depsStarting',
+          started: new Deferred(),
+        };
+        void this._startServices().then(() => {
+          this._onDepsStarted();
+        });
+        void this._anyServiceTerminated.then(() => {
+          this._onDepServiceExit();
+        });
+        return this._state.started.promise;
+      }
+      case 'failing':
+      case 'failed': {
+        return Promise.resolve({ok: false, error: [this._state.failure]});
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'depsStarting':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'stopped': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onDepsStarted() {
+    switch (this._state.id) {
+      case 'depsStarting': {
+        this._state = {
           id: 'starting',
           child: new ScriptChildProcess(this._config),
-          started: new Deferred(),
+          started: this._state.started,
         };
         void this._state.child.started.then(() => {
           this._onChildStarted();
@@ -271,15 +345,69 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         void this._state.child.completed.then(() => {
           this._onChildExited();
         });
-        return this._state.started.promise;
+        this._state.child.stdout.on('data', (data: string | Buffer) => {
+          this._logger.log({
+            script: this._config,
+            type: 'output',
+            stream: 'stdout',
+            data,
+          });
+        });
+        this._state.child.stderr.on('data', (data: string | Buffer) => {
+          this._logger.log({
+            script: this._config,
+            type: 'output',
+            stream: 'stderr',
+            data,
+          });
+        });
+        return;
+      }
+      case 'failed': {
+        return;
       }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'unstarted':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failing': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onDepServiceExit() {
+    switch (this._state.id) {
+      case 'started': {
+        this._state.child.kill();
+        this._state = {
+          id: 'failing',
+          failure: {
+            type: 'failure',
+            script: this._config,
+            // TODO(aomarks) Wrong
+            reason: 'service-exited-unexpectedly',
+          },
+        };
+        return;
+      }
+      case 'depsStarting':
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'starting':
+      case 'stopping':
+      case 'stopped':
+      case 'failing':
+      case 'failed': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -308,7 +436,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           )
         );
         void allConsumersDone.then(() => {
-          this._allConsumersDone();
+          this._onAllConsumersDone();
         });
         return;
       }
@@ -316,9 +444,12 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failing':
+      case 'failed': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -327,20 +458,25 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
-  private _allConsumersDone() {
+  private _onAllConsumersDone() {
     switch (this._state.id) {
       case 'started': {
         this._state.child.kill();
         this._state = {id: 'stopping'};
         return;
       }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'failing': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -352,7 +488,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onChildExited() {
     switch (this._state.id) {
       case 'stopping': {
-        this._state = {id: 'stopped'};
+        this._state = {
+          id: 'stopped',
+        };
+        this._terminated.resolve({ok: true, value: undefined});
+        this._servicesNotNeeded.resolve();
         this._logger.log({
           script: this._config,
           type: 'info',
@@ -360,12 +500,27 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
         return;
       }
+      case 'started': {
+        this._fail({
+          script: this._config,
+          type: 'failure',
+          reason: 'service-exited-unexpectedly',
+        });
+        return;
+      }
+      case 'failing': {
+        this._fail(this._state.failure);
+        return;
+      }
+      case 'failed': {
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
       case 'unstarted':
+      case 'depsStarting':
       case 'starting':
-      case 'started':
       case 'stopped': {
         throw unexpectedState(this._state);
       }
@@ -373,5 +528,15 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         throw unknownState(this._state);
       }
     }
+  }
+
+  private _fail(failure: Failure) {
+    this._state = {
+      id: 'failed',
+      failure,
+    };
+    this._terminated.resolve({ok: false, error: failure});
+    this._servicesNotNeeded.resolve();
+    this._logger.log(failure);
   }
 }

@@ -35,7 +35,7 @@ test.after.each(async (ctx) => {
 });
 
 test(
-  'simple consumer and service',
+  'simple consumer and service with stdout',
   timeout(async ({rig}) => {
     // consumer
     //    |
@@ -69,6 +69,12 @@ test(
     const serviceInv = await service.nextInvocation();
     await wireit.waitForLog(/Service started/);
 
+    // Confirm we show stdout/stderr from services
+    serviceInv.stdout('service stdout');
+    await wireit.waitForLog(/service stdout/);
+    serviceInv.stderr('service stderr');
+    await wireit.waitForLog(/service stderr/);
+
     // The consumer starts and finishes
     const consumerInv = await consumer.nextInvocation();
     // Wait a moment to ensure the service stays running
@@ -83,6 +89,290 @@ test(
     await wireit.exit;
     assert.equal(service.numInvocations, 1);
     assert.equal(consumer.numInvocations, 1);
+  })
+);
+
+test(
+  'service with standard and service deps',
+  timeout(async ({rig}) => {
+    //  consumer
+    //     |
+    //     v
+    //  service ---> serviceDep
+    //     |
+    //     v
+    // standardDep
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    const standardDep = await rig.newCommand();
+    const serviceDep = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+          standardDep: 'wireit',
+          serviceDep: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+            dependencies: ['standardDep', 'serviceDep'],
+          },
+          standardDep: {
+            command: standardDep.command,
+          },
+          serviceDep: {
+            command: serviceDep.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run consumer');
+
+    // The service's standard dep must finish before the service can start
+    const standardDepInv = await standardDep.nextInvocation();
+    // Wait a moment to ensure the service hasn't started yet
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(service.numInvocations, 0);
+    assert.equal(serviceDep.numInvocations, 0);
+    assert.equal(consumer.numInvocations, 0);
+    standardDepInv.exit(0);
+
+    // The service's own service dep must start first
+    const serviceDepInv = await serviceDep.nextInvocation();
+    await wireit.waitForLog(/\[serviceDep\] Service started/);
+
+    // Now the main service can start
+    const serviceInv = await service.nextInvocation();
+    await wireit.waitForLog(/\[service\] Service started/);
+
+    // The consumer starts and finishes
+    const consumerInv = await consumer.nextInvocation();
+    // Wait a moment to ensure the services stay running
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.ok(serviceInv.isRunning);
+    assert.ok(serviceDepInv.isRunning);
+    consumerInv.exit(0);
+
+    // Services shut down in reverse order
+    await serviceInv.closed;
+    await wireit.waitForLog(/\[service\] Service stopped/);
+    await serviceDepInv.closed;
+    await wireit.waitForLog(/\[serviceDep\] Service stopped/);
+
+    await wireit.exit;
+    assert.equal(standardDep.numInvocations, 1);
+    assert.equal(serviceDep.numInvocations, 1);
+    assert.equal(service.numInvocations, 1);
+    assert.equal(consumer.numInvocations, 1);
+  })
+);
+
+test(
+  'standard scripts are killed when service exits unexpectedly',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run consumer');
+
+    // Service starts
+    const serviceInv = await service.nextInvocation();
+
+    // Consumer starts
+    const consumerInv = await consumer.nextInvocation();
+
+    // Service exits unexpectedly
+    serviceInv.exit(1);
+    await wireit.waitForLog(/\[service\] Service exited unexpectedly/);
+
+    // Consumer is killed
+    await consumerInv.closed;
+    await wireit.waitForLog(/\[consumer\] Killed/);
+
+    // Wireit exits with an error code
+    assert.equal((await wireit.exit).code, 1);
+  })
+);
+
+test(
+  'service remembers unexpected exit failure for next start call',
+  timeout(async ({rig}) => {
+    //     entrypoint
+    //     /        \
+    //    v          v
+    // consumer1   consumer2
+    //    \         /    \
+    //     \       /      v
+    //      v     v     blocker
+    //      service
+
+    const consumer1 = await rig.newCommand();
+    const consumer2 = await rig.newCommand();
+    const service = await rig.newCommand();
+    const blocker = await rig.newCommand();
+
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          consumer1: 'wireit',
+          consumer2: 'wireit',
+          service: 'wireit',
+          blocker: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['consumer1', 'consumer2'],
+          },
+          consumer1: {
+            command: consumer1.command,
+            dependencies: ['service'],
+          },
+          consumer2: {
+            command: consumer2.command,
+            dependencies: ['service', 'blocker'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+          blocker: {
+            command: blocker.command,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run entrypoint', {
+      env: {
+        // Set "continue" failure mode so that consumer2 tries to start the
+        // service even though consumer1 will have already failed.
+        WIREIT_FAILURES: 'continue',
+      },
+    });
+
+    // Service starts
+    const serviceInv = await service.nextInvocation();
+
+    // Blocker starts
+    const blockerInv = await blocker.nextInvocation();
+
+    // Consumer 1 starts
+    const consumer1Inv = await consumer1.nextInvocation();
+
+    // Service fails
+    serviceInv.exit(1);
+
+    // Consumer 1 is killed
+    await consumer1Inv.closed;
+
+    // Blocker unblocks
+    blockerInv.exit(0);
+
+    // Consumer 2 can't start becuase the consumer already failed, so wireit
+    // exits.
+    assert.equal((await wireit.exit).code, 1);
+  })
+);
+
+test(
+  'service shuts down when service dependency exits unexpectedly',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service1
+    //    |
+    //    v
+    // service2
+
+    const consumer = await rig.newCommand();
+    const service1 = await rig.newCommand();
+    const service2 = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service1: 'wireit',
+          service2: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service1'],
+          },
+          service1: {
+            command: service1.command,
+            service: true,
+            dependencies: ['service2'],
+          },
+          service2: {
+            command: service2.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run consumer');
+
+    // Service2 starts
+    const service2Inv = await service2.nextInvocation();
+
+    // Service1 starts
+    const service1Inv = await service1.nextInvocation();
+
+    // Consumer starts
+    const consumerInv = await consumer.nextInvocation();
+
+    // Service 2 exits unexpectedly
+    service2Inv.exit(1);
+    await wireit.waitForLog(/\[service2\] Service exited unexpectedly/);
+
+    // Consumer killed
+    await consumerInv.closed;
+
+    // Service 1 shuts down
+    await service1Inv.closed;
+
+    // Wireit exits with an error code
+    assert.equal((await wireit.exit).code, 1);
+    assert.equal(consumer.numInvocations, 1);
+    assert.equal(service1.numInvocations, 1);
+    assert.equal(service2.numInvocations, 1);
   })
 );
 

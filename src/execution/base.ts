@@ -107,7 +107,7 @@ export abstract class BaseExecutionWithCommand<
    * Resolves when any of the services this script depends on have terminated
    * (see {@link ServiceScriptExecution.terminated} for exact definiton).
    */
-  readonly anyServiceTerminated = Promise.race(
+  protected readonly _anyServiceTerminated = Promise.race(
     this._config.services.map(
       (service) => this._executor.getExecution(service).terminated
     )

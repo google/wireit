@@ -94,13 +94,14 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       return config;
     }
     const executor = new Executor(
+      config.value,
       logger,
       workerPool,
       cache,
       options.failureMode,
       abort
     );
-    const result = await executor.getExecution(config.value).execute();
+    const result = await executor.execute();
     if (!result.ok) {
       return result;
     }

@@ -59,3 +59,11 @@ if (!ipcPath) {
 }
 const socket = net.createConnection(ipcPath);
 new ChildIpcClient(socket);
+
+process.on('SIGINT', () => {
+  // Gracefully close the socket before we are terminated. This helps avoid
+  // occasional ECONNRESET errors on the other side.
+  socket.end(() => {
+    process.exit(1);
+  });
+});

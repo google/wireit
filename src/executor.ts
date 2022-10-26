@@ -19,6 +19,8 @@ import type {
   ServiceScriptConfig,
   StandardScriptConfig,
 } from './config.js';
+import type {Result} from './error.js';
+import type {Failure} from './event.js';
 
 type Execution =
   | NoCommandScriptExecution
@@ -47,7 +49,9 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
+  private readonly _rootConfig: ScriptConfig;
   private readonly _executions = new Map<ScriptReferenceString, Execution>();
+  private readonly _allServices: Array<ServiceScriptExecution> = [];
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
@@ -61,12 +65,14 @@ export class Executor {
   private readonly _killRunningScripts = new Deferred<void>();
 
   constructor(
+    rootConfig: ScriptConfig,
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,
     abort: Deferred<void>
   ) {
+    this._rootConfig = rootConfig;
     this._logger = logger;
     this._workerPool = workerPool;
     this._cache = cache;
@@ -104,6 +110,19 @@ export class Executor {
         }
       }
     });
+  }
+
+  /**
+   * Execute the root script.
+   */
+  async execute(): Promise<Result<unknown, Failure[]>> {
+    const result = await this.getExecution(this._rootConfig).execute();
+    // Wait for services to shut down.
+    // TODO(aomarks) In watch mode, directly-invoked scripts (and the services
+    // they depend on) should not block here, since they should continue
+    // running.
+    await Promise.all(this._allServices.map((service) => service.terminated));
+    return result;
   }
 
   /**
@@ -148,6 +167,7 @@ export class Executor {
           this._logger,
           this._abort.promise
         );
+        this._allServices.push(execution);
       } else {
         execution = new StandardScriptExecution(
           config,
