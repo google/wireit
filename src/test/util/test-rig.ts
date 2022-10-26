@@ -320,8 +320,10 @@ class ExecResult {
     }
   }
 
-  private readonly _logMatchers: Array<{re: RegExp; deferred: Deferred<void>}> =
-    [];
+  private readonly _logMatchers = new Set<{
+    re: RegExp;
+    deferred: Deferred<void>;
+  }>();
 
   /**
    * Waits for the given content to be logged to either stdout or stderr.
@@ -331,7 +333,7 @@ class ExecResult {
    */
   waitForLog(matcher: RegExp): Promise<void> {
     const deferred = new Deferred<void>();
-    this._logMatchers.push({re: matcher, deferred});
+    this._logMatchers.add({re: matcher, deferred});
     // In case we've already received the log we're watching for
     this._checkMatchersAgainstLogs();
     return deferred.promise;
@@ -340,13 +342,28 @@ class ExecResult {
   private _checkMatchersAgainstLogs() {
     let stdoutLastIndex = -1;
     let stderrLastIndex = -1;
-    for (const {re, deferred} of this._logMatchers) {
-      if (re.test(this._stdout)) {
+    for (const matcher of this._logMatchers) {
+      const {re, deferred} = matcher;
+      // Use exec instead of match because otherwise if the user used the /g/
+      // flag, we'll get an array and can't access the index.
+      const stdoutMatch = re.exec(this._stdout);
+      if (stdoutMatch !== null) {
         deferred.resolve();
-        stdoutLastIndex = Math.max(stdoutLastIndex, re.lastIndex);
-      } else if (re.test(this._stderr)) {
-        stderrLastIndex = Math.max(stderrLastIndex, re.lastIndex);
-        deferred.resolve();
+        this._logMatchers.delete(matcher);
+        stdoutLastIndex = Math.max(
+          stdoutLastIndex,
+          stdoutMatch.index + stdoutMatch[0].length
+        );
+      } else {
+        const stderrMatch = re.exec(this._stderr);
+        if (stderrMatch !== null) {
+          deferred.resolve();
+          this._logMatchers.delete(matcher);
+          stderrLastIndex = Math.max(
+            stderrLastIndex,
+            stderrMatch.index + stderrMatch[0].length
+          );
+        }
       }
     }
     if (stdoutLastIndex > 0) {
