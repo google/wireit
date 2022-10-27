@@ -14,7 +14,8 @@ export type RigToChildMessage =
   | StdoutMessage
   | StderrMessage
   | ExitMessage
-  | EnvironmentRequestMessage;
+  | EnvironmentRequestMessage
+  | InterceptSigintMessage;
 
 /**
  * Tell the command to emit the given string to its stdout stream.
@@ -41,6 +42,14 @@ export interface ExitMessage {
 }
 
 /**
+ * The the command to wait until a SIGINT signal is received, and then send a
+ * messsage back instead of exiting.
+ */
+export interface InterceptSigintMessage {
+  type: 'interceptSigint';
+}
+
+/**
  * Ask the command for information about its environment (argv, cwd, env).
  */
 export interface EnvironmentRequestMessage {
@@ -50,7 +59,9 @@ export interface EnvironmentRequestMessage {
 /**
  * A message sent from a spawned command to the test rig.
  */
-export type ChildToRigMessage = EnvironmentResponseMessage;
+export type ChildToRigMessage =
+  | EnvironmentResponseMessage
+  | SigintReceivedMessage;
 
 /**
  * Report to the rig what cwd, argv, and environment variables were set when
@@ -61,6 +72,13 @@ export interface EnvironmentResponseMessage {
   cwd: string;
   argv: string[];
   env: {[key: string]: string | undefined};
+}
+
+/**
+ * Report the rig that a SIGINT signal has been received.
+ */
+export interface SigintReceivedMessage {
+  type: 'sigintReceived';
 }
 
 /**
