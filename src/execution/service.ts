@@ -29,19 +29,25 @@ type ServiceState =
       id: 'fingerprinting';
       fingerprint: Deferred<ExecutionResult>;
     }
-  | {id: 'unstarted'}
+  | {
+      id: 'unstarted';
+      fingerprint: Fingerprint;
+    }
   | {
       id: 'depsStarting';
       started: Deferred<Result<void, Failure[]>>;
+      fingerprint: Fingerprint;
     }
   | {
       id: 'starting';
       child: ScriptChildProcess;
       started: Deferred<Result<void, Failure[]>>;
+      fingerprint: Fingerprint;
     }
   | {
       id: 'started';
       child: ScriptChildProcess;
+      fingerprint: Fingerprint;
     }
   | {id: 'stopping'}
   | {id: 'stopped'}
@@ -192,6 +198,34 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       id: 'initial',
       entireExecutionAborted,
     };
+  }
+
+  /**
+   * Return the fingerprint of this service. If the fingerprint is not yet
+   * computed, or if the service is stopped/failed/detached, returns undefined.
+   */
+  get fingerprint(): Fingerprint | undefined {
+    switch (this._state.id) {
+      case 'unstarted':
+      case 'depsStarting':
+      case 'starting':
+      case 'started': {
+        return this._state.fingerprint;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'stopping':
+      case 'stopped':
+      case 'failed':
+      case 'failing':
+      case 'detached': {
+        return undefined;
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
   }
 
   detach(): ScriptChildProcess | undefined {
@@ -350,7 +384,10 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'fingerprinting': {
         this._state.fingerprint.resolve({ok: true, value: fingerprint});
-        this._state = {id: 'unstarted'};
+        this._state = {
+          id: 'unstarted',
+          fingerprint,
+        };
         if (this._config.isDirectlyInvoked) {
           void this.start();
         }
@@ -386,6 +423,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'depsStarting',
           started: new Deferred(),
+          fingerprint: this._state.fingerprint,
         };
         void this._startServices().then(() => {
           this._onDepsStarted();
@@ -423,6 +461,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           id: 'starting',
           child: new ScriptChildProcess(this._config),
           started: this._state.started,
+          fingerprint: this._state.fingerprint,
         };
         void this._state.child.started.then(() => {
           this._onChildStarted();
@@ -517,6 +556,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'started',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
         };
         return;
       }
