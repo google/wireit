@@ -52,7 +52,8 @@ type ServiceState =
   | {
       id: 'failed';
       failure: Failure;
-    };
+    }
+  | {id: 'detached'};
 
 function unknownState(state: never) {
   return new Error(
@@ -193,6 +194,42 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     };
   }
 
+  detach(): ScriptChildProcess | undefined {
+    switch (this._state.id) {
+      case 'started': {
+        const child = this._state.child;
+        this._state = {id: 'detached'};
+        // TODO(aomarks) There are a few promises that could still resolve even
+        // when we are detached, such as "abort" and "child exited". While we do
+        // correctly handle those events (by doing nothing in the handlers), the
+        // fact that the promises remain unresolved will prevent GC of old
+        // executions in watch mode. Those promises should probably be
+        // Promise.race'd to prevent that.
+        child.stdout.removeAllListeners();
+        child.stderr.removeAllListeners();
+        return child;
+      }
+      case 'stopping':
+      case 'stopped':
+      case 'failed':
+      case 'failing': {
+        return undefined;
+      }
+      case 'unstarted':
+      case 'depsStarting':
+      case 'starting':
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'detached': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
   /**
    * Note `execute` is a bit of a misnomer here, because we don't actually
    * execute the command at this stage in the case of services.
@@ -235,7 +272,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopping':
       case 'stopped':
       case 'failed':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -271,7 +309,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -297,7 +336,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -327,7 +367,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -365,7 +406,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -417,7 +459,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'started':
       case 'stopping':
       case 'stopped':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -441,7 +484,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
-      case 'stopped': {
+      case 'stopped':
+      case 'detached': {
         return;
       }
       case 'depsStarting':
@@ -485,7 +529,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopping':
       case 'stopped':
       case 'failing':
-      case 'failed': {
+      case 'failed':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -521,7 +566,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._fail(this._state.failure);
         return;
       }
-      case 'failed': {
+      case 'failed':
+      case 'detached': {
         return;
       }
       case 'initial':
@@ -561,7 +607,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopping':
       case 'stopped':
       case 'failing':
-      case 'failed': {
+      case 'failed':
+      case 'detached': {
         return;
       }
       default: {
