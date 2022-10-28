@@ -213,27 +213,29 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   }
 
   /**
-   * Return the fingerprint of this service. If the fingerprint is not yet
-   * computed, or if the service is stopped/failed/detached, returns undefined.
+   * Return the fingerprint of this service. Throws if the fingerprint is not
+   * yet available. Returns undefined if the service is stopped/failed/detached.
    */
   get fingerprint(): Fingerprint | undefined {
     switch (this._state.id) {
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
       case 'started': {
         return this._state.fingerprint;
       }
-      case 'initial':
-      case 'executingDeps':
-      case 'fingerprinting':
-      case 'stoppingAdoptee':
       case 'stopping':
       case 'stopped':
       case 'failed':
       case 'failing':
       case 'detached': {
         return undefined;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting': {
+        throw unexpectedState(this._state);
       }
       default: {
         throw unknownState(this._state);
