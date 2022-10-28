@@ -8,6 +8,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
+import {IS_WINDOWS} from '../util/windows.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -375,5 +376,173 @@ test(
     assert.equal(service2.numInvocations, 1);
   })
 );
+
+test(
+  'directly invoked service and dependency starts and runs until SIGINT',
+  // service1
+  //    |
+  //    v
+  // service2
+  timeout(async ({rig}) => {
+    const service1 = await rig.newCommand();
+    const service2 = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          service1: 'wireit',
+          service2: 'wireit',
+        },
+        wireit: {
+          service1: {
+            command: service1.command,
+            service: true,
+            dependencies: ['service2'],
+          },
+          service2: {
+            command: service2.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run service1');
+
+    // Services start in bottom-up order.
+    const service2Inv = await service2.nextInvocation();
+    await wireit.waitForLog(/\[service2\] Service started/);
+    const service1Inv = await service1.nextInvocation();
+    await wireit.waitForLog(/\[service1\] Service started/);
+
+    // Wait a moment to ensure they keep running since the user hasn't killed
+    // Wireit yet.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.ok(service1Inv.isRunning);
+    assert.ok(service2Inv.isRunning);
+
+    // The user kills Wireit. The services stop in top-down order.
+    if (IS_WINDOWS) {
+      // We don't get graceful shutdown on Windows.
+      wireit.kill();
+    } else {
+      // Wait a moment after SIGINT to ensure that until service1 actually
+      // exits, service2 keeps running.
+      const service1SigintReceived = service1Inv.interceptSigint();
+      wireit.kill();
+      await service1SigintReceived;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.ok(service1Inv.isRunning);
+      assert.ok(service2Inv.isRunning);
+      service1Inv.exit(0);
+      await wireit.waitForLog(/\[service1\] Service stopped/);
+      await wireit.waitForLog(/\[service2\] Service stopped/);
+    }
+    await service1Inv.closed;
+    assert.not(service1Inv.isRunning);
+    await service2Inv.closed;
+    assert.not(service2Inv.isRunning);
+
+    await wireit.exit;
+    assert.equal(service1.numInvocations, 1);
+    assert.equal(service2.numInvocations, 1);
+  })
+);
+
+for (const failureMode of ['continue', 'no-new', 'kill']) {
+  // Even directly invoked services which don't have an error in their branch
+  // should stop when an error occurs elsewhere, regardless of the error mode.
+  // Otherwise wireit won't always exit on failures.
+  test(
+    `directly invoked service and dependency stop on error ` +
+      `with failure mode ${failureMode}`,
+    //      entrypoint
+    //        /   \
+    //       v     v
+    // standard   service1
+    //  (fails)      |
+    //               v
+    //            service2
+    timeout(async ({rig}) => {
+      const standard = await rig.newCommand();
+      const service1 = await rig.newCommand();
+      const service2 = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            standard: 'wireit',
+            service1: 'wireit',
+            service2: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['standard', 'service1'],
+            },
+            standard: {
+              command: standard.command,
+            },
+            service1: {
+              command: service1.command,
+              service: true,
+              dependencies: ['service2'],
+            },
+            service2: {
+              command: service2.command,
+              service: true,
+            },
+          },
+        },
+      });
+
+      const wireit = rig.exec('npm run entrypoint', {
+        env: {WIREIT_FAILURES: failureMode},
+      });
+
+      // Standard script starts.
+      const standardInv = await standard.nextInvocation();
+
+      // Services start in bottom-up order.
+      const service2Inv = await service2.nextInvocation();
+      await wireit.waitForLog(/\[service2\] Service started/);
+      const service1Inv = await service1.nextInvocation();
+      await wireit.waitForLog(/\[service1\] Service started/);
+
+      // Wait a moment to ensure they keep running because the failure hasn't
+      // happened yet.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.ok(standardInv.isRunning);
+      assert.ok(service1Inv.isRunning);
+      assert.ok(service2Inv.isRunning);
+
+      // The standard script fails. The services stop in top-down order.
+      if (IS_WINDOWS) {
+        // We don't get graceful shutdown in Windows.
+        standardInv.exit(1);
+      } else {
+        // Wait a moment after SIGINT to ensure that until service1 actually
+        // exits, service2 keeps running.
+        const service1SigintReceived = service1Inv.interceptSigint();
+        standardInv.exit(1);
+        await service1SigintReceived;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        assert.ok(service1Inv.isRunning);
+        assert.ok(service2Inv.isRunning);
+        service1Inv.exit(0);
+      }
+
+      await service1Inv.closed;
+      assert.not(service1Inv.isRunning);
+      await wireit.waitForLog(/\[service1\] Service stopped/);
+      await service2Inv.closed;
+      assert.not(service2Inv.isRunning);
+      await wireit.waitForLog(/\[service2\] Service stopped/);
+
+      await wireit.exit;
+      assert.equal(standard.numInvocations, 1);
+      assert.equal(service1.numInvocations, 1);
+      assert.equal(service2.numInvocations, 1);
+    })
+  );
+}
 
 test.run();

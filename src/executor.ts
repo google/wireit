@@ -55,7 +55,6 @@ export class Executor {
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
-  private readonly _abort: Deferred<void>;
 
   /** Resolves when the first failure occurs in any script. */
   private readonly _failureOccured = new Deferred<void>();
@@ -63,6 +62,8 @@ export class Executor {
   private readonly _stopStartingNewScripts = new Deferred<void>();
   /** Resolves when we decide that running scripts should be killed. */
   private readonly _killRunningScripts = new Deferred<void>();
+  /** Resolves when we decide that services should be stopped. */
+  private readonly _stopServices = new Deferred<void>();
 
   constructor(
     rootConfig: ScriptConfig,
@@ -76,7 +77,6 @@ export class Executor {
     this._logger = logger;
     this._workerPool = workerPool;
     this._cache = cache;
-    this._abort = abort;
 
     // If this entire execution is aborted because e.g. the user sent a SIGINT
     // to the Wireit process, then dont start new scripts, and kill running
@@ -84,11 +84,14 @@ export class Executor {
     void abort.promise.then(() => {
       this._stopStartingNewScripts.resolve();
       this._killRunningScripts.resolve();
+      this._stopServices.resolve();
     });
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
     void this._failureOccured.promise.then(() => {
+      // Services should stop in any mode.
+      this._stopServices.resolve();
       switch (failureMode) {
         case 'continue': {
           break;
@@ -165,7 +168,7 @@ export class Executor {
           config,
           this,
           this._logger,
-          this._abort.promise
+          this._stopServices.promise
         );
         this._allServices.push(execution);
       } else {
