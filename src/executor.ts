@@ -35,6 +35,8 @@ type ConfigToExecution<T extends ScriptConfig> = T extends NoCommandScriptConfig
   ? ServiceScriptExecution
   : never;
 
+export type ServiceMap = Map<ScriptReferenceString, ServiceScriptExecution>;
+
 /**
  * What to do when a script failure occurs:
  *
@@ -51,7 +53,9 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
 export class Executor {
   private readonly _rootConfig: ScriptConfig;
   private readonly _executions = new Map<ScriptReferenceString, Execution>();
+  private readonly _directlyInvokedServices: ServiceMap = new Map();
   private readonly _indirectlyInvokedServices: ServiceScriptExecution[] = [];
+  private readonly _previousIterationServices: ServiceMap | undefined;
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
@@ -71,12 +75,14 @@ export class Executor {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,
-    abort: Deferred<void>
+    abort: Deferred<void>,
+    previousIterationServices: ServiceMap | undefined
   ) {
     this._rootConfig = rootConfig;
     this._logger = logger;
     this._workerPool = workerPool;
     this._cache = cache;
+    this._previousIterationServices = previousIterationServices;
 
     // If this entire execution is aborted because e.g. the user sent a SIGINT
     // to the Wireit process, then dont start new scripts, and kill running
@@ -118,7 +124,11 @@ export class Executor {
   /**
    * Execute the root script.
    */
-  async execute(): Promise<Result<void, Failure[]>> {
+  async execute(): Promise<Result<ServiceMap, Failure[]>> {
+    // TOOD(aomarks) If we have any running services from a previous watch
+    // iteration, we should at this point shut down any of the ones that have
+    // since been deleted from the build graph entirely, or which have become
+    // non-directly-invoked.
     const errors: Failure[] = [];
     const rootExecutionResult = await this.getExecution(
       this._rootConfig
@@ -137,7 +147,7 @@ export class Executor {
     if (errors.length > 0) {
       return {ok: false, error: errors};
     }
-    return {ok: true, value: undefined};
+    return {ok: true, value: this._directlyInvokedServices};
   }
 
   /**
@@ -180,9 +190,12 @@ export class Executor {
           config,
           this,
           this._logger,
-          this._stopServices.promise
+          this._stopServices.promise,
+          this._previousIterationServices?.get(key)
         );
-        if (!config.isDirectlyInvoked) {
+        if (config.isDirectlyInvoked) {
+          this._directlyInvokedServices.set(key, execution);
+        } else {
           this._indirectlyInvokedServices.push(execution);
         }
       } else {

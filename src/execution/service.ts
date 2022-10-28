@@ -191,7 +191,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     config: ServiceScriptConfig,
     executor: Executor,
     logger: Logger,
-    entireExecutionAborted: Promise<void>
+    entireExecutionAborted: Promise<void>,
+    _adoptee: ServiceScriptExecution | undefined
   ) {
     super(config, executor, logger);
     this._state = {
