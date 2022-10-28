@@ -254,8 +254,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         // fact that the promises remain unresolved will prevent GC of old
         // executions in watch mode. Those promises should probably be
         // Promise.race'd to prevent that.
-        child.stdout.removeAllListeners();
-        child.stderr.removeAllListeners();
+
+        // Note that for some reason, removing all listeners from stdout/stderr
+        // without specifying the "data" event will also remove the listeners
+        // directly on "child" inside the ScriptChildProceess for noticing when
+        // e.g. the process has exited.
+        child.stdout.removeAllListeners('data');
+        child.stderr.removeAllListeners('data');
         return child;
       }
       case 'stopping':
