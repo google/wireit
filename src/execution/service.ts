@@ -91,10 +91,24 @@ function unexpectedState(state: ServiceState) {
  *     ├─◄─ abort ─┤ FINGERPRINTING │                        │
  *     │           └───────┬────────┘                        │
  *     │                   │                                 │
- *     ▼             fingerprinted                           ▼
+ *     │             fingerprinted                           ▼
  *     │                   │                                 │
+ *     │        ╔══════════▼════════════╗                    │
+ *     ▼        ║ adoptee has different ╟─ yes ─╮            │
+ *     │        ║     fingerprint?      ║       │            │
+ *     │        ╚══════════╤════════════╝       │            │
+ *     │                   │                    ▼            │
+ *     │                   no                   │            │
+ *     │                   │                    │            │
+ *     │                   │          ┌─────────▼────────┐   │
+ *     ├─◄─ abort ─────────│─────◄────┤ STOPPING_ADOPTEE │   │
+ *     │                   │          └─────────┬────────┘   │
+ *     │                   │                    │            │
+ *     │                   ▼              adopteeStopped     │
+ *     │                   │                    │            │
+ *     │                   ├─────◄──────────────╯            │
  *     │                   │                                 │
- *     │        ╔══════════════════════╗                     │
+ *     ▼        ╔══════════▼═══════════╗                     │
  *     │        ║ is directly invoked? ╟── yes ──╮           │
  *     │        ╚══════════╤═══════════╝         │           │
  *     │                   │                     │           │
