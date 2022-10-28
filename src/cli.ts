@@ -99,7 +99,8 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       workerPool,
       cache,
       options.failureMode,
-      abort
+      abort,
+      undefined
     );
     const result = await executor.execute();
     if (!result.ok) {

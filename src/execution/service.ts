@@ -20,28 +20,44 @@ type ServiceState =
   | {
       id: 'initial';
       entireExecutionAborted: Promise<void>;
+      adoptee: ServiceScriptExecution | undefined;
     }
   | {
       id: 'executingDeps';
-      fingerprint: Deferred<ExecutionResult>;
+      deferredFingerprint: Deferred<ExecutionResult>;
+      adoptee: ServiceScriptExecution | undefined;
     }
   | {
       id: 'fingerprinting';
-      fingerprint: Deferred<ExecutionResult>;
+      deferredFingerprint: Deferred<ExecutionResult>;
+      adoptee: ServiceScriptExecution | undefined;
     }
-  | {id: 'unstarted'}
+  | {
+      id: 'stoppingAdoptee';
+      fingerprint: Fingerprint;
+      deferredFingerprint: Deferred<ExecutionResult>;
+    }
+  | {
+      id: 'unstarted';
+      fingerprint: Fingerprint;
+      adoptee: ServiceScriptExecution | undefined;
+    }
   | {
       id: 'depsStarting';
       started: Deferred<Result<void, Failure[]>>;
+      fingerprint: Fingerprint;
+      adoptee: ServiceScriptExecution | undefined;
     }
   | {
       id: 'starting';
       child: ScriptChildProcess;
       started: Deferred<Result<void, Failure[]>>;
+      fingerprint: Fingerprint;
     }
   | {
       id: 'started';
       child: ScriptChildProcess;
+      fingerprint: Fingerprint;
     }
   | {id: 'stopping'}
   | {id: 'stopped'}
@@ -52,7 +68,8 @@ type ServiceState =
   | {
       id: 'failed';
       failure: Failure;
-    };
+    }
+  | {id: 'detached'};
 
 function unknownState(state: never) {
   return new Error(
@@ -91,10 +108,24 @@ function unexpectedState(state: ServiceState) {
  *     ├─◄─ abort ─┤ FINGERPRINTING │                        │
  *     │           └───────┬────────┘                        │
  *     │                   │                                 │
- *     ▼             fingerprinted                           ▼
+ *     │             fingerprinted                           ▼
  *     │                   │                                 │
+ *     │        ╔══════════▼════════════╗                    │
+ *     ▼        ║ adoptee has different ╟─ yes ─╮            │
+ *     │        ║     fingerprint?      ║       │            │
+ *     │        ╚══════════╤════════════╝       │            │
+ *     │                   │                    ▼            │
+ *     │                   no                   │            │
+ *     │                   │                    │            │
+ *     │                   │          ┌─────────▼────────┐   │
+ *     ├─◄─ abort ─────────│─────◄────┤ STOPPING_ADOPTEE │   │
+ *     │                   │          └─────────┬────────┘   │
+ *     │                   │                    │            │
+ *     │                   ▼              adopteeStopped     │
+ *     │                   │                    │            │
+ *     │                   ├─────◄──────────────╯            │
  *     │                   │                                 │
- *     │        ╔══════════════════════╗                     │
+ *     ▼        ╔══════════▼═══════════╗                     │
  *     │        ║ is directly invoked? ╟── yes ──╮           │
  *     │        ╚══════════╤═══════════╝         │           │
  *     │                   │                     │           │
@@ -170,13 +201,83 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     config: ServiceScriptConfig,
     executor: Executor,
     logger: Logger,
-    entireExecutionAborted: Promise<void>
+    entireExecutionAborted: Promise<void>,
+    adoptee: ServiceScriptExecution | undefined
   ) {
     super(config, executor, logger);
     this._state = {
       id: 'initial',
       entireExecutionAborted,
+      adoptee,
     };
+  }
+
+  /**
+   * Return the fingerprint of this service. Throws if the fingerprint is not
+   * yet available. Returns undefined if the service is stopped/failed/detached.
+   */
+  get fingerprint(): Fingerprint | undefined {
+    switch (this._state.id) {
+      case 'stoppingAdoptee':
+      case 'unstarted':
+      case 'depsStarting':
+      case 'starting':
+      case 'started': {
+        return this._state.fingerprint;
+      }
+      case 'stopping':
+      case 'stopped':
+      case 'failed':
+      case 'failing':
+      case 'detached': {
+        return undefined;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  detach(): ScriptChildProcess | undefined {
+    switch (this._state.id) {
+      case 'started': {
+        const child = this._state.child;
+        this._state = {id: 'detached'};
+        // TODO(aomarks) There are a few promises that could still resolve even
+        // when we are detached, such as "abort" and "child exited". While we do
+        // correctly handle those events (by doing nothing in the handlers), the
+        // fact that the promises remain unresolved will prevent GC of old
+        // executions in watch mode. Those promises should probably be
+        // Promise.race'd to prevent that.
+        child.stdout.removeAllListeners();
+        child.stderr.removeAllListeners();
+        return child;
+      }
+      case 'stopping':
+      case 'stopped':
+      case 'failed':
+      case 'failing': {
+        return undefined;
+      }
+      case 'unstarted':
+      case 'depsStarting':
+      case 'starting':
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'stoppingAdoptee':
+      case 'detached': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
   }
 
   /**
@@ -201,7 +302,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
 
         this._state = {
           id: 'executingDeps',
-          fingerprint: new Deferred(),
+          deferredFingerprint: new Deferred(),
+          adoptee: this._state.adoptee,
         };
         void this._executeDependencies().then((result) => {
           if (result.ok) {
@@ -210,10 +312,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             this._onDepExecErr(result);
           }
         });
-        return this._state.fingerprint.promise;
+        return this._state.deferredFingerprint.promise;
       }
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
@@ -221,7 +324,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopping':
       case 'stopped':
       case 'failed':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -237,7 +341,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps': {
         this._state = {
           id: 'fingerprinting',
-          fingerprint: this._state.fingerprint,
+          deferredFingerprint: this._state.deferredFingerprint,
+          adoptee: this._state.adoptee,
         };
         void Fingerprint.compute(this._config, depFingerprints).then(
           (result) => {
@@ -252,12 +357,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'initial':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -269,7 +376,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onDepExecErr(result: ExecutionResult & {ok: false}) {
     switch (this._state.id) {
       case 'executingDeps': {
-        this._state.fingerprint.resolve(result);
+        this._state.deferredFingerprint.resolve(result);
         return;
       }
       case 'stopped':
@@ -278,12 +385,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'initial':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -295,8 +404,36 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onFingerprinted(fingerprint: Fingerprint) {
     switch (this._state.id) {
       case 'fingerprinting': {
-        this._state.fingerprint.resolve({ok: true, value: fingerprint});
-        this._state = {id: 'unstarted'};
+        const adoptee = this._state.adoptee;
+        if (
+          adoptee?.fingerprint !== undefined &&
+          !adoptee.fingerprint.equal(fingerprint)
+        ) {
+          const child = adoptee.detach();
+          if (child !== undefined) {
+            // There is a previous running version of this service, but the
+            // fingerprint changed, so we need to restart it.
+            this._state = {
+              id: 'stoppingAdoptee',
+              fingerprint,
+              deferredFingerprint: this._state.deferredFingerprint,
+            };
+            child.kill();
+            void child.completed.then(() => {
+              this._onAdopteeStopped();
+            });
+          }
+          return;
+        }
+        this._state.deferredFingerprint.resolve({
+          ok: true,
+          value: fingerprint,
+        });
+        this._state = {
+          id: 'unstarted',
+          fingerprint,
+          adoptee,
+        };
         if (this._config.isDirectlyInvoked) {
           void this.start();
         }
@@ -308,12 +445,53 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'initial':
       case 'executingDeps':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onAdopteeStopped() {
+    switch (this._state.id) {
+      case 'stoppingAdoptee': {
+        this._state.deferredFingerprint.resolve({
+          ok: true,
+          value: this._state.fingerprint,
+        });
+        this._state = {
+          id: 'unstarted',
+          fingerprint: this._state.fingerprint,
+          adoptee: undefined,
+        };
+        if (this._config.isDirectlyInvoked) {
+          void this.start();
+        }
+        return;
+      }
+      case 'failed':
+      case 'stopped': {
+        return;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'depsStarting':
+      case 'starting':
+      case 'started':
+      case 'stopping':
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -331,6 +509,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'depsStarting',
           started: new Deferred(),
+          fingerprint: this._state.fingerprint,
+          adoptee: this._state.adoptee,
         };
         void this._startServices().then(() => {
           this._onDepsStarted();
@@ -347,11 +527,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'depsStarting':
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped': {
+      case 'stopped':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -365,8 +547,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'depsStarting': {
         this._state = {
           id: 'starting',
-          child: new ScriptChildProcess(this._config),
+          child:
+            this._state.adoptee?.detach() ??
+            new ScriptChildProcess(this._config),
           started: this._state.started,
+          fingerprint: this._state.fingerprint,
         };
         void this._state.child.started.then(() => {
           this._onChildStarted();
@@ -398,12 +583,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'starting':
       case 'started':
       case 'stopping':
       case 'stopped':
-      case 'failing': {
+      case 'failing':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -427,13 +614,15 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
-      case 'stopped': {
+      case 'stopped':
+      case 'detached': {
         return;
       }
       case 'depsStarting':
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'starting':
       case 'stopping':
@@ -459,19 +648,22 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'started',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
         };
         return;
       }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'started':
       case 'stopping':
       case 'stopped':
       case 'failing':
-      case 'failed': {
+      case 'failed':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -507,12 +699,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._fail(this._state.failure);
         return;
       }
-      case 'failed': {
+      case 'failed':
+      case 'detached': {
         return;
       }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
@@ -539,6 +733,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
+      case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting': {
         this._state = {id: 'stopped'};
@@ -547,7 +742,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopping':
       case 'stopped':
       case 'failing':
-      case 'failed': {
+      case 'failed':
+      case 'detached': {
         return;
       }
       default: {

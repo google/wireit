@@ -7,7 +7,7 @@
 import chokidar from 'chokidar';
 import {Analyzer} from './analyzer.js';
 import {Cache} from './caching/cache.js';
-import {Executor, FailureMode} from './executor.js';
+import {Executor, FailureMode, ServiceMap} from './executor.js';
 import {Logger} from './logging/logger.js';
 import {Deferred} from './util/deferred.js';
 import {WorkerPool} from './util/worker-pool.js';
@@ -121,6 +121,7 @@ export class Watcher {
   private readonly _failureMode: FailureMode;
   private readonly _abort: Deferred<void>;
   private _debounceTimeoutId?: NodeJS.Timeout = undefined;
+  private _previousIterationServices?: ServiceMap = undefined;
 
   /**
    * The most recent analysis of the root script. As soon as we detect it might
@@ -281,10 +282,14 @@ export class Watcher {
       this._workerPool,
       this._cache,
       this._failureMode,
-      this._abort
+      this._abort,
+      this._previousIterationServices
     );
     const result = await executor.execute();
-    if (!result.ok) {
+    if (result.ok) {
+      this._previousIterationServices = result.value;
+    } else {
+      this._previousIterationServices = undefined;
       for (const error of result.error) {
         this._logger.log(error);
       }

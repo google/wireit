@@ -545,4 +545,124 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
   );
 }
 
+test(
+  'indirectly invoked service shuts down between watch iterations',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+            files: ['input'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    await rig.write('input', '0');
+    const wireit = rig.exec('npm run consumer --watch');
+
+    // Iteration 1
+    {
+      const serviceInv = await service.nextInvocation();
+      const consumerInv = await consumer.nextInvocation();
+      consumerInv.exit(0);
+      await consumerInv.closed;
+      await serviceInv.closed;
+    }
+
+    await rig.write('input', '1');
+
+    // Iteration 2
+    {
+      const serviceInv = await service.nextInvocation();
+      const consumerInv = await consumer.nextInvocation();
+      consumerInv.exit(0);
+      await consumerInv.closed;
+      await serviceInv.closed;
+    }
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(consumer.numInvocations, 2);
+    assert.equal(service.numInvocations, 2);
+  })
+);
+
+test(
+  'directly invoked service is preserved across watch iterations',
+  timeout(async ({rig}) => {
+    //     entrypoint
+    //     /        \
+    //    v          v
+    // service    standard
+
+    const service = await rig.newCommand();
+    const standard = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          service: 'wireit',
+          standard: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['service', 'standard'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+          standard: {
+            command: standard.command,
+            files: ['input'],
+          },
+        },
+      },
+    });
+
+    await rig.write('input', '0');
+    const wireit = rig.exec('npm run entrypoint --watch');
+
+    // Iteration 1
+    {
+      await service.nextInvocation();
+      const standardInv = await standard.nextInvocation();
+      standardInv.exit(0);
+      await standardInv.closed;
+    }
+
+    await rig.write('input', '1');
+
+    // Iteration 2
+    {
+      const standardInv = await standard.nextInvocation();
+      standardInv.exit(0);
+      await standardInv.closed;
+    }
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(service.numInvocations, 1);
+    assert.equal(standard.numInvocations, 2);
+  })
+);
+
 test.run();
