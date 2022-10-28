@@ -17,7 +17,10 @@ import type {Failure} from '../event.js';
 import type {Result} from '../error.js';
 
 type ServiceState =
-  | {id: 'initial'}
+  | {
+      id: 'initial';
+      entireExecutionAborted: Promise<void>;
+    }
   | {
       id: 'executingDeps';
       fingerprint: Deferred<ExecutionResult>;
@@ -90,13 +93,24 @@ function unexpectedState(state: ServiceState) {
  *     │                   │                                 │
  *     ▼             fingerprinted                           ▼
  *     │                   │                                 │
- *     │             ┌─────▼─────┐                           │
- *     ├─◄─ abort ───┤ UNSTARTED │                           │
- *     │             └─────┬─────┘                           │
  *     │                   │                                 │
- *     │                 start  ╭─╮                          │
- *     │                   │    │ start                      │
- *     │           ┌───────▼────▼─┴┐                         │
+ *     │        ╔══════════════════════╗                     │
+ *     │        ║ is directly invoked? ╟── yes ──╮           │
+ *     │        ╚══════════╤═══════════╝         │           │
+ *     │                   │                     │           │
+ *     │                   no                    │           │
+ *     │                   │                     │           │
+ *     │             ┌─────▼─────┐               │           │
+ *     ├─◄─ abort ───┤ UNSTARTED │               ▼           │
+ *     │             └─────┬─────┘               │           │
+ *     │                   │                     │           │
+ *     │                 start                   │           │
+ *     │                   │                     │           │
+ *     │                   │  ╭─────────◄────────╯           │
+ *     │                   │  │                              │
+ *     │                   │  │ ╭─╮                          │
+ *     │                   │  │ │start                       │
+ *     │           ┌───────▼──▼─▼─┴┐                         │
  *     ├─◄─ abort ─┤ DEPS_STARTING ├───── depStartErr ───►───┤
  *     │           └───────┬───────┘                         │
  *     │                   │                                 │
@@ -116,18 +130,14 @@ function unexpectedState(state: ServiceState) {
  *     │    │              │ │ start                 │       │
  *     │    │         ┌────▼─▼─┴┐                    │       │
  *     │    ├◄─ abort ┤ STARTED ├── exit ────────────────────┤
- *     │    │         └────┬─┬─┬┘                    │       │
- *     │    │              │ │ │                     │       │
- *     │    │              │ │ ╰── depServiceExit ─►─┤       │
- *     │    │              │ │                       │       │
- *     │    │              │ ╰───── detach ──╮       │       │
- *     │    ▼              │                 │       │       │
- *     │    │        allConsumersDone        │       │       │
- *     │    │    (unless directly invoked)   │       │       │
- *     │    │              │                 ▼       │       ▼
- *     ▼    │              │  ╭─╮            │       │       │
- *     │    │              │  │ start        │       │       │
- *     │    │         ┌────▼──▼─┴┐           │  ┌────▼────┐  │
+ *     │    │         └──────┬─┬┘                    │       │
+ *     │    │                │ │                     │       │
+ *     │    │                │ ╰── depServiceExit ─►─┤       │
+ *     │    │                │                       │       │
+ *     │    │                ╰───── detach ──╮       │       │
+ *     │    │                                │       │       │
+ *     ▼    │                                ▼       │       ▼
+ *     │    │         ┌──────────┐           │  ┌────▼────┐  │
  *     │    ╰─────────► STOPPING │           │  │ FAILING │  │
  *     │              └┬─▲─┬─────┘           │  └────┬────┘  │
  *     │           abort │ │                 │       │       │
@@ -143,7 +153,7 @@ function unexpectedState(state: ServiceState) {
  * ```
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
-  private _state: ServiceState = {id: 'initial'};
+  private _state: ServiceState;
   private readonly _terminated = new Deferred<Result<void, Failure>>();
 
   /**
@@ -160,10 +170,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     config: ServiceScriptConfig,
     executor: Executor,
     logger: Logger,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _abort: Promise<void>
+    entireExecutionAborted: Promise<void>
   ) {
     super(config, executor, logger);
+    this._state = {
+      id: 'initial',
+      entireExecutionAborted,
+    };
   }
 
   /**
@@ -173,6 +186,19 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   protected override _execute(): Promise<ExecutionResult> {
     switch (this._state.id) {
       case 'initial': {
+        const allConsumersDone = Promise.all(
+          this._config.serviceConsumers.map(
+            (consumer) =>
+              this._executor.getExecution(consumer).servicesNotNeeded
+          )
+        );
+        const abort = this._config.isDirectlyInvoked
+          ? Promise.all([this._state.entireExecutionAborted, allConsumersDone])
+          : allConsumersDone;
+        void abort.then(() => {
+          this._onAbort();
+        });
+
         this._state = {
           id: 'executingDeps',
           fingerprint: new Deferred(),
@@ -220,6 +246,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         );
         return;
       }
+      case 'stopped':
       case 'failed': {
         return;
       }
@@ -230,7 +257,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped':
       case 'failing': {
         throw unexpectedState(this._state);
       }
@@ -246,6 +272,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state.fingerprint.resolve(result);
         return;
       }
+      case 'stopped':
       case 'failed': {
         return;
       }
@@ -256,7 +283,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped':
       case 'failing': {
         throw unexpectedState(this._state);
       }
@@ -271,9 +297,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'fingerprinting': {
         this._state.fingerprint.resolve({ok: true, value: fingerprint});
         this._state = {id: 'unstarted'};
+        if (this._config.isDirectlyInvoked) {
+          void this.start();
+        }
         return;
       }
-      case 'failed': {
+      case 'failed':
+      case 'stopped': {
         return;
       }
       case 'initial':
@@ -283,7 +313,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'started':
       case 'stopping':
-      case 'stopped':
       case 'failing': {
         throw unexpectedState(this._state);
       }
@@ -398,6 +427,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
+      case 'stopped': {
+        return;
+      }
       case 'depsStarting':
       case 'initial':
       case 'executingDeps':
@@ -405,7 +437,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'starting':
       case 'stopping':
-      case 'stopped':
       case 'failing':
       case 'failed': {
         throw unexpectedState(this._state);
@@ -429,15 +460,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           id: 'started',
           child: this._state.child,
         };
-        const allConsumersDone = Promise.all(
-          this._config.serviceConsumers.map(
-            (consumer) =>
-              this._executor.getExecution(consumer).servicesNotNeeded
-          )
-        );
-        void allConsumersDone.then(() => {
-          this._onAllConsumersDone();
-        });
         return;
       }
       case 'initial':
@@ -450,33 +472,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopped':
       case 'failing':
       case 'failed': {
-        throw unexpectedState(this._state);
-      }
-      default: {
-        throw unknownState(this._state);
-      }
-    }
-  }
-
-  private _onAllConsumersDone() {
-    switch (this._state.id) {
-      case 'started': {
-        this._state.child.kill();
-        this._state = {id: 'stopping'};
-        return;
-      }
-      case 'failed': {
-        return;
-      }
-      case 'initial':
-      case 'executingDeps':
-      case 'fingerprinting':
-      case 'unstarted':
-      case 'depsStarting':
-      case 'starting':
-      case 'stopping':
-      case 'stopped':
-      case 'failing': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -523,6 +518,37 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'stopped': {
         throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onAbort() {
+    switch (this._state.id) {
+      case 'started': {
+        this._state.child.kill();
+        this._state = {id: 'stopping'};
+        return;
+      }
+      case 'starting': {
+        this._state = {id: 'stopping'};
+        return;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'unstarted':
+      case 'depsStarting': {
+        this._state = {id: 'stopped'};
+        return;
+      }
+      case 'stopping':
+      case 'stopped':
+      case 'failing':
+      case 'failed': {
+        return;
       }
       default: {
         throw unknownState(this._state);
