@@ -51,7 +51,7 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
 export class Executor {
   private readonly _rootConfig: ScriptConfig;
   private readonly _executions = new Map<ScriptReferenceString, Execution>();
-  private readonly _allServices: Array<ServiceScriptExecution> = [];
+  private readonly _indirectlyInvokedServices: ServiceScriptExecution[] = [];
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
@@ -118,14 +118,26 @@ export class Executor {
   /**
    * Execute the root script.
    */
-  async execute(): Promise<Result<unknown, Failure[]>> {
-    const result = await this.getExecution(this._rootConfig).execute();
-    // Wait for services to shut down.
-    // TODO(aomarks) In watch mode, directly-invoked scripts (and the services
-    // they depend on) should not block here, since they should continue
-    // running.
-    await Promise.all(this._allServices.map((service) => service.terminated));
-    return result;
+  async execute(): Promise<Result<void, Failure[]>> {
+    const errors: Failure[] = [];
+    const rootExecutionResult = await this.getExecution(
+      this._rootConfig
+    ).execute();
+    if (!rootExecutionResult.ok) {
+      errors.push(...rootExecutionResult.error);
+    }
+    const indirectlyInvokedServiceResults = await Promise.all(
+      this._indirectlyInvokedServices.map((service) => service.terminated)
+    );
+    for (const result of indirectlyInvokedServiceResults) {
+      if (!result.ok) {
+        errors.push(result.error);
+      }
+    }
+    if (errors.length > 0) {
+      return {ok: false, error: errors};
+    }
+    return {ok: true, value: undefined};
   }
 
   /**
@@ -170,7 +182,9 @@ export class Executor {
           this._logger,
           this._stopServices.promise
         );
-        this._allServices.push(execution);
+        if (!config.isDirectlyInvoked) {
+          this._indirectlyInvokedServices.push(execution);
+        }
       } else {
         execution = new StandardScriptExecution(
           config,
