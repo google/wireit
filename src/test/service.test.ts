@@ -665,4 +665,73 @@ test(
   })
 );
 
+test(
+  'deleted service shuts down between watch iterations',
+  timeout(async ({rig}) => {
+    //      entrypoint
+    //        /   \
+    //       v     v
+    // standard   service (gets deleted)
+
+    const standard = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          standard: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['standard', 'service'],
+          },
+          standard: {
+            command: standard.command,
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    // Iteration 1. Both scripts start.
+    const wireit = rig.exec('npm run entrypoint --watch');
+    const serviceInv = await service.nextInvocation();
+    const standardInv1 = await standard.nextInvocation();
+    standardInv1.exit(0);
+    await wireit.waitForLog(/Watching for file changes/);
+
+    // Iteration 2. We update the config to delete the service. It should get
+    // shut down.
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          standard: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['standard'],
+          },
+          standard: {
+            command: standard.command,
+          },
+        },
+      },
+    });
+    await serviceInv.closed;
+    const standardInv2 = await standard.nextInvocation();
+    standardInv2.exit(0);
+    await wireit.waitForLog(/Watching for file changes/);
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(service.numInvocations, 1);
+    assert.equal(standard.numInvocations, 2);
+  })
+);
+
 test.run();

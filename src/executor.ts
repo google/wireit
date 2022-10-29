@@ -125,10 +125,32 @@ export class Executor {
    * Execute the root script.
    */
   async execute(): Promise<Result<ServiceMap, Failure[]>> {
-    // TOOD(aomarks) If we have any running services from a previous watch
-    // iteration, we should at this point shut down any of the ones that have
-    // since been deleted from the build graph entirely, or which have become
-    // non-directly-invoked.
+    if (
+      this._previousIterationServices !== undefined &&
+      this._previousIterationServices.size > 0
+    ) {
+      // If any services were removed from the graph entirely, or used to be
+      // directly invoked but are no longer, then stop them now.
+      const currentDirectlyInvokedServices = new Set<ScriptReferenceString>();
+      for (const script of findAllScripts(this._rootConfig)) {
+        if (script.service && script.isDirectlyInvoked) {
+          currentDirectlyInvokedServices.add(scriptReferenceToString(script));
+        }
+      }
+      const stopPromises = [];
+      for (const [key, service] of this._previousIterationServices) {
+        if (!currentDirectlyInvokedServices.has(key)) {
+          const child = service.detach();
+          if (child !== undefined) {
+            child.kill();
+            stopPromises.push(child.completed);
+          }
+          this._previousIterationServices.delete(key);
+        }
+      }
+      await Promise.all(stopPromises);
+    }
+
     const errors: Failure[] = [];
     const rootExecutionResult = await this.getExecution(
       this._rootConfig
@@ -214,4 +236,23 @@ export class Executor {
     // really worth it here.
     return execution as ConfigToExecution<T>;
   }
+}
+
+/**
+ * Walk the dependencies of the given root script and return all scripts in the
+ * graph (including the root itself).
+ */
+function findAllScripts(root: ScriptConfig): Set<ScriptConfig> {
+  const visited = new Set<ScriptConfig>();
+  const stack = [root];
+  while (stack.length > 0) {
+    const next = stack.pop()!;
+    visited.add(next);
+    for (const dep of next.dependencies) {
+      if (!visited.has(dep.config)) {
+        stack.push(dep.config);
+      }
+    }
+  }
+  return visited;
 }
