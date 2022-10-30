@@ -125,9 +125,9 @@ function unexpectedState(state: ServiceState) {
  *     │                   │                    │            │
  *     │                   ├─────◄──────────────╯            │
  *     │                   │                                 │
- *     ▼        ╔══════════▼═══════════╗                     │
- *     │        ║ is directly invoked? ╟── yes ──╮           │
- *     │        ╚══════════╤═══════════╝         │           │
+ *     ▼           ╔═══════▼════════╗                        │
+ *     │           ║ is persistent? ╟───── yes ──╮           │
+ *     │           ╚═══════╤════════╝            │           │
  *     │                   │                     │           │
  *     │                   no                    │           │
  *     │                   │                     │           │
@@ -298,7 +298,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
               this._executor.getExecution(consumer).servicesNotNeeded
           )
         );
-        const abort = this._config.isDirectlyInvoked
+        const abort = this._config.isPersistent
           ? Promise.all([this._state.entireExecutionAborted, allConsumersDone])
           : allConsumersDone;
         void abort.then(() => {
@@ -439,7 +439,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           fingerprint,
           adoptee,
         };
-        if (this._config.isDirectlyInvoked) {
+        if (this._config.isPersistent) {
           void this.start();
         }
         return;
@@ -478,7 +478,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           fingerprint: this._state.fingerprint,
           adoptee: undefined,
         };
-        if (this._config.isDirectlyInvoked) {
+        if (this._config.isPersistent) {
           void this.start();
         }
         return;

@@ -378,7 +378,7 @@ test(
 );
 
 test(
-  'directly invoked service and dependency starts and runs until SIGINT',
+  'persistent service and dependency starts and runs until SIGINT',
   // service1
   //    |
   //    v
@@ -449,11 +449,11 @@ test(
 );
 
 for (const failureMode of ['continue', 'no-new', 'kill']) {
-  // Even directly invoked services which don't have an error in their branch
-  // should stop when an error occurs elsewhere, regardless of the error mode.
+  // Even persistent services which don't have an error in their branch should
+  // stop when an error occurs elsewhere, regardless of the error mode.
   // Otherwise wireit won't always exit on failures.
   test(
-    `directly invoked service and dependency stop on error ` +
+    `persistent service and dependency stop on error ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
     //        /   \
@@ -546,7 +546,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
 }
 
 test(
-  'indirectly invoked service shuts down between watch iterations',
+  'ephemeral service shuts down between watch iterations',
   timeout(async ({rig}) => {
     // consumer
     //    |
@@ -606,7 +606,7 @@ test(
 );
 
 test(
-  'directly invoked service is preserved across watch iterations',
+  'persistent service is preserved across watch iterations',
   timeout(async ({rig}) => {
     //     entrypoint
     //     /        \

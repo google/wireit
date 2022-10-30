@@ -84,7 +84,7 @@ export interface ServiceScriptConfig
   /**
    * Whether this service is being invoked directly (e.g. `npm run serve`).
    */
-  isDirectlyInvoked: boolean;
+  isPersistent: boolean;
 
   /**
    * Scripts that depend on this service.

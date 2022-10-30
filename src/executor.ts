@@ -53,8 +53,8 @@ export type FailureMode = 'no-new' | 'continue' | 'kill';
 export class Executor {
   private readonly _rootConfig: ScriptConfig;
   private readonly _executions = new Map<ScriptReferenceString, Execution>();
-  private readonly _directlyInvokedServices: ServiceMap = new Map();
-  private readonly _indirectlyInvokedServices: ServiceScriptExecution[] = [];
+  private readonly _persistentServices: ServiceMap = new Map();
+  private readonly _ephemeralServices: ServiceScriptExecution[] = [];
   private readonly _previousIterationServices: ServiceMap | undefined;
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
@@ -130,16 +130,16 @@ export class Executor {
       this._previousIterationServices.size > 0
     ) {
       // If any services were removed from the graph entirely, or used to be
-      // directly invoked but are no longer, then stop them now.
-      const currentDirectlyInvokedServices = new Set<ScriptReferenceString>();
+      // persistent but are no longer, then stop them now.
+      const currentPersistentServices = new Set<ScriptReferenceString>();
       for (const script of findAllScripts(this._rootConfig)) {
-        if (script.service && script.isDirectlyInvoked) {
-          currentDirectlyInvokedServices.add(scriptReferenceToString(script));
+        if (script.service && script.isPersistent) {
+          currentPersistentServices.add(scriptReferenceToString(script));
         }
       }
       const stopPromises = [];
       for (const [key, service] of this._previousIterationServices) {
-        if (!currentDirectlyInvokedServices.has(key)) {
+        if (!currentPersistentServices.has(key)) {
           const child = service.detach();
           if (child !== undefined) {
             child.kill();
@@ -158,10 +158,10 @@ export class Executor {
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
     }
-    const indirectlyInvokedServiceResults = await Promise.all(
-      this._indirectlyInvokedServices.map((service) => service.terminated)
+    const ephemeralServiceResults = await Promise.all(
+      this._ephemeralServices.map((service) => service.terminated)
     );
-    for (const result of indirectlyInvokedServiceResults) {
+    for (const result of ephemeralServiceResults) {
       if (!result.ok) {
         errors.push(result.error);
       }
@@ -169,7 +169,7 @@ export class Executor {
     if (errors.length > 0) {
       return {ok: false, error: errors};
     }
-    return {ok: true, value: this._directlyInvokedServices};
+    return {ok: true, value: this._persistentServices};
   }
 
   /**
@@ -215,10 +215,10 @@ export class Executor {
           this._stopServices.promise,
           this._previousIterationServices?.get(key)
         );
-        if (config.isDirectlyInvoked) {
-          this._directlyInvokedServices.set(key, execution);
+        if (config.isPersistent) {
+          this._persistentServices.set(key, execution);
         } else {
-          this._indirectlyInvokedServices.push(execution);
+          this._ephemeralServices.push(execution);
         }
       } else {
         execution = new StandardScriptExecution(

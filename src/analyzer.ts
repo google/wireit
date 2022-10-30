@@ -946,7 +946,7 @@ export class Analyzer {
   private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
     trail: Set<ScriptReferenceString>,
-    isDirectlyInvoked: boolean
+    isPersistent: boolean
   ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
@@ -1069,10 +1069,10 @@ export class Analyzer {
             dependency.config,
             trail,
             // Walk through no-command scripts when determining if something is
-            // being directly invoked (e.g. if the top-level script has no command
-            // and simply delegates to one or more other scripts, then those
-            // dependencies are effectively being directly invoked).
-            isDirectlyInvoked && config.command === undefined
+            // persistent (e.g. if the top-level script has no command and
+            // simply delegates to one or more other scripts, then those
+            // dependencies are effectively persistent).
+            isPersistent && config.command === undefined
           );
         if (!validDependencyConfigResult.ok) {
           return {
@@ -1128,7 +1128,7 @@ export class Analyzer {
         // Unfortunately TypeScript doesn't narrow the ...config spread, so we
         // have to assign explicitly.
         command: config.command,
-        isDirectlyInvoked,
+        isPersistent,
         serviceConsumers: [],
       };
     } else {
