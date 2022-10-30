@@ -606,28 +606,38 @@ test(
 );
 
 test(
-  'persistent service is preserved across watch iterations',
+  'persistent services are preserved across watch iterations',
   timeout(async ({rig}) => {
     //     entrypoint
     //     /        \
     //    v          v
-    // service    standard
+    // service1    standard
+    //    |
+    //    v
+    // service2
 
-    const service = await rig.newCommand();
+    const service1 = await rig.newCommand();
+    const service2 = await rig.newCommand();
     const standard = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
         scripts: {
           entrypoint: 'wireit',
-          service: 'wireit',
+          service1: 'wireit',
+          service2: 'wireit',
           standard: 'wireit',
         },
         wireit: {
           entrypoint: {
-            dependencies: ['service', 'standard'],
+            dependencies: ['service1', 'standard'],
           },
-          service: {
-            command: service.command,
+          service1: {
+            command: service1.command,
+            dependencies: ['service2'],
+            service: true,
+          },
+          service2: {
+            command: service2.command,
             service: true,
           },
           standard: {
@@ -643,10 +653,12 @@ test(
 
     // Iteration 1
     {
-      await service.nextInvocation();
+      await service2.nextInvocation();
+      await service1.nextInvocation();
       const standardInv = await standard.nextInvocation();
       standardInv.exit(0);
       await standardInv.closed;
+      await wireit.waitForLog(/Watching for file changes/);
     }
 
     await rig.write('input', '1');
@@ -656,11 +668,13 @@ test(
       const standardInv = await standard.nextInvocation();
       standardInv.exit(0);
       await standardInv.closed;
+      await wireit.waitForLog(/Watching for file changes/);
     }
 
     wireit.kill();
     await wireit.exit;
-    assert.equal(service.numInvocations, 1);
+    assert.equal(service1.numInvocations, 1);
+    assert.equal(service2.numInvocations, 1);
     assert.equal(standard.numInvocations, 2);
   })
 );
