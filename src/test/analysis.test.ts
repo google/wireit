@@ -99,7 +99,7 @@ test('analyzes services', async ({rig}) => {
   }
   assert.equal(b.serviceConsumers.length, 1);
   assert.equal(b.serviceConsumers[0].name, 'd');
-  assert.equal(b.isDirectlyInvoked, true);
+  assert.equal(b.isPersistent, true);
 
   // c
   const c = a.dependencies[1].config;
@@ -107,7 +107,7 @@ test('analyzes services', async ({rig}) => {
   if (!c.service) {
     throw new Error('Expected service');
   }
-  assert.equal(c.isDirectlyInvoked, true);
+  assert.equal(c.isPersistent, true);
   assert.equal(c.serviceConsumers.length, 0);
   assert.equal(c.services.length, 0);
 
@@ -124,7 +124,7 @@ test('analyzes services', async ({rig}) => {
   if (!e.service) {
     throw new Error('Expected service');
   }
-  assert.equal(e.isDirectlyInvoked, false);
+  assert.equal(e.isPersistent, false);
   assert.equal(e.serviceConsumers.length, 1);
 });
 

@@ -82,9 +82,36 @@ export interface ServiceScriptConfig
   service: true;
 
   /**
-   * Whether this service is being invoked directly (e.g. `npm run serve`).
+   * Whether this service persists beyond the initial execution phase.
+   *
+   * When true, this service will keep running until the user exits wireit, or
+   * until its fingerprint changes in watch mode, requiring a restart.
+   *
+   * When false, this service will start only if it is needed by a standard
+   * script, and will stop when that dependent is done. We call these scripts
+   * "ephemeral".
+   *
+   * So, this is true when there is a path from the entrypoint script to the
+   * service, which does not pass through a standard script.
+   *
+   * Example:
+   *
+   *                      start
+   *                   (no-command)
+   *                    /        \
+   *                   ▼          ▼
+   *             serve:api      serve:static
+   *  (persistent service)      (persistent service)
+   *          |                          |
+   *          ▼                          ▼
+   *      serve:db                   build:assets
+   *  (persistent service)            (standard)
+   *                                     |
+   *                                     ▼
+   *                             serve:playwright
+   *                            (ephemeral service)
    */
-  isDirectlyInvoked: boolean;
+  isPersistent: boolean;
 
   /**
    * Scripts that depend on this service.
