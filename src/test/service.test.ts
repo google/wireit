@@ -734,4 +734,79 @@ test(
   })
 );
 
+test(
+  'service fingerprint is trackable despite never having outputs',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+            files: [],
+            output: [],
+          },
+          service: {
+            command: service.command,
+            service: true,
+            files: ['input'],
+          },
+        },
+      },
+    });
+
+    // Run 1. Nothing cached yet.
+    {
+      await rig.write('input', '0');
+      const wireit = rig.exec('npm run consumer');
+      const serviceInv = await service.nextInvocation();
+      const consumerInv = await consumer.nextInvocation();
+      consumerInv.exit(0);
+      await serviceInv.closed;
+      await consumerInv.closed;
+      const {code} = await wireit.exit;
+      assert.equal(code, 0);
+      assert.equal(consumer.numInvocations, 1);
+      assert.equal(service.numInvocations, 1);
+    }
+
+    // Run 2. No input change. Consumer output is cached, service never needs to
+    // start.
+    {
+      const wireit = rig.exec('npm run consumer');
+      const {code} = await wireit.exit;
+      assert.equal(code, 0);
+      assert.equal(consumer.numInvocations, 1);
+      assert.equal(service.numInvocations, 1);
+    }
+
+    // Run 3. Service input changed. That affects the service fingerprint and
+    // transitively affects the consumer fingerprint, so both need to run.
+    {
+      await rig.write('input', '1');
+      const wireit = rig.exec('npm run consumer');
+      const serviceInv = await service.nextInvocation();
+      const consumerInv = await consumer.nextInvocation();
+      consumerInv.exit(0);
+      await serviceInv.closed;
+      await consumerInv.closed;
+      const {code} = await wireit.exit;
+      assert.equal(code, 0);
+      assert.equal(consumer.numInvocations, 2);
+      assert.equal(service.numInvocations, 2);
+    }
+  })
+);
+
 test.run();
