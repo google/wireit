@@ -525,6 +525,12 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
         return this._state.started.promise;
       }
+      case 'starting': {
+        return this._state.started.promise;
+      }
+      case 'started': {
+        return Promise.resolve({ok: true, value: undefined});
+      }
       case 'failing':
       case 'failed': {
         return Promise.resolve({ok: false, error: [this._state.failure]});
@@ -534,8 +540,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'fingerprinting':
       case 'stoppingAdoptee':
       case 'depsStarting':
-      case 'starting':
-      case 'started':
       case 'stopping':
       case 'stopped':
       case 'detached': {
