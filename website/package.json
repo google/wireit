@@ -1,5 +1,5 @@
 {
-  "name": "wireit-website",
+  "name": "@wireit/internal-website",
   "description": "The website for wireit",
   "private": true,
   "version": "0.0.0",

@@ -1,5 +1,5 @@
 {
-  "name": "wireit-extension",
+  "name": "@wireit/internal-vscode-extension",
   "#comment": [
     "This file is for dependency management and scripts, the file that",
     "is used for the actual vscode plugin is package-for-extension.json"
