@@ -146,6 +146,9 @@ export class Analyzer {
    * Returns a Failure if the given script or any of its transitive
    * dependencies don't exist, are configured in an invalid way, or if there is
    * a cycle in the dependency graph.
+   *
+   * @param root
+   * @param extraArg This param has the wrong name
    */
   async analyze(
     root: ScriptReference,
