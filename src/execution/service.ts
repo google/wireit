@@ -746,6 +746,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting': {
         this._state = {id: 'stopped'};
+        this._terminated.resolve({ok: true, value: undefined});
+        this._servicesNotNeeded.resolve();
         return;
       }
       case 'stopping':
