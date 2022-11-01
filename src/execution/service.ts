@@ -684,11 +684,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onChildExited() {
     switch (this._state.id) {
       case 'stopping': {
-        this._state = {
-          id: 'stopped',
-        };
-        this._terminated.resolve({ok: true, value: undefined});
-        this._servicesNotNeeded.resolve();
+        this._enterStoppedState();
         this._logger.log({
           script: this._config,
           type: 'info',
@@ -697,7 +693,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'started': {
-        this._fail({
+        this._enterFailedState({
           script: this._config,
           type: 'failure',
           reason: 'service-exited-unexpectedly',
@@ -705,7 +701,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'failing': {
-        this._fail(this._state.failure);
+        this._enterFailedState(this._state.failure);
         return;
       }
       case 'failed':
@@ -745,7 +741,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stoppingAdoptee':
       case 'unstarted':
       case 'depsStarting': {
-        this._state = {id: 'stopped'};
+        this._enterStoppedState();
         return;
       }
       case 'stopping':
@@ -761,7 +757,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
-  private _fail(failure: Failure) {
+  private _enterStoppedState() {
+    this._state = {id: 'stopped'};
+    this._terminated.resolve({ok: true, value: undefined});
+    this._servicesNotNeeded.resolve();
+  }
+
+  private _enterFailedState(failure: Failure) {
     this._state = {
       id: 'failed',
       failure,

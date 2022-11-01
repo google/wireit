@@ -823,4 +823,78 @@ test(
   })
 );
 
+test(
+  'caching with service dependencies works in watch mode',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+            files: [],
+            output: [],
+          },
+          service: {
+            command: service.command,
+            service: true,
+            files: ['input'],
+          },
+        },
+      },
+    });
+
+    await rig.write('input', 'A');
+    const wireit = rig.exec('npm run consumer --watch');
+
+    // 1st run with input A. Runs.
+    {
+      const serviceInv = await service.nextInvocation();
+      const consumerInv1 = await consumer.nextInvocation();
+      consumerInv1.exit(0);
+      await serviceInv.closed;
+      await wireit.waitForLog(/Watching for file changes/);
+      assert.equal(service.numInvocations, 1);
+      assert.equal(consumer.numInvocations, 1);
+    }
+
+    // 2nd run with input B. Runs.
+    {
+      await rig.write('input', 'B');
+      const serviceInv = await service.nextInvocation();
+      const consumerInv1 = await consumer.nextInvocation();
+      consumerInv1.exit(0);
+      await serviceInv.closed;
+      await wireit.waitForLog(/Watching for file changes/);
+      assert.equal(service.numInvocations, 2);
+      assert.equal(consumer.numInvocations, 2);
+    }
+
+    // 3rd run with input A. Restored from cache.
+    {
+      await rig.write('input', 'A');
+      await wireit.waitForLog(/Restored from cache/);
+      await wireit.waitForLog(/Watching for file changes/);
+      assert.equal(service.numInvocations, 2);
+      assert.equal(consumer.numInvocations, 2);
+    }
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(service.numInvocations, 2);
+    assert.equal(consumer.numInvocations, 2);
+  })
+);
+
 test.run();
