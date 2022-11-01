@@ -243,6 +243,10 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
+  /**
+   * Take over ownership of this service's running child process, if there is
+   * one.
+   */
   detach(): ScriptChildProcess | undefined {
     switch (this._state.id) {
       case 'started': {
@@ -302,7 +306,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           ? Promise.all([this._state.entireExecutionAborted, allConsumersDone])
           : allConsumersDone;
         void abort.then(() => {
-          this._onAbort();
+          void this.abort();
         });
 
         this._state = {
@@ -414,20 +418,16 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           adoptee?.fingerprint !== undefined &&
           !adoptee.fingerprint.equal(fingerprint)
         ) {
-          const child = adoptee.detach();
-          if (child !== undefined) {
-            // There is a previous running version of this service, but the
-            // fingerprint changed, so we need to restart it.
-            this._state = {
-              id: 'stoppingAdoptee',
-              fingerprint,
-              deferredFingerprint: this._state.deferredFingerprint,
-            };
-            child.kill();
-            void child.completed.then(() => {
-              this._onAdopteeStopped();
-            });
-          }
+          // There is a previous running version of this service, but the
+          // fingerprint changed, so we need to restart it.
+          this._state = {
+            id: 'stoppingAdoptee',
+            fingerprint,
+            deferredFingerprint: this._state.deferredFingerprint,
+          };
+          void adoptee.abort().then(() => {
+            this._onAdopteeStopped();
+          });
           return;
         }
         this._state.deferredFingerprint.resolve({
@@ -724,16 +724,20 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
-  private _onAbort() {
+  /**
+   * Stop this service if it has started, and return a promise that resolves
+   * when it is stopped.
+   */
+  abort(): Promise<void> {
     switch (this._state.id) {
       case 'started': {
         this._state.child.kill();
         this._state = {id: 'stopping'};
-        return;
+        break;
       }
       case 'starting': {
         this._state = {id: 'stopping'};
-        return;
+        break;
       }
       case 'initial':
       case 'executingDeps':
@@ -742,19 +746,20 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting': {
         this._enterStoppedState();
-        return;
+        break;
       }
       case 'stopping':
       case 'stopped':
       case 'failing':
       case 'failed':
       case 'detached': {
-        return;
+        break;
       }
       default: {
         throw unknownState(this._state);
       }
     }
+    return this._terminated.promise.then(() => undefined);
   }
 
   private _enterStoppedState() {

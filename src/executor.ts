@@ -137,18 +137,14 @@ export class Executor {
           currentPersistentServices.add(scriptReferenceToString(script));
         }
       }
-      const stopPromises = [];
+      const abortPromises = [];
       for (const [key, service] of this._previousIterationServices) {
         if (!currentPersistentServices.has(key)) {
-          const child = service.detach();
-          if (child !== undefined) {
-            child.kill();
-            stopPromises.push(child.completed);
-          }
+          abortPromises.push(service.abort());
           this._previousIterationServices.delete(key);
         }
       }
-      await Promise.all(stopPromises);
+      await Promise.all(abortPromises);
     }
 
     const errors: Failure[] = [];
