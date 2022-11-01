@@ -720,6 +720,7 @@ test(
 
     // Iteration 2. We update the config to delete the service. It should get
     // shut down.
+    const serviceSigint = IS_WINDOWS ? undefined : serviceInv.interceptSigint();
     await rig.writeAtomic({
       'package.json': {
         scripts: {
@@ -736,6 +737,18 @@ test(
         },
       },
     });
+    if (!IS_WINDOWS) {
+      // Ensure that we continue to forward stdout/stderr while a stale service
+      // is being stopped. This won't be the case if we naively detach from the
+      // first execution, since then we'd stop listening for the output event
+      // listeners. Note we don't get graceful shutdown in Windows, so just skip
+      // this in Windows.
+      await serviceSigint;
+      serviceInv.stdout('Service shutting down');
+      await wireit.waitForLog(/Service shutting down/);
+      serviceInv.stdout('Service shutting down');
+      serviceInv.exit(0);
+    }
     await serviceInv.closed;
     const standardInv2 = await standard.nextInvocation();
     standardInv2.exit(0);
