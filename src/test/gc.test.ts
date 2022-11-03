@@ -216,4 +216,97 @@ test(
   })
 );
 
+test(
+  'no-command, standard, persistent service, and ephemeral service garbage collection',
+  timeout(async ({rig}) => {
+    const standard = await rig.newCommand();
+    const servicePersistent = await rig.newCommand();
+    const serviceEphemeral = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          standard: 'wireit',
+          servicePersistent: 'wireit',
+          serviceEphemeral: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['standard', 'servicePersistent'],
+          },
+          standard: {
+            command: standard.command,
+            dependencies: ['serviceEphemeral'],
+          },
+          servicePersistent: {
+            command: servicePersistent.command,
+            service: true,
+          },
+          serviceEphemeral: {
+            command: serviceEphemeral.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const logger = new DefaultLogger(rig.temp);
+    const script = await new Analyzer().analyze(
+      {packageDir: rig.temp, name: 'entrypoint'},
+      []
+    );
+    if (!script.config.ok) {
+      for (const error of script.config.error) {
+        logger.log(error);
+      }
+      throw new Error(`Analysis error`);
+    }
+
+    const workerPool = new WorkerPool(Infinity);
+
+    const numIterations = 10;
+    let previousServices: ServiceMap | undefined;
+    for (let i = 0; i < numIterations; i++) {
+      const executor = new Executor(
+        script.config.value,
+        logger,
+        workerPool,
+        undefined,
+        'no-new',
+        previousServices
+      );
+      const resultPromise = executor.execute();
+      assert.ok(numLiveExecutors >= 1);
+      assert.ok(numLiveExecutions >= 1);
+      if (i === 0) {
+        await servicePersistent.nextInvocation();
+      }
+      await serviceEphemeral.nextInvocation();
+      (await standard.nextInvocation()).exit(0);
+      const result = await resultPromise;
+      if (!result.ok) {
+        for (const error of result.error) {
+          logger.log(error);
+        }
+        throw new Error(`Execution error`);
+      }
+      previousServices = result.value;
+    }
+
+    for (const service of previousServices!.values()) {
+      await service.abort();
+    }
+
+    await retryWithGcUntilCallbackDoesNotThrow(() => {
+      // TODO(aomarks) Not sure why it's 1 and 4 instead of 0, but as long as
+      // it's not a factor of numIterations we're OK.
+      assert.equal(numLiveExecutors, 1);
+      assert.equal(numLiveExecutions, 4);
+    });
+    assert.equal(standard.numInvocations, numIterations);
+    assert.equal(servicePersistent.numInvocations, 1);
+    assert.equal(serviceEphemeral.numInvocations, numIterations);
+  })
+);
+
 test.run();
