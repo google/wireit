@@ -167,6 +167,17 @@ export class Executor {
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
     }
+    // Wait for all persistent services to start.
+    for (const service of this._persistentServices.values()) {
+      // Persistent services start automatically, so calling start() here should
+      // be a no-op, but it lets us get the started promise.
+      const result = await service.start();
+      if (!result.ok) {
+        errors.push(...result.error);
+      }
+    }
+    // Wait for all ephemeral services to have terminated (either started and
+    // stopped, or never needed to start).
     const ephemeralServiceResults = await Promise.all(
       this._ephemeralServices.map((service) => service.terminated)
     );

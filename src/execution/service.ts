@@ -525,6 +525,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
         return this._state.started.promise;
       }
+      case 'depsStarting':
       case 'starting': {
         return this._state.started.promise;
       }
@@ -539,7 +540,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'stoppingAdoptee':
-      case 'depsStarting':
       case 'stopping':
       case 'stopped':
       case 'detached': {
