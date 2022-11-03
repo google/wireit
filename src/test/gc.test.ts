@@ -8,7 +8,11 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
-import {Executor, registerExecutorConstructorHook} from '../executor.js';
+import {
+  Executor,
+  registerExecutorConstructorHook,
+  ServiceMap,
+} from '../executor.js';
 import {Analyzer} from '../analyzer.js';
 import {DefaultLogger} from '../logging/default-logger.js';
 import {WorkerPool} from '../util/worker-pool.js';
@@ -136,6 +140,79 @@ test(
       assert.equal(numLiveExecutions, 1);
     });
     assert.equal(standard.numInvocations, numIterations);
+  })
+);
+
+test(
+  'persistent service garbage collection',
+  timeout(async ({rig}) => {
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          service: 'wireit',
+        },
+        wireit: {
+          service: {
+            command: service.command,
+            service: true,
+          },
+        },
+      },
+    });
+
+    const logger = new DefaultLogger(rig.temp);
+    const script = await new Analyzer().analyze(
+      {packageDir: rig.temp, name: 'service'},
+      []
+    );
+    if (!script.config.ok) {
+      for (const error of script.config.error) {
+        logger.log(error);
+      }
+      throw new Error(`Analysis error`);
+    }
+
+    const workerPool = new WorkerPool(Infinity);
+
+    const numIterations = 10;
+    let previousServices: ServiceMap | undefined;
+    for (let i = 0; i < numIterations; i++) {
+      const executor = new Executor(
+        script.config.value,
+        logger,
+        workerPool,
+        undefined,
+        'no-new',
+        previousServices
+      );
+      const resultPromise = executor.execute();
+      assert.ok(numLiveExecutors >= 1);
+      assert.ok(numLiveExecutions >= 1);
+      const result = await resultPromise;
+      if (!result.ok) {
+        for (const error of result.error) {
+          logger.log(error);
+        }
+        throw new Error(`Execution error`);
+      }
+      previousServices = result.value;
+      if (i === 0) {
+        await service.nextInvocation();
+      }
+    }
+
+    for (const service of previousServices!.values()) {
+      await service.abort();
+    }
+
+    await retryWithGcUntilCallbackDoesNotThrow(() => {
+      // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
+      // numIterations we're OK.
+      assert.equal(numLiveExecutors, 1);
+      assert.equal(numLiveExecutions, 1);
+    });
+    assert.equal(service.numInvocations, 1);
   })
 );
 
