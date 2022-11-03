@@ -26,6 +26,20 @@ export type ExecutionResult = Result<Fingerprint, Failure[]>;
  */
 export type FailureMode = 'no-new' | 'continue' | 'kill';
 
+let executionConstructorHook:
+  | ((executor: BaseExecution<ScriptConfig>) => void)
+  | undefined;
+
+/**
+ * For GC testing only. A function that is called whenever an Execution is
+ * constructed.
+ */
+export function registerExecutionConstructorHook(
+  fn: typeof executionConstructorHook
+) {
+  executionConstructorHook = fn;
+}
+
 /**
  * A single execution of a specific script.
  */
@@ -36,6 +50,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
   private _fingerprint?: Promise<ExecutionResult>;
 
   constructor(config: T, executor: Executor, logger: Logger) {
+    executionConstructorHook?.(this);
     this._config = config;
     this._executor = executor;
     this._logger = logger;

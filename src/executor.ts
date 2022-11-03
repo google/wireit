@@ -47,6 +47,18 @@ export type ServiceMap = Map<ScriptReferenceString, ServiceScriptExecution>;
  */
 export type FailureMode = 'no-new' | 'continue' | 'kill';
 
+let executorConstructorHook: ((executor: Executor) => void) | undefined;
+
+/**
+ * For GC testing only. A function that is called whenever an Executor is
+ * constructed.
+ */
+export function registerExecutorConstructorHook(
+  fn: typeof executorConstructorHook
+) {
+  executorConstructorHook = fn;
+}
+
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
@@ -78,6 +90,7 @@ export class Executor {
     abort: Deferred<void>,
     previousIterationServices: ServiceMap | undefined
   ) {
+    executorConstructorHook?.(this);
     this._rootConfig = rootConfig;
     this._logger = logger;
     this._workerPool = workerPool;
