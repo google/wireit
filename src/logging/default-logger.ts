@@ -204,6 +204,12 @@ export class DefaultLogger implements Logger {
             console.error(`❌${prefix} Service exited unexpectedly`);
             break;
           }
+          case 'aborted': {
+            // This event isn't very useful to log. Things get aborted only
+            // because of a failure somewhere else, which should already get
+            // reported.
+            break;
+          }
         }
         break;
       }
