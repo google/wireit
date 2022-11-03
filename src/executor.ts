@@ -228,12 +228,34 @@ export class Executor {
       if (config.command === undefined) {
         execution = new NoCommandScriptExecution(config, this, this._logger);
       } else if (config.service) {
+        const adoptee = this._previousIterationServices?.get(key);
+        if (adoptee !== undefined) {
+          // Remove the adoptee from the map so that this executor doesn't hold
+          // a reference to it. Otherwise, we'll maintain a chain of references
+          // going all the way back through all previous executions, which will
+          // leak memory in watch mode.
+          //
+          //               executor N
+          //  break this -----> | [previousIterationServices]
+          //   reference        v
+          //               service N-1
+          //                    | [executor]
+          //                    v
+          //               executor N-1
+          //                    | [previousIterationServices]
+          //                    v
+          //               sevice N-2
+          //                    | [executor]
+          //                    v
+          //                   ...
+          this._previousIterationServices!.delete(key);
+        }
         execution = new ServiceScriptExecution(
           config,
           this,
           this._logger,
           this._stopServices.promise,
-          this._previousIterationServices?.get(key)
+          adoptee
         );
         if (config.isPersistent) {
           this._persistentServices.set(key, execution);
