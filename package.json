@@ -44,6 +44,7 @@
     "test:failures": "wireit",
     "test:freshness": "wireit",
     "test:ide": "wireit",
+    "test:gc": "wireit",
     "test:glob": "wireit",
     "test:json-schema": "wireit",
     "test:optimize-mkdirs": "wireit",
@@ -215,6 +216,14 @@
     },
     "test:freshness": {
       "command": "cross-env NODE_OPTIONS=--enable-source-maps uvu lib/test \"^freshness\\.test\\.js$\"",
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:gc": {
+      "command": "cross-env NODE_OPTIONS=--enable-source-maps node --expose-gc node_modules/uvu/bin.js lib/test \"^gc\\.test\\.js$\"",
       "dependencies": [
         "build"
       ],
