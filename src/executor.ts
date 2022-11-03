@@ -87,7 +87,6 @@ export class Executor {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,
-    abort: Deferred<void>,
     previousIterationServices: ServiceMap | undefined
   ) {
     executorConstructorHook?.(this);
@@ -96,15 +95,6 @@ export class Executor {
     this._workerPool = workerPool;
     this._cache = cache;
     this._previousIterationServices = previousIterationServices;
-
-    // If this entire execution is aborted because e.g. the user sent a SIGINT
-    // to the Wireit process, then dont start new scripts, and kill running
-    // ones.
-    void abort.promise.then(() => {
-      this._stopStartingNewScripts.resolve();
-      this._killRunningScripts.resolve();
-      this._stopServices.resolve();
-    });
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
@@ -132,6 +122,16 @@ export class Executor {
         }
       }
     });
+  }
+
+  /**
+   * If this entire execution is aborted because e.g. the user sent a SIGINT to
+   * the Wireit process, then dont start new scripts, and kill running ones.
+   */
+  abort() {
+    this._stopStartingNewScripts.resolve();
+    this._killRunningScripts.resolve();
+    this._stopServices.resolve();
   }
 
   /**

@@ -9,7 +9,6 @@ import {Analyzer} from './analyzer.js';
 import {Executor} from './executor.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {unreachable} from './util/unreachable.js';
-import {Deferred} from './util/deferred.js';
 import {Failure} from './event.js';
 import {logger, getOptions} from './cli-options.js';
 
@@ -71,22 +70,20 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     }
   }
 
-  const abort = new Deferred<void>();
-  process.on('SIGINT', () => {
-    abort.resolve();
-  });
-
   if (options.watch) {
     const {Watcher} = await import('./watcher.js');
-    await Watcher.watch(
+    const watcher = new Watcher(
       options.script,
       options.extraArgs,
       logger,
       workerPool,
       cache,
-      options.failureMode,
-      abort
+      options.failureMode
     );
+    process.on('SIGINT', () => {
+      watcher.abort();
+    });
+    await watcher.watch();
   } else {
     const analyzer = new Analyzer();
     const {config} = await analyzer.analyze(options.script, options.extraArgs);
@@ -99,9 +96,11 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       workerPool,
       cache,
       options.failureMode,
-      abort,
       undefined
     );
+    process.on('SIGINT', () => {
+      executor.abort();
+    });
     const result = await executor.execute();
     if (!result.ok) {
       return result;

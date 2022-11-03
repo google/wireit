@@ -85,31 +85,6 @@ const DEBOUNCE_MS = 0;
  * when they change.
  */
 export class Watcher {
-  static async watch(
-    rootScript: ScriptReference,
-    extraArgs: string[] | undefined,
-    logger: Logger,
-    workerPool: WorkerPool,
-    cache: Cache | undefined,
-    failureMode: FailureMode,
-    abort: Deferred<void>
-  ): Promise<void> {
-    const watcher = new Watcher(
-      rootScript,
-      extraArgs,
-      logger,
-      workerPool,
-      cache,
-      failureMode,
-      abort
-    );
-    void watcher._startRun();
-    void abort.promise.then(() => {
-      watcher._onAbort();
-    });
-    return watcher._finished.promise;
-  }
-
   /** See {@link WatcherState} */
   private _state: WatcherState = 'initial';
 
@@ -119,7 +94,7 @@ export class Watcher {
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
   private readonly _failureMode: FailureMode;
-  private readonly _abort: Deferred<void>;
+  private _executor?: Executor;
   private _debounceTimeoutId?: NodeJS.Timeout = undefined;
   private _previousIterationServices?: ServiceMap = undefined;
 
@@ -148,14 +123,13 @@ export class Watcher {
    */
   private readonly _finished = new Deferred<void>();
 
-  private constructor(
+  constructor(
     rootScript: ScriptReference,
     extraArgs: string[] | undefined,
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    failureMode: FailureMode,
-    abort: Deferred<void>
+    failureMode: FailureMode
   ) {
     this._rootScript = rootScript;
     this._extraArgs = extraArgs;
@@ -163,7 +137,11 @@ export class Watcher {
     this._workerPool = workerPool;
     this._failureMode = failureMode;
     this._cache = cache;
-    this._abort = abort;
+  }
+
+  watch(): Promise<void> {
+    void this._startRun();
+    return this._finished.promise;
   }
 
   private _startDebounce(): void {
@@ -276,16 +254,15 @@ export class Watcher {
     if (this._state !== 'running') {
       throw unexpectedState(this._state);
     }
-    const executor = new Executor(
+    this._executor = new Executor(
       script,
       this._logger,
       this._workerPool,
       this._cache,
       this._failureMode,
-      this._abort,
       this._previousIterationServices
     );
-    const result = await executor.execute();
+    const result = await this._executor.execute();
     if (result.ok) {
       this._previousIterationServices = result.value;
     } else {
@@ -409,7 +386,11 @@ export class Watcher {
     }
   }
 
-  private _onAbort(): void {
+  abort(): void {
+    if (this._executor !== undefined) {
+      this._executor.abort();
+      this._executor = undefined;
+    }
     switch (this._state) {
       case 'debouncing':
       case 'watching': {
