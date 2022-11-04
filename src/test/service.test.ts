@@ -718,10 +718,14 @@ test(
     }
 
     wireit.kill();
-    await wireit.exit;
+    const {stdout} = await wireit.exit;
     assert.equal(service1.numInvocations, 1);
     assert.equal(service2.numInvocations, 1);
     assert.equal(standard.numInvocations, 2);
+
+    // Check that we only print "Service started" when we *actually* start a
+    // service, and not when we adopt an existing one into a new iteration.
+    assert.equal([...stdout.matchAll(/Service started/g)].length, 2);
   })
 );
 

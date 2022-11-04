@@ -146,20 +146,27 @@ function unexpectedState(state: ServiceState) {
  *     │           └───────┬───────┘                         │
  *     │                   │                                 │
  *     │              depsStarted                            ▼
- *     │                   │  ╭─╮                            │
- *     │                   │  │ start                        │
- *     │              ┌────▼──▼─┴┐                           │
+ *     │                   │                                 │
+ *     │                   │                                 │
+ *     ▼            ╔══════▼═══════╗                         │
+ *     │            ║ has adoptee? ╟───── yes ───╮           │
+ *     │            ╚══════╤═══════╝             │           │
+ *     │                   │                     │           │
+ *     │                   no                    │           │
+ *     │                   │  ╭─╮                ▼           │
+ *     │                   │  │ start            │           │
+ *     │              ┌────▼──▼─┴┐               │           │
  *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►──────┤
- *     │    │         └────┬────┬┘                           │
- *     │    │              │    │                            │
+ *     │    │         └────┬────┬┘               │           │
+ *     │    │              │    │                │           │
  *     │    │              │    ╰─ depServiceExit ─►─╮       │
- *     ▼    │              │                         │       │
- *     │    │              │                         │       │
- *     │    ▼              │                         ▼       ▼
- *     │    │           started                      │       │
- *     │    │              │ ╭─╮                     │       │
- *     │    │              │ │ start                 │       │
- *     │    │         ┌────▼─▼─┴┐                    │       │
+ *     ▼    │              │                     │   │       │
+ *     │    │              │                     │   │       │
+ *     │    ▼              │                     ▼   ▼       ▼
+ *     │    │           started                  │   │       │
+ *     │    │          ╭─╮ │  ╭─────────◄────────╯   │       │
+ *     │    │      start │ │  │                      │       │
+ *     │    │         ┌▼─┴─▼──▼─┐                    │       │
  *     │    ├◄─ abort ┤ STARTED ├── exit ────────────────────┤
  *     │    │         └──────┬─┬┘                    │       │
  *     │    │                │ │                     │       │
@@ -565,17 +572,26 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onDepsStarted() {
     switch (this._state.id) {
       case 'depsStarting': {
-        this._state = {
-          id: 'starting',
-          child:
-            this._state.adoptee?.detach() ??
-            new ScriptChildProcess(this._config),
-          started: this._state.started,
-          fingerprint: this._state.fingerprint,
-        };
-        void this._state.child.started.then(() => {
-          this._onChildStarted();
-        });
+        let child = this._state.adoptee?.detach();
+        if (child === undefined) {
+          child = new ScriptChildProcess(this._config);
+          this._state = {
+            id: 'starting',
+            child,
+            started: this._state.started,
+            fingerprint: this._state.fingerprint,
+          };
+          void this._state.child.started.then(() => {
+            this._onChildStarted();
+          });
+        } else {
+          this._state.started.resolve({ok: true, value: undefined});
+          this._state = {
+            id: 'started',
+            child,
+            fingerprint: this._state.fingerprint,
+          };
+        }
         void this._state.child.completed.then(() => {
           this._onChildExited();
         });
