@@ -47,6 +47,18 @@ export type ServiceMap = Map<ScriptReferenceString, ServiceScriptExecution>;
  */
 export type FailureMode = 'no-new' | 'continue' | 'kill';
 
+let executorConstructorHook: ((executor: Executor) => void) | undefined;
+
+/**
+ * For GC testing only. A function that is called whenever an Executor is
+ * constructed.
+ */
+export function registerExecutorConstructorHook(
+  fn: typeof executorConstructorHook
+) {
+  executorConstructorHook = fn;
+}
+
 /**
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
@@ -75,23 +87,14 @@ export class Executor {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,
-    abort: Deferred<void>,
     previousIterationServices: ServiceMap | undefined
   ) {
+    executorConstructorHook?.(this);
     this._rootConfig = rootConfig;
     this._logger = logger;
     this._workerPool = workerPool;
     this._cache = cache;
     this._previousIterationServices = previousIterationServices;
-
-    // If this entire execution is aborted because e.g. the user sent a SIGINT
-    // to the Wireit process, then dont start new scripts, and kill running
-    // ones.
-    void abort.promise.then(() => {
-      this._stopStartingNewScripts.resolve();
-      this._killRunningScripts.resolve();
-      this._stopServices.resolve();
-    });
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
@@ -119,6 +122,16 @@ export class Executor {
         }
       }
     });
+  }
+
+  /**
+   * If this entire execution is aborted because e.g. the user sent a SIGINT to
+   * the Wireit process, then dont start new scripts, and kill running ones.
+   */
+  abort() {
+    this._stopStartingNewScripts.resolve();
+    this._killRunningScripts.resolve();
+    this._stopServices.resolve();
   }
 
   /**
@@ -154,6 +167,17 @@ export class Executor {
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
     }
+    // Wait for all persistent services to start.
+    for (const service of this._persistentServices.values()) {
+      // Persistent services start automatically, so calling start() here should
+      // be a no-op, but it lets us get the started promise.
+      const result = await service.start();
+      if (!result.ok) {
+        errors.push(...result.error);
+      }
+    }
+    // Wait for all ephemeral services to have terminated (either started and
+    // stopped, or never needed to start).
     const ephemeralServiceResults = await Promise.all(
       this._ephemeralServices.map((service) => service.terminated)
     );
@@ -204,12 +228,34 @@ export class Executor {
       if (config.command === undefined) {
         execution = new NoCommandScriptExecution(config, this, this._logger);
       } else if (config.service) {
+        const adoptee = this._previousIterationServices?.get(key);
+        if (adoptee !== undefined) {
+          // Remove the adoptee from the map so that this executor doesn't hold
+          // a reference to it. Otherwise, we'll maintain a chain of references
+          // going all the way back through all previous executions, which will
+          // leak memory in watch mode.
+          //
+          //               executor N
+          //  break this -----> | [previousIterationServices]
+          //   reference        v
+          //               service N-1
+          //                    | [executor]
+          //                    v
+          //               executor N-1
+          //                    | [previousIterationServices]
+          //                    v
+          //               sevice N-2
+          //                    | [executor]
+          //                    v
+          //                   ...
+          this._previousIterationServices!.delete(key);
+        }
         execution = new ServiceScriptExecution(
           config,
           this,
           this._logger,
           this._stopServices.promise,
-          this._previousIterationServices?.get(key)
+          adoptee
         );
         if (config.isPersistent) {
           this._persistentServices.set(key, execution);

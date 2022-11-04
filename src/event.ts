@@ -93,7 +93,8 @@ export type Failure =
   | DependencyOnMissingPackageJson
   | DependencyOnMissingScript
   | DependencyInvalid
-  | ServiceExitedUnexpectedly;
+  | ServiceExitedUnexpectedly
+  | Aborted;
 
 interface ErrorBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -247,6 +248,14 @@ export interface DependencyOnMissingScript extends ErrorBase {
  */
 export interface ServiceExitedUnexpectedly extends ErrorBase {
   reason: 'service-exited-unexpectedly';
+}
+
+/**
+ * A script was killed or is refusing to run because it was intentionally
+ * aborted. Usually due to an error occuring in another script somewhere.
+ */
+export interface Aborted extends ErrorBase {
+  reason: 'aborted';
 }
 
 /**
