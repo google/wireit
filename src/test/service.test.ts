@@ -543,6 +543,52 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       assert.equal(service2.numInvocations, 1);
     })
   );
+
+  test(
+    `after one persistent service fails, other persistent services stop, ` +
+      `and wireit exits non-zero`,
+    //      entrypoint
+    //        /   \
+    //       v     v
+    // service1   service2
+    //  (fails)
+    timeout(async ({rig}) => {
+      const service1 = await rig.newCommand();
+      const service2 = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            service1: 'wireit',
+            service2: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['service1', 'service2'],
+            },
+            service1: {
+              command: service1.command,
+              service: true,
+            },
+            service2: {
+              command: service2.command,
+              service: true,
+            },
+          },
+        },
+      });
+
+      const wireit = rig.exec('npm run entrypoint', {
+        env: {WIREIT_FAILURES: failureMode},
+      });
+      const service1Inv = await service1.nextInvocation();
+      const service2Inv = await service2.nextInvocation();
+      service1Inv.exit(1);
+      await service1Inv.closed;
+      await service2Inv.closed;
+      assert.equal((await wireit.exit).code, 1);
+    })
+  );
 }
 
 test(
