@@ -259,13 +259,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'started': {
         const child = this._state.child;
         this._state = {id: 'detached'};
-        // TODO(aomarks) There are a few promises that could still resolve even
-        // when we are detached, such as "abort" and "child exited". While we do
-        // correctly handle those events (by doing nothing in the handlers), the
-        // fact that the promises remain unresolved will prevent GC of old
-        // executions in watch mode. Those promises should probably be
-        // Promise.race'd to prevent that.
-
         // Note that for some reason, removing all listeners from stdout/stderr
         // without specifying the "data" event will also remove the listeners
         // directly on "child" inside the ScriptChildProceess for noticing when
