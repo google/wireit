@@ -784,6 +784,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       id: 'failed',
       failure,
     };
+    this._executor.notifyFailure();
     this._terminated.resolve({ok: false, error: failure});
     this._servicesNotNeeded.resolve();
     this._logger.log(failure);
