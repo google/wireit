@@ -87,7 +87,7 @@ test(
     await serviceInv.closed;
     await wireit.waitForLog(/Service stopped/);
 
-    await wireit.exit;
+    assert.equal((await wireit.exit).code, 0);
     assert.equal(service.numInvocations, 1);
     assert.equal(consumer.numInvocations, 1);
   })
@@ -170,7 +170,7 @@ test(
     await serviceDepInv.closed;
     await wireit.waitForLog(/\[serviceDep\] Service stopped/);
 
-    await wireit.exit;
+    assert.equal((await wireit.exit).code, 0);
     assert.equal(standardDep.numInvocations, 1);
     assert.equal(serviceDep.numInvocations, 1);
     assert.equal(service.numInvocations, 1);
@@ -537,7 +537,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       assert.not(service2Inv.isRunning);
       await wireit.waitForLog(/\[service2\] Service stopped/);
 
-      await wireit.exit;
+      assert.equal((await wireit.exit).code, 1);
       assert.equal(standard.numInvocations, 1);
       assert.equal(service1.numInvocations, 1);
       assert.equal(service2.numInvocations, 1);
