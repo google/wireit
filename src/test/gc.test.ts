@@ -76,6 +76,7 @@ async function retryWithGcUntilCallbackDoesNotThrow(
     }
     await new Promise((resolve) => setTimeout(resolve, wait));
   }
+  // Final attempt without a try, to let the exception bubble up.
   cb();
 }
 
