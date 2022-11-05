@@ -59,10 +59,14 @@ type ServiceState =
       child: ScriptChildProcess;
       fingerprint: Fingerprint;
     }
-  | {id: 'stopping'}
+  | {
+      id: 'stopping';
+      child: ScriptChildProcess;
+    }
   | {id: 'stopped'}
   | {
       id: 'failing';
+      child: ScriptChildProcess;
       failure: Failure;
     }
   | {
@@ -690,6 +694,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state.child.kill();
         this._state = {
           id: 'failing',
+          child: this._state.child,
           failure: {
             type: 'failure',
             script: this._config,
@@ -736,6 +741,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
+      case 'stopping':
+      case 'failing': {
+        this._state.child.kill();
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
@@ -743,9 +753,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'started':
-      case 'stopping':
       case 'stopped':
-      case 'failing':
       case 'failed':
       case 'detached': {
         throw unexpectedState(this._state);
@@ -807,11 +815,17 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'started': {
         this._state.child.kill();
-        this._state = {id: 'stopping'};
+        this._state = {
+          id: 'stopping',
+          child: this._state.child,
+        };
         break;
       }
       case 'starting': {
-        this._state = {id: 'stopping'};
+        this._state = {
+          id: 'stopping',
+          child: this._state.child,
+        };
         break;
       }
       case 'initial':
