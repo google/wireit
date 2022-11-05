@@ -105,6 +105,22 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     if (!result.ok) {
       return result;
     }
+    const persistentServices = result.value;
+    if (persistentServices.size > 0) {
+      const failures: Failure[] = [];
+      for (const service of persistentServices.values()) {
+        const result = await service.terminated;
+        if (!result.ok) {
+          failures.push(result.error);
+        }
+      }
+      if (failures.length > 0) {
+        return {
+          ok: false,
+          error: failures,
+        };
+      }
+    }
   }
   return {ok: true, value: undefined};
 };

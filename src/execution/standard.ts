@@ -323,27 +323,16 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           return servicesStarted;
         }
 
-        void this._anyServiceTerminated.then((result) => {
+        void this._anyServiceTerminated.then(() => {
           if (this._state === 'after-running') {
             // This is expected after we're done.
             return;
           }
-          if (result.ok) {
-            // This should never happen and indicates an internal error. The
-            // service believed that nothing was depending on it anymore, but
-            // we're still running.
-            earlyServiceTermination = {
-              script: this._config,
-              type: 'failure',
-              reason: 'unknown-error-thrown',
-              error: new Error(
-                'Internal error: service dependency terminated unexpectedly'
-              ),
-            };
-          } else {
-            // The service knows it exited too early. Propagate that error.
-            earlyServiceTermination = result.error;
-          }
+          earlyServiceTermination = {
+            script: this._config,
+            type: 'failure',
+            reason: 'dependency-service-exited-unexpectedly',
+          };
           // Stop running. If a service we depend on is down, then we know we're
           // in an invalid state too.
           child.kill();

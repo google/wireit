@@ -218,8 +218,10 @@ class ExecResult {
   private readonly _child: ChildProcessWithoutNullStreams;
   private readonly _exited = new Deferred<ExitResult>();
   private _running = true;
-  private _stdout = '';
-  private _stderr = '';
+  private _allStdout = '';
+  private _allStderr = '';
+  private _matcherStdout = '';
+  private _matcherStderr = '';
 
   constructor(
     command: string,
@@ -269,8 +271,8 @@ class ExecResult {
       this._exited.resolve({
         code,
         signal,
-        stdout: this._stdout,
-        stderr: this._stderr,
+        stdout: this._allStdout,
+        stderr: this._allStderr,
       });
     });
 
@@ -346,7 +348,7 @@ class ExecResult {
       const {re, deferred} = matcher;
       // Use exec instead of match because otherwise if the user used the /g/
       // flag, we'll get an array and can't access the index.
-      const stdoutMatch = re.exec(this._stdout);
+      const stdoutMatch = re.exec(this._matcherStdout);
       if (stdoutMatch !== null) {
         deferred.resolve();
         this._logMatchers.delete(matcher);
@@ -355,7 +357,7 @@ class ExecResult {
           stdoutMatch.index + stdoutMatch[0].length
         );
       } else {
-        const stderrMatch = re.exec(this._stderr);
+        const stderrMatch = re.exec(this._matcherStderr);
         if (stderrMatch !== null) {
           deferred.resolve();
           this._logMatchers.delete(matcher);
@@ -367,15 +369,16 @@ class ExecResult {
       }
     }
     if (stdoutLastIndex > 0) {
-      this._stdout = this._stdout.slice(stdoutLastIndex);
+      this._matcherStdout = this._matcherStdout.slice(stdoutLastIndex);
     }
     if (stderrLastIndex > 0) {
-      this._stderr = this._stderr.slice(stderrLastIndex);
+      this._matcherStderr = this._matcherStderr.slice(stderrLastIndex);
     }
   }
 
   private readonly _onStdout = (chunk: string | Buffer) => {
-    this._stdout += chunk;
+    this._allStdout += chunk;
+    this._matcherStdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
@@ -383,7 +386,8 @@ class ExecResult {
   };
 
   private readonly _onStderr = (chunk: string | Buffer) => {
-    this._stderr += chunk;
+    this._allStderr += chunk;
+    this._matcherStdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }

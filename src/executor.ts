@@ -67,7 +67,7 @@ export class Executor {
   private readonly _executions = new Map<ScriptReferenceString, Execution>();
   private readonly _persistentServices: ServiceMap = new Map();
   private readonly _ephemeralServices: ServiceScriptExecution[] = [];
-  private readonly _previousIterationServices: ServiceMap | undefined;
+  private _previousIterationServices: ServiceMap | undefined;
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
@@ -132,6 +132,11 @@ export class Executor {
     this._stopStartingNewScripts.resolve();
     this._killRunningScripts.resolve();
     this._stopServices.resolve();
+    if (this._previousIterationServices !== undefined) {
+      for (const service of this._previousIterationServices.values()) {
+        void service.abort();
+      }
+    }
   }
 
   /**
@@ -173,7 +178,7 @@ export class Executor {
       // be a no-op, but it lets us get the started promise.
       const result = await service.start();
       if (!result.ok) {
-        errors.push(...result.error);
+        errors.push(result.error);
       }
     }
     // Wait for all ephemeral services to have terminated (either started and
@@ -186,6 +191,11 @@ export class Executor {
         errors.push(result.error);
       }
     }
+    // All previous services are either now adopted or stopped. Remove the
+    // reference to this map to allow for garbage collection, otherwise in watch
+    // mode we'll have a chain of references all the way back through every
+    // iteration.
+    this._previousIterationServices = undefined;
     if (errors.length > 0) {
       return {ok: false, error: errors};
     }
@@ -228,34 +238,12 @@ export class Executor {
       if (config.command === undefined) {
         execution = new NoCommandScriptExecution(config, this, this._logger);
       } else if (config.service) {
-        const adoptee = this._previousIterationServices?.get(key);
-        if (adoptee !== undefined) {
-          // Remove the adoptee from the map so that this executor doesn't hold
-          // a reference to it. Otherwise, we'll maintain a chain of references
-          // going all the way back through all previous executions, which will
-          // leak memory in watch mode.
-          //
-          //               executor N
-          //  break this -----> | [previousIterationServices]
-          //   reference        v
-          //               service N-1
-          //                    | [executor]
-          //                    v
-          //               executor N-1
-          //                    | [previousIterationServices]
-          //                    v
-          //               sevice N-2
-          //                    | [executor]
-          //                    v
-          //                   ...
-          this._previousIterationServices!.delete(key);
-        }
         execution = new ServiceScriptExecution(
           config,
           this,
           this._logger,
           this._stopServices.promise,
-          adoptee
+          this._previousIterationServices?.get(key)
         );
         if (config.isPersistent) {
           this._persistentServices.set(key, execution);

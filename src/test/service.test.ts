@@ -87,7 +87,7 @@ test(
     await serviceInv.closed;
     await wireit.waitForLog(/Service stopped/);
 
-    await wireit.exit;
+    assert.equal((await wireit.exit).code, 0);
     assert.equal(service.numInvocations, 1);
     assert.equal(consumer.numInvocations, 1);
   })
@@ -170,7 +170,7 @@ test(
     await serviceDepInv.closed;
     await wireit.waitForLog(/\[serviceDep\] Service stopped/);
 
-    await wireit.exit;
+    assert.equal((await wireit.exit).code, 0);
     assert.equal(standardDep.numInvocations, 1);
     assert.equal(serviceDep.numInvocations, 1);
     assert.equal(service.numInvocations, 1);
@@ -537,10 +537,56 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       assert.not(service2Inv.isRunning);
       await wireit.waitForLog(/\[service2\] Service stopped/);
 
-      await wireit.exit;
+      assert.equal((await wireit.exit).code, 1);
       assert.equal(standard.numInvocations, 1);
       assert.equal(service1.numInvocations, 1);
       assert.equal(service2.numInvocations, 1);
+    })
+  );
+
+  test(
+    `after one persistent service fails, other persistent services stop, ` +
+      `and wireit exits non-zero`,
+    //      entrypoint
+    //        /   \
+    //       v     v
+    // service1   service2
+    //  (fails)
+    timeout(async ({rig}) => {
+      const service1 = await rig.newCommand();
+      const service2 = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            service1: 'wireit',
+            service2: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['service1', 'service2'],
+            },
+            service1: {
+              command: service1.command,
+              service: true,
+            },
+            service2: {
+              command: service2.command,
+              service: true,
+            },
+          },
+        },
+      });
+
+      const wireit = rig.exec('npm run entrypoint', {
+        env: {WIREIT_FAILURES: failureMode},
+      });
+      const service1Inv = await service1.nextInvocation();
+      const service2Inv = await service2.nextInvocation();
+      service1Inv.exit(1);
+      await service1Inv.closed;
+      await service2Inv.closed;
+      assert.equal((await wireit.exit).code, 1);
     })
   );
 }
@@ -672,10 +718,14 @@ test(
     }
 
     wireit.kill();
-    await wireit.exit;
+    const {stdout} = await wireit.exit;
     assert.equal(service1.numInvocations, 1);
     assert.equal(service2.numInvocations, 1);
     assert.equal(standard.numInvocations, 2);
+
+    // Check that we only print "Service started" when we *actually* start a
+    // service, and not when we adopt an existing one into a new iteration.
+    assert.equal([...stdout.matchAll(/Service started/g)].length, 2);
   })
 );
 

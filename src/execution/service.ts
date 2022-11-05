@@ -44,14 +44,14 @@ type ServiceState =
     }
   | {
       id: 'depsStarting';
-      started: Deferred<Result<void, Failure[]>>;
+      started: Deferred<Result<void, Failure>>;
       fingerprint: Fingerprint;
       adoptee: ServiceScriptExecution | undefined;
     }
   | {
       id: 'starting';
       child: ScriptChildProcess;
-      started: Deferred<Result<void, Failure[]>>;
+      started: Deferred<Result<void, Failure>>;
       fingerprint: Fingerprint;
     }
   | {
@@ -59,10 +59,14 @@ type ServiceState =
       child: ScriptChildProcess;
       fingerprint: Fingerprint;
     }
-  | {id: 'stopping'}
+  | {
+      id: 'stopping';
+      child: ScriptChildProcess;
+    }
   | {id: 'stopped'}
   | {
       id: 'failing';
+      child: ScriptChildProcess;
       failure: Failure;
     }
   | {
@@ -146,20 +150,27 @@ function unexpectedState(state: ServiceState) {
  *     │           └───────┬───────┘                         │
  *     │                   │                                 │
  *     │              depsStarted                            ▼
- *     │                   │  ╭─╮                            │
- *     │                   │  │ start                        │
- *     │              ┌────▼──▼─┴┐                           │
+ *     │                   │                                 │
+ *     │                   │                                 │
+ *     ▼            ╔══════▼═══════╗                         │
+ *     │            ║ has adoptee? ╟───── yes ───╮           │
+ *     │            ╚══════╤═══════╝             │           │
+ *     │                   │                     │           │
+ *     │                   no                    │           │
+ *     │                   │  ╭─╮                ▼           │
+ *     │                   │  │ start            │           │
+ *     │              ┌────▼──▼─┴┐               │           │
  *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►──────┤
- *     │    │         └────┬────┬┘                           │
- *     │    │              │    │                            │
+ *     │    │         └────┬────┬┘               │           │
+ *     │    │              │    │                │           │
  *     │    │              │    ╰─ depServiceExit ─►─╮       │
- *     ▼    │              │                         │       │
- *     │    │              │                         │       │
- *     │    ▼              │                         ▼       ▼
- *     │    │           started                      │       │
- *     │    │              │ ╭─╮                     │       │
- *     │    │              │ │ start                 │       │
- *     │    │         ┌────▼─▼─┴┐                    │       │
+ *     ▼    │              │                     │   │       │
+ *     │    │              │                     │   │       │
+ *     │    ▼              │                     ▼   ▼       ▼
+ *     │    │           started                  │   │       │
+ *     │    │          ╭─╮ │  ╭─────────◄────────╯   │       │
+ *     │    │      start │ │  │                      │       │
+ *     │    │         ┌▼─┴─▼──▼─┐                    │       │
  *     │    ├◄─ abort ┤ STARTED ├── exit ────────────────────┤
  *     │    │         └──────┬─┬┘                    │       │
  *     │    │                │ │                     │       │
@@ -252,13 +263,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'started': {
         const child = this._state.child;
         this._state = {id: 'detached'};
-        // TODO(aomarks) There are a few promises that could still resolve even
-        // when we are detached, such as "abort" and "child exited". While we do
-        // correctly handle those events (by doing nothing in the handlers), the
-        // fact that the promises remain unresolved will prevent GC of old
-        // executions in watch mode. Those promises should probably be
-        // Promise.race'd to prevent that.
-
         // Note that for some reason, removing all listeners from stdout/stderr
         // without specifying the "data" event will also remove the listeners
         // directly on "child" inside the ScriptChildProceess for noticing when
@@ -386,6 +390,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'executingDeps': {
         this._state.deferredFingerprint.resolve(result);
+        this._enterFailedState(result.error[0]);
         return;
       }
       case 'stopped':
@@ -508,20 +513,43 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   /**
    * Start this service if it isn't already started.
    */
-  start(): Promise<Result<void, Failure[]>> {
+  start(): Promise<Result<void, Failure>> {
     switch (this._state.id) {
       case 'unstarted': {
+        const started = new Deferred<Result<void, Failure>>();
         this._state = {
           id: 'depsStarting',
-          started: new Deferred(),
+          started,
           fingerprint: this._state.fingerprint,
           adoptee: this._state.adoptee,
         };
-        void this._startServices().then(() => {
-          this._onDepsStarted();
+        void this._startServices().then((result) => {
+          if (result.ok) {
+            this._onDepsStarted();
+          } else {
+            this._onDepStartErr(result);
+          }
         });
-        void this._anyServiceTerminated.then(() => {
-          this._onDepServiceExit();
+        void this.terminated.then((result) => {
+          if (started.settled) {
+            return;
+          }
+          // This service terminated before it started. Either a failure occured
+          // or we were aborted. If we were aborted, convert to a failure,
+          // because this is the start method, where ok means the service
+          // started.
+          started.resolve(
+            !result.ok
+              ? result
+              : {
+                  ok: false,
+                  error: {
+                    type: 'failure',
+                    script: this._config,
+                    reason: 'aborted',
+                  },
+                }
+          );
         });
         return this._state.started.promise;
       }
@@ -534,19 +562,17 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'failing':
       case 'failed': {
-        return Promise.resolve({ok: false, error: [this._state.failure]});
+        return Promise.resolve({ok: false, error: this._state.failure});
       }
       case 'stopping':
       case 'stopped': {
         return Promise.resolve({
           ok: false,
-          error: [
-            {
-              type: 'failure',
-              script: this._config,
-              reason: 'aborted',
-            },
-          ],
+          error: {
+            type: 'failure',
+            script: this._config,
+            reason: 'aborted',
+          },
         });
       }
       case 'initial':
@@ -565,17 +591,26 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onDepsStarted() {
     switch (this._state.id) {
       case 'depsStarting': {
-        this._state = {
-          id: 'starting',
-          child:
-            this._state.adoptee?.detach() ??
-            new ScriptChildProcess(this._config),
-          started: this._state.started,
-          fingerprint: this._state.fingerprint,
-        };
-        void this._state.child.started.then(() => {
-          this._onChildStarted();
-        });
+        let child = this._state.adoptee?.detach();
+        if (child === undefined) {
+          child = new ScriptChildProcess(this._config);
+          this._state = {
+            id: 'starting',
+            child,
+            started: this._state.started,
+            fingerprint: this._state.fingerprint,
+          };
+          void this._state.child.started.then(() => {
+            this._onChildStarted();
+          });
+        } else {
+          this._state.started.resolve({ok: true, value: undefined});
+          this._state = {
+            id: 'started',
+            child,
+            fingerprint: this._state.fingerprint,
+          };
+        }
         void this._state.child.completed.then(() => {
           this._onChildExited();
         });
@@ -594,6 +629,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             stream: 'stderr',
             data,
           });
+        });
+        void this._anyServiceTerminated.then(() => {
+          this._onDepServiceExit();
         });
         return;
       }
@@ -619,22 +657,68 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
+  private _onDepStartErr(result: {ok: false; error: Failure[]}) {
+    switch (this._state.id) {
+      case 'depsStarting': {
+        // TODO(aomarks) The inconsistency between using single vs multiple
+        // failure result types is inconvenient. It's ok to just use the first
+        // one here, but would make more sense to return all of them.
+        this._terminated.resolve({ok: false, error: result.error[0]});
+        return;
+      }
+      case 'failing':
+      case 'failed':
+      case 'stopping':
+      case 'stopped': {
+        return;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'stoppingAdoptee':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
+      case 'detached': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
   private _onDepServiceExit() {
     switch (this._state.id) {
       case 'started': {
         this._state.child.kill();
         this._state = {
           id: 'failing',
+          child: this._state.child,
           failure: {
             type: 'failure',
             script: this._config,
-            // TODO(aomarks) Wrong
-            reason: 'service-exited-unexpectedly',
+            reason: 'dependency-service-exited-unexpectedly',
+          },
+        };
+        return;
+      }
+      case 'starting': {
+        this._state = {
+          id: 'failing',
+          child: this._state.child,
+          failure: {
+            type: 'failure',
+            script: this._config,
+            reason: 'dependency-service-exited-unexpectedly',
           },
         };
         return;
       }
       case 'stopped':
+      case 'stopping':
+      case 'failing':
+      case 'failed':
       case 'detached': {
         return;
       }
@@ -643,11 +727,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'stoppingAdoptee':
-      case 'unstarted':
-      case 'starting':
-      case 'stopping':
-      case 'failing':
-      case 'failed': {
+      case 'unstarted': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -672,6 +752,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
+      case 'stopping':
+      case 'failing': {
+        this._state.child.kill();
+        return;
+      }
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
@@ -679,9 +764,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'started':
-      case 'stopping':
       case 'stopped':
-      case 'failing':
       case 'failed':
       case 'detached': {
         throw unexpectedState(this._state);
@@ -743,11 +826,17 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'started': {
         this._state.child.kill();
-        this._state = {id: 'stopping'};
+        this._state = {
+          id: 'stopping',
+          child: this._state.child,
+        };
         break;
       }
       case 'starting': {
-        this._state = {id: 'stopping'};
+        this._state = {
+          id: 'stopping',
+          child: this._state.child,
+        };
         break;
       }
       case 'initial':
@@ -784,6 +873,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       id: 'failed',
       failure,
     };
+    this._executor.notifyFailure();
     this._terminated.resolve({ok: false, error: failure});
     this._servicesNotNeeded.resolve();
     this._logger.log(failure);
