@@ -173,7 +173,7 @@ export class Executor {
       // be a no-op, but it lets us get the started promise.
       const result = await service.start();
       if (!result.ok) {
-        errors.push(...result.error);
+        errors.push(result.error);
       }
     }
     // Wait for all ephemeral services to have terminated (either started and

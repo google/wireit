@@ -44,14 +44,14 @@ type ServiceState =
     }
   | {
       id: 'depsStarting';
-      started: Deferred<Result<void, Failure[]>>;
+      started: Deferred<Result<void, Failure>>;
       fingerprint: Fingerprint;
       adoptee: ServiceScriptExecution | undefined;
     }
   | {
       id: 'starting';
       child: ScriptChildProcess;
-      started: Deferred<Result<void, Failure[]>>;
+      started: Deferred<Result<void, Failure>>;
       fingerprint: Fingerprint;
     }
   | {
@@ -534,19 +534,17 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'failing':
       case 'failed': {
-        return Promise.resolve({ok: false, error: [this._state.failure]});
+        return Promise.resolve({ok: false, error: this._state.failure});
       }
       case 'stopping':
       case 'stopped': {
         return Promise.resolve({
           ok: false,
-          error: [
-            {
-              type: 'failure',
-              script: this._config,
-              reason: 'aborted',
-            },
-          ],
+          error: {
+            type: 'failure',
+            script: this._config,
+            reason: 'aborted',
+          },
         });
       }
       case 'initial':

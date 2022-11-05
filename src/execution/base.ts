@@ -141,7 +141,7 @@ export abstract class BaseExecutionWithCommand<
       const errors: Failure[] = [];
       for (const result of results) {
         if (!result.ok) {
-          errors.push(...result.error);
+          errors.push(result.error);
         }
       }
       if (errors.length > 0) {
