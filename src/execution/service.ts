@@ -508,12 +508,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   /**
    * Start this service if it isn't already started.
    */
-  start(): Promise<Result<void, Failure[]>> {
+  start(): Promise<Result<void, Failure>> {
     switch (this._state.id) {
       case 'unstarted': {
+        const started = new Deferred<Result<void, Failure>>();
         this._state = {
           id: 'depsStarting',
-          started: new Deferred(),
+          started,
           fingerprint: this._state.fingerprint,
           adoptee: this._state.adoptee,
         };
@@ -522,6 +523,27 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
         void this._anyServiceTerminated.then(() => {
           this._onDepServiceExit();
+        });
+        void this.terminated.then((result) => {
+          if (started.settled) {
+            return;
+          }
+          // This service terminated before it started. Either a failure occured
+          // or we were aborted. If we were aborted, convert to a failure,
+          // because this is the start method, where ok means the service
+          // started.
+          started.resolve(
+            !result.ok
+              ? result
+              : {
+                  ok: false,
+                  error: {
+                    type: 'failure',
+                    script: this._config,
+                    reason: 'aborted',
+                  },
+                }
+          );
         });
         return this._state.started.promise;
       }
