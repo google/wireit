@@ -386,6 +386,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'executingDeps': {
         this._state.deferredFingerprint.resolve(result);
+        this._enterFailedState(result.error[0]);
         return;
       }
       case 'stopped':
