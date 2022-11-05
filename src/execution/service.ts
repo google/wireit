@@ -530,9 +530,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             this._onDepStartErr(result);
           }
         });
-        void this._anyServiceTerminated.then(() => {
-          this._onDepServiceExit();
-        });
         void this.terminated.then((result) => {
           if (started.settled) {
             return;
@@ -633,6 +630,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             data,
           });
         });
+        void this._anyServiceTerminated.then(() => {
+          this._onDepServiceExit();
+        });
         return;
       }
       case 'failed': {
@@ -703,7 +703,22 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
+      case 'starting': {
+        this._state = {
+          id: 'failing',
+          child: this._state.child,
+          failure: {
+            type: 'failure',
+            script: this._config,
+            reason: 'dependency-service-exited-unexpectedly',
+          },
+        };
+        return;
+      }
       case 'stopped':
+      case 'stopping':
+      case 'failing':
+      case 'failed':
       case 'detached': {
         return;
       }
@@ -712,11 +727,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'executingDeps':
       case 'fingerprinting':
       case 'stoppingAdoptee':
-      case 'unstarted':
-      case 'starting':
-      case 'stopping':
-      case 'failing':
-      case 'failed': {
+      case 'unstarted': {
         throw unexpectedState(this._state);
       }
       default: {
