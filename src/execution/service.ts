@@ -637,8 +637,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           failure: {
             type: 'failure',
             script: this._config,
-            // TODO(aomarks) Wrong
-            reason: 'service-exited-unexpectedly',
+            reason: 'dependency-service-exited-unexpectedly',
           },
         };
         return;

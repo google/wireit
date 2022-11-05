@@ -94,6 +94,7 @@ export type Failure =
   | DependencyOnMissingScript
   | DependencyInvalid
   | ServiceExitedUnexpectedly
+  | DependencyServiceExitedUnexpectedly
   | Aborted;
 
 interface ErrorBase<T extends PackageReference = ScriptReference>
@@ -248,6 +249,14 @@ export interface DependencyOnMissingScript extends ErrorBase {
  */
 export interface ServiceExitedUnexpectedly extends ErrorBase {
   reason: 'service-exited-unexpectedly';
+}
+
+/**
+ * A service that we depend on exited before it was supposed to, causing us to
+ * fail as well.
+ */
+export interface DependencyServiceExitedUnexpectedly extends ErrorBase {
+  reason: 'dependency-service-exited-unexpectedly';
 }
 
 /**
