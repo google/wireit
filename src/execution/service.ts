@@ -518,8 +518,12 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           fingerprint: this._state.fingerprint,
           adoptee: this._state.adoptee,
         };
-        void this._startServices().then(() => {
-          this._onDepsStarted();
+        void this._startServices().then((result) => {
+          if (result.ok) {
+            this._onDepsStarted();
+          } else {
+            this._onDepStartErr(result);
+          }
         });
         void this._anyServiceTerminated.then(() => {
           this._onDepServiceExit();
@@ -639,6 +643,37 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stopping':
       case 'stopped':
       case 'failing':
+      case 'detached': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onDepStartErr(result: {ok: false; error: Failure[]}) {
+    switch (this._state.id) {
+      case 'depsStarting': {
+        // TODO(aomarks) The inconsistency between using single vs multiple
+        // failure result types is inconvenient. It's ok to just use the first
+        // one here, but would make more sense to return all of them.
+        this._terminated.resolve({ok: false, error: result.error[0]});
+        return;
+      }
+      case 'failing':
+      case 'failed':
+      case 'stopping':
+      case 'stopped': {
+        return;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'stoppingAdoptee':
+      case 'unstarted':
+      case 'starting':
+      case 'started':
       case 'detached': {
         throw unexpectedState(this._state);
       }
