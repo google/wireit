@@ -132,7 +132,11 @@ export class Analyzer {
       }
       // We don't care about the result, if there's a cycle error it'll
       // be added to the scripts' diagnostics.
-      this._checkForCyclesAndSortDependencies(info.placeholder, new Set());
+      this._checkForCyclesAndSortDependencies(
+        info.placeholder,
+        new Set(),
+        true
+      );
     }
 
     return this._getDiagnostics();
@@ -196,7 +200,8 @@ export class Analyzer {
     }
     const cycleResult = this._checkForCyclesAndSortDependencies(
       rootConfig,
-      new Set()
+      new Set(),
+      true
     );
     if (!cycleResult.ok) {
       return {
@@ -462,6 +467,13 @@ export class Analyzer {
       command
     );
     const clean = this._processClean(placeholder, packageJson, syntaxInfo);
+    const service = this._processService(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      command,
+      output
+    );
     this._processPackageLocks(placeholder, packageJson, syntaxInfo, files);
 
     // It's important to in-place update the placeholder object, instead of
@@ -476,10 +488,12 @@ export class Analyzer {
       dependencies,
       files,
       output,
-      clean: clean ?? true,
+      clean,
+      service,
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
+      services: [],
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -741,9 +755,10 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
-  ): undefined | boolean | 'if-file-deleted' {
+  ): boolean | 'if-file-deleted' {
+    const defaultValue = true;
     if (syntaxInfo.wireitConfigNode == null) {
-      return;
+      return defaultValue;
     }
     const clean = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['clean']) as
       | undefined
@@ -767,11 +782,86 @@ export class Analyzer {
           },
         },
       });
-      // We shouldn't execute if there's failures, but just in case, this is
-      // likely the safest option.
-      return false;
+      return defaultValue;
     }
-    return clean?.value;
+    return clean?.value ?? defaultValue;
+  }
+
+  private _processService(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined,
+    output: ArrayNode<string> | undefined
+  ): boolean {
+    const defaultValue = false;
+    if (syntaxInfo.wireitConfigNode == null) {
+      return defaultValue;
+    }
+    const node = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'service',
+    ]) as undefined | JsonAstNode<true | false>;
+    if (node == null) {
+      return defaultValue;
+    }
+    if (node.value !== true && node.value !== false) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `The "service" property must be either true or false.`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: node.length, offset: node.offset},
+          },
+        },
+      });
+      return defaultValue;
+    }
+
+    const value = node?.value ?? defaultValue;
+
+    if (value === true && command == null) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A "service" script must have a "command".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: node.length,
+              offset: node.offset,
+            },
+          },
+        },
+      });
+    }
+
+    if (value === true && output != null) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A "service" script cannot have an "output".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: output.node.length,
+              offset: output.node.offset,
+            },
+          },
+        },
+      });
+    }
+
+    return value;
   }
 
   private _processPackageLocks(
@@ -855,7 +945,8 @@ export class Analyzer {
    */
   private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
-    trail: Set<ScriptReferenceString>
+    trail: Set<ScriptReferenceString>,
+    isPersistent: boolean
   ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
@@ -973,15 +1064,33 @@ export class Analyzer {
           dependencyStillUnvalidated = dependency.config;
           continue;
         }
-        const result = this._checkForCyclesAndSortDependencies(
-          dependency.config,
-          trail
-        );
-        if (!result.ok) {
+        const validDependencyConfigResult =
+          this._checkForCyclesAndSortDependencies(
+            dependency.config,
+            trail,
+            // Walk through no-command scripts and services when determining if
+            // something is persistent.
+            isPersistent && (config.command === undefined || config.service)
+          );
+        if (!validDependencyConfigResult.ok) {
           return {
             ok: false,
-            error: this._markAsInvalid(config, result.error.dependencyFailure),
+            error: this._markAsInvalid(
+              config,
+              validDependencyConfigResult.error.dependencyFailure
+            ),
           };
+        }
+        const validDependencyConfig = validDependencyConfigResult.value;
+        if (validDependencyConfig.service) {
+          // We directly depend on a service.
+          config.services.push(validDependencyConfig);
+        } else if (validDependencyConfig.command === undefined) {
+          // We depend on a no-command script, so in effect we depend on all of
+          // the services it depends on.
+          for (const service of validDependencyConfig.services) {
+            config.services.push(service);
+          }
         }
       }
       trail.delete(trailKey);
@@ -998,19 +1107,59 @@ export class Analyzer {
       };
       return {ok: false, error: this._markAsInvalid(config, failure)};
     }
-    {
-      const validConfig: ScriptConfig = {
+
+    let validConfig: ScriptConfig;
+    if (config.service) {
+      // We should already have created an invalid script at this point, so we
+      // should never get here. We throw here to convince TypeScript that this
+      // is guaranteed.
+      if (config.command === undefined) {
+        throw new Error(
+          'Internal error: Supposedly valid service did not have command'
+        );
+      }
+      validConfig = {
         ...config,
-        extraArgs: undefined,
         state: 'valid',
+        extraArgs: undefined,
         dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        // Unfortunately TypeScript doesn't narrow the ...config spread, so we
+        // have to assign explicitly.
+        command: config.command,
+        isPersistent,
+        serviceConsumers: [],
       };
-      // We want to keep the original reference, but get type checking that
-      // the only difference between a ScriptConfig and a
-      // LocallyValidScriptConfig is that the state is 'valid' and the
-      // dependencies are also valid, which we confirmed above.
-      Object.assign(config, validConfig);
+    } else {
+      validConfig = {
+        ...config,
+        state: 'valid',
+        extraArgs: undefined,
+        dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        // Unfortunately TypeScript doesn't narrow the ...config spread, so we
+        // have to assign explicitly.
+        service: config.service,
+      };
     }
+
+    // Propagate reverse service dependencies.
+    if (validConfig.command) {
+      for (const dependency of validConfig.dependencies) {
+        if (dependency.config.service) {
+          dependency.config.serviceConsumers.push(validConfig);
+        } else if (dependency.config.command === undefined) {
+          for (const service of dependency.config.services) {
+            service.serviceConsumers.push(validConfig);
+          }
+        }
+      }
+    }
+
+    // We want to keep the original reference, but get type checking that
+    // the only difference between a ScriptConfig and a
+    // LocallyValidScriptConfig is that the state is 'valid' and the
+    // dependencies are also valid, which we confirmed above.
+    Object.assign(config, validConfig);
+
     return {ok: true, value: config as unknown as ScriptConfig};
   }
 

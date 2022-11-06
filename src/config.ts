@@ -29,26 +29,10 @@ export interface ScriptReference extends PackageReference {
   name: string;
 }
 
-export interface Dependency<Config extends PotentiallyValidScriptConfig> {
-  config: Config;
-  astNode: JsonAstNode<string>;
-}
-
-export type ScriptConfig = NoCommandScriptConfig | StandardScriptConfig;
-
 /**
- * A script that doesn't run or produce anything. A pass-through for
- * dependencies and/or files.
+ * A script with a defined command.
  */
-export interface NoCommandScriptConfig extends BaseScriptConfig {
-  command: undefined;
-  extraArgs: undefined;
-}
-
-/**
- * A script with a command that exits by itself.
- */
-export interface StandardScriptConfig extends BaseScriptConfig {
+export interface ScriptReferenceWithCommand extends ScriptReference {
   /**
    * The shell command to execute.
    */
@@ -58,6 +42,81 @@ export interface StandardScriptConfig extends BaseScriptConfig {
    * Extra arguments to pass to the command.
    */
   extraArgs: string[] | undefined;
+}
+
+export interface Dependency<Config extends PotentiallyValidScriptConfig> {
+  config: Config;
+  astNode: JsonAstNode<string>;
+}
+
+export type ScriptConfig =
+  | NoCommandScriptConfig
+  | StandardScriptConfig
+  | ServiceScriptConfig;
+
+/**
+ * A script that doesn't run or produce anything. A pass-through for
+ * dependencies and/or files.
+ */
+export interface NoCommandScriptConfig extends BaseScriptConfig {
+  command: undefined;
+  extraArgs: undefined;
+  service: false;
+}
+
+/**
+ * A script with a command that exits by itself.
+ */
+export interface StandardScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: false;
+}
+
+/**
+ * A service script.
+ */
+export interface ServiceScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: true;
+
+  /**
+   * Whether this service persists beyond the initial execution phase.
+   *
+   * When true, this service will keep running until the user exits wireit, or
+   * until its fingerprint changes in watch mode, requiring a restart.
+   *
+   * When false, this service will start only if it is needed by a standard
+   * script, and will stop when that dependent is done. We call these scripts
+   * "ephemeral".
+   *
+   * So, this is true when there is a path from the entrypoint script to the
+   * service, which does not pass through a standard script.
+   *
+   * Example:
+   *
+   *                      start
+   *                   (no-command)
+   *                    /        \
+   *                   ▼          ▼
+   *             serve:api      serve:static
+   *  (persistent service)      (persistent service)
+   *          |                          |
+   *          ▼                          ▼
+   *      serve:db                   build:assets
+   *  (persistent service)            (standard)
+   *                                     |
+   *                                     ▼
+   *                             serve:playwright
+   *                            (ephemeral service)
+   */
+  isPersistent: boolean;
+
+  /**
+   * Scripts that depend on this service.
+   */
+  serviceConsumers: Array<ServiceScriptConfig | StandardScriptConfig>;
 }
 
 /**
@@ -74,6 +133,11 @@ interface BaseScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: Array<Dependency<ScriptConfig>>;
+
+  /**
+   * The services that need to be started before we can run.
+   */
+  services: Array<ServiceScriptConfig>;
 
   /**
    * Input file globs for this script.
@@ -98,6 +162,11 @@ interface BaseScriptConfig extends ScriptReference {
    *   cache.
    */
   clean: boolean | 'if-file-deleted';
+
+  /**
+   * Whether the script should run in service mode.
+   */
+  service: boolean;
 
   /**
    * The command string in the scripts section. i.e.:

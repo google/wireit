@@ -7,7 +7,7 @@
 import chokidar from 'chokidar';
 import {Analyzer} from './analyzer.js';
 import {Cache} from './caching/cache.js';
-import {Executor, FailureMode} from './executor.js';
+import {Executor, FailureMode, ServiceMap} from './executor.js';
 import {Logger} from './logging/logger.js';
 import {Deferred} from './util/deferred.js';
 import {WorkerPool} from './util/worker-pool.js';
@@ -48,11 +48,11 @@ type WatcherState =
   | 'aborted';
 
 function unknownState(state: never) {
-  throw new Error(`Unknown watcher state ${String(state)}`);
+  return new Error(`Unknown watcher state ${String(state)}`);
 }
 
 function unexpectedState(state: WatcherState) {
-  throw new Error(`Unexpected watcher state ${state}`);
+  return new Error(`Unexpected watcher state ${state}`);
 }
 
 /**
@@ -85,31 +85,6 @@ const DEBOUNCE_MS = 0;
  * when they change.
  */
 export class Watcher {
-  static async watch(
-    rootScript: ScriptReference,
-    extraArgs: string[] | undefined,
-    logger: Logger,
-    workerPool: WorkerPool,
-    cache: Cache | undefined,
-    failureMode: FailureMode,
-    abort: Deferred<void>
-  ): Promise<void> {
-    const watcher = new Watcher(
-      rootScript,
-      extraArgs,
-      logger,
-      workerPool,
-      cache,
-      failureMode,
-      abort
-    );
-    void watcher._startRun();
-    void abort.promise.then(() => {
-      watcher._onAbort();
-    });
-    return watcher._finished.promise;
-  }
-
   /** See {@link WatcherState} */
   private _state: WatcherState = 'initial';
 
@@ -119,8 +94,9 @@ export class Watcher {
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
   private readonly _failureMode: FailureMode;
-  private readonly _abort: Deferred<void>;
+  private _executor?: Executor;
   private _debounceTimeoutId?: NodeJS.Timeout = undefined;
+  private _previousIterationServices?: ServiceMap = undefined;
 
   /**
    * The most recent analysis of the root script. As soon as we detect it might
@@ -147,14 +123,13 @@ export class Watcher {
    */
   private readonly _finished = new Deferred<void>();
 
-  private constructor(
+  constructor(
     rootScript: ScriptReference,
     extraArgs: string[] | undefined,
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    failureMode: FailureMode,
-    abort: Deferred<void>
+    failureMode: FailureMode
   ) {
     this._rootScript = rootScript;
     this._extraArgs = extraArgs;
@@ -162,7 +137,11 @@ export class Watcher {
     this._workerPool = workerPool;
     this._failureMode = failureMode;
     this._cache = cache;
-    this._abort = abort;
+  }
+
+  watch(): Promise<void> {
+    void this._startRun();
+    return this._finished.promise;
   }
 
   private _startDebounce(): void {
@@ -275,15 +254,19 @@ export class Watcher {
     if (this._state !== 'running') {
       throw unexpectedState(this._state);
     }
-    const executor = new Executor(
+    this._executor = new Executor(
+      script,
       this._logger,
       this._workerPool,
       this._cache,
       this._failureMode,
-      this._abort
+      this._previousIterationServices
     );
-    const result = await executor.execute(script);
-    if (!result.ok) {
+    const result = await this._executor.execute();
+    if (result.ok) {
+      this._previousIterationServices = result.value;
+    } else {
+      this._previousIterationServices = undefined;
       for (const error of result.error) {
         this._logger.log(error);
       }
@@ -403,7 +386,11 @@ export class Watcher {
     }
   }
 
-  private _onAbort(): void {
+  abort(): void {
+    if (this._executor !== undefined) {
+      this._executor.abort();
+      this._executor = undefined;
+    }
     switch (this._state) {
       case 'debouncing':
       case 'watching': {

@@ -167,9 +167,13 @@ export class Fingerprint {
       // because we can't know if there was an undeclared input that this script
       // depends on.
       allDependenciesAreFullyTracked &&
-      // A no-op script. Can't produce output, so always trackable.
+      // A no-command script. Doesn't ever do anything itsef, so always fully
+      // tracked.
       (script.command === undefined ||
-        // A one-shot script. Trackable if we know both its inputs and outputs.
+        // A service. Fully tracked if we know its inputs. Can't produce output.
+        (script.service && script.files !== undefined) ||
+        // A standard script. Fully tracked if we know both its inputs and
+        // outputs.
         (script.files !== undefined && script.output !== undefined));
 
     const fingerprint = new Fingerprint();

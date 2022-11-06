@@ -135,6 +135,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
   readonly command: WireitTestRigCommand;
   private _state: 'connected' | 'closing' | 'closed' = 'connected';
   private _environmentResponse?: Deferred<EnvironmentResponseMessage>;
+  private _sigintReceived?: Deferred<void>;
 
   constructor(socket: net.Socket, command: WireitTestRigCommand) {
     super(socket);
@@ -164,11 +165,19 @@ export class WireitTestRigCommandInvocation extends IpcClient<
         this._environmentResponse.resolve(message);
         break;
       }
+      case 'sigintReceived': {
+        if (this._sigintReceived === undefined) {
+          throw new Error('Unexpected sigintReceived');
+        }
+        this._sigintReceived.resolve();
+        break;
+      }
       default: {
         throw new Error(
-          `Unhandled message type ${String(unreachable(message.type))}`
+          `Unhandled message type ${
+            (unreachable(message) as ChildToRigMessage).type
+          }`
         );
-        break;
       }
     }
   }
@@ -186,12 +195,28 @@ export class WireitTestRigCommandInvocation extends IpcClient<
     return this._environmentResponse.promise;
   }
 
+  interceptSigint(): Promise<void> {
+    this._assertState('connected');
+    if (this._sigintReceived === undefined) {
+      this._sigintReceived = new Deferred();
+      this._send({type: 'interceptSigint'});
+    }
+    return this._sigintReceived.promise;
+  }
+
   /**
    * Promise that resolves when this invocation's socket has exited, indicating
    * that the process has exited (or is just about to exit).
    */
   get closed(): Promise<void> {
     return this._closed.promise;
+  }
+
+  /**
+   * Return whether this invocation is still running.
+   */
+  get isRunning(): boolean {
+    return this._state === 'connected';
   }
 
   /**

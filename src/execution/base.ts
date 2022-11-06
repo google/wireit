@@ -6,6 +6,7 @@
 
 import {shuffle} from '../util/shuffle.js';
 import {Fingerprint} from '../fingerprint.js';
+import {Deferred} from '../util/deferred.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
@@ -25,34 +26,60 @@ export type ExecutionResult = Result<Fingerprint, Failure[]>;
  */
 export type FailureMode = 'no-new' | 'continue' | 'kill';
 
+let executionConstructorHook:
+  | ((executor: BaseExecution<ScriptConfig>) => void)
+  | undefined;
+
+/**
+ * For GC testing only. A function that is called whenever an Execution is
+ * constructed.
+ */
+export function registerExecutionConstructorHook(
+  fn: typeof executionConstructorHook
+) {
+  executionConstructorHook = fn;
+}
+
 /**
  * A single execution of a specific script.
  */
 export abstract class BaseExecution<T extends ScriptConfig> {
-  protected readonly script: T;
-  protected readonly executor: Executor;
-  protected readonly logger: Logger;
+  protected readonly _config: T;
+  protected readonly _executor: Executor;
+  protected readonly _logger: Logger;
+  private _fingerprint?: Promise<ExecutionResult>;
 
-  protected constructor(script: T, executor: Executor, logger: Logger) {
-    this.script = script;
-    this.executor = executor;
-    this.logger = logger;
+  constructor(config: T, executor: Executor, logger: Logger) {
+    executionConstructorHook?.(this);
+    this._config = config;
+    this._executor = executor;
+    this._logger = logger;
   }
+
+  /**
+   * Execute this script and return its fingerprint. Cached, so safe to call
+   * multiple times.
+   */
+  execute(): Promise<ExecutionResult> {
+    return (this._fingerprint ??= this._execute());
+  }
+
+  protected abstract _execute(): Promise<ExecutionResult>;
 
   /**
    * Execute all of this script's dependencies.
    */
-  protected async executeDependencies(): Promise<
+  protected async _executeDependencies(): Promise<
     Result<Array<[ScriptReference, Fingerprint]>, Failure[]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
     // a missing edge in the dependency graph.
-    shuffle(this.script.dependencies);
+    shuffle(this._config.dependencies);
 
     const dependencyResults = await Promise.all(
-      this.script.dependencies.map((dependency) => {
-        return this.executor.execute(dependency.config);
+      this._config.dependencies.map((dependency) => {
+        return this._executor.getExecution(dependency.config).execute();
       })
     );
     const results: Array<[ScriptReference, Fingerprint]> = [];
@@ -64,12 +91,63 @@ export abstract class BaseExecution<T extends ScriptConfig> {
           errors.add(error);
         }
       } else {
-        results.push([this.script.dependencies[i].config, result.value]);
+        results.push([this._config.dependencies[i].config, result.value]);
       }
     }
     if (errors.size > 0) {
       return {ok: false, error: [...errors]};
     }
     return {ok: true, value: results};
+  }
+}
+
+/**
+ * A single execution of a specific script which has a command.
+ */
+export abstract class BaseExecutionWithCommand<
+  T extends ScriptConfig & {
+    command: Exclude<ScriptConfig['command'], undefined>;
+  }
+> extends BaseExecution<T> {
+  protected readonly _servicesNotNeeded = new Deferred<void>();
+
+  /**
+   * Resolves when this script no longer needs any of its service dependencies
+   * to be running. This could happen because it finished, failed, or never
+   * needed to run at all.
+   */
+  readonly servicesNotNeeded = this._servicesNotNeeded.promise;
+
+  /**
+   * Resolves when any of the services this script depends on have terminated
+   * (see {@link ServiceScriptExecution.terminated} for exact definiton).
+   */
+  protected readonly _anyServiceTerminated = Promise.race(
+    this._config.services.map(
+      (service) => this._executor.getExecution(service).terminated
+    )
+  );
+
+  /**
+   * Ensure that all of the services this script depends on are running.
+   */
+  protected async _startServices(): Promise<Result<void, Failure[]>> {
+    if (this._config.services.length > 0) {
+      const results = await Promise.all(
+        this._config.services.map((service) =>
+          this._executor.getExecution(service).start()
+        )
+      );
+      const errors: Failure[] = [];
+      for (const result of results) {
+        if (!result.ok) {
+          errors.push(result.error);
+        }
+      }
+      if (errors.length > 0) {
+        return {ok: false, error: errors};
+      }
+    }
+    return {ok: true, value: undefined};
   }
 }

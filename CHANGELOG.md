@@ -6,7 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Added
+
+- Added `"service": true` setting, which is well suited for long-running
+  processes like servers. A service is started either when it is invoked directly,
+  or when another script that depends on it is ready to run. A service is stopped
+  when all scripts that depend on it have finished, or when Wireit is exited.
+
+### Fixed
+
+- Fixed memory leak in watch mode.
 
 ## [0.7.2] - 2022-09-25
 

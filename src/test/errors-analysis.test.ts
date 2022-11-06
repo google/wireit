@@ -1737,4 +1737,100 @@ test(
   })
 );
 
+test(
+  'service is not a boolean',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            service: 1,
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:8:18 The "service" property must be either true or false.
+          "service": 1
+                     ~`
+    );
+  })
+);
+
+test(
+  'service does not have command',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            service: true,
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'true',
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:8:18 A "service" script must have a "command".
+          "service": true,
+                     ~~~~`
+    );
+  })
+);
+
+test(
+  'service cannot have output',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            service: true,
+            output: ['foo'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:9:17 A "service" script cannot have an "output".
+          "output": [
+                    ~
+            "foo"
+    ~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`
+    );
+  })
+);
+
 test.run();

@@ -38,7 +38,7 @@ export class WireitTestRig extends FilesystemTestRig {
    * Initialize the temporary filesystem, and set up the wireit binary to be
    * runnable as though it had been installed there through npm.
    */
-  async setup() {
+  override async setup() {
     await super.setup();
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
@@ -78,7 +78,7 @@ export class WireitTestRig extends FilesystemTestRig {
     binaryPath: string;
     installPath: string;
   }) {
-    this.assertState('running');
+    this._assertState('running');
 
     binaryPath = this._resolve(binaryPath);
     installPath = this._resolve(installPath);
@@ -110,7 +110,7 @@ export class WireitTestRig extends FilesystemTestRig {
   /**
    * Delete the temporary filesystem and perform other cleanup.
    */
-  async cleanup(): Promise<void> {
+  override async cleanup(): Promise<void> {
     await Promise.all(this._commands.map((command) => command.close()));
     for (const child of this._activeChildProcesses) {
       child.kill();
@@ -130,7 +130,7 @@ export class WireitTestRig extends FilesystemTestRig {
     command: string,
     opts?: {cwd?: string; env?: Record<string, string | undefined>}
   ): ExecResult {
-    this.assertState('running');
+    this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
       // We hard code the parallelism here because by default we infer a value
@@ -180,7 +180,7 @@ export class WireitTestRig extends FilesystemTestRig {
    * Create a new test command.
    */
   async newCommand(): Promise<WireitTestRigCommand> {
-    this.assertState('running');
+    this._assertState('running');
     // On Windows, Node IPC is implemented with named pipes, which must be
     // prefixed by "\\?\pipe\". On Linux/macOS it's a unix domain socket, which
     // can be any filepath. See https://nodejs.org/api/net.html#ipc-support for
@@ -218,8 +218,10 @@ class ExecResult {
   private readonly _child: ChildProcessWithoutNullStreams;
   private readonly _exited = new Deferred<ExitResult>();
   private _running = true;
-  private _stdout = '';
-  private _stderr = '';
+  private _allStdout = '';
+  private _allStderr = '';
+  private _matcherStdout = '';
+  private _matcherStderr = '';
 
   constructor(
     command: string,
@@ -269,8 +271,8 @@ class ExecResult {
       this._exited.resolve({
         code,
         signal,
-        stdout: this._stdout,
-        stderr: this._stderr,
+        stdout: this._allStdout,
+        stderr: this._allStderr,
       });
     });
 
@@ -320,38 +322,63 @@ class ExecResult {
     }
   }
 
-  private readonly _logMatchers: Array<{re: RegExp; deferred: Deferred<void>}> =
-    [];
+  private readonly _logMatchers = new Set<{
+    re: RegExp;
+    deferred: Deferred<void>;
+  }>();
 
   /**
    * Waits for the given content to be logged to either stdout or stderr.
    *
-   * When it does, it consumes all the stdout and stderr that's been emitted
-   * so far and returns it.
+   * When it does, it consumes all stdout or stderr that's been emitted up to
+   * that match so far.
    */
-  async waitForLog(matcher: RegExp): Promise<{stdout: string; stderr: string}> {
+  waitForLog(matcher: RegExp): Promise<void> {
     const deferred = new Deferred<void>();
-    this._logMatchers.push({re: matcher, deferred});
+    this._logMatchers.add({re: matcher, deferred});
     // In case we've already received the log we're watching for
     this._checkMatchersAgainstLogs();
-    await deferred.promise;
-    const stdout = this._stdout;
-    const stderr = this._stderr;
-    this._stdout = '';
-    this._stderr = '';
-    return {stdout, stderr};
+    return deferred.promise;
   }
 
   private _checkMatchersAgainstLogs() {
+    let stdoutLastIndex = -1;
+    let stderrLastIndex = -1;
     for (const matcher of this._logMatchers) {
-      if (matcher.re.test(this._stdout) || matcher.re.test(this._stderr)) {
-        matcher.deferred.resolve();
+      const {re, deferred} = matcher;
+      // Use exec instead of match because otherwise if the user used the /g/
+      // flag, we'll get an array and can't access the index.
+      const stdoutMatch = re.exec(this._matcherStdout);
+      if (stdoutMatch !== null) {
+        deferred.resolve();
+        this._logMatchers.delete(matcher);
+        stdoutLastIndex = Math.max(
+          stdoutLastIndex,
+          stdoutMatch.index + stdoutMatch[0].length
+        );
+      } else {
+        const stderrMatch = re.exec(this._matcherStderr);
+        if (stderrMatch !== null) {
+          deferred.resolve();
+          this._logMatchers.delete(matcher);
+          stderrLastIndex = Math.max(
+            stderrLastIndex,
+            stderrMatch.index + stderrMatch[0].length
+          );
+        }
       }
+    }
+    if (stdoutLastIndex > 0) {
+      this._matcherStdout = this._matcherStdout.slice(stdoutLastIndex);
+    }
+    if (stderrLastIndex > 0) {
+      this._matcherStderr = this._matcherStderr.slice(stderrLastIndex);
     }
   }
 
   private readonly _onStdout = (chunk: string | Buffer) => {
-    this._stdout += chunk;
+    this._allStdout += chunk;
+    this._matcherStdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
@@ -359,7 +386,8 @@ class ExecResult {
   };
 
   private readonly _onStderr = (chunk: string | Buffer) => {
-    this._stderr += chunk;
+    this._allStderr += chunk;
+    this._matcherStdout += chunk;
     if (process.env.SHOW_TEST_OUTPUT) {
       process.stdout.write(chunk);
     }
