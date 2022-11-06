@@ -35,7 +35,7 @@
                       "minLength": 1
                     },
                     "soft": {
-                      "markdownDescription": "When `false` (the default), whenever this dependency runs, this script (the dependent) will be marked stale and need to re-run too, regardless of whether the dependency produced new or relevant output. When soft is `true` Wireit won't assume that the dependent is stale just because the dependency ran. This can reduce unnecessary re-building when `files` captures all of the relevant output of the dependency .\n\nFor more info, see https://github.com/google/wireit#soft-dependencies",
+                      "markdownDescription": "When `false` (the default), whenever this dependency runs, this script (the dependent) will be marked stale and need to re-run too, regardless of whether the dependency produced new or relevant output. When `false` Wireit won't assume that the dependent is stale just because the dependency ran. This can reduce unnecessary re-building (or restarting in the case of services) when `files` captures all of the relevant output of the dependency.\n\nFor more info, see https://github.com/google/wireit#re-run-on-change",
                       "type": "boolean"
                     }
                   }

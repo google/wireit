@@ -480,11 +480,19 @@ expected to exit by itself, set `"service": true`.
       "command": "node my-server.js",
       "service": true,
       "files": ["server-config.json"],
-      "dependencies": ["build:server", "build:assets"]
+      "dependencies": [
+        "build:server",
+        {
+          "script": "build:assets",
+          "soft": true
+        }
+      ]
     }
   }
 }
 ```
+
+### Service lifetime
 
 If a service is run _directly_ (e.g. `npm run serve`), then it will stay running
 until the user kills Wireit (e.g. `Ctrl-C`).
@@ -493,13 +501,24 @@ If a service is a _dependency_ of one or more other scripts, then it will start
 up before any depending script runs, and will shut down after all depending
 scripts finish.
 
+### Service restarts
+
 In watch mode, a service will be restarted whenever one of its input files or
-dependencies change.
+dependencies change, except for dependencies annotated as
+[`soft`](#soft-dependencies).
+
+Use `soft` when the output of a dependency is read dynamically for each request
+handled by the service. For example, the static assets of a web server can often
+be annotated as `soft`.
+
+### Service output
 
 Services cannot have `output` files, because there is no way for Wireit to know
-when a service has finished writing its output. If you have a service that
-produces output, you should define a non-service script that depends on it, and
-which exits when the service's output is complete.
+when a service has finished writing its output.
+
+If you have a service that produces output, you should define a _non-service_
+script that depends on it, and which exits when the service's output is
+complete.
 
 ## Failures and errors
 
