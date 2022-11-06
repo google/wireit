@@ -19,12 +19,12 @@ const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
  */
 export class FilesystemTestRig {
   readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
-  #state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
+  private _state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
 
-  protected assertState(expected: 'uninitialized' | 'running' | 'done') {
-    if (this.#state !== expected) {
+  protected _assertState(expected: 'uninitialized' | 'running' | 'done') {
+    if (this._state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this.#state}`
+        `Expected state to be ${expected} but was ${this._state}`
       );
     }
   }
@@ -33,8 +33,8 @@ export class FilesystemTestRig {
    * Initialize the temporary filesystem.
    */
   async setup() {
-    this.assertState('uninitialized');
-    this.#state = 'running';
+    this._assertState('uninitialized');
+    this._state = 'running';
     await this.mkdir('.');
   }
 
@@ -42,9 +42,9 @@ export class FilesystemTestRig {
    * Delete the temporary filesystem.
    */
   async cleanup(): Promise<void> {
-    this.assertState('running');
+    this._assertState('running');
     await this.delete('.');
-    this.#state = 'done';
+    this._state = 'done';
   }
 
   /**
@@ -66,7 +66,7 @@ export class FilesystemTestRig {
     fileOrFiles: string | {[filename: string]: unknown},
     data?: string
   ): Promise<void> {
-    this.assertState('running');
+    this._assertState('running');
     if (typeof fileOrFiles === 'string') {
       const absolute = pathlib.resolve(this.temp, fileOrFiles);
       await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
@@ -83,6 +83,38 @@ export class FilesystemTestRig {
   }
 
   /**
+   * Like {@link write}, but first writes to a temporary file, and then renames
+   * the file to its final location.
+   */
+  async writeAtomic(file: string, content: unknown): Promise<void>;
+  async writeAtomic(files: {[filename: string]: unknown}): Promise<void>;
+  async writeAtomic(
+    fileOrFiles: string | {[filename: string]: unknown},
+    data?: string
+  ): Promise<void> {
+    this._assertState('running');
+    if (typeof fileOrFiles === 'string') {
+      const actual = pathlib.resolve(this.temp, fileOrFiles);
+      const temp = actual + '.tmp';
+      await this.write(temp, data);
+      await this.rename(temp, actual);
+    } else {
+      await Promise.all(
+        Object.entries(fileOrFiles).map(async ([relative, data]) =>
+          this.writeAtomic(relative, data)
+        )
+      );
+    }
+  }
+
+  /**
+   * Rename a file in the temporary filesystem.
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    await fs.rename(this.resolve(oldPath), this.resolve(newPath));
+  }
+
+  /**
    * Write an empty file to the temporary filesystem.
    */
   async touch(file: string): Promise<void> {
@@ -93,7 +125,7 @@ export class FilesystemTestRig {
    * Read a file from the temporary filesystem.
    */
   async read(filename: string): Promise<string> {
-    this.assertState('running');
+    this._assertState('running');
     return fs.readFile(this.resolve(filename), 'utf8');
   }
 
@@ -101,7 +133,7 @@ export class FilesystemTestRig {
    * Check whether a file exists in the temporary filesystem.
    */
   async exists(filename: string): Promise<boolean> {
-    this.assertState('running');
+    this._assertState('running');
     try {
       await fs.access(this.resolve(filename));
       return true;
@@ -117,7 +149,7 @@ export class FilesystemTestRig {
    * Get filesystem metadata for the given path in the temporary filesystem.
    */
   async lstat(path: string): Promise<Stats> {
-    this.assertState('running');
+    this._assertState('running');
     return fs.lstat(this.resolve(path));
   }
 
@@ -126,7 +158,7 @@ export class FilesystemTestRig {
    * Return false if it is another kind of file, or if it doesn't exit.
    */
   async isDirectory(path: string): Promise<boolean> {
-    this.assertState('running');
+    this._assertState('running');
     try {
       const stats = await this.lstat(path);
       return stats.isDirectory();
@@ -144,7 +176,7 @@ export class FilesystemTestRig {
    * or undefined if it doesn't exist.
    */
   async readlink(path: string): Promise<string | undefined> {
-    this.assertState('running');
+    this._assertState('running');
     try {
       return await fs.readlink(this.resolve(path));
     } catch (error) {
@@ -161,7 +193,7 @@ export class FilesystemTestRig {
    * directories.
    */
   async mkdir(dirname: string): Promise<void> {
-    this.assertState('running');
+    this._assertState('running');
     await fs.mkdir(this.resolve(dirname), {recursive: true});
   }
 
@@ -169,7 +201,7 @@ export class FilesystemTestRig {
    * Delete a file or directory in the temporary filesystem.
    */
   async delete(filename: string): Promise<void> {
-    this.assertState('running');
+    this._assertState('running');
     await fs.rm(this.resolve(filename), {force: true, recursive: true});
   }
 
@@ -181,7 +213,7 @@ export class FilesystemTestRig {
     filename: string,
     windowsType: 'file' | 'dir' | 'junction'
   ): Promise<void> {
-    this.assertState('running');
+    this._assertState('running');
     const absolute = this.resolve(filename);
     try {
       await fs.unlink(absolute);

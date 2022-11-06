@@ -4,51 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {sep, dirname} from 'path';
-
-/**
- * Given a set of filesystem paths, returns the smallest set of recursive
- * {@link fs.cp} or {@link fs.rm} operations required to cover all paths.
- *
- * For example, given:
- *
- *   a/b/c
- *   a/b
- *   d
- *   d/e/f/g/h
- *
- * Returns:
- *
- *   a/b
- *   d
- *
- * Note this function does an in-place sort of the given paths.
- */
-export const optimizeCpRms = (paths: string[]): string[] => {
-  if (paths.length <= 1) {
-    return paths;
-  }
-  const ops = [];
-  // Default lexicographic sort ensures that parent directories come before and
-  // are adjacent to their children (e.g. [b/c/d, a, b/c] => [a, b/c, b/c/d]).
-  paths.sort();
-  let lastOp;
-  for (const path of paths) {
-    if (
-      lastOp !== undefined &&
-      path.startsWith(lastOp) &&
-      (path.length === lastOp.length || path[lastOp.length] === sep)
-    ) {
-      // Path is either identical to the last operation, or is a child of it. We
-      // can skip this path, because fs.cp is recursive, and the last operation
-      // already includes it (e.g. "a" already includes "a/b").
-      continue;
-    }
-    ops.push(path);
-    lastOp = path;
-  }
-  return ops;
-};
+import {dirname} from 'path';
 
 /**
  * Given a set of filesystem directory paths, returns the smallest set of

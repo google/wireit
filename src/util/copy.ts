@@ -6,11 +6,11 @@
 
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
-import {optimizeMkdirs} from './optimize-fs-ops.js';
+import {optimizeMkdirs} from './optimize-mkdirs.js';
 import {constants} from 'fs';
 import {IS_WINDOWS} from '../util/windows.js';
 
-import type {RelativeEntry} from './glob.js';
+import type {AbsoluteEntry} from './glob.js';
 
 /**
  * Copy all of the given files and directories from one directory to another.
@@ -23,7 +23,7 @@ import type {RelativeEntry} from './glob.js';
  * automatically create "foo/", even if "foo/" wasn't listed.
  */
 export const copyEntries = async (
-  entries: RelativeEntry[],
+  entries: AbsoluteEntry[],
   sourceDir: string,
   destDir: string
 ): Promise<void> => {
@@ -34,7 +34,8 @@ export const copyEntries = async (
   const files = new Set<string>();
   const symlinks = new Set<string>();
   const directories = new Set<string>();
-  for (const {path: relativePath, dirent} of entries) {
+  for (const {path: absolutePath, dirent} of entries) {
+    const relativePath = pathlib.relative(sourceDir, absolutePath);
     if (dirent.isDirectory()) {
       directories.add(pathlib.join(destDir, relativePath));
     } else {

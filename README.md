@@ -14,10 +14,6 @@
 - ♻️ Cache output locally and remotely on GitHub Actions for free
 - 🛠️ Works with single packages, npm workspaces, and other monorepos
 
-## Alpha
-
-> ### 🚧 Wireit is alpha software — in active but early development. You are welcome to try it out, but note there a number of [missing features and issues](https://github.com/google/wireit/issues) that you may run into! 🚧
-
 ## Contents
 
 - [Features](#features)
@@ -29,6 +25,7 @@
   - [Cross-package dependencies](#cross-package-dependencies)
   - [Soft dependencies](#soft-dependencies)
 - [Parallelism](#parallelism)
+- [Extra arguments](#extra-arguments)
 - [Input and output files](#input-and-output-files)
 - [Incremental build](#incremental-build)
 - [Caching](#caching)
@@ -36,6 +33,7 @@
   - [GitHub Actions caching](#github-actions-caching)
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
+- [Services](#services)
 - [Failures and errors](#failures-and-errors)
 - [Package locks](#package-locks)
 - [Recipes](#recipes)
@@ -96,8 +94,9 @@ and replace the original script with the `wireit` command.
 </table>
 
 Now when you run `npm run build`, Wireit upgrades the script to be smarter and
-more efficient. Wireit works with [yarn](https://yarnpkg.com/) and
-[pnpm](https://pnpm.io/), too.
+more efficient. Wireit works with [yarn](https://yarnpkg.com/)
+(both 1.X "[Classic](https://classic.yarnpkg.com/)" and its successor "Berry")
+and [pnpm](https://pnpm.io/), too.
 
 You should also add `.wireit` to your `.gitignore` file. Wireit uses the
 `.wireit` directory to store caches and other data for your scripts.
@@ -259,8 +258,8 @@ graph TD
   end
 ```
 
-By default, Wireit will run up to 4 scripts in parallel for every CPU core
-detected on your system. To change this default, set the `WIREIT_PARALLEL`
+By default, Wireit will run up to 2 scripts in parallel for every logical CPU
+core detected on your system. To change this default, set the `WIREIT_PARALLEL`
 [environment variable](#environment-variables) to a positive integer, or
 `infinity` to run without a limit. You may want to lower this number if you
 experience resource starvation in large builds. For example, to run only one
@@ -277,6 +276,17 @@ the others wait their turn. This prevents coordination problems that can result
 in incorrect output files being produced. If `output` is set to an empty array,
 then this restriction is removed.
 
+## Extra arguments
+
+As with plain npm scripts, you can pass extra arguments to a Wireit script by
+placing a `--` double-dash argument in front of them. Any arguments after a `--`
+are sent to the underlying command, instead of being interpreted as arguments to
+npm or Wireit:
+
+```sh
+npm run build -- --verbose
+```
+
 ## Input and output files
 
 The `files` and `output` properties of `wireit.<script>` tell Wireit what your
@@ -289,9 +299,9 @@ Setting these properties allow you to use more features of Wireit:
 |                                             | Requires<br>`files` | Requires<br>`output` |
 | ------------------------------------------: | :-----------------: | :------------------: |
 |       [**Dependency graph**](#dependencies) |          -          |          -           |
-| [**Incremental build**](#incremental-build) |         ☑️          |          -           |
 |               [**Watch mode**](#watch-mode) |         ☑️          |          -           |
 |         [**Clean build**](#cleaning-output) |          -          |          ☑️          |
+| [**Incremental build**](#incremental-build) |         ☑️          |          ☑️          |
 |                     [**Caching**](#caching) |         ☑️          |          ☑️          |
 
 #### Example configuration
@@ -322,23 +332,23 @@ Setting these properties allow you to use more features of Wireit:
 
 Wireit can automatically skip execution of a script if nothing has changed that
 would cause it to produce different output since the last time it ran. This is
-called _incremental build_. When a script is skipped, any `stdout` or `stderr`
-that it produced in the previous run is replayed.
+called _incremental build_.
 
-To enable incremental build, configure the input files for each script by
-specifying [glob patterns](#glob-patterns) in the `wireit.<script>.files` list.
+To enable incremental build, configure the input and output files for each
+script by specifying [glob patterns](#glob-patterns) in the
+`wireit.<script>.files` and `wireit.<script>.output` arrays.
 
-> ℹ️ If a script doesn't have a `files` list defined at all, then it will _always_
-> run, because Wireit doesn't know which files to check for changes. To tell
-> Wireit it is safe to skip execution of a script that definitely has no input
-> files, set `files` to an empty array (`files: []`).
+> ℹ️ If a script doesn't have a `files` or `output` list defined at all, then it
+> will _always_ run, because Wireit doesn't know which files to check for
+> changes. To tell Wireit it is safe to skip execution of a script that
+> definitely has no input and/or files, set `files` and/or `output` to an empty
+> array (`files: [], output: []`).
 
 ## Caching
 
 If a script has previously succeeded with the same configuration and input
 files, then Wireit can copy the output from a cache, instead of running the
-command. This can significantly improve build and test time. When a script is
-restored from cache, any `stdout` or `stderr` is replayed.
+command. This can significantly improve build and test time.
 
 To enable caching for a script, ensure you have defined both the [`files` and
 `output`](#input-and-output-files) arrays.
@@ -436,11 +446,11 @@ set the `wireit.<script>.clean` property to one of these values:
 In _watch_ mode, Wireit monitors all `files` of a script, and all `files` of its
 transitive dependencies, and when there is a change, it re-runs only the
 affected scripts. To enable watch mode, ensure that the
-[`files`](#input-and-output-files) array is defined, and add the `watch`
-argument:
+[`files`](#input-and-output-files) array is defined, and add the `--watch`
+flag:
 
 ```sh
-npm run <script> watch
+npm run <script> --watch
 ```
 
 The benefit of Wireit's watch mode over built-in watch modes are:
@@ -450,6 +460,46 @@ The benefit of Wireit's watch mode over built-in watch modes are:
 - It prevents problems that can occur when running many separate watch commands
   simultaneously, such as build steps being triggered before all preceding steps
   have finished.
+
+## Services
+
+By default, Wireit assumes that your scripts will eventually exit by themselves.
+This is well suited for build and test scripts, but not for long-running
+processes like servers. To tell Wireit that a process is long-running and not
+expected to exit by itself, set `"service": true`.
+
+```json
+{
+  "scripts": {
+    "serve": "wireit",
+    "build:server": "wireit",
+    "build:assets": "wireit"
+  },
+  "wireit": {
+    "serve": {
+      "command": "node my-server.js",
+      "service": true,
+      "files": ["server-config.json"],
+      "dependencies": ["build:server", "build:assets"]
+    }
+  }
+}
+```
+
+If a service is run _directly_ (e.g. `npm run serve`), then it will stay running
+until the user kills Wireit (e.g. `Ctrl-C`).
+
+If a service is a _dependency_ of one or more other scripts, then it will start
+up before any depending script runs, and will shut down after all depending
+scripts finish.
+
+In watch mode, a service will be restarted whenever one of its input files or
+dependencies change.
+
+Services cannot have `output` files, because there is no way for Wireit to know
+when a service has finished writing its output. If you have a service that
+produces output, you should define a non-service script that depends on it, and
+which exits when the service's output is complete.
 
 ## Failures and errors
 
@@ -620,7 +670,7 @@ The following environment variables affect the behavior of Wireit:
 | Variable          | Description                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `WIREIT_FAILURES` | [How to handle script failures](#failures-and-errors).<br><br>Options:<br><ul><li>[`no-new`](#failures-and-errors) (default): Allow running scripts to finish, but don't start new ones.</li><li>[`continue`](#continue): Allow running scripts to continue, and start new ones unless any of their dependencies failed.</li><li>[`kill`](#kill): Immediately kill running scripts, and don't start new ones.</li></ul>              |
-| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 4×CPUs.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                            |
+| `WIREIT_PARALLEL` | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 2×logical CPU cores.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                               |
 | `WIREIT_CACHE`    | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v1`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul> |
 | `CI`              | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`.                                                                            |
 
@@ -661,6 +711,7 @@ build](#incremental-build), and whether its output can be [restored from
 cache](#caching).
 
 - The `command` setting.
+- The [extra arguments](#extra-arguments) set on the command-line.
 - The `clean` setting.
 - The `output` glob patterns.
 - The SHA256 content hashes of all files matching `files`.
@@ -683,6 +734,10 @@ Wireit is supported on Linux, macOS, and Windows.
 Wireit is supported on Node Current (18), Active LTS (16), and the most recent
 Maintenance LTS (14). See [Node releases](https://nodejs.org/en/about/releases/)
 for the schedule.
+
+Wireit is supported on the npm versions that ship with the above supported Node
+versions (5 and 6), Yarn Classic (1), and on the latest versions of Yarn Berry
+(3) and pnpm (7).
 
 ## Related tools
 
@@ -708,8 +763,8 @@ Here are some things you might especially like about Wireit:
   services. Just add a single `uses:` line to your workflows.
 
 - **Watch any script**. Want to automatically re-run your build and tests
-  whenever you make a change? Type `npm test watch`. Any script you've
-  configured using Wireit can be watched by typing `watch` after it.
+  whenever you make a change? Type `npm test --watch`. Any script you've
+  configured using Wireit can be watched by typing `--watch` after it.
 
 - **Great for single packages and monorepos**. Wireit has no opinion about how
   your packages are arranged. It works great with single packages, because you

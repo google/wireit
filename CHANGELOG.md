@@ -10,6 +10,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added `"service": true` setting, which is well suited for long-running
+  processes like servers. A service is started either when it is invoked directly,
+  or when another script that depends on it is ready to run. A service is stopped
+  when all scripts that depend on it have finished, or when Wireit is exited.
+
 - Added _soft dependencies_.
 
   By default, the fingerprint of a script includes the fingerprints of its
@@ -56,8 +61,109 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added string length > 0 requirement to the `command`, `dependencies`, `files`,
   `output`, and `packageLocks` properties in `schema.json`.
 
+### Fixed
+
+- Fixed memory leak in watch mode.
+
+## [0.7.2] - 2022-09-25
+
+### Fixed
+
+- Fixed issue where a redundant extra run could be triggered in watch mode when
+  multiple scripts were watching the same file(s).
+
+### Changed
+
+- stdout color output is now forced when Wireit is run with a text terminal
+  attached.
+
+- Default number of scripts run in parallel is now 2x logical CPU cores instead
+  of 4x.
+
+## [0.7.1] - 2022-06-27
+
+### Fixed
+
+- 503 "Service Unavailable" HTTP errors returned by the GitHub Actions caching
+  service are no longer fatal. Instead, caching will be skipped for the
+  remainder of the Wireit run, similar to how 429 "Too Many Requests" errors are
+  handled.
+
+## [0.7.0] - 2022-06-17
+
+### Removed
+
+- [**Breaking**] stdout/stderr are no longer replayed. Only if a script is
+  actually running will it now produce output to those streams.
+
+## [0.6.1] - 2022-06-15
+
+### Fixed
+
+- Fix out of date files from `0.6.0`.
+
+## [0.6.0] - 2022-06-15
+
+### Added
+
+- You can now pass arbitrary extra arguments to a script by setting them after a
+  double-dash, e.g. `npm run build -- --verbose`.
+
+- If you're using Yarn Berry, you can now invoke the shared instance of wireit
+  at the root of your workspace from any package's `scripts` entry:
+
+  ```json
+  "scripts": {
+    "build": "yarn run -TB wireit"
+  },
+  ```
+
+### Fixed
+
+- Yarn Berry now supports watch mode.
+
+### Changed
+
+- [**Breaking**] Watch mode is now set using `--watch` instead of `watch`, e.g.
+  `npm run build --watch`. Using the old `watch` style argument will error until
+  an upcoming release, at which point it will be sent to the underlying script,
+  consistent with how npm usually behaves.
+
+- Scripts are no longer skipped as fresh if any `output` files were changed,
+  added, or removed since the previous run.
+
+- In order for a script to be skipped as fresh, it is now required to specify
+  the `output` files. Previously only input `files` were required.
+
+## [0.5.0] - 2022-05-31
+
+### Added
+
+- It is now possible to define a script that only defines `files`. This can be
+  useful for organizing groups of shared input files that multiple scripts can
+  depend on, such as configuration files.
+
+### Changed
+
+- [**Breaking**] Setting `"output"` on a script that does not have a `"command"`
+  is now an error.
+
 - The internal `.wireit/*/state` file was renamed to `.wireit/*/fingerprint`.
   Should have no effect.
+
+- If a script does not define a `"command"`, then fingerprints, lock files, and
+  cache entries are no longer written to the `.wireit` directory. This change
+  should have no user-facing effect apart from a very minor performance
+  improvement.
+
+- Analysis errors encountered in watch mode are no longer fatal. If any
+  `package.json` file that was encountered in the failed analysis was modified,
+  a new analysis attempt will start.
+
+- Performance improvements to watch mode. Re-analysis of configuration now only
+  occurs when a relevant `package.json` file was modified, instead of if any
+  file was modified. Filesystem watchers are now re-used across iterations
+  unless they are changed by a config update.
 
 ## [0.4.3] - 2022-05-15
 

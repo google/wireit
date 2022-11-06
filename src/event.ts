@@ -9,8 +9,9 @@ import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
   ScriptReference,
+  ScriptReferenceWithCommand,
   PackageReference,
-} from './script.js';
+} from './config.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -20,7 +21,7 @@ import type {
  */
 export type Event = Success | Failure | Output | Info;
 
-interface EventBase<T extends PackageReference> {
+interface EventBase<T extends PackageReference = ScriptReference> {
   script: T;
   diagnostic?: Diagnostic;
   diagnostics?: Diagnostic[];
@@ -32,35 +33,36 @@ interface EventBase<T extends PackageReference> {
 
 type Success = ExitZero | NoCommand | Fresh | Cached;
 
-interface SuccessBase<T extends PackageReference> extends EventBase<T> {
+interface SuccessBase<T extends PackageReference = ScriptReference>
+  extends EventBase<T> {
   type: 'success';
 }
 
 /**
  * A script finished with exit code 0.
  */
-export interface ExitZero extends SuccessBase<ScriptConfig> {
+export interface ExitZero extends SuccessBase {
   reason: 'exit-zero';
 }
 
 /**
  * A script completed because it had no command and its dependencies completed.
  */
-export interface NoCommand extends SuccessBase<ScriptConfig> {
+export interface NoCommand extends SuccessBase {
   reason: 'no-command';
 }
 
 /**
  * A script was already fresh so it didn't need to execute.
  */
-export interface Fresh extends SuccessBase<ScriptConfig> {
+export interface Fresh extends SuccessBase {
   reason: 'fresh';
 }
 
 /**
  * Script output was restored from cache.
  */
-export interface Cached extends SuccessBase<ScriptConfig> {
+export interface Cached extends SuccessBase {
   reason: 'cached';
 }
 
@@ -90,16 +92,20 @@ export type Failure =
   | UnknownErrorThrown
   | DependencyOnMissingPackageJson
   | DependencyOnMissingScript
-  | DependencyInvalid;
+  | DependencyInvalid
+  | ServiceExitedUnexpectedly
+  | DependencyServiceExitedUnexpectedly
+  | Aborted;
 
-interface ErrorBase<T extends PackageReference> extends EventBase<T> {
+interface ErrorBase<T extends PackageReference = ScriptReference>
+  extends EventBase<T> {
   type: 'failure';
 }
 
 /**
  * A script finished with an exit status that was not 0.
  */
-export interface ExitNonZero extends ErrorBase<ScriptConfig> {
+export interface ExitNonZero extends ErrorBase {
   reason: 'exit-non-zero';
   status: number;
 }
@@ -107,7 +113,7 @@ export interface ExitNonZero extends ErrorBase<ScriptConfig> {
 /**
  * A script exited because of a signal it received.
  */
-export interface ExitSignal extends ErrorBase<ScriptConfig> {
+export interface ExitSignal extends ErrorBase {
   reason: 'signal';
   signal: NodeJS.Signals;
 }
@@ -115,7 +121,7 @@ export interface ExitSignal extends ErrorBase<ScriptConfig> {
 /**
  * An error occured trying to spawn a script's command.
  */
-export interface SpawnError extends ErrorBase<ScriptReference> {
+export interface SpawnError extends ErrorBase {
   reason: 'spawn-error';
   message: string;
 }
@@ -124,14 +130,14 @@ export interface SpawnError extends ErrorBase<ScriptReference> {
  * We decided not to start a script after all, due to e.g. another script
  * failure.
  */
-export interface StartCancelled extends ErrorBase<ScriptReference> {
+export interface StartCancelled extends ErrorBase {
   reason: 'start-cancelled';
 }
 
 /**
  * A script was intentionally and successfully killed by Wireit.
  */
-export interface Killed extends ErrorBase<ScriptReference> {
+export interface Killed extends ErrorBase {
   reason: 'killed';
 }
 
@@ -162,15 +168,14 @@ export interface PackageJsonParseError extends ErrorBase<PackageReference> {
 /**
  * The package.json doesn't have a "scripts" object at all.
  */
-export interface NoScriptsSectionInPackageJson
-  extends ErrorBase<ScriptReference> {
+export interface NoScriptsSectionInPackageJson extends ErrorBase {
   reason: 'no-scripts-in-package-json';
 }
 
 /**
  * The specified script does not exist in a package.json.
  */
-export interface ScriptNotFound extends ErrorBase<ScriptReference> {
+export interface ScriptNotFound extends ErrorBase {
   reason: 'script-not-found';
   diagnostic: Diagnostic;
 }
@@ -179,8 +184,7 @@ export interface ScriptNotFound extends ErrorBase<ScriptReference> {
  * The specified script has a wireit config, but it isn't declared in the
  * scripts section at all.
  */
-export interface WireitScriptNotInScriptsSection
-  extends ErrorBase<ScriptReference> {
+export interface WireitScriptNotInScriptsSection extends ErrorBase {
   reason: 'wireit-config-but-no-script';
   diagnostic: Diagnostic;
 }
@@ -188,7 +192,7 @@ export interface WireitScriptNotInScriptsSection
 /**
  * The specified script's command is not "wireit".
  */
-export interface ScriptNotWireit extends ErrorBase<ScriptReference> {
+export interface ScriptNotWireit extends ErrorBase {
   reason: 'script-not-wireit';
   diagnostic: Diagnostic;
 }
@@ -201,7 +205,7 @@ export interface InvalidConfigSyntax extends ErrorBase<PackageReference> {
   diagnostic: Diagnostic;
 }
 
-export interface InvalidUsage extends ErrorBase<ScriptReference> {
+export interface InvalidUsage extends ErrorBase {
   reason: 'invalid-usage';
   message: string;
 }
@@ -209,7 +213,7 @@ export interface InvalidUsage extends ErrorBase<ScriptReference> {
 /**
  * A script lists the same dependency multiple times.
  */
-export interface DuplicateDependency extends ErrorBase<ScriptReference> {
+export interface DuplicateDependency extends ErrorBase {
   reason: 'duplicate-dependency';
   /**
    * The dependency that is duplicated.
@@ -221,8 +225,7 @@ export interface DuplicateDependency extends ErrorBase<ScriptReference> {
 /**
  * A script depends on another in a package that isn't there.
  */
-export interface DependencyOnMissingPackageJson
-  extends ErrorBase<ScriptReference> {
+export interface DependencyOnMissingPackageJson extends ErrorBase {
   reason: 'dependency-on-missing-package-json';
   diagnostic: Diagnostic;
   /**
@@ -235,10 +238,33 @@ export interface DependencyOnMissingPackageJson
 /**
  * A script's dependency doesn't exist.
  */
-export interface DependencyOnMissingScript extends ErrorBase<ScriptReference> {
+export interface DependencyOnMissingScript extends ErrorBase {
   reason: 'dependency-on-missing-script';
   diagnostic: Diagnostic;
   supercedes: ScriptNotFound;
+}
+
+/**
+ * A service exited before it was supposed to.
+ */
+export interface ServiceExitedUnexpectedly extends ErrorBase {
+  reason: 'service-exited-unexpectedly';
+}
+
+/**
+ * A service that we depend on exited before it was supposed to, causing us to
+ * fail as well.
+ */
+export interface DependencyServiceExitedUnexpectedly extends ErrorBase {
+  reason: 'dependency-service-exited-unexpectedly';
+}
+
+/**
+ * A script was killed or is refusing to run because it was intentionally
+ * aborted. Usually due to an error occuring in another script somewhere.
+ */
+export interface Aborted extends ErrorBase {
+  reason: 'aborted';
 }
 
 /**
@@ -251,7 +277,7 @@ export interface DependencyOnMissingScript extends ErrorBase<ScriptReference> {
  * continue to cycle detection even when some diagnostics were generated during
  * local analysis.
  */
-export interface DependencyInvalid extends ErrorBase<ScriptReference> {
+export interface DependencyInvalid extends ErrorBase {
   reason: 'dependency-invalid';
   dependency: UnvalidatedConfig;
 }
@@ -259,7 +285,7 @@ export interface DependencyInvalid extends ErrorBase<ScriptReference> {
 /**
  * The dependency graph has a cycle in it.
  */
-export interface Cycle extends ErrorBase<ScriptReference> {
+export interface Cycle extends ErrorBase {
   reason: 'cycle';
 
   diagnostic: Diagnostic;
@@ -268,7 +294,7 @@ export interface Cycle extends ErrorBase<ScriptReference> {
 /**
  * For when we catch an error not handled by any of the other types.
  */
-export interface UnknownErrorThrown extends ErrorBase<ScriptReference> {
+export interface UnknownErrorThrown extends ErrorBase {
   reason: 'unknown-error-thrown';
   error: unknown;
 }
@@ -305,18 +331,22 @@ export interface Stderr extends OutputBase {
 type Info =
   | ScriptRunning
   | ScriptLocked
+  | OutputModified
   | WatchRunStart
   | WatchRunEnd
+  | ServiceStarted
+  | ServiceStopped
   | GenericInfo;
 
-interface InfoBase<T extends ScriptReference> extends EventBase<T> {
+interface InfoBase<T extends PackageReference = ScriptReference>
+  extends EventBase<T> {
   type: 'info';
 }
 
 /**
  * A script's command started running.
  */
-export interface ScriptRunning extends InfoBase<ScriptConfig> {
+export interface ScriptRunning extends InfoBase<ScriptReferenceWithCommand> {
   detail: 'running';
 }
 
@@ -324,28 +354,51 @@ export interface ScriptRunning extends InfoBase<ScriptConfig> {
  * A script can't run right now because a system-wide lock is being held by
  * another process.
  */
-export interface ScriptLocked extends InfoBase<ScriptConfig> {
+export interface ScriptLocked extends InfoBase {
   detail: 'locked';
+}
+
+/**
+ * A script that would otherwise have been skipped as fresh is being treated as
+ * stale, because one or more output files from the previous run have been
+ * added, removed, or changed.
+ */
+export interface OutputModified extends InfoBase {
+  detail: 'output-modified';
 }
 
 /**
  * A watch mode iteration started.
  */
-export interface WatchRunStart extends InfoBase<ScriptReference> {
+export interface WatchRunStart extends InfoBase {
   detail: 'watch-run-start';
 }
 
 /**
  * A watch mode iteration ended.
  */
-export interface WatchRunEnd extends InfoBase<ScriptReference> {
+export interface WatchRunEnd extends InfoBase {
   detail: 'watch-run-end';
+}
+
+/**
+ * A service started running.
+ */
+export interface ServiceStarted extends InfoBase {
+  detail: 'service-started';
+}
+
+/**
+ * A service stopped running.
+ */
+export interface ServiceStopped extends InfoBase {
+  detail: 'service-stopped';
 }
 
 /**
  * A generic info event.
  */
-export interface GenericInfo extends InfoBase<ScriptReference> {
+export interface GenericInfo extends InfoBase {
   detail: 'generic';
   message: string;
 }

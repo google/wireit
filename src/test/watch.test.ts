@@ -38,7 +38,7 @@ test(
   'runs initially and waits for SIGINT',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -52,7 +52,7 @@ test(
     });
 
     // Initial execution.
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
     const inv = await cmdA.nextInvocation();
     inv.exit(0);
 
@@ -86,7 +86,7 @@ test(
   'runs again when input file changes after execution',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -101,7 +101,7 @@ test(
       'input.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -111,7 +111,7 @@ test(
 
     // Changing an input file should cause another run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'input.txt': 'v1',
       });
       const inv = await cmdA.nextInvocation();
@@ -129,7 +129,7 @@ test(
   'runs again when new input file created',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -144,7 +144,7 @@ test(
       'input1.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -154,7 +154,7 @@ test(
 
     // Adding another input file should cause another run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'input2.txt': 'v0',
       });
       const inv = await cmdA.nextInvocation();
@@ -172,7 +172,7 @@ test(
   'runs again when input file deleted',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -187,7 +187,7 @@ test(
       input: 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -213,7 +213,7 @@ test(
   'runs again when input file changes in the middle of execution',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -228,13 +228,13 @@ test(
       'input.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
       const inv = await cmdA.nextInvocation();
       // Change the input while the first invocation is still running.
-      await rig.write({
+      await rig.writeAtomic({
         'input.txt': 'v1',
       });
       inv.exit(0);
@@ -258,7 +258,7 @@ test(
   timeout(async ({rig}) => {
     const cmdA1 = await rig.newCommand();
     const cmdA2 = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -271,7 +271,7 @@ test(
       },
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -283,7 +283,7 @@ test(
     // package.json. That change should be detected, the new config should be
     // analyzed, and the new command should run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'package.json': {
           scripts: {
             a: 'wireit',
@@ -312,7 +312,7 @@ test(
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -323,10 +323,12 @@ test(
             command: cmdA.command,
             dependencies: ['b'],
             files: ['a.txt'],
+            output: [],
           },
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
         },
       },
@@ -334,7 +336,7 @@ test(
       'b.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Both scripts run initially.
     {
@@ -348,7 +350,7 @@ test(
 
     // Changing an input of A should cause A to run again, but not B.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'a.txt': 'v1',
       });
       const invA = await cmdA.nextInvocation();
@@ -359,7 +361,7 @@ test(
 
     // Changing an input of B should cause both scripts to run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'b.txt': 'v1',
       });
       const invB = await cmdB.nextInvocation();
@@ -382,7 +384,7 @@ test(
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'foo/package.json': {
         scripts: {
           a: 'wireit',
@@ -392,6 +394,7 @@ test(
             command: cmdA.command,
             dependencies: ['../bar:b'],
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -404,13 +407,14 @@ test(
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
         },
       },
       'bar/b.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch', {cwd: 'foo'});
+    const exec = rig.exec('npm run a --watch', {cwd: 'foo'});
 
     // Both scripts run initially.
     {
@@ -424,7 +428,7 @@ test(
 
     // Changing an input of A should cause A to run again, but not B.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'foo/a.txt': 'v1',
       });
       const invA = await cmdA.nextInvocation();
@@ -435,7 +439,7 @@ test(
 
     // Changing an input of B should cause both scripts to run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'bar/b.txt': 'v1',
       });
       const invB = await cmdB.nextInvocation();
@@ -457,7 +461,7 @@ test(
   'error from script is not fatal',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -472,7 +476,7 @@ test(
       'a.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Script fails initially.
     {
@@ -483,7 +487,7 @@ test(
 
     // Changing input file triggers another run. Script succeeds this time.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'a.txt': 'v1',
       });
       const inv = await cmdA.nextInvocation();
@@ -498,31 +502,102 @@ test(
 );
 
 test(
-  'error from analysis is fatal (temporary)',
+  'recovers from analysis errors',
   timeout(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['a.txt'],
-            dependencies: ['does-not-exist'],
-          },
+    // In this test we do very fast sequences of writes, which causes chokidar
+    // to sometimes not report events, possibly caused by some internal
+    // throttling it apparently does:
+    // https://github.com/paulmillr/chokidar/issues/1084. It seems to affect
+    // Linux and Windows but not macOS. Add a short pause to force it to notice
+    // the write.
+    const pauseToWorkAroundChokidarEventThrottling = () =>
+      new Promise((resolve) => setTimeout(resolve, 50));
+
+    // We use `writeAtomic` in this test because it is otherwise possible for
+    // chokidar to emit a "change" event before the write has completed,
+    // generating JSON syntax errors at unexpected times. The chokidar
+    // `awaitWriteFinish` option can address this problem, but it introduces
+    // latency because it polls until file size has been stable. Since this only
+    // seems to be a problem on CI where the filesystem is slower, we just
+    // workaround it in this test using atomic writes. If it happened to a user
+    // in practice, either chokidar would emit another event when the write
+    // finished and we'd automatically do another run, or the user could save
+    // the file again.
+
+    // The minimum to get npm to invoke Wireit at all.
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+    });
+    const wireit = rig.exec('npm run a --watch');
+    await wireit.waitForLog(/no config in the wireit section/);
+
+    // Add a wireit section but without a command.
+    await pauseToWorkAroundChokidarEventThrottling();
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {},
+      },
+    });
+    await wireit.waitForLog(/nothing for wireit to do/);
+
+    // Add the command.
+    const a = await rig.newCommand();
+    await pauseToWorkAroundChokidarEventThrottling();
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: a.command,
         },
       },
-      'a.txt': 'v0',
     });
+    (await a.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[a\] Executed successfully/);
 
-    // TODO(aomarks) Update this test when analysis error recovery is
-    // implemented.
-    const exec = rig.exec('npm run a watch');
-    const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.equal(cmdA.numInvocations, 0);
+    // Add a dependency on another package, but the other package.json has
+    // invalid JSON.
+    await pauseToWorkAroundChokidarEventThrottling();
+    await rig.writeAtomic('other/package.json', 'potato');
+    await rig.writeAtomic('package.json', {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: a.command,
+          dependencies: ['./other:b'],
+        },
+      },
+    });
+    await wireit.waitForLog(/JSON syntax error/);
+
+    // Make the other package config valid.
+    await pauseToWorkAroundChokidarEventThrottling();
+    const b = await rig.newCommand();
+    await rig.writeAtomic('other/package.json', {
+      scripts: {
+        b: 'wireit',
+      },
+      wireit: {
+        b: {
+          command: b.command,
+        },
+      },
+    });
+    (await b.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[other:b\] Executed successfully/);
+    (await a.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[a\] Executed successfully/);
+
+    wireit.kill();
+    await wireit.exit;
   })
 );
 
@@ -530,7 +605,7 @@ test(
   'watchers understand negations',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -546,7 +621,7 @@ test(
       'excluded.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -557,7 +632,7 @@ test(
 
     // Changing an excluded file should not trigger a run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'excluded.txt': 'v1',
       });
       // Wait a while to ensure the command doesn't run.
@@ -572,7 +647,7 @@ test(
 
     // Changing an included file should trigger a run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         'included.txt': 'v1',
       });
       const inv = await cmdA.nextInvocation();
@@ -590,7 +665,7 @@ test(
   '.dotfiles are watched',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'package.json': {
         scripts: {
           a: 'wireit',
@@ -605,7 +680,7 @@ test(
       '.dotfile.txt': 'v0',
     });
 
-    const exec = rig.exec('npm run a watch');
+    const exec = rig.exec('npm run a --watch');
 
     // Initial run.
     {
@@ -616,7 +691,7 @@ test(
 
     // Changing input file should trigger another run.
     {
-      await rig.write({
+      await rig.writeAtomic({
         '.dotfile.txt': 'v1',
       });
       const inv = await cmdA.nextInvocation();
@@ -634,7 +709,7 @@ test(
   'package-lock.json files are watched',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
-    await rig.write({
+    await rig.writeAtomic({
       'foo/package.json': {
         scripts: {
           a: 'wireit',
@@ -650,7 +725,7 @@ test(
       // No parent dir package-lock.json initially.
     });
 
-    const exec = rig.exec('npm run a watch', {cwd: 'foo'});
+    const exec = rig.exec('npm run a --watch', {cwd: 'foo'});
 
     // Initial run.
     {
@@ -661,14 +736,14 @@ test(
 
     // Change foo's package-lock.json file. Expect another run.
     {
-      await rig.write({'foo/package-lock.json': 'v1'});
+      await rig.writeAtomic({'foo/package-lock.json': 'v1'});
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
     }
 
     // Create parent's package-lock.json file. Expect another run.
     {
-      await rig.write({'package-lock.json': 'v0'});
+      await rig.writeAtomic({'package-lock.json': 'v0'});
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       await inv.closed;
@@ -677,6 +752,69 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 3);
+  })
+);
+
+test(
+  'debounces when two scripts are watching the same file',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: ['b'],
+            files: ['input.txt'],
+            // Note it's important for this test that we don't have output set,
+            // because otherwise the potential third run would be restored from
+            // cache, and we wouldn't detect it anyway.
+          },
+          b: {
+            command: cmdB.command,
+            files: ['input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    const exec = rig.exec('npm run a --watch');
+
+    // Initial run.
+    {
+      (await cmdB.nextInvocation()).exit(0);
+      (await cmdA.nextInvocation()).exit(0);
+    }
+
+    // Wait until wireit is in the "watching" state, otherwise the double file
+    // change events would occur in the "running" state, which wouldn't trigger
+    // the double runs.
+    await exec.waitForLog(/Watching for file changes/);
+
+    // Changing an input file should cause one more run.
+    {
+      await rig.writeAtomic({
+        'input.txt': 'v1',
+      });
+      (await cmdB.nextInvocation()).exit(0);
+      (await cmdA.nextInvocation()).exit(0);
+    }
+
+    await exec.waitForLog(/Watching for file changes/);
+
+    // Wait a moment to ensure a third run doesn't occur.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    exec.kill();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+    assert.equal(cmdB.numInvocations, 2);
   })
 );
 

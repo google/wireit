@@ -8,7 +8,7 @@ jobs:
       # We support Node Latest, Active LTS, and the most recent Maintenance LTS.
       # See https://nodejs.org/en/about/releases/ for Node release schedule.
       matrix:
-        version: [14, 16, 18]
+        node: [14, 16, 18]
         os: [ubuntu-20.04, macos-11, windows-2022]
 
       # Allow all matrix configurations to complete, instead of cancelling as
@@ -36,6 +36,8 @@ jobs:
 
       - uses: google/wireit@setup-github-actions-caching/v1
 
+      - run: node --version; npm --version
+
       - run: npm ci
 
       # Don't bother running the vscode-extension tests on Node 14, because the
@@ -62,3 +64,17 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
+
+  test-garbage-collection:
+    timeout-minutes: 5
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          cache: npm
+      - uses: google/wireit@setup-github-actions-caching/v1
+
+      - run: npm ci
+      - run: npm run test:gc

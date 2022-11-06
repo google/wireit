@@ -49,6 +49,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -88,6 +89,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -132,6 +134,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input'],
+            output: [],
           },
         },
       },
@@ -177,6 +180,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['symlink'],
+            output: [],
           },
         },
       },
@@ -221,6 +225,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/**', '!input/subdir/**', 'input/subdir/reincluded'],
+            output: [],
           },
         },
       },
@@ -277,6 +282,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -320,6 +326,7 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
+            output: [],
           },
         },
       },
@@ -353,7 +360,52 @@ test(
 );
 
 test(
-  'script with undefined input files and undefined command can be fresh',
+  'script with undefined output files is always stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            input: [],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    // Initially stale, so command is invoked.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // No input file changed, but input files are undefined, so script is still
+    // stale, and command is invoked.
+    {
+      await rig.write({
+        'input.txt': 'v1',
+      });
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'script with undefined input/output files and undefined command can be fresh',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdC = await rig.newCommand();
@@ -368,6 +420,7 @@ test(
           a: {
             command: cmdA.command,
             files: [],
+            output: [],
             dependencies: ['b'],
           },
           b: {
@@ -379,6 +432,7 @@ test(
           c: {
             command: cmdC.command,
             files: [],
+            output: [],
           },
         },
       },
@@ -424,6 +478,7 @@ test(
           a: {
             command: cmdA.command,
             files: [],
+            output: [],
           },
         },
       },
@@ -462,6 +517,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/**'],
+            output: [],
           },
         },
       },
@@ -504,6 +560,7 @@ test(
             command: cmdA.command,
             dependencies: ['../bar:b'],
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -516,6 +573,7 @@ test(
           b: {
             command: cmdB.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -589,6 +647,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['../outside.txt'],
+            output: [],
           },
         },
       },
@@ -647,10 +706,12 @@ test(
           b: {
             command: cmdB.command,
             files: ['input.txt'],
+            output: [],
           },
           c: {
             command: cmdC.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -710,6 +771,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['src/**/*.txt'],
+            output: [],
           },
         },
       },
@@ -754,6 +816,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['src/*.txt', '!src/excluded.txt'],
+            output: [],
           },
         },
       },
@@ -815,6 +878,7 @@ test(
           [name]: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -867,6 +931,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -909,6 +974,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input.txt'],
+            output: [],
           },
         },
       },
@@ -918,7 +984,9 @@ test(
     // Initially stale, so command is invoked. It succeeds, so a fingerprint
     // file is written.
     {
-      const exec = rig.exec('npm run a');
+      // Disable caching so that we can more straightforwardly check freshness
+      // behavior.
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
@@ -936,7 +1004,7 @@ test(
       await rig.write({
         'input.txt': 'v1',
       });
-      const exec = rig.exec('npm run a');
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
       const inv = await cmdA.nextInvocation();
       inv.exit(1);
       const res = await exec.exit;
@@ -952,7 +1020,7 @@ test(
       await rig.write({
         'input.txt': 'v0',
       });
-      const exec = rig.exec('npm run a');
+      const exec = rig.exec('npm run a', {env: {WIREIT_CACHE: 'none'}});
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
@@ -978,10 +1046,12 @@ test(
             command: cmdA.command,
             dependencies: ['b'],
             files: ['a.txt'],
+            output: [],
           },
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
         },
       },
@@ -1054,6 +1124,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['a.txt'],
+            output: [],
             dependencies: ['b'],
           },
           b: {
@@ -1108,6 +1179,7 @@ test(
           a: {
             command: cmdA1.command,
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -1135,6 +1207,7 @@ test(
           a: {
             command: cmdA2.command,
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -1223,6 +1296,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['a.txt'],
+            output: [],
           },
         },
       },
@@ -1250,6 +1324,7 @@ test(
             a: {
               command: cmdA.command,
               files: ['a.txt'],
+              output: [],
               clean: false,
             },
           },
@@ -1278,6 +1353,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/a', 'input/b'],
+            output: [],
           },
         },
       },
@@ -1305,6 +1381,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['input/b', 'input/a'],
+            output: [],
           },
         },
       },
@@ -1351,26 +1428,32 @@ test(
             command: cmdA.command,
             dependencies: ['b', 'c', 'd', 'e', 'f'],
             files: ['a.txt'],
+            output: [],
           },
           b: {
             command: cmdB.command,
             files: ['b.txt'],
+            output: [],
           },
           c: {
             command: cmdC.command,
             files: ['c.txt'],
+            output: [],
           },
           d: {
             command: cmdD.command,
             files: ['d.txt'],
+            output: [],
           },
           e: {
             command: cmdE.command,
             files: ['e.txt'],
+            output: [],
           },
           f: {
             command: cmdF.command,
             files: ['f.txt'],
+            output: [],
           },
         },
       },
@@ -1435,9 +1518,10 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // Note we must define files, or else we would never be fresh
+            // Note we must define files/output, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
           },
         },
       },
@@ -1498,9 +1582,10 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // Note we must define files, or else we would never be fresh
+            // Note we must define files/output, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
             packageLocks: [],
           },
         },
@@ -1549,9 +1634,10 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            // Note we must define files, or else we would never be fresh
+            // Note we must define files/output, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
             packageLocks: ['yarn.lock'],
           },
         },
@@ -1605,6 +1691,7 @@ test(
             // Note we must define files, or else we would never be fresh
             // anyway.
             files: [],
+            output: [],
             packageLocks: ['lock1', 'lock2'],
           },
         },
@@ -1668,6 +1755,7 @@ test(
           a: {
             command: cmdA.command,
             files: ['/input.txt'],
+            output: [],
           },
         },
       },
@@ -1695,6 +1783,160 @@ test(
       const res = await exec.exit;
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'file-only rule affects fingerprint of consumers',
+  timeout(async ({rig}) => {
+    const consumer = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          files: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['files'],
+            files: [],
+            output: [],
+          },
+          files: {
+            files: ['foo'],
+          },
+        },
+      },
+    });
+
+    // Consumer is initially stale.
+    {
+      await rig.write('foo', 'v0');
+      const exec = rig.exec('npm run consumer');
+      (await consumer.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(consumer.numInvocations, 1);
+    }
+
+    // Nothing changed, consumer is still fresh.
+    {
+      const exec = rig.exec('npm run consumer');
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(consumer.numInvocations, 1);
+    }
+
+    // Changed input file of the file-only script, consumer is now stale.
+    {
+      await rig.write('foo', 'v1');
+      const exec = rig.exec('npm run consumer');
+      (await consumer.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(consumer.numInvocations, 2);
+    }
+  })
+);
+
+test(
+  'script is not fresh if output file is modified externally',
+  timeout(async ({rig}) => {
+    const main = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {
+            command: main.command,
+            files: [],
+            output: ['output/**', '!output/subdir/excluded'],
+          },
+        },
+      },
+    });
+
+    // Stale because it's the first time.
+    {
+      const exec = rig.exec('npm run main');
+      const inv = await main.nextInvocation();
+      // Write some output.
+      await rig.write('output/subdir/foo', '1');
+      inv.exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 1);
+    }
+
+    // Fresh because nothing changed.
+    {
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 1);
+    }
+
+    // Change the output externally from Wireit, which makes the script stale.
+    {
+      await rig.write('output/subdir/foo', '2');
+      const exec = rig.exec('npm run main', {
+        env: {
+          // Disable caching so that we re-run the script when stale, instead of
+          // restoring it from cache.
+          WIREIT_CACHE: 'none',
+        },
+      });
+      await exec.waitForLog(
+        /Output files were modified since the previous run/
+      );
+      const inv = await main.nextInvocation();
+      inv.exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+    }
+
+    // Fresh again because nothing changed.
+    {
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+    }
+
+    // Add a new file that matches the output globs, which also counts as a
+    // change. Should be restored from cache.
+    {
+      await rig.write('output/subdir/bar', '0');
+      // Don't disable caching this time.
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(
+        /Output files were modified since the previous run/
+      );
+      await exec.waitForLog(/Restored from cache/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+      assert.equal(await rig.read('output/subdir/foo'), '1');
+      assert.not(await rig.exists('output/subdir/bar'));
+    }
+
+    // Fresh again because nothing changed.
+    {
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
+      assert.equal(await rig.read('output/subdir/foo'), '1');
+      assert.not(await rig.exists('output/subdir/bar'));
+    }
+
+    // Adding an excluded file inside a directory that is included should not
+    // change the manifest, because we ignore mtime/ctime of directories.
+    {
+      await rig.touch('output/subdir/excluded');
+      const exec = rig.exec('npm run main');
+      await exec.waitForLog(/Already fresh/);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(main.numInvocations, 2);
     }
   })
 );

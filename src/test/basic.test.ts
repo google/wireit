@@ -986,6 +986,63 @@ test(
   })
 );
 
+for (const agent of ['npm', 'yarn', 'pnpm']) {
+  test(
+    `can pass extra args with using "${agent} run --"`,
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              // Explicit empty input and output files so that we can be fresh.
+              files: [],
+              output: [],
+            },
+          },
+        },
+      });
+
+      // Initially stale.
+      {
+        const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
+        const inv = await cmdA.nextInvocation();
+        assert.equal((await inv.environment()).argv.slice(3), [
+          'foo',
+          '-bar',
+          '--baz',
+        ]);
+        inv.exit(0);
+        assert.equal((await wireit.exit).code, 0);
+      }
+
+      // Nothing changed, fresh.
+      {
+        const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
+        assert.equal((await wireit.exit).code, 0);
+      }
+
+      // Changing the extra args should change the fingerprint so that we're
+      // stale.
+      {
+        const wireit = rig.exec(`${agent} run a -- FOO -BAR --BAZ`);
+        const inv = await cmdA.nextInvocation();
+        assert.equal((await inv.environment()).argv.slice(3), [
+          'FOO',
+          '-BAR',
+          '--BAZ',
+        ]);
+        inv.exit(0);
+        assert.equal((await wireit.exit).code, 0);
+      }
+    })
+  );
+}
+
 test(
   'soft dependency does not inherit fingerprint',
   timeout(async ({rig}) => {
@@ -1010,21 +1067,25 @@ test(
               },
             ],
             files: ['inputs/a'],
+            output: [],
           },
           b: {
             command: b.command,
             dependencies: ['c'],
             files: ['inputs/b'],
+            output: [],
           },
           c: {
             command: c.command,
             files: ['inputs/c'],
+            output: [],
           },
         },
       },
     });
 
     // Initially everything runs.
+    console.log(0);
     {
       await rig.write('inputs/a', 'v1');
       await rig.write('inputs/b', 'v1');

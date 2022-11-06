@@ -84,14 +84,14 @@ const JSON_RESPONSE_TYPE = 'application/json;api-version=6.0-preview.1';
  *   sent.
  */
 export class FakeGitHubActionsCacheServer {
-  readonly #server: http.Server;
-  #url!: URL;
+  private readonly _server: http.Server;
+  private _url!: URL;
 
   /**
    * An authentication token which this server will require to be set in a
    * "Authorization: Bearer <token>" header.
    */
-  readonly #authToken;
+  private readonly _authToken;
 
   /**
    * Counters for how many times each endpoint was hit in the lifetime of this
@@ -105,15 +105,15 @@ export class FakeGitHubActionsCacheServer {
     download: number;
   };
 
-  #nextEntryId = 0;
-  #rateLimitNextRequest = new Set<ApiName>();
-  readonly #entryIdToEntry = new Map<EntryId, CacheEntry>();
-  readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
-  readonly #tarballIdToEntryId = new Map<TarballId, EntryId>();
+  private _nextEntryId = 0;
+  private _forcedErrors = new Map<ApiName, number>();
+  private readonly _entryIdToEntry = new Map<EntryId, CacheEntry>();
+  private readonly _keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
+  private readonly _tarballIdToEntryId = new Map<TarballId, EntryId>();
 
   constructor(authToken: string, tlsCert: {cert: string; key: string}) {
-    this.#authToken = authToken;
-    this.#server = https.createServer(tlsCert, this.#route);
+    this._authToken = authToken;
+    this._server = https.createServer(tlsCert, this._route);
     this.resetMetrics();
   }
 
@@ -130,9 +130,9 @@ export class FakeGitHubActionsCacheServer {
   async listen(): Promise<string> {
     const host = 'localhost';
     await new Promise<void>((resolve) => {
-      this.#server.listen({host, port: /* random free */ 0}, () => resolve());
+      this._server.listen({host, port: /* random free */ 0}, () => resolve());
     });
-    const address = this.#server.address();
+    const address = this._server.address();
     if (address === null || typeof address !== 'object') {
       throw new Error(
         `Expected server address to be ServerInfo object, ` +
@@ -143,23 +143,23 @@ export class FakeGitHubActionsCacheServer {
     // include this in the fake because it ensures the client is preserving the
     // base path and not just using the origin.
     const randomBasePath = Math.random().toString().slice(2);
-    this.#url = new URL(`https://${host}:${address.port}/${randomBasePath}/`);
-    return this.#url.href;
+    this._url = new URL(`https://${host}:${address.port}/${randomBasePath}/`);
+    return this._url.href;
   }
 
   async close(): Promise<void> {
     return new Promise<void>((resolve) => {
-      this.#server.close(() => {
+      this._server.close(() => {
         resolve();
       });
     });
   }
 
-  rateLimitNextRequest(apiName: ApiName): void {
-    this.#rateLimitNextRequest.add(apiName);
+  forceErrorOnNextRequest(apiName: ApiName, code: number): void {
+    this._forcedErrors.set(apiName, code);
   }
 
-  #readBody(request: http.IncomingMessage): Promise<Buffer> {
+  private _readBody(request: http.IncomingMessage): Promise<Buffer> {
     const chunks: Buffer[] = [];
     request.on('data', (chunk: Buffer) => {
       chunks.push(chunk);
@@ -171,7 +171,7 @@ export class FakeGitHubActionsCacheServer {
     });
   }
 
-  #respond(
+  private _respond(
     response: http.ServerResponse,
     status: number,
     message?: string
@@ -183,22 +183,31 @@ export class FakeGitHubActionsCacheServer {
     response.end();
   }
 
-  #rateLimit(response: http.ServerResponse): void {
-    return this.#respond(response, /* Too Many Requests */ 429);
+  private _maybeServeForcedError(
+    response: http.ServerResponse,
+    apiName: ApiName
+  ): boolean {
+    const code = this._forcedErrors.get(apiName);
+    if (code !== undefined) {
+      this._forcedErrors.delete(apiName);
+      this._respond(response, code, `Forcing ${code} error for ${apiName}`);
+      return true;
+    }
+    return false;
   }
 
-  #checkAuthorization(
+  private _checkAuthorization(
     request: http.IncomingMessage,
     response: http.ServerResponse
   ): boolean {
-    if (request.headers.authorization !== `Bearer ${this.#authToken}`) {
-      this.#respond(response, /* Not Authorized */ 401);
+    if (request.headers.authorization !== `Bearer ${this._authToken}`) {
+      this._respond(response, /* Not Authorized */ 401);
       return false;
     }
     return true;
   }
 
-  #checkUserAgent(
+  private _checkUserAgent(
     request: http.IncomingMessage,
     response: http.ServerResponse
   ): boolean {
@@ -208,7 +217,7 @@ export class FakeGitHubActionsCacheServer {
     if (actual !== expected) {
       // The real server might not be this strict, but we want to be sure we're
       // acting just like the official client library.
-      this.#respond(
+      this._respond(
         response,
         /* Bad Request */ 400,
         `Expected user-agent ${JSON.stringify(expected)}. ` +
@@ -219,7 +228,7 @@ export class FakeGitHubActionsCacheServer {
     return true;
   }
 
-  #checkContentType(
+  private _checkContentType(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     expected: string | undefined
@@ -228,7 +237,7 @@ export class FakeGitHubActionsCacheServer {
     if (actual !== expected) {
       // The real server might not be this strict, but we want to be sure we're
       // acting just like the official client library.
-      this.#respond(
+      this._respond(
         response,
         /* Bad Request */ 400,
         `Expected content-type ${JSON.stringify(expected)}. ` +
@@ -239,7 +248,7 @@ export class FakeGitHubActionsCacheServer {
     return true;
   }
 
-  #checkAccept(
+  private _checkAccept(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     expected: string | undefined
@@ -248,7 +257,7 @@ export class FakeGitHubActionsCacheServer {
     if (actual !== expected) {
       // The real server might not be this strict, but we want to be sure we're
       // acting just like the official client library.
-      this.#respond(
+      this._respond(
         response,
         /* Bad Request */ 400,
         `Expected accept ${JSON.stringify(expected)}. ` +
@@ -259,49 +268,49 @@ export class FakeGitHubActionsCacheServer {
     return true;
   }
 
-  #route = (
+  private _route = (
     request: http.IncomingMessage,
     response: http.ServerResponse
   ): void => {
     if (!request.url) {
-      return this.#respond(response, 404);
+      return this._respond(response, 404);
     }
     // request.url is a string with pathname + query params.
-    const url = new URL(request.url, this.#url.origin);
-    if (!url.pathname.startsWith(this.#url.pathname)) {
+    const url = new URL(request.url, this._url.origin);
+    if (!url.pathname.startsWith(this._url.pathname)) {
       // Missing the random base path.
-      return this.#respond(response, 404);
+      return this._respond(response, 404);
     }
-    const api = url.pathname.slice(this.#url.pathname.length);
+    const api = url.pathname.slice(this._url.pathname.length);
 
-    if (!this.#checkUserAgent(request, response)) {
+    if (!this._checkUserAgent(request, response)) {
       return;
     }
 
     if (api === '_apis/artifactcache/cache' && request.method === 'GET') {
-      return this.#check(request, response, url);
+      return this._check(request, response, url);
     }
 
     if (api === '_apis/artifactcache/caches' && request.method === 'POST') {
-      return void this.#reserve(request, response);
+      return void this._reserve(request, response);
     }
 
     if (api.startsWith('_apis/artifactcache/caches/')) {
       const tail = api.slice('_apis/artifactcache/caches/'.length);
       if (request.method === 'PATCH') {
-        return void this.#upload(request, response, tail);
+        return void this._upload(request, response, tail);
       }
       if (request.method === 'POST') {
-        return void this.#commit(request, response, tail);
+        return void this._commit(request, response, tail);
       }
     }
 
     if (api.startsWith('tarballs/') && request.method === 'GET') {
       const tail = api.slice('tarballs/'.length);
-      return this.#download(request, response, tail);
+      return this._download(request, response, tail);
     }
 
-    this.#respond(response, 404);
+    this._respond(response, 404);
   };
 
   /**
@@ -311,38 +320,38 @@ export class FakeGitHubActionsCacheServer {
    * version. If so, returns a URL which can be used to download the tarball. If
    * not, returns a 204 "No Content" response.
    */
-  #check(
+  private _check(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     url: URL
   ): void {
     this.metrics.check++;
-    if (this.#rateLimitNextRequest.delete('check')) {
-      return this.#rateLimit(response);
-    }
-    if (!this.#checkAuthorization(request, response)) {
+    if (this._maybeServeForcedError(response, 'check')) {
       return;
     }
-    if (!this.#checkContentType(request, response, undefined)) {
+    if (!this._checkAuthorization(request, response)) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this._checkContentType(request, response, undefined)) {
+      return;
+    }
+    if (!this._checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
     const keys = url.searchParams.get('keys');
     if (!keys) {
-      return this.#respond(response, 400, 'Missing "keys" query parameter');
+      return this._respond(response, 400, 'Missing "keys" query parameter');
     }
     const version = url.searchParams.get('version');
     if (!version) {
-      return this.#respond(response, 400, 'Missing "version" query parameter');
+      return this._respond(response, 400, 'Missing "version" query parameter');
     }
     if (keys.includes(',')) {
       // The real server supports multiple comma-delimited keys, where the first
       // that exists is returned. However, we don't use this feature in Wireit,
       // so we don't bother implementing it in this fake.
-      return this.#respond(
+      return this._respond(
         response,
         /* Not Implemented */ 501,
         'Fake does not support multiple keys'
@@ -350,23 +359,23 @@ export class FakeGitHubActionsCacheServer {
     }
 
     const keyAndVersion = encodeKeyAndVersion(keys, version);
-    const entryId = this.#keyAndVersionToEntryId.get(keyAndVersion);
+    const entryId = this._keyAndVersionToEntryId.get(keyAndVersion);
     if (entryId === undefined) {
-      return this.#respond(response, /* No Content */ 204);
+      return this._respond(response, /* No Content */ 204);
     }
-    const entry = this.#entryIdToEntry.get(entryId);
+    const entry = this._entryIdToEntry.get(entryId);
     if (entry === undefined) {
-      return this.#respond(response, 500, 'Entry missing for id');
+      return this._respond(response, 500, 'Entry missing for id');
     }
     if (!entry.commited) {
-      return this.#respond(response, /* No Content */ 204);
+      return this._respond(response, /* No Content */ 204);
     }
 
-    this.#respond(
+    this._respond(
       response,
       200,
       JSON.stringify({
-        archiveLocation: `${this.#url.href}tarballs/${entry.tarballId}`,
+        archiveLocation: `${this._url.href}tarballs/${entry.tarballId}`,
         cacheKey: keys,
       })
     );
@@ -379,43 +388,43 @@ export class FakeGitHubActionsCacheServer {
    * key + version. If so, returns a "409 Conflict" response. If not, returns a
    * new unique cache ID which can be used to upload the tarball.
    */
-  async #reserve(
+  private async _reserve(
     request: http.IncomingMessage,
     response: http.ServerResponse
   ): Promise<void> {
     this.metrics.reserve++;
-    if (this.#rateLimitNextRequest.delete('reserve')) {
-      return this.#rateLimit(response);
-    }
-    if (!this.#checkAuthorization(request, response)) {
+    if (this._maybeServeForcedError(response, 'reserve')) {
       return;
     }
-    if (!this.#checkContentType(request, response, 'application/json')) {
+    if (!this._checkAuthorization(request, response)) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this._checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this._checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
-    const json = await this.#readBody(request);
+    const json = await this._readBody(request);
     const data = JSON.parse(json.toString()) as {
       key: string;
       version: string;
     };
     const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
-    if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
-      return this.#respond(response, /* Conflict */ 409);
+    if (this._keyAndVersionToEntryId.has(keyAndVersion)) {
+      return this._respond(response, /* Conflict */ 409);
     }
-    const entryId = this.#nextEntryId++ as EntryId;
+    const entryId = this._nextEntryId++ as EntryId;
     const tarballId = String(Math.random()).slice(2) as TarballId;
-    this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
-    this.#tarballIdToEntryId.set(tarballId, entryId);
-    this.#entryIdToEntry.set(entryId, {
+    this._keyAndVersionToEntryId.set(keyAndVersion, entryId);
+    this._tarballIdToEntryId.set(tarballId, entryId);
+    this._entryIdToEntry.set(entryId, {
       chunks: [],
       commited: false,
       tarballId,
     });
-    this.#respond(
+    this._respond(
       response,
       /* Created */ 201,
       JSON.stringify({cacheId: entryId})
@@ -428,30 +437,30 @@ export class FakeGitHubActionsCacheServer {
    * This API receives a chunk of a tarball defined by the Content-Range header,
    * and stores it using the given key (as returned by the reserve cache API).
    */
-  async #upload(
+  private async _upload(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     idStr: string
   ): Promise<void> {
     this.metrics.upload++;
-    if (this.#rateLimitNextRequest.delete('upload')) {
-      return this.#rateLimit(response);
+    if (this._maybeServeForcedError(response, 'upload')) {
+      return;
     }
-    if (!this.#checkAuthorization(request, response)) {
+    if (!this._checkAuthorization(request, response)) {
       return;
     }
     if (
-      !this.#checkContentType(request, response, 'application/octet-stream')
+      !this._checkContentType(request, response, 'application/octet-stream')
     ) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this._checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
     const expectedTransferEncoding = 'chunked';
     const actualTransferEncoding = request.headers['transfer-encoding'];
     if (actualTransferEncoding !== 'chunked') {
-      return this.#respond(
+      return this._respond(
         response,
         /* Bad Request */ 400,
         `Expected transfer-encoding ${JSON.stringify(
@@ -461,18 +470,18 @@ export class FakeGitHubActionsCacheServer {
     }
 
     if (idStr.match(/\d+/) === null) {
-      return this.#respond(response, 400, 'Cache ID was not an integer');
+      return this._respond(response, 400, 'Cache ID was not an integer');
     }
     const id = Number(idStr) as EntryId;
-    const entry = this.#entryIdToEntry.get(id);
+    const entry = this._entryIdToEntry.get(id);
     if (entry === undefined) {
-      return this.#respond(response, 400, 'Cache entry did not exist');
+      return this._respond(response, 400, 'Cache entry did not exist');
     }
 
     const contentRange = request.headers['content-range'] ?? '';
     const parsedContentRange = contentRange.match(/^bytes (\d+)-(\d+)\/\*$/);
     if (parsedContentRange === null) {
-      return this.#respond(
+      return this._respond(
         response,
         400,
         'Missing or invalid Content-Range header'
@@ -486,19 +495,19 @@ export class FakeGitHubActionsCacheServer {
     // aren't sending larger chunks than the official client library does.
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     if (expectedLength > 32 * 1024 * 1024) {
-      return this.#respond(response, 400, 'Upload chunk was > 32MB');
+      return this._respond(response, 400, 'Upload chunk was > 32MB');
     }
 
-    const buffer = await this.#readBody(request);
+    const buffer = await this._readBody(request);
     if (buffer.length !== expectedLength) {
-      return this.#respond(
+      return this._respond(
         response,
         400,
         'Chunk length did not match Content-Range header'
       );
     }
     entry.chunks.push({start, end, buffer});
-    this.#respond(response, /* No Content */ 204);
+    this._respond(response, /* No Content */ 204);
   }
 
   /**
@@ -507,33 +516,33 @@ export class FakeGitHubActionsCacheServer {
    * This API marks an uploaded tarball (which can be sent in multiple chunks)
    * as complete.
    */
-  async #commit(
+  private async _commit(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     idStr: string
   ): Promise<void> {
     this.metrics.commit++;
-    if (this.#rateLimitNextRequest.delete('commit')) {
-      return this.#rateLimit(response);
-    }
-    if (!this.#checkAuthorization(request, response)) {
+    if (this._maybeServeForcedError(response, 'commit')) {
       return;
     }
-    if (!this.#checkContentType(request, response, 'application/json')) {
+    if (!this._checkAuthorization(request, response)) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this._checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this._checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
     if (idStr.match(/\d+/) === null) {
-      return this.#respond(response, 400, 'Cache ID was not an integer');
+      return this._respond(response, 400, 'Cache ID was not an integer');
     }
 
     const id = Number(idStr) as EntryId;
-    const entry = this.#entryIdToEntry.get(id);
+    const entry = this._entryIdToEntry.get(id);
     if (entry === undefined) {
-      return this.#respond(response, 400, 'Cache entry did not exist');
+      return this._respond(response, 400, 'Cache entry did not exist');
     }
 
     // Sort the chunks according to range and validate that there are no missing
@@ -543,7 +552,7 @@ export class FakeGitHubActionsCacheServer {
     let totalLength = 0;
     for (const chunk of entry.chunks) {
       if (chunk.start !== expectedNextStart) {
-        return this.#respond(
+        return this._respond(
           response,
           400,
           'Cache entry chunks were not contiguous'
@@ -554,13 +563,13 @@ export class FakeGitHubActionsCacheServer {
     }
 
     // Validate against the expected total length from this request.
-    const json = await this.#readBody(request);
+    const json = await this._readBody(request);
     const data = JSON.parse(json.toString()) as {
       size: number;
     };
     const expectedLength = data.size;
     if (totalLength !== expectedLength) {
-      return this.#respond(
+      return this._respond(
         response,
         400,
         'Cache entry did not match expected length'
@@ -568,7 +577,7 @@ export class FakeGitHubActionsCacheServer {
     }
 
     entry.commited = true;
-    this.#respond(response, /* No Content */ 204);
+    this._respond(response, /* No Content */ 204);
   }
 
   /**
@@ -582,32 +591,32 @@ export class FakeGitHubActionsCacheServer {
    * Note this API is not authenticated. Instead, the tarball URL is
    * unguessable.
    */
-  #download(
+  private _download(
     request: http.IncomingMessage,
     response: http.ServerResponse,
     tarballId: string
   ): void {
     this.metrics.download++;
-    if (this.#rateLimitNextRequest.delete('download')) {
-      return this.#rateLimit(response);
-    }
-    if (!this.#checkContentType(request, response, undefined)) {
+    if (this._maybeServeForcedError(response, 'download')) {
       return;
     }
-    if (!this.#checkAccept(request, response, undefined)) {
+    if (!this._checkContentType(request, response, undefined)) {
+      return;
+    }
+    if (!this._checkAccept(request, response, undefined)) {
       return;
     }
 
-    const id = this.#tarballIdToEntryId.get(tarballId as TarballId);
+    const id = this._tarballIdToEntryId.get(tarballId as TarballId);
     if (id === undefined) {
-      return this.#respond(response, 404, 'Tarball does not exist');
+      return this._respond(response, 404, 'Tarball does not exist');
     }
-    const entry = this.#entryIdToEntry.get(id);
+    const entry = this._entryIdToEntry.get(id);
     if (entry === undefined) {
-      return this.#respond(response, 500, 'Entry did not exist');
+      return this._respond(response, 500, 'Entry did not exist');
     }
     if (!entry.commited) {
-      return this.#respond(response, 404, 'Tarball not committed');
+      return this._respond(response, 404, 'Tarball not committed');
     }
 
     response.statusCode = 200;

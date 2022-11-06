@@ -11,7 +11,7 @@ import type {
   NamedAstNode,
 } from './util/ast.js';
 import type {Failure} from './event.js';
-import {PotentiallyValidScriptConfig} from './analyzer.js';
+import type {PotentiallyValidScriptConfig} from './analyzer.js';
 
 /**
  * The location on disk of an npm package.
@@ -29,6 +29,21 @@ export interface ScriptReference extends PackageReference {
   name: string;
 }
 
+/**
+ * A script with a defined command.
+ */
+export interface ScriptReferenceWithCommand extends ScriptReference {
+  /**
+   * The shell command to execute.
+   */
+  command: JsonAstNode<string>;
+
+  /**
+   * Extra arguments to pass to the command.
+   */
+  extraArgs: string[] | undefined;
+}
+
 export interface Dependency<
   Config extends PotentiallyValidScriptConfig = ScriptConfig
 > {
@@ -37,19 +52,81 @@ export interface Dependency<
   soft: boolean;
 }
 
+export type ScriptConfig =
+  | NoCommandScriptConfig
+  | StandardScriptConfig
+  | ServiceScriptConfig;
+
+/**
+ * A script that doesn't run or produce anything. A pass-through for
+ * dependencies and/or files.
+ */
+export interface NoCommandScriptConfig extends BaseScriptConfig {
+  command: undefined;
+  extraArgs: undefined;
+  service: false;
+}
+
+/**
+ * A script with a command that exits by itself.
+ */
+export interface StandardScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: false;
+}
+
+/**
+ * A service script.
+ */
+export interface ServiceScriptConfig
+  extends BaseScriptConfig,
+    ScriptReferenceWithCommand {
+  service: true;
+
+  /**
+   * Whether this service persists beyond the initial execution phase.
+   *
+   * When true, this service will keep running until the user exits wireit, or
+   * until its fingerprint changes in watch mode, requiring a restart.
+   *
+   * When false, this service will start only if it is needed by a standard
+   * script, and will stop when that dependent is done. We call these scripts
+   * "ephemeral".
+   *
+   * So, this is true when there is a path from the entrypoint script to the
+   * service, which does not pass through a standard script.
+   *
+   * Example:
+   *
+   *                      start
+   *                   (no-command)
+   *                    /        \
+   *                   ▼          ▼
+   *             serve:api      serve:static
+   *  (persistent service)      (persistent service)
+   *          |                          |
+   *          ▼                          ▼
+   *      serve:db                   build:assets
+   *  (persistent service)            (standard)
+   *                                     |
+   *                                     ▼
+   *                             serve:playwright
+   *                            (ephemeral service)
+   */
+  isPersistent: boolean;
+
+  /**
+   * Scripts that depend on this service.
+   */
+  serviceConsumers: Array<ServiceScriptConfig | StandardScriptConfig>;
+}
+
 /**
  * The name and location of a script, along with its full configuration.
  */
-export interface ScriptConfig extends ScriptReference {
+interface BaseScriptConfig extends ScriptReference {
   state: 'valid';
-
-  /**
-   * The shell command to execute.
-   *
-   * An undefined command is valid as a way to give name to a group of other
-   * scripts (specified as dependencies).
-   */
-  command: JsonAstNode<string> | undefined;
 
   /**
    * Scripts that must run before this one.
@@ -59,6 +136,11 @@ export interface ScriptConfig extends ScriptReference {
    * during execution.
    */
   dependencies: Array<Dependency>;
+
+  /**
+   * The services that need to be started before we can run.
+   */
+  services: Array<ServiceScriptConfig>;
 
   /**
    * Input file globs for this script.
@@ -83,6 +165,11 @@ export interface ScriptConfig extends ScriptReference {
    *   cache.
    */
   clean: boolean | 'if-file-deleted';
+
+  /**
+   * Whether the script should run in service mode.
+   */
+  service: boolean;
 
   /**
    * The command string in the scripts section. i.e.:
@@ -116,13 +203,6 @@ export interface ScriptConfig extends ScriptReference {
 }
 
 /**
- * A script config but the command is required.
- */
-export type ScriptConfigWithRequiredCommand = ScriptConfig & {
-  command: Exclude<ScriptConfig['command'], undefined>;
-};
-
-/**
  * Convert a {@link ScriptReference} to a string that can be used as a key in a
  * Set, Map, etc.
  */
@@ -148,74 +228,4 @@ export const stringToScriptReference = (
  */
 export type ScriptReferenceString = string & {
   __ScriptReferenceStringBrand__: never;
-};
-
-/**
- * All meaningful inputs of a script. Used for determining if a script is fresh,
- * and as the key for storing cached output.
- */
-export interface Fingerprint {
-  /**
-   * Whether the output for this script can be fresh or cached.
-   *
-   * True only if the "files" array was defined for this script, and for all of
-   * this script's transitive dependencies.
-   */
-  cacheable: boolean;
-
-  /** E.g. linux, win32 */
-  platform: NodeJS.Platform;
-
-  /** E.g. x64 */
-  arch: string;
-
-  /** E.g. 16.7.0 */
-  nodeVersion: string;
-
-  /**
-   * The shell command from the Wireit config.
-   */
-  command: string | undefined;
-
-  /**
-   * The "clean" setting from the Wireit config.
-   *
-   * This is included in the fingerprint because switching from "false" to "true"
-   * could produce different output, so a re-run should be triggered even if
-   * nothing else changed.
-   */
-  clean: boolean | 'if-file-deleted';
-
-  // Must be sorted.
-  files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
-
-  /**
-   * The "output" glob patterns from the Wireit config.
-   *
-   * This is included in the fingerprint because changing the output patterns
-   * could produce different output when "clean" is true, and because it affects
-   * which files get included in a cache entry.
-   *
-   * Note the undefined vs empty-array distinction is not meaningful here,
-   * because both cases cause no files to be deleted, and the undefined case is
-   * never cached anyway.
-   */
-  output: string[];
-
-  // Must be sorted.
-  dependencies: {[dependency: ScriptReferenceString]: Fingerprint};
-}
-
-/**
- * String serialization of a {@link Fingerprint}.
- */
-export type FingerprintString = string & {
-  __FingerprintStringBrand__: never;
-};
-
-/**
- * SHA256 hash hexadecimal digest of a file's content.
- */
-export type Sha256HexDigest = string & {
-  __Sha256HexDigestBrand__: never;
 };

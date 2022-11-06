@@ -9,7 +9,7 @@ import {unreachable} from '../util/unreachable.js';
 
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
-import type {PackageReference, ScriptReference} from '../script.js';
+import type {PackageReference, ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
 
@@ -31,16 +31,16 @@ const getWireitVersion = (() => {
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
-  readonly #rootPackageDir: string;
-  readonly #diagnosticPrinter: DiagnosticPrinter;
+  private readonly _rootPackageDir: string;
+  private readonly _diagnosticPrinter: DiagnosticPrinter;
 
   /**
    * @param rootPackage The npm package directory that the root script being
    * executed belongs to.
    */
   constructor(rootPackage: string) {
-    this.#rootPackageDir = rootPackage;
-    this.#diagnosticPrinter = new DiagnosticPrinter(this.#rootPackageDir);
+    this._rootPackageDir = rootPackage;
+    this._diagnosticPrinter = new DiagnosticPrinter(this._rootPackageDir);
   }
 
   /**
@@ -48,12 +48,12 @@ export class DefaultLogger implements Logger {
    * the script name. If the package is different to the root package, it is
    * disambiguated with a relative path.
    */
-  #label(script: PackageReference | ScriptReference) {
+  private _label(script: PackageReference | ScriptReference) {
     const packageDir = script.packageDir;
     const scriptName = 'name' in script ? script.name : undefined;
-    if (packageDir !== this.#rootPackageDir) {
+    if (packageDir !== this._rootPackageDir) {
       const relativePackageDir = pathlib
-        .relative(this.#rootPackageDir, script.packageDir)
+        .relative(this._rootPackageDir, script.packageDir)
         // Normalize to posix-style forward-slashes as the path separator, even
         // on Windows which usually uses back-slashes. This way labels match the
         // syntax used in the package.json dependency specifiers (which are
@@ -72,7 +72,7 @@ export class DefaultLogger implements Logger {
 
   log(event: Event) {
     const type = event.type;
-    const label = this.#label(event.script);
+    const label = this._label(event.script);
     const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
@@ -130,7 +130,7 @@ export class DefaultLogger implements Logger {
           }
           case 'invalid-json-syntax': {
             for (const diagnostic of event.diagnostics) {
-              console.error(this.#diagnosticPrinter.print(diagnostic));
+              console.error(this._diagnosticPrinter.print(diagnostic));
             }
             break;
           }
@@ -149,7 +149,7 @@ export class DefaultLogger implements Logger {
           case 'cycle':
           case 'dependency-on-missing-package-json':
           case 'dependency-on-missing-script': {
-            console.error(this.#diagnosticPrinter.print(event.diagnostic));
+            console.error(this._diagnosticPrinter.print(event.diagnostic));
             break;
           }
           case 'invalid-usage': {
@@ -194,10 +194,21 @@ export class DefaultLogger implements Logger {
           }
           case 'dependency-invalid': {
             console.error(
-              `❌${prefix} Depended, perhaps indirectly, on ${this.#label(
+              `❌${prefix} Depended, perhaps indirectly, on ${this._label(
                 event.dependency
               )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`
             );
+            break;
+          }
+          case 'service-exited-unexpectedly': {
+            console.error(`❌${prefix} Service exited unexpectedly`);
+            break;
+          }
+          case 'aborted':
+          case 'dependency-service-exited-unexpectedly': {
+            // These event isn't very useful to log, because they are downstream
+            // of failures that already get reported elsewhere.
+            break;
           }
         }
         break;
@@ -243,7 +254,13 @@ export class DefaultLogger implements Logger {
           }
           case 'locked': {
             console.log(
-              `💤 ${prefix} Waiting for another process which is already running this script.`
+              `💤${prefix} Waiting for another process which is already running this script.`
+            );
+            break;
+          }
+          case 'output-modified': {
+            console.log(
+              `ℹ️${prefix} Output files were modified since the previous run.`
             );
             break;
           }
@@ -267,6 +284,14 @@ export class DefaultLogger implements Logger {
           }
           case 'generic': {
             console.log(`ℹ️${prefix} ${event.message}`);
+            break;
+          }
+          case 'service-started': {
+            console.log(`⬆️${prefix} Service started`);
+            break;
+          }
+          case 'service-stopped': {
+            console.log(`⬇️${prefix} Service stopped`);
             break;
           }
         }

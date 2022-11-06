@@ -8,7 +8,7 @@ import * as assert from 'uvu/assert';
 import * as pathlib from 'path';
 import {timeout} from './util/uvu-timeout.js';
 import {sep} from 'path';
-import {removeAciiColors} from './util/colors.js';
+import {checkScriptOutput} from './util/check-script-output.js';
 
 import type {Test} from 'uvu';
 import type {WireitTestRig} from './util/test-rig.js';
@@ -617,120 +617,6 @@ export const registerCommonCacheTests = (
   );
 
   test(
-    'replays stdout when restored from cache',
-    timeout(async ({rig}) => {
-      const cmdA = await rig.newCommand();
-      await rig.write({
-        'package.json': {
-          scripts: {
-            a: 'wireit',
-          },
-          wireit: {
-            a: {
-              command: cmdA.command,
-              files: ['input'],
-              output: ['output'],
-            },
-          },
-        },
-      });
-
-      // Initial run with input v0. Writes some stdout.
-      {
-        await rig.write({input: 'v0'});
-        const exec = rig.exec('npm run a');
-        const invA = await cmdA.nextInvocation();
-        invA.stdout('stdout v0');
-        invA.exit(0);
-        const res = await exec.exit;
-        assert.match(res.stdout, 'stdout v0');
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 1);
-      }
-
-      // Input changed to v1. Run again. Writes different stdout.
-      {
-        await rig.write({input: 'v1'});
-        const exec = rig.exec('npm run a');
-        const invA = await cmdA.nextInvocation();
-        invA.stdout('stdout v1');
-        invA.exit(0);
-        const res = await exec.exit;
-        assert.match(res.stdout, 'stdout v1');
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 2);
-      }
-
-      // Input reverts to v0. Stdout should be replayed from cache.
-      {
-        await rig.write({input: 'v0'});
-        const exec = rig.exec('npm run a');
-        const res = await exec.exit;
-        assert.match(res.stdout, 'stdout v0');
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 2);
-      }
-    })
-  );
-
-  test(
-    'replays stderr when restored from cache',
-    timeout(async ({rig}) => {
-      const cmdA = await rig.newCommand();
-      await rig.write({
-        'package.json': {
-          scripts: {
-            a: 'wireit',
-          },
-          wireit: {
-            a: {
-              command: cmdA.command,
-              files: ['input'],
-              output: ['output'],
-            },
-          },
-        },
-      });
-
-      // Initial run with input v0. Writes some stderr.
-      {
-        await rig.write({input: 'v0'});
-        const exec = rig.exec('npm run a');
-        const invA = await cmdA.nextInvocation();
-        invA.stderr('stderr v0');
-        invA.exit(0);
-        const res = await exec.exit;
-        assert.match(res.stderr, 'stderr v0');
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 1);
-      }
-
-      // Input changed to v1. Run again. Writes different stderr.
-      {
-        await rig.write({input: 'v1'});
-        const exec = rig.exec('npm run a');
-        const invA = await cmdA.nextInvocation();
-        invA.stderr('stderr v1');
-        invA.exit(0);
-        const res = await exec.exit;
-        assert.match(res.stderr, 'stderr v1');
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 2);
-      }
-
-      // Input reverts to v0. Stdout should be replayed from cache.
-      {
-        await rig.write({input: 'v0'});
-        const exec = rig.exec('npm run a');
-        const res = await exec.exit;
-        assert.match(res.stderr, 'stderr v0');
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 2);
-      }
-    })
-  );
-
-  test(
     'does not cache when WIREIT_CACHE=none',
     timeout(async ({rig}) => {
       const cmdA = await rig.newCommand();
@@ -1103,8 +989,8 @@ export const registerCommonCacheTests = (
       const exec = rig.exec('npm run a', {cwd: 'foo'});
       const res = await exec.exit;
       assert.equal(res.code, 1);
-      assert.equal(
-        removeAciiColors(res.stderr.trim()),
+      checkScriptOutput(
+        res.stderr,
         `
 ❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(
           pathlib.join(rig.temp, 'outside')
@@ -1114,7 +1000,7 @@ export const registerCommonCacheTests = (
             "../outside"
     ~~~~~~~~~~~~~~~~~~~~
           ],
-    ~~~~~~~`.trim()
+    ~~~~~~~`
       );
       assert.equal(cmdA.numInvocations, 0);
 

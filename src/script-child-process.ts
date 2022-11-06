@@ -10,9 +10,10 @@ import {
   augmentProcessEnvSafelyIfOnWindows,
   IS_WINDOWS,
 } from './util/windows.js';
+import {Deferred} from './util/deferred.js';
 
 import type {Result} from './error.js';
-import type {ScriptConfigWithRequiredCommand} from './script.js';
+import type {ScriptReferenceWithCommand} from './config.js';
 import type {ChildProcessWithoutNullStreams} from 'child_process';
 import type {ExitNonZero, ExitSignal, SpawnError, Killed} from './event.js';
 
@@ -48,32 +49,47 @@ export type ScriptChildProcessState =
  * A child process spawned during execution of a script.
  */
 export class ScriptChildProcess {
-  readonly #script: ScriptConfigWithRequiredCommand;
-  readonly #child: ChildProcessWithoutNullStreams;
-  #state: ScriptChildProcessState = 'starting';
+  private readonly _script: ScriptReferenceWithCommand;
+  private readonly _child: ChildProcessWithoutNullStreams;
+  private readonly _started = new Deferred<Result<void, SpawnError>>();
+  private readonly _completed = new Deferred<
+    Result<void, SpawnError | ExitSignal | ExitNonZero | Killed>
+  >();
+  private _state: ScriptChildProcessState = 'starting';
+
+  /**
+   * Resolves when this process starts
+   */
+  readonly started = this._started.promise;
 
   /**
    * Resolves when this child process ends.
    */
-  readonly completed: Promise<
-    Result<void, SpawnError | ExitSignal | ExitNonZero | Killed>
-  >;
+  readonly completed = this._completed.promise;
 
   get stdout() {
-    return this.#child.stdout;
+    return this._child.stdout;
   }
 
   get stderr() {
-    return this.#child.stderr;
+    return this._child.stderr;
   }
 
-  constructor(script: ScriptConfigWithRequiredCommand) {
-    this.#script = script;
+  constructor(script: ScriptReferenceWithCommand) {
+    // Copy only the fields we actually require from the script config, because
+    // the full script config contains references to the full config, which we
+    // want to allow to be garbage-collected across watch iterations.
+    this._script = {
+      packageDir: script.packageDir,
+      name: script.name,
+      command: script.command,
+      extraArgs: script.extraArgs,
+    };
 
     // TODO(aomarks) Update npm_ environment variables to reflect the new
     // package.
-    this.#child = spawn(script.command.value, {
-      cwd: script.packageDir,
+    this._child = spawn(this._script.command.value, this._script.extraArgs, {
+      cwd: this._script.packageDir,
       // Conveniently, "shell:true" has the same shell-selection behavior as
       // "npm run", where on macOS and Linux it is "sh", and on Windows it is
       // %COMSPEC% || "cmd.exe".
@@ -84,7 +100,11 @@ export class ScriptChildProcess {
       //   https://github.com/npm/run-script/blob/a5b03bdfc3a499bf7587d7414d5ea712888bfe93/lib/make-spawn-args.js#L11
       shell: true,
       env: augmentProcessEnvSafelyIfOnWindows({
-        PATH: this.#pathEnvironmentVariable,
+        FORCE_COLOR:
+          process.stdout.isTTY && process.env.FORCE_COLOR === undefined
+            ? 'true'
+            : process.env.FORCE_COLOR,
+        PATH: this._pathEnvironmentVariable,
       }),
       // Set "detached" on Linux and macOS so that we create a new process
       // group, instead of being added to the process group for this Wireit
@@ -102,94 +122,96 @@ export class ScriptChildProcess {
       detached: !IS_WINDOWS,
     });
 
-    this.completed = new Promise((resolve, reject) => {
-      this.#child.on('spawn', () => {
-        switch (this.#state) {
-          case 'starting': {
-            this.#state = 'started';
-            break;
-          }
-          case 'killing': {
-            // We received a kill request while we were still starting. Kill now
-            // that we're started.
-            this.#actuallyKill();
-            break;
-          }
-          case 'started':
-          case 'stopped': {
-            reject(
-              new Error(
-                `Internal error: Expected ScriptChildProcessState ` +
-                  `to be "started" or "killing" but was "${this.#state}"`
-              )
-            );
-            break;
-          }
-          default: {
-            const never: never = this.#state;
-            reject(
-              new Error(
-                `Internal error: unexpected ScriptChildProcessState: ${String(
-                  never
-                )}`
-              )
-            );
-          }
+    this._child.on('spawn', () => {
+      switch (this._state) {
+        case 'starting': {
+          this._started.resolve({ok: true, value: undefined});
+          this._state = 'started';
+          break;
         }
-      });
+        case 'killing': {
+          this._started.resolve({ok: true, value: undefined});
+          // We received a kill request while we were still starting. Kill now
+          // that we're started.
+          this._actuallyKill();
+          break;
+        }
+        case 'started':
+        case 'stopped': {
+          const exception = new Error(
+            `Internal error: Expected ScriptChildProcessState ` +
+              `to be "started" or "killing" but was "${this._state}"`
+          );
+          this._started.reject(exception);
+          this._completed.reject(exception);
+          break;
+        }
+        default: {
+          const never: never = this._state;
+          const exception = new Error(
+            `Internal error: unexpected ScriptChildProcessState: ${String(
+              never
+            )}`
+          );
+          this._started.reject(exception);
+          this._completed.reject(exception);
+        }
+      }
+    });
 
-      this.#child.on('error', (error) => {
-        resolve({
+    this._child.on('error', (error) => {
+      const result = {
+        ok: false,
+        error: {
+          script,
+          type: 'failure',
+          reason: 'spawn-error',
+          message: error.message,
+        },
+      } as const;
+      this._started.resolve(result);
+      this._completed.resolve(result);
+      this._state = 'stopped';
+    });
+
+    this._child.on('close', (status, signal) => {
+      if (this._state === 'killing') {
+        this._completed.resolve({
           ok: false,
           error: {
             script,
             type: 'failure',
-            reason: 'spawn-error',
-            message: error.message,
+            reason: 'killed',
           },
         });
-        this.#state = 'stopped';
-      });
-
-      this.#child.on('close', (status, signal) => {
-        if (this.#state === 'killing') {
-          resolve({
-            ok: false,
-            error: {
-              script,
-              type: 'failure',
-              reason: 'killed',
-            },
-          });
-        } else if (signal !== null) {
-          resolve({
-            ok: false,
-            error: {
-              script,
-              type: 'failure',
-              reason: 'signal',
-              signal,
-            },
-          });
-        } else if (status !== 0) {
-          resolve({
-            ok: false,
-            error: {
-              script,
-              type: 'failure',
-              reason: 'exit-non-zero',
-              // status should only ever be null if signal was not null, but
-              // this isn't reflected in the TypeScript types. Just in case, and
-              // to make TypeScript happy, fall back to -1 (which is a
-              // conventional exit status used for "exited with signal").
-              status: status ?? -1,
-            },
-          });
-        } else {
-          resolve({ok: true, value: undefined});
-        }
-        this.#state = 'stopped';
-      });
+      } else if (signal !== null) {
+        this._completed.resolve({
+          ok: false,
+          error: {
+            script,
+            type: 'failure',
+            reason: 'signal',
+            signal,
+          },
+        });
+      } else if (status !== 0) {
+        this._completed.resolve({
+          ok: false,
+          error: {
+            script,
+            type: 'failure',
+            reason: 'exit-non-zero',
+            // status should only ever be null if signal was not null, but
+            // this isn't reflected in the TypeScript types. Just in case, and
+            // to make TypeScript happy, fall back to -1 (which is a
+            // conventional exit status used for "exited with signal").
+            status: status ?? -1,
+          },
+        });
+      } else {
+        this._completed.resolve({ok: true, value: undefined});
+      }
+      this._state = 'stopped';
     });
   }
 
@@ -201,16 +223,16 @@ export class ScriptChildProcess {
    * actually killed, use the {@link completed} promise.
    */
   kill(): void {
-    switch (this.#state) {
+    switch (this._state) {
       case 'started': {
-        this.#actuallyKill();
+        this._actuallyKill();
         return;
       }
       case 'starting': {
         // We're still starting up, and it's not possible to abort. When we get
         // the "spawn" event, we'll notice the "killing" state and actually kill
         // then.
-        this.#state = 'killing';
+        this._state = 'killing';
         return;
       }
       case 'killing':
@@ -219,7 +241,7 @@ export class ScriptChildProcess {
         return;
       }
       default: {
-        const never: never = this.#state;
+        const never: never = this._state;
         throw new Error(
           `Internal error: unexpected ScriptChildProcessState: ${String(never)}`
         );
@@ -227,11 +249,11 @@ export class ScriptChildProcess {
     }
   }
 
-  #actuallyKill(): void {
-    if (this.#child.pid === undefined) {
+  private _actuallyKill(): void {
+    if (this._child.pid === undefined) {
       throw new Error(
         `Internal error: Can't kill child process because it has no pid. ` +
-          `Command: ${JSON.stringify(this.#script.command)}.`
+          `Command: ${JSON.stringify(this._script.command)}.`
       );
     }
     if (IS_WINDOWS) {
@@ -242,7 +264,7 @@ export class ScriptChildProcess {
       // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
       spawn('taskkill', [
         '/pid',
-        this.#child.pid.toString(),
+        this._child.pid.toString(),
         /* End child processes */ '/t',
         /* Force. Killing does not seem reliable otherwise. */ '/f',
       ]);
@@ -251,20 +273,20 @@ export class ScriptChildProcess {
       // process group. Passing the negative of a pid kills all processes in
       // that group (without the negative, only the leader "sh" process would be
       // killed).
-      process.kill(-this.#child.pid, 'SIGINT');
+      process.kill(-this._child.pid, 'SIGINT');
     }
-    this.#state = 'killing';
+    this._state = 'killing';
   }
 
   /**
    * Generates the PATH environment variable that should be set when this
    * script's command is spawned.
    */
-  get #pathEnvironmentVariable(): string {
+  private get _pathEnvironmentVariable(): string {
     // Given package "/foo/bar", walk up the path hierarchy to generate
     // "/foo/bar/node_modules/.bin:/foo/node_modules/.bin:/node_modules/.bin".
     const entries = [];
-    let cur = this.#script.packageDir;
+    let cur = this._script.packageDir;
     while (true) {
       entries.push(pathlib.join(cur, 'node_modules', '.bin'));
       const parent = pathlib.dirname(cur);

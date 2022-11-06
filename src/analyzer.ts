@@ -9,7 +9,7 @@ import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {Dependency, scriptReferenceToString} from './script.js';
+import {Dependency, scriptReferenceToString} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
@@ -20,7 +20,12 @@ import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
-} from './script.js';
+} from './config.js';
+
+export interface AnalyzeResult {
+  config: Result<ScriptConfig, Failure[]>;
+  relevantConfigFilePaths: Set<string>;
+}
 
 /**
  * A script config that might be at any point of the analysis pipeline,
@@ -39,7 +44,7 @@ export type PotentiallyValidScriptConfig =
  * A script with an invalid config may stay a placeholder forever.
  */
 export type UnvalidatedConfig = ScriptReference &
-  Omit<Omit<Partial<ScriptConfig>, 'state'>, 'dependencies'> & {
+  Omit<Partial<ScriptConfig>, 'state' | 'dependencies'> & {
     state: 'unvalidated';
     failures: Failure[];
     dependencies?: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -50,8 +55,8 @@ export type UnvalidatedConfig = ScriptReference &
  * resolved and checked for circular dependency errors yet.
  */
 export type LocallyValidScriptConfig = Omit<
-  Omit<ScriptConfig, 'state'>,
-  'dependencies'
+  ScriptConfig,
+  'state' | 'dependencies'
 > & {
   state: 'locally-valid';
   dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -66,8 +71,8 @@ export type LocallyValidScriptConfig = Omit<
  * script for cycles at most once.
  */
 export type InvalidScriptConfig = Omit<
-  Omit<ScriptConfig, 'state'>,
-  'dependencies'
+  ScriptConfig,
+  'state' | 'dependencies'
 > & {
   state: 'invalid';
   dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
@@ -90,12 +95,16 @@ interface PlaceholderInfo {
  * dependencies, producing a build graph that is ready to be executed.
  */
 export class Analyzer {
-  readonly #packageJsonReader;
-  readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
-  readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
+  private readonly _packageJsonReader;
+  private readonly _placeholders = new Map<
+    ScriptReferenceString,
+    PlaceholderInfo
+  >();
+  private readonly _ongoingWorkPromises: Array<Promise<undefined>> = [];
+  private readonly _relevantConfigFilePaths = new Set<string>();
 
   constructor(filesystem?: FileSystem) {
-    this.#packageJsonReader = new CachingPackageJsonReader(filesystem);
+    this._packageJsonReader = new CachingPackageJsonReader(filesystem);
   }
 
   /**
@@ -111,22 +120,26 @@ export class Analyzer {
         }
         for (const script of fileResult.value.scripts) {
           // This starts analysis of each of the scripts in our root files.
-          this.#getPlaceholder({name: script.name, packageDir});
+          this._getPlaceholder({name: script.name, packageDir});
         }
       })
     );
-    await this.#waitForAnalysisToComplete();
+    await this._waitForAnalysisToComplete();
     // Check for cycles.
-    for (const info of this.#placeholders.values()) {
+    for (const info of this._placeholders.values()) {
       if (info.placeholder.state === 'unvalidated') {
         continue;
       }
       // We don't care about the result, if there's a cycle error it'll
       // be added to the scripts' diagnostics.
-      this.#checkForCyclesAndSortDependencies(info.placeholder, new Set());
+      this._checkForCyclesAndSortDependencies(
+        info.placeholder,
+        new Set(),
+        true
+      );
     }
 
-    return this.#getDiagnostics();
+    return this._getDiagnostics();
   }
 
   /**
@@ -139,8 +152,9 @@ export class Analyzer {
    * a cycle in the dependency graph.
    */
   async analyze(
-    root: ScriptReference
-  ): Promise<Result<ScriptConfig, Failure[]>> {
+    root: ScriptReference,
+    extraArgs: string[] | undefined
+  ): Promise<AnalyzeResult> {
     // We do 2 walks through the dependency graph:
     //
     // 1. A non-deterministically ordered walk, where we traverse edges as soon
@@ -161,15 +175,18 @@ export class Analyzer {
     // dependencies (which would lead to a promise cycle if there was a cycle in
     // the configuration), we wait for all placeholders to upgrade to full
     // configs asynchronously.
-    const rootPlaceholder = this.#getPlaceholder(root);
+    const rootPlaceholder = this._getPlaceholder(root);
 
     // Note we can't use Promise.all here, because new promises can be added to
     // the promises array as long as any promise is pending.
-    await this.#waitForAnalysisToComplete();
+    await this._waitForAnalysisToComplete();
     {
-      const errors = await this.#getDiagnostics();
+      const errors = await this._getDiagnostics();
       if (errors.size > 0) {
-        return {ok: false, error: [...errors]};
+        return {
+          config: {ok: false, error: [...errors]},
+          relevantConfigFilePaths: this._relevantConfigFilePaths,
+        };
       }
     }
 
@@ -181,30 +198,38 @@ export class Analyzer {
         `Internal error: script ${root.name} in ${root.packageDir} is still unvalidated but had no failures`
       );
     }
-    const cycleResult = this.#checkForCyclesAndSortDependencies(
+    const cycleResult = this._checkForCyclesAndSortDependencies(
       rootConfig,
-      new Set()
+      new Set(),
+      true
     );
     if (!cycleResult.ok) {
-      return {ok: false, error: [cycleResult.error.dependencyFailure]};
+      return {
+        config: {ok: false, error: [cycleResult.error.dependencyFailure]},
+        relevantConfigFilePaths: this._relevantConfigFilePaths,
+      };
     }
     const validRootConfig = cycleResult.value;
-    return {ok: true, value: validRootConfig};
+    validRootConfig.extraArgs = extraArgs;
+    return {
+      config: {ok: true, value: validRootConfig},
+      relevantConfigFilePaths: this._relevantConfigFilePaths,
+    };
   }
 
   async analyzeIgnoringErrors(
     scriptReference: ScriptReference
   ): Promise<PotentiallyValidScriptConfig> {
-    await this.analyze(scriptReference);
-    return this.#getPlaceholder(scriptReference).placeholder;
+    await this.analyze(scriptReference, []);
+    return this._getPlaceholder(scriptReference).placeholder;
   }
 
-  async #getDiagnostics(): Promise<Set<Failure>> {
+  private async _getDiagnostics(): Promise<Set<Failure>> {
     const failures = new Set<Failure>();
-    for await (const failure of this.#packageJsonReader.getFailures()) {
+    for await (const failure of this._packageJsonReader.getFailures()) {
       failures.add(failure);
     }
-    for (const info of this.#placeholders.values()) {
+    for (const info of this._placeholders.values()) {
       for (const failure of info.placeholder.failures) {
         failures.add(failure);
       }
@@ -219,10 +244,10 @@ export class Analyzer {
     return failures;
   }
 
-  async #waitForAnalysisToComplete() {
-    while (this.#ongoingWorkPromises.length > 0) {
+  private async _waitForAnalysisToComplete() {
+    while (this._ongoingWorkPromises.length > 0) {
       const promise =
-        this.#ongoingWorkPromises[this.#ongoingWorkPromises.length - 1];
+        this._ongoingWorkPromises[this._ongoingWorkPromises.length - 1];
       await promise;
       // Need to be careful here. The contract of this method is that it does
       // not return until all pending analysis work is completed.
@@ -236,24 +261,25 @@ export class Analyzer {
       // case is fine.
       if (
         promise ===
-        this.#ongoingWorkPromises[this.#ongoingWorkPromises.length - 1]
+        this._ongoingWorkPromises[this._ongoingWorkPromises.length - 1]
       ) {
-        void this.#ongoingWorkPromises.pop();
+        void this._ongoingWorkPromises.pop();
       }
     }
   }
 
   async getPackageJson(packageDir: string): Promise<Result<PackageJson>> {
-    return this.#packageJsonReader.read(packageDir);
+    this._relevantConfigFilePaths.add(pathlib.join(packageDir, 'package.json'));
+    return this._packageJsonReader.read(packageDir);
   }
 
   /**
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */
-  #getPlaceholder(reference: ScriptReference): PlaceholderInfo {
+  private _getPlaceholder(reference: ScriptReference): PlaceholderInfo {
     const scriptKey = scriptReferenceToString(reference);
-    let placeholderInfo = this.#placeholders.get(scriptKey);
+    let placeholderInfo = this._placeholders.get(scriptKey);
     if (placeholderInfo === undefined) {
       const placeholder: UnvalidatedConfig = {
         ...reference,
@@ -262,10 +288,10 @@ export class Analyzer {
       };
       placeholderInfo = {
         placeholder: placeholder,
-        upgradeComplete: this.#upgradePlaceholder(placeholder),
+        upgradeComplete: this._upgradePlaceholder(placeholder),
       };
-      this.#placeholders.set(scriptKey, placeholderInfo);
-      this.#ongoingWorkPromises.push(placeholderInfo.upgradeComplete);
+      this._placeholders.set(scriptKey, placeholderInfo);
+      this._ongoingWorkPromises.push(placeholderInfo.upgradeComplete);
     }
     return placeholderInfo;
   }
@@ -277,7 +303,7 @@ export class Analyzer {
    * Note this method does not block on the script's dependencies being
    * upgraded; dependencies are upgraded asynchronously.
    */
-  async #upgradePlaceholder(
+  private async _upgradePlaceholder(
     placeholder: UnvalidatedConfig
   ): Promise<undefined> {
     const packageJsonResult = await this.getPackageJson(placeholder.packageDir);
@@ -317,7 +343,11 @@ export class Analyzer {
     const scriptCommand = syntaxInfo.scriptNode;
     const wireitConfig = syntaxInfo.wireitConfigNode;
 
-    if (wireitConfig !== undefined && scriptCommand.value !== 'wireit') {
+    if (
+      wireitConfig !== undefined &&
+      scriptCommand.value !== 'wireit' &&
+      scriptCommand.value !== 'yarn run -TB wireit'
+    ) {
       const configName = wireitConfig.name;
       placeholder.failures.push({
         type: 'failure',
@@ -369,7 +399,7 @@ export class Analyzer {
     }
 
     const {dependencies, encounteredError: dependenciesErrored} =
-      this.#processDependencies(placeholder, packageJson, syntaxInfo);
+      this._processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
@@ -402,12 +432,15 @@ export class Analyzer {
       }
     }
 
+    const files = this._processFiles(placeholder, packageJson, syntaxInfo);
+
     if (
       wireitConfig !== undefined &&
-      command === undefined &&
       dependencies.length === 0 &&
       !dependenciesErrored &&
-      !commandError
+      command === undefined &&
+      !commandError &&
+      (files === undefined || files.values.length === 0)
     ) {
       placeholder.failures.push({
         type: 'failure',
@@ -415,7 +448,7 @@ export class Analyzer {
         script: placeholder,
         diagnostic: {
           severity: 'error',
-          message: `A wireit config must set at least one of "command" or "dependencies", otherwise there is nothing for wireit to do.`,
+          message: `A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.`,
           location: {
             file: packageJson.jsonFile,
             range: {
@@ -427,10 +460,21 @@ export class Analyzer {
       });
     }
 
-    const files = this.#processFiles(placeholder, packageJson, syntaxInfo);
-    const output = this.#processOutput(placeholder, packageJson, syntaxInfo);
-    const clean = this.#processClean(placeholder, packageJson, syntaxInfo);
-    this.#processPackageLocks(placeholder, packageJson, syntaxInfo, files);
+    const output = this._processOutput(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      command
+    );
+    const clean = this._processClean(placeholder, packageJson, syntaxInfo);
+    const service = this._processService(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      command,
+      output
+    );
+    this._processPackageLocks(placeholder, packageJson, syntaxInfo, files);
 
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
@@ -440,18 +484,21 @@ export class Analyzer {
       state: 'locally-valid',
       failures: placeholder.failures,
       command,
+      extraArgs: undefined,
       dependencies,
       files,
       output,
-      clean: clean ?? true,
+      clean,
+      service,
       scriptAstNode: scriptCommand,
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
+      services: [],
     };
     Object.assign(placeholder, remainingConfig);
   }
 
-  #processDependencies(
+  private _processDependencies(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     scriptInfo: ScriptSyntaxInfo
@@ -574,7 +621,7 @@ export class Analyzer {
       }
 
       const unresolved = specifierResult.value;
-      const result = this.#resolveDependency(
+      const result = this._resolveDependency(
         unresolved,
         placeholder,
         packageJson.jsonFile
@@ -621,13 +668,13 @@ export class Analyzer {
           });
         }
         uniqueDependencies.set(uniqueKey, unresolved);
-        const placeHolderInfo = this.#getPlaceholder(resolved);
+        const placeHolderInfo = this._getPlaceholder(resolved);
         dependencies.push({
           specifier: unresolved,
           config: placeHolderInfo.placeholder,
           soft,
         });
-        this.#ongoingWorkPromises.push(
+        this._ongoingWorkPromises.push(
           (async () => {
             await placeHolderInfo.upgradeComplete;
             const failures = placeHolderInfo.placeholder.failures;
@@ -701,7 +748,7 @@ export class Analyzer {
     return {dependencies, encounteredError};
   }
 
-  #processFiles(
+  private _processFiles(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
@@ -734,10 +781,11 @@ export class Analyzer {
     return {node: filesNode, values};
   }
 
-  #processOutput(
+  private _processOutput(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
-    syntaxInfo: ScriptSyntaxInfo
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined
   ): undefined | ArrayNode<string> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
@@ -747,6 +795,25 @@ export class Analyzer {
     ]);
     if (outputNode === undefined) {
       return;
+    }
+    if (command === undefined) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `"output" can only be set if "command" is also set.`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              // Highlight the whole `"output": []` part.
+              length: (outputNode.parent ?? outputNode).length,
+              offset: (outputNode.parent ?? outputNode).offset,
+            },
+          },
+        },
+      });
     }
     const values = [];
     const result = failUnlessArray(outputNode, packageJson.jsonFile);
@@ -767,13 +834,14 @@ export class Analyzer {
     return {node: outputNode, values};
   }
 
-  #processClean(
+  private _processClean(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
-  ): undefined | boolean | 'if-file-deleted' {
-    if (syntaxInfo.wireitConfigNode === undefined) {
-      return;
+  ): boolean | 'if-file-deleted' {
+    const defaultValue = true;
+    if (syntaxInfo.wireitConfigNode == null) {
+      return defaultValue;
     }
     const clean = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['clean']) as
       | undefined
@@ -797,14 +865,89 @@ export class Analyzer {
           },
         },
       });
-      // We shouldn't execute if there's failures, but just in case, this is
-      // likely the safest option.
-      return false;
+      return defaultValue;
     }
-    return clean?.value;
+    return clean?.value ?? defaultValue;
   }
 
-  #processPackageLocks(
+  private _processService(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined,
+    output: ArrayNode<string> | undefined
+  ): boolean {
+    const defaultValue = false;
+    if (syntaxInfo.wireitConfigNode == null) {
+      return defaultValue;
+    }
+    const node = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'service',
+    ]) as undefined | JsonAstNode<true | false>;
+    if (node == null) {
+      return defaultValue;
+    }
+    if (node.value !== true && node.value !== false) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `The "service" property must be either true or false.`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: node.length, offset: node.offset},
+          },
+        },
+      });
+      return defaultValue;
+    }
+
+    const value = node?.value ?? defaultValue;
+
+    if (value === true && command == null) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A "service" script must have a "command".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: node.length,
+              offset: node.offset,
+            },
+          },
+        },
+      });
+    }
+
+    if (value === true && output != null) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: `A "service" script cannot have an "output".`,
+          location: {
+            file: packageJson.jsonFile,
+            range: {
+              length: output.node.length,
+              offset: output.node.offset,
+            },
+          },
+        },
+      });
+    }
+
+    return value;
+  }
+
+  private _processPackageLocks(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
@@ -883,9 +1026,10 @@ export class Analyzer {
    * This is where we check for cycles in dependencies, but it's also the
    * place where we transform LocallyValidScriptConfigs to ScriptConfigs.
    */
-  #checkForCyclesAndSortDependencies(
+  private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
-    trail: Set<ScriptReferenceString>
+    trail: Set<ScriptReferenceString>,
+    isPersistent: boolean
   ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
@@ -909,7 +1053,7 @@ export class Analyzer {
         i++;
       }
       const trailArray = [...trail].map((key) => {
-        const placeholderInfo = this.#placeholders.get(key);
+        const placeholderInfo = this._placeholders.get(key);
         if (placeholderInfo === undefined) {
           throw new Error(
             `Internal error: placeholder not found for ${key} during cycle detection`
@@ -985,7 +1129,7 @@ export class Analyzer {
         script: config,
         diagnostic,
       };
-      return {ok: false, error: this.#markAsInvalid(config, failure)};
+      return {ok: false, error: this._markAsInvalid(config, failure)};
     }
     if (config.dependencies.length > 0) {
       // Sorting means that if the user re-orders the same set of dependencies,
@@ -1005,15 +1149,33 @@ export class Analyzer {
           dependencyStillUnvalidated = dependency.config;
           continue;
         }
-        const result = this.#checkForCyclesAndSortDependencies(
-          dependency.config,
-          trail
-        );
-        if (!result.ok) {
+        const validDependencyConfigResult =
+          this._checkForCyclesAndSortDependencies(
+            dependency.config,
+            trail,
+            // Walk through no-command scripts and services when determining if
+            // something is persistent.
+            isPersistent && (config.command === undefined || config.service)
+          );
+        if (!validDependencyConfigResult.ok) {
           return {
             ok: false,
-            error: this.#markAsInvalid(config, result.error.dependencyFailure),
+            error: this._markAsInvalid(
+              config,
+              validDependencyConfigResult.error.dependencyFailure
+            ),
           };
+        }
+        const validDependencyConfig = validDependencyConfigResult.value;
+        if (validDependencyConfig.service) {
+          // We directly depend on a service.
+          config.services.push(validDependencyConfig);
+        } else if (validDependencyConfig.command === undefined) {
+          // We depend on a no-command script, so in effect we depend on all of
+          // the services it depends on.
+          for (const service of validDependencyConfig.services) {
+            config.services.push(service);
+          }
         }
       }
       trail.delete(trailKey);
@@ -1028,24 +1190,65 @@ export class Analyzer {
         script: config,
         dependency: dependencyStillUnvalidated,
       };
-      return {ok: false, error: this.#markAsInvalid(config, failure)};
+      return {ok: false, error: this._markAsInvalid(config, failure)};
     }
-    {
-      const validConfig: ScriptConfig = {
+
+    let validConfig: ScriptConfig;
+    if (config.service) {
+      // We should already have created an invalid script at this point, so we
+      // should never get here. We throw here to convince TypeScript that this
+      // is guaranteed.
+      if (config.command === undefined) {
+        throw new Error(
+          'Internal error: Supposedly valid service did not have command'
+        );
+      }
+      validConfig = {
         ...config,
         state: 'valid',
-        dependencies: config.dependencies as Array<Dependency>,
+        extraArgs: undefined,
+        dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        // Unfortunately TypeScript doesn't narrow the ...config spread, so we
+        // have to assign explicitly.
+        command: config.command,
+        isPersistent,
+        serviceConsumers: [],
       };
-      // We want to keep the original reference, but get type checking that
-      // the only difference between a ScriptConfig and a
-      // LocallyValidScriptConfig is that the state is 'valid' and the
-      // dependencies are also valid, which we confirmed above.
-      Object.assign(config, validConfig);
+    } else {
+      validConfig = {
+        ...config,
+        state: 'valid',
+        extraArgs: undefined,
+        dependencies: config.dependencies as Array<Dependency<ScriptConfig>>,
+        // Unfortunately TypeScript doesn't narrow the ...config spread, so we
+        // have to assign explicitly.
+        service: config.service,
+      };
     }
+
+    // Propagate reverse service dependencies.
+    if (validConfig.command) {
+      for (const dependency of validConfig.dependencies) {
+        if (dependency.config.service) {
+          dependency.config.serviceConsumers.push(validConfig);
+        } else if (dependency.config.command === undefined) {
+          for (const service of dependency.config.services) {
+            service.serviceConsumers.push(validConfig);
+          }
+        }
+      }
+    }
+
+    // We want to keep the original reference, but get type checking that
+    // the only difference between a ScriptConfig and a
+    // LocallyValidScriptConfig is that the state is 'valid' and the
+    // dependencies are also valid, which we confirmed above.
+    Object.assign(config, validConfig);
+
     return {ok: true, value: config as unknown as ScriptConfig};
   }
 
-  #markAsInvalid(
+  private _markAsInvalid(
     config: LocallyValidScriptConfig,
     failure: Failure
   ): InvalidScriptConfig {
@@ -1066,7 +1269,7 @@ export class Analyzer {
    *
    * Note this can return 0, 1, or >1 script references.
    */
-  #resolveDependency(
+  private _resolveDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
     referencingFile: JsonFile
@@ -1075,7 +1278,7 @@ export class Analyzer {
     if (dependency.value.startsWith('.')) {
       // TODO(aomarks) It is technically valid for an npm script to start with a
       // ".". We should support that edge case with backslash escaping.
-      const result = this.#resolveCrossPackageDependency(
+      const result = this._resolveCrossPackageDependency(
         dependency,
         context,
         referencingFile
@@ -1095,7 +1298,7 @@ export class Analyzer {
    * Resolve a cross-package dependency (e.g. "../other-package:build").
    * Cross-package dependencies always start with a ".".
    */
-  #resolveCrossPackageDependency(
+  private _resolveCrossPackageDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
     referencingFile: JsonFile

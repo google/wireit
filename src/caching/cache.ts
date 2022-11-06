@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {FingerprintString, ScriptReference} from '../script.js';
-import type {RelativeEntry} from '../util/glob.js';
+import type {ScriptReference} from '../config.js';
+import type {Fingerprint} from '../fingerprint.js';
+import type {AbsoluteEntry} from '../util/glob.js';
 
 /**
  * Saves and restores output files to some cache store (e.g. local disk or
@@ -24,7 +25,7 @@ export interface Cache {
    */
   get(
     script: ScriptReference,
-    fingerprint: FingerprintString
+    fingerprint: Fingerprint
   ): Promise<CacheHit | undefined>;
 
   /**
@@ -36,13 +37,13 @@ export interface Cache {
    *
    * @param script The script whose output will be saved to the cache.
    * @param fingerprint The string-encoded fingerprint for the script.
-   * @param relativeFiles The package-relative output files to cache.
+   * @param absoluteFiles The absolute output files to cache.
    * @returns Whether the cache was written.
    */
   set(
     script: ScriptReference,
-    fingerprint: FingerprintString,
-    relativeFiles: RelativeEntry[]
+    fingerprint: Fingerprint,
+    absoluteFiles: AbsoluteEntry[]
   ): Promise<boolean>;
 }
 

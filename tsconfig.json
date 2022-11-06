@@ -4,8 +4,8 @@
     "module": "es2022",
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "useDefineForClassFields": true,
-    "lib": ["es2020"],
+    "useDefineForClassFields": false,
+    "lib": ["es2022"],
     "rootDir": "src",
     "outDir": "lib",
     "strict": true,
@@ -15,6 +15,7 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "useUnknownInCatchVariables": true,
+    "noImplicitOverride": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "composite": true

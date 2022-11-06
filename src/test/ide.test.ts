@@ -11,7 +11,7 @@ import {drawSquiggle, OffsetToPositionConverter} from '../error.js';
 import {IdeAnalyzer} from '../ide.js';
 import {WireitTestRig} from './util/test-rig.js';
 import * as url from 'url';
-import {removeAciiColors} from './util/colors.js';
+import {removeAnsiColors} from './util/colors.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -242,7 +242,7 @@ async function assertDefinition(
 }
 
 function assertSquiggleEquals(actual: string, expected: string) {
-  actual = removeAciiColors(actual);
+  actual = removeAnsiColors(actual);
   if (actual.trim() !== expected.trim()) {
     console.log(`Copy pastable output:\n${actual}`);
   }
