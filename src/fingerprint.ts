@@ -118,8 +118,9 @@ export class Fingerprint {
       [ScriptReferenceString, FingerprintData]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
-      if (dep.soft) {
-        // Soft dependencies aren't included in the fingerprint.
+      if (!dep.triggersRerun) {
+        // triggersRerun: false means the fingerprint of the dependency isn't
+        // directly inherited.
         continue;
       }
       if (!depFingerprint.data.fullyTracked) {

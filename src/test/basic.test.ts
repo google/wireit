@@ -1044,9 +1044,9 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
 }
 
 test(
-  'soft dependency does not inherit fingerprint',
+  'triggersRerun:false dependency does not inherit fingerprint',
   timeout(async ({rig}) => {
-    //  a --[soft]--> b --> c
+    //  a --[triggersRerun:false]--> b --> c
     const a = await rig.newCommand();
     const b = await rig.newCommand();
     const c = await rig.newCommand();
@@ -1063,7 +1063,7 @@ test(
             dependencies: [
               {
                 script: 'b',
-                soft: true,
+                triggersRerun: false,
               },
             ],
             files: ['inputs/a'],

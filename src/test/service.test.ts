@@ -961,7 +961,7 @@ test(
 );
 
 test(
-  'service soft dependency does not require restart in watch mode',
+  'service with triggersRerun:false does not require restart in watch mode',
   timeout(async ({rig}) => {
     //    service
     //    /    \
@@ -985,7 +985,7 @@ test(
               'hard',
               {
                 script: 'soft',
-                soft: true,
+                triggersRerun: false,
               },
             ],
           },

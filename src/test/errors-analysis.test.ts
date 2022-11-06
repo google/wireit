@@ -1954,7 +1954,7 @@ test(
 );
 
 test(
-  'dependencies.soft is not a boolean',
+  'dependencies.triggersRerun is not a boolean',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {
@@ -1967,7 +1967,7 @@ test(
             dependencies: [
               {
                 script: 'b',
-                soft: 1,
+                triggersRerun: 1,
               },
             ],
           },
@@ -1983,9 +1983,9 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:11:19 The "soft" property must be either true or false.
-              "soft": 1
-                      ~`
+❌ package.json:11:28 The "triggersRerun" property must be either true or false.
+              "triggersRerun": 1
+                               ~`
     );
   })
 );

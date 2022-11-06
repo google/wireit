@@ -62,8 +62,10 @@ test('dependency object is valid', () => {
   shouldValidate({wireit: {a: {dependencies: [{script: 'b'}]}}});
 });
 
-test('dependency object with soft annotation is valid', () => {
-  shouldValidate({wireit: {a: {dependencies: [{script: 'b', soft: true}]}}});
+test('dependency object with triggersRerun:false annotation is valid', () => {
+  shouldValidate({
+    wireit: {a: {dependencies: [{script: 'b', triggersRerun: false}]}},
+  });
 });
 
 // I couldn't figure out how to make this test pass while keeping the other
@@ -80,7 +82,7 @@ test('a script with all fields set is valid', () => {
     wireit: {
       a: {
         command: 'b',
-        dependencies: ['c', {script: 'c', soft: true}],
+        dependencies: ['c', {script: 'c', triggersRerun: false}],
         files: ['d'],
         output: ['e'],
         clean: true,
@@ -248,13 +250,13 @@ test('dependencies[i].script is required', () => {
   );
 });
 
-test('dependencies[i].soft must be boolean', () => {
+test('dependencies[i].triggersRerun must be boolean', () => {
   expectValidationErrors(
     {
       wireit: {
         a: {
           command: 'b',
-          dependencies: [{script: 'b', soft: 1}],
+          dependencies: [{script: 'b', triggersRerun: 1}],
         },
       },
     },

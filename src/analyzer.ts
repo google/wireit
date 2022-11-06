@@ -532,7 +532,7 @@ export class Analyzer {
       // property plus optional extra annotations.
       const maybeUnresolved = children[i];
       let specifierResult;
-      let soft = false; // Default;
+      let triggersRerun = true; // Default;
       if (maybeUnresolved.type === 'string') {
         specifierResult = failUnlessNonBlankString(
           maybeUnresolved,
@@ -574,10 +574,15 @@ export class Analyzer {
           placeholder.failures.push(specifierResult.error);
           continue;
         }
-        const softResult = findNodeAtLocation(maybeUnresolved, ['soft']);
-        if (softResult !== undefined) {
-          if (softResult.value === true || softResult.value === false) {
-            soft = softResult.value;
+        const triggersRerunResult = findNodeAtLocation(maybeUnresolved, [
+          'triggersRerun',
+        ]);
+        if (triggersRerunResult !== undefined) {
+          if (
+            triggersRerunResult.value === true ||
+            triggersRerunResult.value === false
+          ) {
+            triggersRerun = triggersRerunResult.value;
           } else {
             encounteredError = true;
             placeholder.failures.push({
@@ -586,12 +591,12 @@ export class Analyzer {
               script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
               diagnostic: {
                 severity: 'error',
-                message: `The "soft" property must be either true or false.`,
+                message: `The "triggersRerun" property must be either true or false.`,
                 location: {
                   file: packageJson.jsonFile,
                   range: {
-                    offset: softResult.offset,
-                    length: softResult.length,
+                    offset: triggersRerunResult.offset,
+                    length: triggersRerunResult.length,
                   },
                 },
               },
@@ -672,7 +677,7 @@ export class Analyzer {
         dependencies.push({
           specifier: unresolved,
           config: placeHolderInfo.placeholder,
-          soft,
+          triggersRerun,
         });
         this._ongoingWorkPromises.push(
           (async () => {
