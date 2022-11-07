@@ -121,7 +121,7 @@ export class GitHubActionsCache implements Cache {
     const {req, resPromise} = this._request(url);
     req.end();
     const result = await resPromise;
-    if (this._maybeHandleServiceDown(result, script)) {
+    if (!this._maybeHandleServiceDown(result, script)) {
       return undefined;
     }
     const response = result.value;
@@ -264,7 +264,7 @@ export class GitHubActionsCache implements Cache {
         });
 
         const result = await resPromise;
-        if (this._maybeHandleServiceDown(result, script)) {
+        if (!this._maybeHandleServiceDown(result, script)) {
           return false;
         }
         const response = result.value;
@@ -310,7 +310,7 @@ export class GitHubActionsCache implements Cache {
     req.end(reqBody);
 
     const result = await resPromise;
-    if (this._maybeHandleServiceDown(result, script)) {
+    if (!this._maybeHandleServiceDown(result, script)) {
       return false;
     }
     const response = result.value;
@@ -347,56 +347,59 @@ export class GitHubActionsCache implements Cache {
 
   /**
    * If we received an error that indicates something is wrong with the GitHub
-   * Actions service that is not our fault, log an error and return true.
-   * Otherwise return false.
+   * Actions service that is not our fault, log an error and return false.
+   * Otherwise return true.
    */
   private _maybeHandleServiceDown(
     res: Result<http.IncomingMessage, Error>,
     script: ScriptReference
-  ): res is {ok: false; error: Error} {
-    if (this._serviceIsDown) {
-      return true;
-    }
+  ): res is {ok: true; value: http.IncomingMessage} {
     if (!res.ok) {
-      this._logger.log({
-        script,
-        type: 'info',
-        detail: 'generic',
-        message:
-          `Connection error from GitHub Actions service, caching disabled. ` +
-          'Detail: ' +
-          ('code' in res.error
-            ? `${(res.error as Error & {code: string}).code} `
-            : '') +
-          res.error.message,
-      });
+      if (!this._serviceIsDown) {
+        this._logger.log({
+          script,
+          type: 'info',
+          detail: 'generic',
+          message:
+            `Connection error from GitHub Actions service, caching disabled. ` +
+            'Detail: ' +
+            ('code' in res.error
+              ? `${(res.error as Error & {code: string}).code} `
+              : '') +
+            res.error.message,
+        });
+      }
     } else {
       switch (res.value.statusCode) {
-        default: {
-          return false;
-        }
         case /* Too Many Requests */ 429: {
-          this._logger.log({
-            script,
-            type: 'info',
-            detail: 'generic',
-            message: `Hit GitHub Actions cache rate limit, caching disabled.`,
-          });
+          if (!this._serviceIsDown) {
+            this._logger.log({
+              script,
+              type: 'info',
+              detail: 'generic',
+              message: `Hit GitHub Actions cache rate limit, caching disabled.`,
+            });
+          }
           break;
         }
         case /* Service Unavailable */ 503: {
-          this._logger.log({
-            script,
-            type: 'info',
-            detail: 'generic',
-            message: `GitHub Actions service is unavailable, caching disabled.`,
-          });
+          if (!this._serviceIsDown) {
+            this._logger.log({
+              script,
+              type: 'info',
+              detail: 'generic',
+              message: `GitHub Actions service is unavailable, caching disabled.`,
+            });
+          }
           break;
+        }
+        default: {
+          return true;
         }
       }
     }
     this._serviceIsDown = true;
-    return true;
+    return false;
   }
 
   private _computeCacheKey(script: ScriptReference): string {
@@ -512,7 +515,7 @@ export class GitHubActionsCache implements Cache {
     req.end(reqBody);
 
     const result = await resPromise;
-    if (this._maybeHandleServiceDown(result, script)) {
+    if (!this._maybeHandleServiceDown(result, script)) {
       return undefined;
     }
     const response = result.value;
