@@ -220,7 +220,7 @@ test(
   })
 );
 
-for (const code of [429, 503]) {
+for (const code of [429, 503, 'ECONNRESET'] as const) {
   test(
     `recovers from ${code} error`,
     timeout(async ({rig, server}) => {
