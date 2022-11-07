@@ -237,7 +237,7 @@ export class Analyzer {
     for (const failure of failures) {
       const supercedes = (failure as Partial<DependencyOnMissingPackageJson>)
         .supercedes;
-      if (supercedes != null) {
+      if (supercedes !== undefined) {
         failures.delete(supercedes);
       }
     }
@@ -318,7 +318,7 @@ export class Analyzer {
     if (syntaxInfo === undefined || syntaxInfo.scriptNode === undefined) {
       let node;
       let reason;
-      if (syntaxInfo?.wireitConfigNode?.name != null) {
+      if (syntaxInfo?.wireitConfigNode?.name !== undefined) {
         node = syntaxInfo.wireitConfigNode.name;
         reason = 'wireit-config-but-no-script' as const;
       } else {
@@ -511,7 +511,7 @@ export class Analyzer {
       scriptInfo.wireitConfigNode &&
       findNodeAtLocation(scriptInfo.wireitConfigNode, ['dependencies']);
     let encounteredError = false;
-    if (dependenciesAst == null) {
+    if (dependenciesAst === undefined) {
       return {dependencies, encounteredError};
     }
     const result = failUnlessArray(dependenciesAst, packageJson.jsonFile);
@@ -528,17 +528,104 @@ export class Analyzer {
     const uniqueDependencies = new Map<string, JsonAstNode>();
     const children = dependenciesAst.children ?? [];
     for (let i = 0; i < children.length; i++) {
+      // A dependency can be either a plain string, or an object with a "script"
+      // property plus optional extra annotations.
       const maybeUnresolved = children[i];
-      const stringResult = failUnlessNonBlankString(
-        maybeUnresolved,
-        packageJson.jsonFile
-      );
-      if (!stringResult.ok) {
+      let specifierResult;
+      let triggersRerun = true; // Default;
+      if (maybeUnresolved.type === 'string') {
+        specifierResult = failUnlessNonBlankString(
+          maybeUnresolved,
+          packageJson.jsonFile
+        );
+        if (!specifierResult.ok) {
+          encounteredError = true;
+          placeholder.failures.push(specifierResult.error);
+          continue;
+        }
+      } else if (maybeUnresolved.type === 'object') {
+        specifierResult = findNodeAtLocation(maybeUnresolved, ['script']);
+        if (specifierResult === undefined) {
+          encounteredError = true;
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+            diagnostic: {
+              severity: 'error',
+              message: `Dependency object must set a "script" property.`,
+              location: {
+                file: packageJson.jsonFile,
+                range: {
+                  offset: maybeUnresolved.offset,
+                  length: maybeUnresolved.length,
+                },
+              },
+            },
+          });
+          continue;
+        }
+        specifierResult = failUnlessNonBlankString(
+          specifierResult,
+          packageJson.jsonFile
+        );
+        if (!specifierResult.ok) {
+          encounteredError = true;
+          placeholder.failures.push(specifierResult.error);
+          continue;
+        }
+        const triggersRerunResult = findNodeAtLocation(maybeUnresolved, [
+          'triggersRerun',
+        ]);
+        if (triggersRerunResult !== undefined) {
+          if (
+            triggersRerunResult.value === true ||
+            triggersRerunResult.value === false
+          ) {
+            triggersRerun = triggersRerunResult.value;
+          } else {
+            encounteredError = true;
+            placeholder.failures.push({
+              type: 'failure',
+              reason: 'invalid-config-syntax',
+              script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+              diagnostic: {
+                severity: 'error',
+                message: `The "triggersRerun" property must be either true or false.`,
+                location: {
+                  file: packageJson.jsonFile,
+                  range: {
+                    offset: triggersRerunResult.offset,
+                    length: triggersRerunResult.length,
+                  },
+                },
+              },
+            });
+            continue;
+          }
+        }
+      } else {
         encounteredError = true;
-        placeholder.failures.push(stringResult.error);
+        placeholder.failures.push({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+          diagnostic: {
+            severity: 'error',
+            message: `Expected a string or object, but was ${maybeUnresolved.type}.`,
+            location: {
+              file: packageJson.jsonFile,
+              range: {
+                offset: maybeUnresolved.offset,
+                length: maybeUnresolved.length,
+              },
+            },
+          },
+        });
         continue;
       }
-      const unresolved = stringResult.value;
+
+      const unresolved = specifierResult.value;
       const result = this._resolveDependency(
         unresolved,
         placeholder,
@@ -588,8 +675,9 @@ export class Analyzer {
         uniqueDependencies.set(uniqueKey, unresolved);
         const placeHolderInfo = this._getPlaceholder(resolved);
         dependencies.push({
-          astNode: unresolved,
+          specifier: unresolved,
           config: placeHolderInfo.placeholder,
+          triggersRerun,
         });
         this._ongoingWorkPromises.push(
           (async () => {
@@ -670,7 +758,7 @@ export class Analyzer {
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
   ): undefined | ArrayNode<string> {
-    if (syntaxInfo.wireitConfigNode == null) {
+    if (syntaxInfo.wireitConfigNode === undefined) {
       return;
     }
     const filesNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
@@ -704,7 +792,7 @@ export class Analyzer {
     syntaxInfo: ScriptSyntaxInfo,
     command: JsonAstNode<string> | undefined
   ): undefined | ArrayNode<string> {
-    if (syntaxInfo.wireitConfigNode == null) {
+    if (syntaxInfo.wireitConfigNode === undefined) {
       return;
     }
     const outputNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
@@ -870,7 +958,7 @@ export class Analyzer {
     syntaxInfo: ScriptSyntaxInfo,
     files: undefined | ArrayNode<string>
   ): void {
-    if (syntaxInfo.wireitConfigNode == null) {
+    if (syntaxInfo.wireitConfigNode === undefined) {
       return;
     }
     const packageLocksNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
@@ -971,7 +1059,7 @@ export class Analyzer {
       }
       const trailArray = [...trail].map((key) => {
         const placeholderInfo = this._placeholders.get(key);
-        if (placeholderInfo == null) {
+        if (placeholderInfo === undefined) {
           throw new Error(
             `Internal error: placeholder not found for ${key} during cycle detection`
           );
@@ -993,7 +1081,9 @@ export class Analyzer {
         // Use the actual value in the array, because this could refer to
         // a script in another package.
         const nextName =
-          nextNode?.astNode?.value ?? next?.name ?? trailArray[cycleStart].name;
+          nextNode?.specifier?.value ??
+          next?.name ??
+          trailArray[cycleStart].name;
         const message =
           next === trailArray[cycleStart]
             ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
@@ -1005,7 +1095,7 @@ export class Analyzer {
 
         const culpritNode =
           // This should always be present
-          nextNode?.astNode ??
+          nextNode?.specifier ??
           // But failing that, fall back to the best node we have.
           current.configAstNode?.name ??
           current.scriptAstNode?.name;
@@ -1046,7 +1136,7 @@ export class Analyzer {
       };
       return {ok: false, error: this._markAsInvalid(config, failure)};
     }
-    if (config.dependencies != null && config.dependencies.length > 0) {
+    if (config.dependencies.length > 0) {
       // Sorting means that if the user re-orders the same set of dependencies,
       // the trail we take in this walk remains the same, so any cycle error
       // message we might throw will have the same trail, too. This also helps
@@ -1095,7 +1185,7 @@ export class Analyzer {
       }
       trail.delete(trailKey);
     }
-    if (dependencyStillUnvalidated != null) {
+    if (dependencyStillUnvalidated !== undefined) {
       // At least one of our dependencies was unvalidated, likely because it
       // had a syntax error or was missing necessary information. Therefore
       // we can't transition to valid either.

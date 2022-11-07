@@ -11,8 +11,8 @@ import {scriptReferenceToString} from './config.js';
 
 import type {
   ScriptConfig,
-  ScriptReference,
   ScriptReferenceString,
+  Dependency,
 } from './config.js';
 
 /**
@@ -111,18 +111,23 @@ export class Fingerprint {
    */
   static async compute(
     script: ScriptConfig,
-    dependencyFingerprints: Array<[ScriptReference, Fingerprint]>
+    dependencyFingerprints: Array<[Dependency, Fingerprint]>
   ): Promise<Fingerprint> {
     let allDependenciesAreFullyTracked = true;
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintData]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
+      if (!dep.triggersRerun) {
+        // triggersRerun: false means the fingerprint of the dependency isn't
+        // directly inherited.
+        continue;
+      }
       if (!depFingerprint.data.fullyTracked) {
         allDependenciesAreFullyTracked = false;
       }
       filteredDependencyFingerprints.push([
-        scriptReferenceToString(dep),
+        scriptReferenceToString(dep.config),
         depFingerprint.data,
       ]);
     }

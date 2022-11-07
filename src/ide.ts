@@ -110,10 +110,10 @@ export class IdeAnalyzer {
 
     const openFiles = new Set(this.openFiles);
     for (const failure of await this._analyzer.analyzeFiles([...openFiles])) {
-      if (failure.diagnostic != null) {
+      if (failure.diagnostic !== undefined) {
         addDiagnostic(failure.diagnostic);
       }
-      if (failure.diagnostics != null) {
+      if (failure.diagnostics !== undefined) {
         for (const diagnostic of failure.diagnostics) {
           addDiagnostic(diagnostic);
         }
@@ -159,8 +159,8 @@ export class IdeAnalyzer {
     } = scriptInfo;
     if (
       scriptInfo.kind === 'scripts-section-script' &&
-      scriptNode != null &&
-      wireitConfigNode == null
+      scriptNode !== undefined &&
+      wireitConfigNode === undefined
     ) {
       const edit = getEdit(packageJson.jsonFile, [
         {path: ['scripts', name], value: 'wireit'},
@@ -175,7 +175,10 @@ export class IdeAnalyzer {
         edit,
       });
     }
-    if (scriptInfo.kind === 'wireit-section-script' && scriptNode == null) {
+    if (
+      scriptInfo.kind === 'wireit-section-script' &&
+      scriptNode === undefined
+    ) {
       const edit = getEdit(packageJson.jsonFile, [
         {path: ['scripts', script.name], value: 'wireit'},
       ]);
@@ -194,8 +197,8 @@ export class IdeAnalyzer {
     }
 
     if (
-      scriptNode == null ||
-      wireitConfigNode == null ||
+      scriptNode === undefined ||
+      wireitConfigNode === undefined ||
       scriptNode.value === 'wireit'
     ) {
       return codeActions;
@@ -294,7 +297,7 @@ export class IdeAnalyzer {
       const dep = scriptInfo.dependency;
       const targetFile = dep.config.declaringFile;
       const targetNode = dep.config.configAstNode ?? dep.config.scriptAstNode;
-      if (targetFile == null || targetNode == null) {
+      if (targetFile === undefined || targetNode === undefined) {
         return;
       }
 
@@ -305,7 +308,7 @@ export class IdeAnalyzer {
       return [
         {
           originSelectionRange: sourceConverter.toIdeRange(
-            scriptInfo.dependency.astNode
+            scriptInfo.dependency.specifier
           ),
           targetUri: url.pathToFileURL(targetFile.path).toString(),
           targetRange: targetConverter.toIdeRange(
@@ -368,7 +371,7 @@ export class IdeAnalyzer {
       packageDir: pathlib.dirname(packageJson.jsonFile.path),
     });
     for (const dep of script.dependencies ?? []) {
-      if (offsetInsideRange(offset, dep.astNode)) {
+      if (offsetInsideRange(offset, dep.specifier)) {
         return {
           kind: 'dependency' as const,
           dependency: dep,

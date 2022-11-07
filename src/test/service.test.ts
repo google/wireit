@@ -960,4 +960,84 @@ test(
   })
 );
 
+test(
+  'service with triggersRerun:false does not require restart in watch mode',
+  timeout(async ({rig}) => {
+    //    service
+    //    /    \
+    //   v      v
+    // hard    soft
+    const service = await rig.newCommand();
+    const hard = await rig.newCommand();
+    const soft = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          service: 'wireit',
+          hard: 'wireit',
+          soft: 'wireit',
+        },
+        wireit: {
+          service: {
+            command: service.command,
+            service: true,
+            dependencies: [
+              'hard',
+              {
+                script: 'soft',
+                triggersRerun: false,
+              },
+            ],
+          },
+          hard: {
+            command: hard.command,
+            files: ['input/hard'],
+            output: [],
+          },
+          soft: {
+            command: soft.command,
+            files: ['input/soft'],
+            output: [],
+          },
+        },
+      },
+    });
+
+    // Initial run
+    await rig.write('input/hard', '1');
+    await rig.write('input/soft', '1');
+    const wireit = rig.exec('npm run service --watch');
+    const hardInv1 = await hard.nextInvocation();
+    const softInv1 = await soft.nextInvocation();
+    hardInv1.exit(0);
+    softInv1.exit(0);
+    const serviceInv1 = await service.nextInvocation();
+    await wireit.waitForLog(/Service started/);
+    await wireit.waitForLog(/Watching for file changes/);
+
+    // Changing input of soft dependency does not restart service
+    await rig.write('input/soft', '2');
+    const softInv2 = await soft.nextInvocation();
+    softInv2.exit(0);
+    await wireit.waitForLog(/Watching for file changes/);
+    assert.ok(serviceInv1.isRunning);
+
+    // Changing input of hard dependency does restart service
+    await rig.write('input/hard', '2');
+    const hardInv2 = await hard.nextInvocation();
+    hardInv2.exit(0);
+    await serviceInv1.closed;
+    await service.nextInvocation();
+    await wireit.waitForLog(/Service stopped/);
+    await wireit.waitForLog(/Service started/);
+    await wireit.waitForLog(/Watching for file changes/);
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(service.numInvocations, 2);
+    assert.equal(hard.numInvocations, 2);
+    assert.equal(soft.numInvocations, 2);
+  })
+);
+
 test.run();

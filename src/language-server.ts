@@ -118,7 +118,7 @@ documents.onDidClose((change) => {
 
 connection.onCodeAction(async (params) => {
   const document = documents.get(params.textDocument.uri);
-  if (document == null) {
+  if (document === undefined) {
     return [];
   }
   const path = url.fileURLToPath(document.uri);

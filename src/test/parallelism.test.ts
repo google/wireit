@@ -246,7 +246,7 @@ test(
 
       // Start up <concurrency> simultaneous Wireit invocations for the same
       // script.
-      const concurrency = 25;
+      const concurrency = 10;
       const wireits = [];
       for (let i = 0; i < concurrency; i++) {
         wireits.push(rig.exec('npm run a'));

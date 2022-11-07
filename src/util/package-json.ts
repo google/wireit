@@ -87,9 +87,9 @@ export class PackageJson {
     }
   }
 
-  private _getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
+  _getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
     let info = this._scripts.get(name);
-    if (info == null) {
+    if (info === undefined) {
       info = {name};
       this._scripts.set(name, info);
     }
@@ -114,11 +114,11 @@ export class PackageJson {
       return;
     }
     const scriptsSection = scriptsSectionResult.value;
-    if (scriptsSection == null) {
+    if (scriptsSection === undefined) {
       return;
     }
     const fail = failUnlessJsonObject(scriptsSection, this.jsonFile);
-    if (fail != null) {
+    if (fail !== undefined) {
       failures.push(fail);
       return;
     }
@@ -126,10 +126,10 @@ export class PackageJson {
       if (child.type !== 'property') {
         continue;
       }
-      const [rawName, rawValue] = child.children ?? [];
-      if (rawName == null || rawValue == null) {
+      if (child.children === undefined) {
         continue;
       }
+      const [rawName, rawValue] = child.children;
       const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
       if (!nameResult.ok) {
         failures.push(nameResult.error);
@@ -169,11 +169,11 @@ export class PackageJson {
       return;
     }
     const wireitSection = wireitSectionResult.value;
-    if (wireitSection == null) {
+    if (wireitSection === undefined) {
       return;
     }
     const fail = failUnlessJsonObject(wireitSection, this.jsonFile);
-    if (fail != null) {
+    if (fail !== undefined) {
       failures.push(fail);
       return;
     }
@@ -181,17 +181,17 @@ export class PackageJson {
       if (child.type !== 'property') {
         continue;
       }
-      const [rawName, rawValue] = child.children ?? [];
-      if (rawName == null || rawValue == null) {
+      if (child.children === undefined) {
         continue;
       }
+      const [rawName, rawValue] = child.children ?? [];
       const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
       if (!nameResult.ok) {
         failures.push(nameResult.error);
         continue;
       }
       const fail = failUnlessJsonObject(rawValue, this.jsonFile);
-      if (fail != null) {
+      if (fail !== undefined) {
         failures.push(fail);
         continue;
       }

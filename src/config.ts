@@ -44,9 +44,12 @@ export interface ScriptReferenceWithCommand extends ScriptReference {
   extraArgs: string[] | undefined;
 }
 
-export interface Dependency<Config extends PotentiallyValidScriptConfig> {
+export interface Dependency<
+  Config extends PotentiallyValidScriptConfig = ScriptConfig
+> {
   config: Config;
-  astNode: JsonAstNode<string>;
+  specifier: JsonAstNode<string>;
+  triggersRerun: boolean;
 }
 
 export type ScriptConfig =
@@ -132,7 +135,7 @@ interface BaseScriptConfig extends ScriptReference {
    * directory + script name, but the {@link Executor} then randomizes the order
    * during execution.
    */
-  dependencies: Array<Dependency<ScriptConfig>>;
+  dependencies: Array<Dependency>;
 
   /**
    * The services that need to be started before we can run.

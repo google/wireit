@@ -173,12 +173,39 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:8:9 Expected a string, but was array.
+❌ package.json:8:9 Expected a string or object, but was array.
             []
             ~~`
     );
   })
 );
+
+test(`dependencies.script is not a string (object form)`, async ({rig}) => {
+  await rig.write('package.json', {
+    scripts: {
+      a: 'wireit',
+    },
+    wireit: {
+      a: {
+        dependencies: [
+          {
+            script: [],
+          },
+        ],
+      },
+    },
+  });
+  const execResult = rig.exec(`npm run a`);
+  const done = await execResult.exit;
+  assert.equal(done.code, 1);
+  checkScriptOutput(
+    done.stderr,
+    `
+❌ package.json:9:21 Expected a string, but was array.
+              "script": []
+                        ~~`
+  );
+});
 
 test(
   'dependency is empty or blank',
@@ -207,6 +234,66 @@ test(
     );
   })
 );
+
+test(`dependencies.script is empty or blank (object form)`, async ({rig}) => {
+  await rig.write('package.json', {
+    scripts: {
+      a: 'wireit',
+      1: 'wireit',
+    },
+    wireit: {
+      a: {
+        command: 'true',
+        dependencies: [
+          {
+            script: '',
+          },
+        ],
+      },
+      1: {
+        command: 'true',
+      },
+    },
+  });
+  const execResult = rig.exec(`npm run a`);
+  const done = await execResult.exit;
+  assert.equal(done.code, 1);
+  checkScriptOutput(
+    done.stderr,
+    `
+❌ package.json:14:21 Expected this field to be nonempty
+              "script": ""
+                        ~~`
+  );
+});
+
+test(`dependencies.script is missing (object form)`, async ({rig}) => {
+  await rig.write('package.json', {
+    scripts: {
+      a: 'wireit',
+      1: 'wireit',
+    },
+    wireit: {
+      a: {
+        command: 'true',
+        dependencies: [{}],
+      },
+      1: {
+        command: 'true',
+      },
+    },
+  });
+  const execResult = rig.exec(`npm run a`);
+  const done = await execResult.exit;
+  assert.equal(done.code, 1);
+  checkScriptOutput(
+    done.stderr,
+    `
+❌ package.json:13:9 Dependency object must set a "script" property.
+            {}
+            ~~`
+  );
+});
 
 test(
   'command is not a string',
@@ -640,6 +727,39 @@ test(
       )}"
             "./child:missing"
                      ~~~~~~~`
+    );
+  })
+);
+
+test(
+  'missing cross package dependency (object form)',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: [{script: './child:missing'}],
+          },
+        },
+      },
+      'child/package.json': {
+        scripts: {},
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:9:30 Cannot find script named "missing" in package "${rig.resolve(
+        'child'
+      )}"
+              "script": "./child:missing"
+                                 ~~~~~~~`
     );
   })
 );
@@ -1829,6 +1949,43 @@ test(
     ~~~~~~~~~~~~~
           ]
     ~~~~~~~`
+    );
+  })
+);
+
+test(
+  'dependencies.triggersRerun is not a boolean',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: [
+              {
+                script: 'b',
+                triggersRerun: 1,
+              },
+            ],
+          },
+          b: {
+            command: 'true',
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:11:28 The "triggersRerun" property must be either true or false.
+              "triggersRerun": 1
+                               ~`
     );
   })
 );

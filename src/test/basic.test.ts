@@ -364,6 +364,53 @@ test(
 );
 
 test(
+  'cross-package dependency using object format',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'foo/package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            dependencies: [
+              {
+                script: '../bar:b',
+              },
+            ],
+          },
+        },
+      },
+      'bar/package.json': {
+        scripts: {
+          b: 'wireit',
+        },
+        wireit: {
+          b: {
+            command: cmdB.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run a', {cwd: 'foo'});
+
+    const invB = await cmdB.nextInvocation();
+    invB.exit(0);
+
+    const invA = await cmdA.nextInvocation();
+    invA.exit(0);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdB.numInvocations, 1);
+  })
+);
+
+test(
   'cross-package dependency that validly cycles back to the first package',
   timeout(async ({rig}) => {
     // Cycles between packages are fine, as long as there aren't cycles in the
@@ -995,5 +1042,98 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
     })
   );
 }
+
+test(
+  'triggersRerun:false dependency does not inherit fingerprint',
+  timeout(async ({rig}) => {
+    //  a --[triggersRerun:false]--> b --> c
+    const a = await rig.newCommand();
+    const b = await rig.newCommand();
+    const c = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: a.command,
+            dependencies: [
+              {
+                script: 'b',
+                triggersRerun: false,
+              },
+            ],
+            files: ['inputs/a'],
+            output: [],
+          },
+          b: {
+            command: b.command,
+            dependencies: ['c'],
+            files: ['inputs/b'],
+            output: [],
+          },
+          c: {
+            command: c.command,
+            files: ['inputs/c'],
+            output: [],
+          },
+        },
+      },
+    });
+
+    // Initially everything runs.
+    console.log(0);
+    {
+      await rig.write('inputs/a', 'v1');
+      await rig.write('inputs/b', 'v1');
+      await rig.write('inputs/c', 'v1');
+      const wireit = rig.exec('npm run a');
+      (await c.nextInvocation()).exit(0);
+      (await b.nextInvocation()).exit(0);
+      (await a.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 1);
+      assert.equal(b.numInvocations, 1);
+      assert.equal(c.numInvocations, 1);
+    }
+
+    // Changing input of B re-runs B but not A.
+    {
+      await rig.write('inputs/b', 'v2');
+      const wireit = rig.exec('npm run a');
+      (await b.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 1);
+      assert.equal(b.numInvocations, 2);
+      assert.equal(c.numInvocations, 1);
+    }
+
+    // Changing input of C re-runs B and C but not A.
+    {
+      await rig.write('inputs/c', 'v2');
+      const wireit = rig.exec('npm run a');
+      (await c.nextInvocation()).exit(0);
+      (await b.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 1);
+      assert.equal(b.numInvocations, 3);
+      assert.equal(c.numInvocations, 2);
+    }
+
+    // Changing input of A re-runs A (just to be sure!).
+    {
+      await rig.write('inputs/a', 'v2');
+      const wireit = rig.exec('npm run a');
+      (await a.nextInvocation()).exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(a.numInvocations, 2);
+      assert.equal(b.numInvocations, 3);
+      assert.equal(c.numInvocations, 2);
+    }
+  })
+);
 
 test.run();

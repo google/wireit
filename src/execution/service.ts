@@ -10,7 +10,7 @@ import {Deferred} from '../util/deferred.js';
 import {ScriptChildProcess} from '../script-child-process.js';
 
 import type {ExecutionResult} from './base.js';
-import type {ScriptReference, ServiceScriptConfig} from '../config.js';
+import type {Dependency, ServiceScriptConfig} from '../config.js';
 import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
@@ -348,7 +348,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   }
 
   private _onDepsExecuted(
-    depFingerprints: Array<[ScriptReference, Fingerprint]>
+    depFingerprints: Array<[Dependency, Fingerprint]>
   ): void {
     switch (this._state.id) {
       case 'executingDeps': {

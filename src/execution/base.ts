@@ -10,7 +10,7 @@ import {Deferred} from '../util/deferred.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
-import type {ScriptConfig, ScriptReference} from '../config.js';
+import type {Dependency, ScriptConfig} from '../config.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
 
@@ -70,7 +70,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
    * Execute all of this script's dependencies.
    */
   protected async _executeDependencies(): Promise<
-    Result<Array<[ScriptReference, Fingerprint]>, Failure[]>
+    Result<Array<[Dependency, Fingerprint]>, Failure[]>
   > {
     // Randomize the order we execute dependencies to make it less likely for a
     // user to inadvertently depend on any specific order, which could indicate
@@ -82,7 +82,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
         return this._executor.getExecution(dependency.config).execute();
       })
     );
-    const results: Array<[ScriptReference, Fingerprint]> = [];
+    const results: Array<[Dependency, Fingerprint]> = [];
     const errors = new Set<Failure>();
     for (let i = 0; i < dependencyResults.length; i++) {
       const result = dependencyResults[i];
@@ -91,7 +91,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
           errors.add(error);
         }
       } else {
-        results.push([this._config.dependencies[i].config, result.value]);
+        results.push([this._config.dependencies[i], result.value]);
       }
     }
     if (errors.size > 0) {
