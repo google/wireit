@@ -19,6 +19,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Fixed memory leak in watch mode.
 
+- Added graceful recovery from `ECONNRESET` and other connection errors when
+  using GitHub Actions caching.
+
 ## [0.7.2] - 2022-09-25
 
 ### Fixed

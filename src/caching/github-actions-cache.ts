@@ -120,26 +120,26 @@ export class GitHubActionsCache implements Cache {
 
     const {req, resPromise} = this._request(url);
     req.end();
-    const res = await resPromise;
+    const result = await resPromise;
+    if (!this._maybeHandleServiceDown(result, script)) {
+      return undefined;
+    }
+    const response = result.value;
 
-    if (res.statusCode === /* No Content */ 204) {
+    if (response.statusCode === /* No Content */ 204) {
       return undefined;
     }
 
-    if (isOk(res)) {
-      const {archiveLocation} = JSON.parse(await readBody(res)) as {
+    if (isOk(response)) {
+      const {archiveLocation} = JSON.parse(await readBody(response)) as {
         archiveLocation: string;
       };
       return new GitHubActionsCacheHit(script, archiveLocation);
     }
 
-    if (this._maybeHandleServiceDown(res, script)) {
-      return undefined;
-    }
-
     throw new Error(
-      `GitHub Cache check HTTP ${String(res.statusCode)} error: ` +
-        (await readBody(res))
+      `GitHub Cache check HTTP ${String(response.statusCode)} error: ` +
+        (await readBody(response))
     );
   }
 
@@ -263,17 +263,19 @@ export class GitHubActionsCache implements Cache {
           req.end();
         });
 
-        const res = await resPromise;
-
-        if (this._maybeHandleServiceDown(res, script)) {
+        const result = await resPromise;
+        if (!this._maybeHandleServiceDown(result, script)) {
           return false;
         }
+        const response = result.value;
 
-        if (!isOk(res)) {
+        if (!isOk(response)) {
           throw new Error(
             `GitHub Cache upload HTTP ${String(
-              res.statusCode
-            )} error: ${await readBody(res)}\nopts: ${JSON.stringify(opts)}`
+              response.statusCode
+            )} error: ${await readBody(response)}\nopts: ${JSON.stringify(
+              opts
+            )}`
           );
         }
       }
@@ -306,17 +308,18 @@ export class GitHubActionsCache implements Cache {
       },
     });
     req.end(reqBody);
-    const res = await resPromise;
 
-    if (this._maybeHandleServiceDown(res, script)) {
+    const result = await resPromise;
+    if (!this._maybeHandleServiceDown(result, script)) {
       return false;
     }
+    const response = result.value;
 
-    if (!isOk(res)) {
+    if (!isOk(response)) {
       throw new Error(
         `GitHub Cache commit HTTP ${String(
-          res.statusCode
-        )} error: ${await readBody(res)}`
+          response.statusCode
+        )} error: ${await readBody(response)}`
       );
     }
 
@@ -326,7 +329,10 @@ export class GitHubActionsCache implements Cache {
   private _request(
     url: URL,
     options?: http.RequestOptions
-  ): {req: http.ClientRequest; resPromise: Promise<http.IncomingMessage>} {
+  ): {
+    req: http.ClientRequest;
+    resPromise: Promise<Result<http.IncomingMessage, Error>>;
+  } {
     return request(url, {
       ...options,
       headers: {
@@ -341,41 +347,59 @@ export class GitHubActionsCache implements Cache {
 
   /**
    * If we received an error that indicates something is wrong with the GitHub
-   * Actions service that is not our fault, log an error and return true.
-   * Otherwise return false.
+   * Actions service that is not our fault, log an error and return false.
+   * Otherwise return true.
    */
   private _maybeHandleServiceDown(
-    res: http.IncomingMessage,
+    res: Result<http.IncomingMessage, Error>,
     script: ScriptReference
-  ): boolean {
-    if (this._serviceIsDown) {
-      return true;
-    }
-    switch (res.statusCode) {
-      default: {
-        return false;
-      }
-      case /* Too Many Requests */ 429: {
+  ): res is {ok: true; value: http.IncomingMessage} {
+    if (!res.ok) {
+      if (!this._serviceIsDown) {
         this._logger.log({
           script,
           type: 'info',
           detail: 'generic',
-          message: `Hit GitHub Actions cache rate limit, caching disabled.`,
+          message:
+            `Connection error from GitHub Actions service, caching disabled. ` +
+            'Detail: ' +
+            ('code' in res.error
+              ? `${(res.error as Error & {code: string}).code} `
+              : '') +
+            res.error.message,
         });
-        break;
       }
-      case /* Service Unavailable */ 503: {
-        this._logger.log({
-          script,
-          type: 'info',
-          detail: 'generic',
-          message: `GitHub Actions service is unavailable, caching disabled.`,
-        });
-        break;
+    } else {
+      switch (res.value.statusCode) {
+        case /* Too Many Requests */ 429: {
+          if (!this._serviceIsDown) {
+            this._logger.log({
+              script,
+              type: 'info',
+              detail: 'generic',
+              message: `Hit GitHub Actions cache rate limit, caching disabled.`,
+            });
+          }
+          break;
+        }
+        case /* Service Unavailable */ 503: {
+          if (!this._serviceIsDown) {
+            this._logger.log({
+              script,
+              type: 'info',
+              detail: 'generic',
+              message: `GitHub Actions service is unavailable, caching disabled.`,
+            });
+          }
+          break;
+        }
+        default: {
+          return true;
+        }
       }
     }
     this._serviceIsDown = true;
-    return true;
+    return false;
   }
 
   private _computeCacheKey(script: ScriptReference): string {
@@ -489,27 +513,28 @@ export class GitHubActionsCache implements Cache {
       },
     });
     req.end(reqBody);
-    const res = await resPromise;
 
-    if (isOk(res)) {
-      const resData = JSON.parse(await readBody(res)) as {
+    const result = await resPromise;
+    if (!this._maybeHandleServiceDown(result, script)) {
+      return undefined;
+    }
+    const response = result.value;
+
+    if (isOk(response)) {
+      const resData = JSON.parse(await readBody(response)) as {
         cacheId: number;
       };
       return resData.cacheId;
     }
 
-    if (res.statusCode === /* Conflict */ 409) {
-      return undefined;
-    }
-
-    if (this._maybeHandleServiceDown(res, script)) {
+    if (response.statusCode === /* Conflict */ 409) {
       return undefined;
     }
 
     throw new Error(
       `GitHub Cache reserve HTTP ${String(
-        res.statusCode
-      )} error: ${await readBody(res)}`
+        response.statusCode
+      )} error: ${await readBody(response)}`
     );
   }
 }
@@ -543,17 +568,21 @@ class GitHubActionsCacheHit implements CacheHit {
   private async _download(tarballPath: string): Promise<void> {
     const {req, resPromise} = request(this._url);
     req.end();
-    const res = await resPromise;
-    if (!isOk(res)) {
+    const result = await resPromise;
+    if (!result.ok) {
+      throw new Error(`GitHub Cache download TCP error`);
+    }
+    const response = result.value;
+    if (!isOk(response)) {
       throw new Error(
-        `GitHub Cache download HTTP ${String(res.statusCode)} error`
+        `GitHub Cache download HTTP ${String(response.statusCode)} error`
       );
     }
     await new Promise<void>((resolve, reject) => {
       const writeTarballStream = createWriteStream(tarballPath);
       writeTarballStream.on('error', (error) => reject(error));
-      res.on('error', (error) => reject(error));
-      res.pipe(writeTarballStream);
+      response.on('error', (error) => reject(error));
+      response.pipe(writeTarballStream);
       writeTarballStream.on('close', () => {
         resolve();
       });
@@ -582,7 +611,7 @@ function request(
   options?: http.RequestOptions
 ): {
   req: http.ClientRequest;
-  resPromise: Promise<http.IncomingMessage>;
+  resPromise: Promise<Result<http.IncomingMessage, Error>>;
 } {
   const opts = {
     ...options,
@@ -593,14 +622,16 @@ function request(
     },
   };
   let req!: http.ClientRequest;
-  const resPromise = new Promise<http.IncomingMessage>((resolve, reject) => {
-    req = https.request(url, opts, (res) => {
-      resolve(res);
-    });
-    req.on('error', (error) => {
-      reject(error);
-    });
-  });
+  const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
+    (resolve) => {
+      req = https.request(url, opts, (value) => {
+        resolve({ok: true, value});
+      });
+      req.on('error', (error) => {
+        resolve({ok: false, error});
+      });
+    }
+  );
   return {req, resPromise};
 }
 

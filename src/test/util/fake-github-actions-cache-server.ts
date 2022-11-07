@@ -106,7 +106,7 @@ export class FakeGitHubActionsCacheServer {
   };
 
   private _nextEntryId = 0;
-  private _forcedErrors = new Map<ApiName, number>();
+  private _forcedErrors = new Map<ApiName, number | 'ECONNRESET'>();
   private readonly _entryIdToEntry = new Map<EntryId, CacheEntry>();
   private readonly _keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
   private readonly _tarballIdToEntryId = new Map<TarballId, EntryId>();
@@ -155,7 +155,7 @@ export class FakeGitHubActionsCacheServer {
     });
   }
 
-  forceErrorOnNextRequest(apiName: ApiName, code: number): void {
+  forceErrorOnNextRequest(apiName: ApiName, code: number | 'ECONNRESET'): void {
     this._forcedErrors.set(apiName, code);
   }
 
@@ -190,7 +190,11 @@ export class FakeGitHubActionsCacheServer {
     const code = this._forcedErrors.get(apiName);
     if (code !== undefined) {
       this._forcedErrors.delete(apiName);
-      this._respond(response, code, `Forcing ${code} error for ${apiName}`);
+      if (code === 'ECONNRESET') {
+        response.destroy();
+      } else {
+        this._respond(response, code, `Forcing ${code} error for ${apiName}`);
+      }
       return true;
     }
     return false;
