@@ -119,7 +119,8 @@ test(
         workerPool,
         undefined,
         'no-new',
-        undefined
+        undefined,
+        true
       );
       const resultPromise = executor.execute();
       assert.ok(numLiveExecutors >= 1);
@@ -185,7 +186,8 @@ test(
         workerPool,
         undefined,
         'no-new',
-        previousServices
+        previousServices,
+        true
       );
       const resultPromise = executor.execute();
       assert.ok(numLiveExecutors >= 1);
@@ -274,7 +276,8 @@ test(
         workerPool,
         undefined,
         'no-new',
-        previousServices
+        previousServices,
+        true
       );
       const resultPromise = executor.execute();
       assert.ok(numLiveExecutors >= 1);

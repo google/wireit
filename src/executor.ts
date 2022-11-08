@@ -71,6 +71,7 @@ export class Executor {
   private readonly _logger: Logger;
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
+  private readonly _isWatchMode: boolean;
 
   /** Resolves when the first failure occurs in any script. */
   private readonly _failureOccured = new Deferred<void>();
@@ -87,7 +88,8 @@ export class Executor {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,
-    previousIterationServices: ServiceMap | undefined
+    previousIterationServices: ServiceMap | undefined,
+    isWatchMode: boolean
   ) {
     executorConstructorHook?.(this);
     this._rootConfig = rootConfig;
@@ -95,23 +97,29 @@ export class Executor {
     this._workerPool = workerPool;
     this._cache = cache;
     this._previousIterationServices = previousIterationServices;
+    this._isWatchMode = isWatchMode;
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
     void this._failureOccured.promise.then(() => {
-      // Services should stop in any mode.
-      this._stopServices.resolve();
       switch (failureMode) {
         case 'continue': {
+          if (!this._isWatchMode) {
+            this._stopServices.resolve();
+          }
           break;
         }
         case 'no-new': {
           this._stopStartingNewScripts.resolve();
+          if (!this._isWatchMode) {
+            this._stopServices.resolve();
+          }
           break;
         }
         case 'kill': {
           this._stopStartingNewScripts.resolve();
           this._killRunningScripts.resolve();
+          this._stopServices.resolve();
           break;
         }
         default: {

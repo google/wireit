@@ -546,7 +546,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
 
   test(
     `after one persistent service fails, other persistent services stop, ` +
-      `and wireit exits non-zero`,
+      `and wireit exits non-zero with failure mode ${failureMode}`,
     //      entrypoint
     //        /   \
     //       v     v
@@ -590,6 +590,97 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
     })
   );
 }
+
+for (const failureMode of ['continue', 'no-new']) {
+  test(
+    `unrelated errors do not kill services in watch mode ` +
+      `with failure mode ${failureMode}`,
+    //      entrypoint
+    //        /   \
+    //       v     v
+    // service   standard
+    timeout(async ({rig}) => {
+      const service = await rig.newCommand();
+      const standard = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            service: 'wireit',
+            standard: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['service', 'standard'],
+            },
+            service: {
+              command: service.command,
+              service: true,
+            },
+            standard: {
+              command: standard.command,
+            },
+          },
+        },
+      });
+
+      const wireit = rig.exec('npm run entrypoint --watch', {
+        env: {WIREIT_FAILURES: failureMode},
+      });
+      const serviceInv = await service.nextInvocation();
+      const standardInv = await standard.nextInvocation();
+      standardInv.exit(1);
+      await wireit.waitForLog(/Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.ok(serviceInv.isRunning);
+      wireit.kill();
+      await wireit.exit;
+    })
+  );
+}
+
+test(
+  `unrelated errors kill services in watch mode with failure mode kill`,
+  //      entrypoint
+  //        /   \
+  //       v     v
+  // service   standard
+  timeout(async ({rig}) => {
+    const service = await rig.newCommand();
+    const standard = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          entrypoint: 'wireit',
+          service: 'wireit',
+          standard: 'wireit',
+        },
+        wireit: {
+          entrypoint: {
+            dependencies: ['service', 'standard'],
+          },
+          service: {
+            command: service.command,
+            service: true,
+          },
+          standard: {
+            command: standard.command,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run entrypoint --watch', {
+      env: {WIREIT_FAILURES: 'kill'},
+    });
+    const serviceInv = await service.nextInvocation();
+    const standardInv = await standard.nextInvocation();
+    standardInv.exit(1);
+    await serviceInv.closed;
+    wireit.kill();
+    await wireit.exit;
+  })
+);
 
 test(
   'ephemeral service shuts down between watch iterations',

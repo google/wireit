@@ -260,7 +260,8 @@ export class Watcher {
       this._workerPool,
       this._cache,
       this._failureMode,
-      this._previousIterationServices
+      this._previousIterationServices,
+      true
     );
     const result = await this._executor.execute();
     if (result.ok) {

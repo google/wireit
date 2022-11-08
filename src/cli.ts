@@ -96,7 +96,8 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       workerPool,
       cache,
       options.failureMode,
-      undefined
+      undefined,
+      false
     );
     process.on('SIGINT', () => {
       executor.abort();
