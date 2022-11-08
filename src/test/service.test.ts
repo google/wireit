@@ -619,22 +619,34 @@ for (const failureMode of ['continue', 'no-new']) {
             },
             standard: {
               command: standard.command,
+              files: ['input/standard'],
             },
           },
         },
       });
 
+      await rig.write('input/standard', '1');
       const wireit = rig.exec('npm run entrypoint --watch', {
         env: {WIREIT_FAILURES: failureMode},
       });
       const serviceInv = await service.nextInvocation();
-      const standardInv = await standard.nextInvocation();
-      standardInv.exit(1);
+      const standardInv1 = await standard.nextInvocation();
+      standardInv1.exit(1);
       await wireit.waitForLog(/Watching for file changes/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(serviceInv.isRunning);
+
+      await rig.write('input/standard', '2');
+      const standardInv2 = await standard.nextInvocation();
+      standardInv2.exit(0);
+      await wireit.waitForLog(/Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.ok(serviceInv.isRunning);
+
       wireit.kill();
       await wireit.exit;
+      assert.equal(service.numInvocations, 1);
+      assert.equal(standard.numInvocations, 2);
     })
   );
 }

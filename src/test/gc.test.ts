@@ -127,8 +127,8 @@ test(
       assert.ok(numLiveExecutions >= 1);
       (await standard.nextInvocation()).exit(0);
       const result = await resultPromise;
-      if (!result.ok) {
-        for (const error of result.error) {
+      if (result.errors.length > 0) {
+        for (const error of result.errors) {
           logger.log(error);
         }
         throw new Error(`Execution error`);
@@ -193,13 +193,13 @@ test(
       assert.ok(numLiveExecutors >= 1);
       assert.ok(numLiveExecutions >= 1);
       const result = await resultPromise;
-      if (!result.ok) {
-        for (const error of result.error) {
+      if (result.errors.length > 0) {
+        for (const error of result.errors) {
           logger.log(error);
         }
         throw new Error(`Execution error`);
       }
-      previousServices = result.value;
+      previousServices = result.persistentServices;
       if (i === 0) {
         await service.nextInvocation();
       }
@@ -288,13 +288,13 @@ test(
       await serviceEphemeral.nextInvocation();
       (await standard.nextInvocation()).exit(0);
       const result = await resultPromise;
-      if (!result.ok) {
-        for (const error of result.error) {
+      if (result.errors.length > 0) {
+        for (const error of result.errors) {
           logger.log(error);
         }
         throw new Error(`Execution error`);
       }
-      previousServices = result.value;
+      previousServices = result.persistentServices;
     }
 
     for (const service of previousServices!.values()) {

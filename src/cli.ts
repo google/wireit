@@ -84,6 +84,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       watcher.abort();
     });
     await watcher.watch();
+    return {ok: true, value: undefined};
   } else {
     const analyzer = new Analyzer();
     const {config} = await analyzer.analyze(options.script, options.extraArgs);
@@ -102,28 +103,25 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     process.on('SIGINT', () => {
       executor.abort();
     });
-    const result = await executor.execute();
-    if (!result.ok) {
-      return result;
-    }
-    const persistentServices = result.value;
+    const {persistentServices, errors} = await executor.execute();
     if (persistentServices.size > 0) {
-      const failures: Failure[] = [];
       for (const service of persistentServices.values()) {
         const result = await service.terminated;
         if (!result.ok) {
-          failures.push(result.error);
+          errors.push(result.error);
         }
       }
-      if (failures.length > 0) {
+      if (errors.length > 0) {
         return {
           ok: false,
-          error: failures,
+          error: errors,
         };
       }
     }
+    return errors.length === 0
+      ? {ok: true, value: undefined}
+      : {ok: false, error: errors};
   }
-  return {ok: true, value: undefined};
 };
 
 const result = await run();
