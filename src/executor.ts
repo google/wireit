@@ -19,7 +19,6 @@ import type {
   ServiceScriptConfig,
   StandardScriptConfig,
 } from './config.js';
-import type {Result} from './error.js';
 import type {Failure} from './event.js';
 
 type Execution =
@@ -150,7 +149,10 @@ export class Executor {
   /**
    * Execute the root script.
    */
-  async execute(): Promise<Result<ServiceMap, Failure[]>> {
+  async execute(): Promise<{
+    persistentServices: ServiceMap;
+    errors: Failure[];
+  }> {
     if (
       this._previousIterationServices !== undefined &&
       this._previousIterationServices.size > 0
@@ -204,10 +206,10 @@ export class Executor {
     // mode we'll have a chain of references all the way back through every
     // iteration.
     this._previousIterationServices = undefined;
-    if (errors.length > 0) {
-      return {ok: false, error: errors};
-    }
-    return {ok: true, value: this._persistentServices};
+    return {
+      persistentServices: this._persistentServices,
+      errors,
+    };
   }
 
   /**

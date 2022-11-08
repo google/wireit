@@ -264,13 +264,9 @@ export class Watcher {
       true
     );
     const result = await this._executor.execute();
-    if (result.ok) {
-      this._previousIterationServices = result.value;
-    } else {
-      this._previousIterationServices = undefined;
-      for (const error of result.error) {
-        this._logger.log(error);
-      }
+    this._previousIterationServices = result.persistentServices;
+    for (const error of result.errors) {
+      this._logger.log(error);
     }
     this._onRunDone();
   }
