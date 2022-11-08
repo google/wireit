@@ -1044,9 +1044,9 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
 }
 
 test(
-  'triggersRerun:false dependency does not inherit fingerprint',
+  'cascade:false dependency does not inherit fingerprint',
   timeout(async ({rig}) => {
-    //  a --[triggersRerun:false]--> b --> c
+    //  a --[cascade:false]--> b --> c
     const a = await rig.newCommand();
     const b = await rig.newCommand();
     const c = await rig.newCommand();
@@ -1063,7 +1063,7 @@ test(
             dependencies: [
               {
                 script: 'b',
-                triggersRerun: false,
+                cascade: false,
               },
             ],
             files: ['inputs/a'],

@@ -118,8 +118,8 @@ export class Fingerprint {
       [ScriptReferenceString, FingerprintData]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
-      if (!dep.triggersRerun) {
-        // triggersRerun: false means the fingerprint of the dependency isn't
+      if (!dep.cascade) {
+        // cascade: false means the fingerprint of the dependency isn't
         // directly inherited.
         continue;
       }

@@ -49,7 +49,7 @@ export interface Dependency<
 > {
   config: Config;
   specifier: JsonAstNode<string>;
-  triggersRerun: boolean;
+  cascade: boolean;
 }
 
 export type ScriptConfig =
