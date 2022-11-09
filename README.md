@@ -540,7 +540,7 @@ There are two main reasons you might want to set `cascade` to `false`:
       "wireit": {
         "start": {
           "command": "node lib/server.js",
-          "server": true,
+          "service": true,
           "dependencies": [
             "build:server",
             {
