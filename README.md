@@ -454,9 +454,9 @@ By default, a script always needs to run (or restart in the case of
 of whether the dependency produced new or relevant output_.
 
 This automatic _cascade_ of script execution is the default behavior because it
-ensures that any _possible_ output produced by a script propagates to all other
+ensures that any _possible_ output produced by a dependent script propagates to all other
 scripts that might depend on it. In other words, Wireit does not assume that the
-`files` array completely describes the inputs to a script.
+`files` array completely describes the inputs to a script with dependencies.
 
 ### Disabling cascade
 
