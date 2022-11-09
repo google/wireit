@@ -62,9 +62,9 @@ test('dependency object is valid', () => {
   shouldValidate({wireit: {a: {dependencies: [{script: 'b'}]}}});
 });
 
-test('dependency object with triggersRerun:false annotation is valid', () => {
+test('dependency object with cascade:false annotation is valid', () => {
   shouldValidate({
-    wireit: {a: {dependencies: [{script: 'b', triggersRerun: false}]}},
+    wireit: {a: {dependencies: [{script: 'b', cascade: false}]}},
   });
 });
 
@@ -82,7 +82,7 @@ test('a script with all fields set is valid', () => {
     wireit: {
       a: {
         command: 'b',
-        dependencies: ['c', {script: 'c', triggersRerun: false}],
+        dependencies: ['c', {script: 'c', cascade: false}],
         files: ['d'],
         output: ['e'],
         clean: true,
@@ -250,13 +250,13 @@ test('dependencies[i].script is required', () => {
   );
 });
 
-test('dependencies[i].triggersRerun must be boolean', () => {
+test('dependencies[i].cascade must be boolean', () => {
   expectValidationErrors(
     {
       wireit: {
         a: {
           command: 'b',
-          dependencies: [{script: 'b', triggersRerun: 1}],
+          dependencies: [{script: 'b', cascade: 1}],
         },
       },
     },

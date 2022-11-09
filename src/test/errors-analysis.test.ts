@@ -1954,7 +1954,7 @@ test(
 );
 
 test(
-  'dependencies.triggersRerun is not a boolean',
+  'dependencies.cascade is not a boolean',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {
@@ -1967,7 +1967,7 @@ test(
             dependencies: [
               {
                 script: 'b',
-                triggersRerun: 1,
+                cascade: 1,
               },
             ],
           },
@@ -1983,9 +1983,9 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:11:28 The "triggersRerun" property must be either true or false.
-              "triggersRerun": 1
-                               ~`
+❌ package.json:11:22 The "cascade" property must be either true or false.
+              "cascade": 1
+                         ~`
     );
   })
 );

@@ -1064,7 +1064,7 @@ test(
 );
 
 test(
-  'service with triggersRerun:false does not require restart in watch mode',
+  'service with cascade:false does not require restart in watch mode',
   timeout(async ({rig}) => {
     //    service
     //    /    \
@@ -1088,7 +1088,7 @@ test(
               'hard',
               {
                 script: 'soft',
-                triggersRerun: false,
+                cascade: false,
               },
             ],
           },

@@ -532,7 +532,7 @@ export class Analyzer {
       // property plus optional extra annotations.
       const maybeUnresolved = children[i];
       let specifierResult;
-      let triggersRerun = true; // Default;
+      let cascade = true; // Default;
       if (maybeUnresolved.type === 'string') {
         specifierResult = failUnlessNonBlankString(
           maybeUnresolved,
@@ -574,15 +574,10 @@ export class Analyzer {
           placeholder.failures.push(specifierResult.error);
           continue;
         }
-        const triggersRerunResult = findNodeAtLocation(maybeUnresolved, [
-          'triggersRerun',
-        ]);
-        if (triggersRerunResult !== undefined) {
-          if (
-            triggersRerunResult.value === true ||
-            triggersRerunResult.value === false
-          ) {
-            triggersRerun = triggersRerunResult.value;
+        const cascadeResult = findNodeAtLocation(maybeUnresolved, ['cascade']);
+        if (cascadeResult !== undefined) {
+          if (cascadeResult.value === true || cascadeResult.value === false) {
+            cascade = cascadeResult.value;
           } else {
             encounteredError = true;
             placeholder.failures.push({
@@ -591,12 +586,12 @@ export class Analyzer {
               script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
               diagnostic: {
                 severity: 'error',
-                message: `The "triggersRerun" property must be either true or false.`,
+                message: `The "cascade" property must be either true or false.`,
                 location: {
                   file: packageJson.jsonFile,
                   range: {
-                    offset: triggersRerunResult.offset,
-                    length: triggersRerunResult.length,
+                    offset: cascadeResult.offset,
+                    length: cascadeResult.length,
                   },
                 },
               },
@@ -677,7 +672,7 @@ export class Analyzer {
         dependencies.push({
           specifier: unresolved,
           config: placeHolderInfo.placeholder,
-          triggersRerun,
+          cascade,
         });
         this._ongoingWorkPromises.push(
           (async () => {
