@@ -55,7 +55,7 @@ export class DiagnosticPrinter {
 
     const path = this._formatPath(diagnostic.location);
     let result = `❌ ${path} ${diagnostic.message}
-${drawSquiggle(diagnostic.location, 4)}`;
+    ${drawSquiggle(diagnostic.location, 4)}`;
     if (diagnostic.supplementalLocations) {
       for (const supplementalLocation of diagnostic.supplementalLocations) {
         result += '\n\n' + this._printSupplemental(supplementalLocation);
