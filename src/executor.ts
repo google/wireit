@@ -253,7 +253,8 @@ export class Executor {
           this,
           this._logger,
           this._stopServices.promise,
-          this._previousIterationServices?.get(key)
+          this._previousIterationServices?.get(key),
+          this._isWatchMode
         );
         if (config.isPersistent) {
           this._persistentServices.set(key, execution);
