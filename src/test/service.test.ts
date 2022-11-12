@@ -1143,4 +1143,82 @@ test(
   })
 );
 
+test(
+  'service in watch mode persists when non-cascading dependency restarts or fails',
+  // service1
+  //    |
+  //    v
+  // service2 (restarts and fails)
+  timeout(async ({rig}) => {
+    const service1 = await rig.newCommand();
+    const service2 = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          service1: 'wireit',
+          service2: 'wireit',
+        },
+        wireit: {
+          service1: {
+            command: service1.command,
+            service: true,
+            dependencies: [
+              {
+                script: 'service2',
+                cascade: false,
+              },
+            ],
+            files: ['input/service1'],
+          },
+          service2: {
+            command: service2.command,
+            service: true,
+            files: ['input/service2'],
+          },
+        },
+      },
+    });
+
+    await rig.write('input/service1', '1');
+    await rig.write('input/service2', '1');
+    const wireit = rig.exec('npm run service1 --watch');
+
+    // Services start in bottom-up order.
+    const service2Inv1 = await service2.nextInvocation();
+    await wireit.waitForLog(/\[service2\] Service started/);
+    const service1Inv1 = await service1.nextInvocation();
+    await wireit.waitForLog(/\[service1\] Service started/);
+    await wireit.waitForLog(/\[service1\] Watching for file changes/);
+
+    // service2 restarts.
+    await rig.write('input/service2', '2');
+    await service2Inv1.closed;
+    await wireit.waitForLog(/\[service2\] Service stopped/);
+    const service2Inv2 = await service2.nextInvocation();
+    await wireit.waitForLog(/\[service2\] Service started/);
+
+    // Wait a moment to increase confidence.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.ok(service1Inv1.isRunning);
+    assert.ok(service2Inv2.isRunning);
+    assert.not(service2Inv1.isRunning);
+
+    // service2 fails.
+    service2Inv2.exit(1);
+    await wireit.waitForLog(/\[service2\] Service exited unexpectedly/);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.ok(service1Inv1.isRunning);
+    assert.not(service2Inv2.isRunning);
+    assert.not(service2Inv1.isRunning);
+
+    wireit.kill();
+    await wireit.exit;
+    assert.not(service1Inv1.isRunning);
+    assert.not(service2Inv2.isRunning);
+    assert.not(service2Inv1.isRunning);
+    assert.equal(service1.numInvocations, 1);
+    assert.equal(service2.numInvocations, 2);
+  })
+);
+
 test.run();
