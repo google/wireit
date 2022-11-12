@@ -818,6 +818,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'failing': {
+        this._logger.log({
+          script: this._config,
+          type: 'info',
+          detail: 'service-stopped',
+        });
         this._enterFailedState(this._state.failure);
         return;
       }
