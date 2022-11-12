@@ -62,12 +62,14 @@ type ServiceState =
   | {
       id: 'stopping';
       child: ScriptChildProcess;
+      fingerprint: Fingerprint;
     }
   | {id: 'stopped'}
   | {
       id: 'failing';
       child: ScriptChildProcess;
       failure: Failure;
+      fingerprint: Fingerprint;
     }
   | {
       id: 'failed';
@@ -233,19 +235,19 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
-      case 'started': {
+      case 'started':
+      case 'stopping':
+      case 'failing': {
         return this._state.fingerprint;
       }
-      case 'stopping':
       case 'stopped':
-      case 'failed':
-      case 'failing':
-      case 'detached': {
-        return undefined;
+      case 'failed': {
+        return;
       }
       case 'initial':
       case 'executingDeps':
-      case 'fingerprinting': {
+      case 'fingerprinting':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -260,7 +262,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    */
   detach(): ScriptChildProcess | undefined {
     switch (this._state.id) {
-      case 'started': {
+      case 'started':
+      case 'stopping':
+      case 'failing': {
         const child = this._state.child;
         this._state = {id: 'detached'};
         // Note that for some reason, removing all listeners from stdout/stderr
@@ -271,10 +275,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         child.stderr.removeAllListeners('data');
         return child;
       }
-      case 'stopping':
       case 'stopped':
-      case 'failed':
-      case 'failing': {
+      case 'failed': {
         return undefined;
       }
       case 'unstarted':
@@ -695,6 +697,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'failing',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
           failure: {
             type: 'failure',
             script: this._config,
@@ -707,6 +710,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'failing',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
           failure: {
             type: 'failure',
             script: this._config,
@@ -829,6 +833,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'stopping',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
         };
         break;
       }
@@ -836,6 +841,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'stopping',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
         };
         break;
       }
