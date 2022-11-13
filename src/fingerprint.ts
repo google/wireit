@@ -78,6 +78,14 @@ export interface FingerprintData {
 
   // Must be sorted.
   dependencies: {[dependency: ScriptReferenceString]: FingerprintData};
+
+  service:
+    | {
+        readyWhen: {
+          lineMatches: string | undefined;
+        };
+      }
+    | undefined;
 }
 
 /**
@@ -202,6 +210,14 @@ export class Fingerprint {
           aRef.localeCompare(bRef)
         )
       ),
+      service:
+        script.service === undefined
+          ? undefined
+          : {
+              readyWhen: {
+                lineMatches: script.service.readyWhen.lineMatches?.toString(),
+              },
+            },
     };
     fingerprint._data = data as FingerprintData;
     return fingerprint;
