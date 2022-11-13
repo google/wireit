@@ -1221,4 +1221,57 @@ test(
   })
 );
 
+test(
+  'service waits for log before being considered started',
+  // standard
+  //    |
+  //    v
+  // service
+  timeout(async ({rig}) => {
+    const standard = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          standard: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          standard: {
+            command: standard.command,
+            dependencies: ['service'],
+          },
+          service: {
+            command: service.command,
+            service: {
+              readyWhen: {
+                lineMatches: 'Listening on port \\d+\\.',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run standard');
+    const serviceInv = await service.nextInvocation();
+
+    // Haven't logged anything yet. Not ready.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(standard.numInvocations, 0);
+
+    // Logged part of the expected line, but not all of it. Not ready.
+    serviceInv.stdout('Foo\nBar\nListening ');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(standard.numInvocations, 0);
+
+    // Logged the rest of the expected line. Ready!
+    serviceInv.stdout('on port 8080.\nBaz\n');
+    const standardInv = await standard.nextInvocation();
+
+    standardInv.exit(0);
+    assert.equal((await wireit.exit).code, 0);
+  })
+);
+
 test.run();
