@@ -1858,7 +1858,7 @@ test(
 );
 
 test(
-  'service is not a boolean',
+  'service is not a boolean or object',
   timeout(async ({rig}) => {
     await rig.write({
       'package.json': {
@@ -1879,7 +1879,7 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:8:18 The "service" property must be either true or false.
+❌ package.json:8:18 The "service" property must be either true, false, or an object.
           "service": 1
                      ~`
     );
@@ -1986,6 +1986,107 @@ test(
 ❌ package.json:11:22 The "cascade" property must be either true or false.
               "cascade": 1
                          ~`
+    );
+  })
+);
+
+test(
+  'service.readyWhen must be an object',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            service: {
+              readyWhen: 1,
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+    ❌ package.json:8:18 Expected an object.
+          "service": {
+                     ~
+            "readyWhen": 1
+    ~~~~~~~~~~~~~~~~~~~~~~
+          }
+    ~~~~~~~`
+    );
+  })
+);
+
+test(
+  'service.readyWhen.lineMatches must be a string',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            service: {
+              readyWhen: {
+                lineMatches: 1,
+              },
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+      ❌ package.json:10:26 Expected a string.
+              "lineMatches": 1
+                             ~`
+    );
+  })
+);
+
+test(
+  'service.readyWhen.lineMatches must be a valid regular expression',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            service: {
+              readyWhen: {
+                lineMatches: 'invalid[',
+              },
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+        ❌ package.json:10:26 SyntaxError: Invalid regular expression: /invalid[/: Unterminated character class
+              "lineMatches": "invalid["
+                             ~~~~~~~~~~`
     );
   })
 );
