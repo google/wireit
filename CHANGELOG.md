@@ -68,6 +68,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added graceful recovery from `ECONNRESET` and other connection errors when
   using GitHub Actions caching.
 
+- Fixed bug where a leading slash on a `files` or `output` path was incorrectly
+  interpreted as relative to the filesystem root, instead of relative to the
+  package, in watch mode.
+
 ## [0.7.2] - 2022-09-25
 
 ### Fixed
