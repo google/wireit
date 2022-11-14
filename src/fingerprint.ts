@@ -184,7 +184,7 @@ export class Fingerprint {
       // tracked.
       (script.command === undefined ||
         // A service. Fully tracked if we know its inputs. Can't produce output.
-        (script.service && script.files !== undefined) ||
+        (script.service !== undefined && script.files !== undefined) ||
         // A standard script. Fully tracked if we know both its inputs and
         // outputs.
         (script.files !== undefined && script.output !== undefined));

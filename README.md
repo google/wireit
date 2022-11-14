@@ -460,7 +460,7 @@ the given regular expression.
 
 In watch mode, a service will be restarted whenever one of its input files or
 dependencies change, except for dependencies with
-[`cascade`](#execution-cascade) set to `false`. See
+[`cascade`](#execution-cascade) set to `false`.
 
 ### Service output
 

@@ -12,6 +12,9 @@ import type {Result} from '../error.js';
 /**
  * Monitors the stdout and stderr of a child process line-by-line searching for
  * a match of the given regular expression.
+ *
+ * Note we can't use readline here because we want to check lines that haven't
+ * completed yet.
  */
 export class LineMonitor {
   private readonly _child: ScriptChildProcess;

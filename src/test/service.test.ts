@@ -1266,11 +1266,12 @@ test(
     assert.equal(standard.numInvocations, 0);
 
     // Logged the rest of the expected line. Ready!
-    serviceInv.stdout('on port 8080.\nBaz\n');
+    serviceInv.stdout('on port 8080.');
     const standardInv = await standard.nextInvocation();
 
     standardInv.exit(0);
     assert.equal((await wireit.exit).code, 0);
+    assert.equal(standard.numInvocations, 1);
   })
 );
 
