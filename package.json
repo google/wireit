@@ -16,7 +16,8 @@
     "bin/wireit.js",
     "lib/**/*.js",
     "!lib/test/**",
-    "schema.json"
+    "schema.json",
+    "wireit.svg"
   ],
   "engines": {
     "node": ">=14.14.0"
