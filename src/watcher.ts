@@ -453,14 +453,19 @@ const makeWatcher = (
   cwd: string,
   callback: () => void
 ): FileWatcher => {
-  const watcher = chokidar.watch(patterns, {
-    cwd,
-    // Ignore the initial "add" events emitted when chokidar first discovers
-    // each file. We already do an initial run, so these events are just noise
-    // that may trigger an unnecessary second run.
-    // https://github.com/paulmillr/chokidar#path-filtering
-    ignoreInitial: true,
-  });
+  const watcher = chokidar.watch(
+    // Trim leading slashes from patterns, to "re-root" all paths to the package
+    // directory, just as we do when globbing for script execution.
+    patterns.map((pattern) => pattern.replace(/^\/+/, '')),
+    {
+      cwd,
+      // Ignore the initial "add" events emitted when chokidar first discovers
+      // each file. We already do an initial run, so these events are just noise
+      // that may trigger an unnecessary second run.
+      // https://github.com/paulmillr/chokidar#path-filtering
+      ignoreInitial: true,
+    }
+  );
   watcher.on('all', callback);
   return {
     patterns,

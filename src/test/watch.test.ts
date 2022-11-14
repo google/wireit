@@ -818,4 +818,47 @@ test(
   })
 );
 
+test(
+  'strips leading slash from watch paths',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['/input.txt'],
+          },
+        },
+      },
+      'input.txt': 'v0',
+    });
+
+    const exec = rig.exec('npm run a --watch');
+
+    // Initial run.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+    }
+
+    // Changing an input file should cause another run.
+    {
+      await rig.writeAtomic({
+        'input.txt': 'v1',
+      });
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await inv.closed;
+    }
+
+    exec.kill();
+    await exec.exit;
+    assert.equal(cmdA.numInvocations, 2);
+  })
+);
+
 test.run();
