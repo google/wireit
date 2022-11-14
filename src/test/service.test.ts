@@ -1145,79 +1145,79 @@ test(
 
 test(
   'service in watch mode persists when non-cascading dependency restarts or fails',
-  // service1
+  // parentService
   //    |
   //    v
-  // service2 (restarts and fails)
+  // childService (restarts and fails)
   timeout(async ({rig}) => {
-    const service1 = await rig.newCommand();
-    const service2 = await rig.newCommand();
+    const parentService = await rig.newCommand();
+    const childService = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
         scripts: {
-          service1: 'wireit',
-          service2: 'wireit',
+          parentService: 'wireit',
+          childService: 'wireit',
         },
         wireit: {
-          service1: {
-            command: service1.command,
+          parentService: {
+            command: parentService.command,
             service: true,
             dependencies: [
               {
-                script: 'service2',
+                script: 'childService',
                 cascade: false,
               },
             ],
-            files: ['input/service1'],
+            files: ['input/parentService'],
           },
-          service2: {
-            command: service2.command,
+          childService: {
+            command: childService.command,
             service: true,
-            files: ['input/service2'],
+            files: ['input/childService'],
           },
         },
       },
     });
 
-    await rig.write('input/service1', '1');
-    await rig.write('input/service2', '1');
-    const wireit = rig.exec('npm run service1 --watch');
+    await rig.write('input/parentService', '1');
+    await rig.write('input/childService', '1');
+    const wireit = rig.exec('npm run parentService --watch');
 
     // Services start in bottom-up order.
-    const service2Inv1 = await service2.nextInvocation();
-    await wireit.waitForLog(/\[service2\] Service started/);
-    const service1Inv1 = await service1.nextInvocation();
-    await wireit.waitForLog(/\[service1\] Service started/);
-    await wireit.waitForLog(/\[service1\] Watching for file changes/);
+    const childServiceInv1 = await childService.nextInvocation();
+    await wireit.waitForLog(/\[childService\] Service started/);
+    const parentServiceInv1 = await parentService.nextInvocation();
+    await wireit.waitForLog(/\[parentService\] Service started/);
+    await wireit.waitForLog(/\[parentService\] Watching for file changes/);
 
-    // service2 restarts.
-    await rig.write('input/service2', '2');
-    await service2Inv1.closed;
-    await wireit.waitForLog(/\[service2\] Service stopped/);
-    const service2Inv2 = await service2.nextInvocation();
-    await wireit.waitForLog(/\[service2\] Service started/);
+    // childService restarts.
+    await rig.write('input/childService', '2');
+    await childServiceInv1.closed;
+    await wireit.waitForLog(/\[childService\] Service stopped/);
+    const childServiceInv2 = await childService.nextInvocation();
+    await wireit.waitForLog(/\[childService\] Service started/);
 
     // Wait a moment to increase confidence.
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.ok(service1Inv1.isRunning);
-    assert.ok(service2Inv2.isRunning);
-    assert.not(service2Inv1.isRunning);
+    assert.ok(parentServiceInv1.isRunning);
+    assert.ok(childServiceInv2.isRunning);
+    assert.not(childServiceInv1.isRunning);
 
-    // service2 fails.
-    service2Inv2.exit(1);
-    await wireit.waitForLog(/\[service2\] Service exited unexpectedly/);
+    // childService fails.
+    childServiceInv2.exit(1);
+    await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.ok(service1Inv1.isRunning);
-    assert.not(service2Inv2.isRunning);
-    assert.not(service2Inv1.isRunning);
+    assert.ok(parentServiceInv1.isRunning);
+    assert.not(childServiceInv2.isRunning);
+    assert.not(childServiceInv1.isRunning);
 
     wireit.kill();
     await wireit.exit;
-    assert.not(service1Inv1.isRunning);
-    assert.not(service2Inv2.isRunning);
-    assert.not(service2Inv1.isRunning);
-    assert.equal(service1.numInvocations, 1);
-    assert.equal(service2.numInvocations, 2);
+    assert.not(parentServiceInv1.isRunning);
+    assert.not(childServiceInv2.isRunning);
+    assert.not(childServiceInv1.isRunning);
+    assert.equal(parentService.numInvocations, 1);
+    assert.equal(childService.numInvocations, 2);
   })
 );
 
