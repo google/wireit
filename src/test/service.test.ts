@@ -1143,4 +1143,82 @@ test(
   })
 );
 
+test(
+  'service in watch mode persists when non-cascading dependency restarts or fails',
+  // parentService
+  //    |
+  //    v
+  // childService (restarts and fails)
+  timeout(async ({rig}) => {
+    const parentService = await rig.newCommand();
+    const childParent = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          parentService: 'wireit',
+          childService: 'wireit',
+        },
+        wireit: {
+          parentService: {
+            command: parentService.command,
+            service: true,
+            dependencies: [
+              {
+                script: 'childService',
+                cascade: false,
+              },
+            ],
+            files: ['input/parentService'],
+          },
+          childService: {
+            command: childParent.command,
+            service: true,
+            files: ['input/childService'],
+          },
+        },
+      },
+    });
+
+    await rig.write('input/parentService', '1');
+    await rig.write('input/childService', '1');
+    const wireit = rig.exec('npm run parentService --watch');
+
+    // Services start in bottom-up order.
+    const childServiceInv1 = await childParent.nextInvocation();
+    await wireit.waitForLog(/\[childService\] Service started/);
+    const parentServiceInv1 = await parentService.nextInvocation();
+    await wireit.waitForLog(/\[parentService\] Service started/);
+    await wireit.waitForLog(/\[parentService\] Watching for file changes/);
+
+    // childService restarts.
+    await rig.write('input/childService', '2');
+    await childServiceInv1.closed;
+    await wireit.waitForLog(/\[childService\] Service stopped/);
+    const childServiceInv2 = await childParent.nextInvocation();
+    await wireit.waitForLog(/\[childService\] Service started/);
+
+    // Wait a moment to increase confidence.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.ok(parentServiceInv1.isRunning);
+    assert.ok(childServiceInv2.isRunning);
+    assert.not(childServiceInv1.isRunning);
+
+    // childService fails.
+    childServiceInv2.exit(1);
+    await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.ok(parentServiceInv1.isRunning);
+    assert.not(childServiceInv2.isRunning);
+    assert.not(childServiceInv1.isRunning);
+
+    wireit.kill();
+    await wireit.exit;
+    assert.not(parentServiceInv1.isRunning);
+    assert.not(childServiceInv2.isRunning);
+    assert.not(childServiceInv1.isRunning);
+    assert.equal(parentService.numInvocations, 1);
+    assert.equal(childParent.numInvocations, 2);
+  })
+);
+
 test.run();

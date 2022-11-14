@@ -62,12 +62,14 @@ type ServiceState =
   | {
       id: 'stopping';
       child: ScriptChildProcess;
+      fingerprint: Fingerprint;
     }
   | {id: 'stopped'}
   | {
       id: 'failing';
       child: ScriptChildProcess;
       failure: Failure;
+      fingerprint: Fingerprint;
     }
   | {
       id: 'failed';
@@ -164,7 +166,7 @@ function unexpectedState(state: ServiceState) {
  *     │    │         └────┬────┬┘               │           │
  *     │    │              │    │                │           │
  *     │    │              │    ╰─ depServiceExit ─►─╮       │
- *     ▼    │              │                     │   │       │
+ *     ▼    │              │     (unless watch mode) │       │
  *     │    │              │                     │   │       │
  *     │    ▼              │                     ▼   ▼       ▼
  *     │    │           started                  │   │       │
@@ -175,6 +177,7 @@ function unexpectedState(state: ServiceState) {
  *     │    │         └──────┬─┬┘                    │       │
  *     │    │                │ │                     │       │
  *     │    │                │ ╰── depServiceExit ─►─┤       │
+ *     │    │                │   (unless watch mode) │       │
  *     │    │                │                       │       │
  *     │    │                ╰───── detach ──╮       │       │
  *     │    │                                │       │       │
@@ -197,6 +200,7 @@ function unexpectedState(state: ServiceState) {
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
   private _state: ServiceState;
   private readonly _terminated = new Deferred<Result<void, Failure>>();
+  private readonly _isWatchMode: boolean;
 
   /**
    * Resolves as "ok" when this script decides it is no longer needed, and
@@ -213,9 +217,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     executor: Executor,
     logger: Logger,
     entireExecutionAborted: Promise<void>,
-    adoptee: ServiceScriptExecution | undefined
+    adoptee: ServiceScriptExecution | undefined,
+    isWatchMode: boolean
   ) {
     super(config, executor, logger);
+    this._isWatchMode = isWatchMode;
     this._state = {
       id: 'initial',
       entireExecutionAborted,
@@ -233,19 +239,19 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
-      case 'started': {
+      case 'started':
+      case 'stopping':
+      case 'failing': {
         return this._state.fingerprint;
       }
-      case 'stopping':
       case 'stopped':
-      case 'failed':
-      case 'failing':
-      case 'detached': {
-        return undefined;
+      case 'failed': {
+        return;
       }
       case 'initial':
       case 'executingDeps':
-      case 'fingerprinting': {
+      case 'fingerprinting':
+      case 'detached': {
         throw unexpectedState(this._state);
       }
       default: {
@@ -260,7 +266,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    */
   detach(): ScriptChildProcess | undefined {
     switch (this._state.id) {
-      case 'started': {
+      case 'started':
+      case 'stopping':
+      case 'failing': {
         const child = this._state.child;
         this._state = {id: 'detached'};
         // Note that for some reason, removing all listeners from stdout/stderr
@@ -271,10 +279,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         child.stderr.removeAllListeners('data');
         return child;
       }
-      case 'stopping':
       case 'stopped':
-      case 'failed':
-      case 'failing': {
+      case 'failed': {
         return undefined;
       }
       case 'unstarted':
@@ -630,9 +636,24 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             data,
           });
         });
-        void this._anyServiceTerminated.then(() => {
-          this._onDepServiceExit();
-        });
+        if (!this._isWatchMode) {
+          // If we're in watch mode, we don't care about our dependency services
+          // exiting because:
+          //
+          // 1. If we're iteration N-1 which is about to be adopted into
+          //    iteration N, our dependencies will sometimes intentionally
+          //    restart. This should not cause us to fail, since we'll either
+          //    also restart very shortly (when cascade is true), or we'll just
+          //    keep running (when cascade is false).
+          //
+          // 2. If we're iteration N and our dependency unexpectedly exits by
+          //    itself, it's not actually helpful if we also exit. In non-watch
+          //    mode it's important because we want wireit itself to exit as
+          //    soon as this happens, but not so in watch mode.
+          void this._anyServiceTerminated.then(() => {
+            this._onDepServiceExit();
+          });
+        }
         return;
       }
       case 'failed': {
@@ -695,6 +716,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'failing',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
           failure: {
             type: 'failure',
             script: this._config,
@@ -707,6 +729,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'failing',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
           failure: {
             type: 'failure',
             script: this._config,
@@ -795,6 +818,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'failing': {
+        this._logger.log({
+          script: this._config,
+          type: 'info',
+          detail: 'service-stopped',
+        });
         this._enterFailedState(this._state.failure);
         return;
       }
@@ -829,6 +857,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'stopping',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
         };
         break;
       }
@@ -836,6 +865,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state = {
           id: 'stopping',
           child: this._state.child,
+          fingerprint: this._state.fingerprint,
         };
         break;
       }
