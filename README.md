@@ -1,4 +1,4 @@
-<img src="wireit.svg" height="150" alt="wireit"/>
+<img src="wireit.svg" height="125" alt="wireit"/>
 
 > Wireit upgrades your npm scripts to make them smarter and more efficient.
 
