@@ -9,7 +9,7 @@ import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {Dependency, scriptReferenceToString} from './config.js';
+import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
@@ -876,37 +876,104 @@ export class Analyzer {
     syntaxInfo: ScriptSyntaxInfo,
     command: JsonAstNode<string> | undefined,
     output: ArrayNode<string> | undefined
-  ): boolean {
-    const defaultValue = false;
-    if (syntaxInfo.wireitConfigNode == null) {
-      return defaultValue;
+  ): ServiceConfig | undefined {
+    if (syntaxInfo.wireitConfigNode === undefined) {
+      return undefined;
     }
-    const node = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+    const serviceNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
       'service',
-    ]) as undefined | JsonAstNode<true | false>;
-    if (node == null) {
-      return defaultValue;
+    ]);
+    if (serviceNode === undefined) {
+      return undefined;
     }
-    if (node.value !== true && node.value !== false) {
+    if (serviceNode.value === false) {
+      return undefined;
+    }
+    if (serviceNode.value !== true && serviceNode.type !== 'object') {
       placeholder.failures.push({
         type: 'failure',
         reason: 'invalid-config-syntax',
         script: placeholder,
         diagnostic: {
           severity: 'error',
-          message: `The "service" property must be either true or false.`,
+          message: `The "service" property must be either true, false, or an object.`,
           location: {
             file: packageJson.jsonFile,
-            range: {length: node.length, offset: node.offset},
+            range: {length: serviceNode.length, offset: serviceNode.offset},
           },
         },
       });
-      return defaultValue;
+      return undefined;
     }
 
-    const value = node?.value ?? defaultValue;
+    let lineMatches: RegExp | undefined = undefined;
+    if (serviceNode.type === 'object') {
+      const waitForNode = findNodeAtLocation(serviceNode, ['readyWhen']);
+      if (waitForNode !== undefined) {
+        if (waitForNode.type !== 'object') {
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            diagnostic: {
+              severity: 'error',
+              message: `Expected an object.`,
+              location: {
+                file: packageJson.jsonFile,
+                range: {length: serviceNode.length, offset: serviceNode.offset},
+              },
+            },
+          });
+        } else {
+          const lineMatchesNode = findNodeAtLocation(waitForNode, [
+            'lineMatches',
+          ]);
+          if (lineMatchesNode !== undefined) {
+            if (lineMatchesNode.type !== 'string') {
+              placeholder.failures.push({
+                type: 'failure',
+                reason: 'invalid-config-syntax',
+                script: placeholder,
+                diagnostic: {
+                  severity: 'error',
+                  message: `Expected a string.`,
+                  location: {
+                    file: packageJson.jsonFile,
+                    range: {
+                      length: lineMatchesNode.length,
+                      offset: lineMatchesNode.offset,
+                    },
+                  },
+                },
+              });
+            } else {
+              try {
+                lineMatches = new RegExp(lineMatchesNode.value as string);
+              } catch (error) {
+                placeholder.failures.push({
+                  type: 'failure',
+                  reason: 'invalid-config-syntax',
+                  script: placeholder,
+                  diagnostic: {
+                    severity: 'error',
+                    message: String(error),
+                    location: {
+                      file: packageJson.jsonFile,
+                      range: {
+                        length: lineMatchesNode.length,
+                        offset: lineMatchesNode.offset,
+                      },
+                    },
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+    }
 
-    if (value === true && command == null) {
+    if (command === undefined) {
       placeholder.failures.push({
         type: 'failure',
         reason: 'invalid-config-syntax',
@@ -917,15 +984,15 @@ export class Analyzer {
           location: {
             file: packageJson.jsonFile,
             range: {
-              length: node.length,
-              offset: node.offset,
+              length: serviceNode.length,
+              offset: serviceNode.offset,
             },
           },
         },
       });
     }
 
-    if (value === true && output != null) {
+    if (output !== undefined) {
       placeholder.failures.push({
         type: 'failure',
         reason: 'invalid-config-syntax',
@@ -944,7 +1011,7 @@ export class Analyzer {
       });
     }
 
-    return value;
+    return {readyWhen: {lineMatches}};
   }
 
   private _processPackageLocks(
@@ -1155,7 +1222,8 @@ export class Analyzer {
             trail,
             // Walk through no-command scripts and services when determining if
             // something is persistent.
-            isPersistent && (config.command === undefined || config.service)
+            isPersistent &&
+              (config.command === undefined || config.service !== undefined)
           );
         if (!validDependencyConfigResult.ok) {
           return {
@@ -1167,7 +1235,7 @@ export class Analyzer {
           };
         }
         const validDependencyConfig = validDependencyConfigResult.value;
-        if (validDependencyConfig.service) {
+        if (validDependencyConfig.service !== undefined) {
           // We directly depend on a service.
           config.services.push(validDependencyConfig);
         } else if (validDependencyConfig.command === undefined) {
@@ -1194,7 +1262,7 @@ export class Analyzer {
     }
 
     let validConfig: ScriptConfig;
-    if (config.service) {
+    if (config.service !== undefined) {
       // We should already have created an invalid script at this point, so we
       // should never get here. We throw here to convince TypeScript that this
       // is guaranteed.
@@ -1229,7 +1297,7 @@ export class Analyzer {
     // Propagate reverse service dependencies.
     if (validConfig.command) {
       for (const dependency of validConfig.dependencies) {
-        if (dependency.config.service) {
+        if (dependency.config.service !== undefined) {
           dependency.config.serviceConsumers.push(validConfig);
         } else if (dependency.config.command === undefined) {
           for (const service of dependency.config.services) {

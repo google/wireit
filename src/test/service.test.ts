@@ -1151,7 +1151,7 @@ test(
   // childService (restarts and fails)
   timeout(async ({rig}) => {
     const parentService = await rig.newCommand();
-    const childParent = await rig.newCommand();
+    const childService = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
         scripts: {
@@ -1171,7 +1171,7 @@ test(
             files: ['input/parentService'],
           },
           childService: {
-            command: childParent.command,
+            command: childService.command,
             service: true,
             files: ['input/childService'],
           },
@@ -1184,7 +1184,7 @@ test(
     const wireit = rig.exec('npm run parentService --watch');
 
     // Services start in bottom-up order.
-    const childServiceInv1 = await childParent.nextInvocation();
+    const childServiceInv1 = await childService.nextInvocation();
     await wireit.waitForLog(/\[childService\] Service started/);
     const parentServiceInv1 = await parentService.nextInvocation();
     await wireit.waitForLog(/\[parentService\] Service started/);
@@ -1194,11 +1194,11 @@ test(
     await rig.write('input/childService', '2');
     await childServiceInv1.closed;
     await wireit.waitForLog(/\[childService\] Service stopped/);
-    const childServiceInv2 = await childParent.nextInvocation();
+    const childServiceInv2 = await childService.nextInvocation();
     await wireit.waitForLog(/\[childService\] Service started/);
 
     // Wait a moment to increase confidence.
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     assert.ok(parentServiceInv1.isRunning);
     assert.ok(childServiceInv2.isRunning);
     assert.not(childServiceInv1.isRunning);
@@ -1206,7 +1206,7 @@ test(
     // childService fails.
     childServiceInv2.exit(1);
     await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 100));
     assert.ok(parentServiceInv1.isRunning);
     assert.not(childServiceInv2.isRunning);
     assert.not(childServiceInv1.isRunning);
@@ -1217,7 +1217,61 @@ test(
     assert.not(childServiceInv2.isRunning);
     assert.not(childServiceInv1.isRunning);
     assert.equal(parentService.numInvocations, 1);
-    assert.equal(childParent.numInvocations, 2);
+    assert.equal(childService.numInvocations, 2);
+  })
+);
+
+test(
+  'service waits for log before being considered started',
+  // standard
+  //    |
+  //    v
+  // service
+  timeout(async ({rig}) => {
+    const standard = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          standard: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          standard: {
+            command: standard.command,
+            dependencies: ['service'],
+          },
+          service: {
+            command: service.command,
+            service: {
+              readyWhen: {
+                lineMatches: 'Listening on port \\d+\\.',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run standard');
+    const serviceInv = await service.nextInvocation();
+
+    // Haven't logged anything yet. Not ready.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(standard.numInvocations, 0);
+
+    // Logged part of the expected line, but not all of it. Not ready.
+    serviceInv.stdout('Foo\nBar\nListening ');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(standard.numInvocations, 0);
+
+    // Logged the rest of the expected line. Ready!
+    serviceInv.stdout('on port 8080.');
+    const standardInv = await standard.nextInvocation();
+
+    standardInv.exit(0);
+    assert.equal((await wireit.exit).code, 0);
+    assert.equal(standard.numInvocations, 1);
   })
 );
 

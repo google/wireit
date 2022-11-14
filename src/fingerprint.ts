@@ -78,6 +78,14 @@ export interface FingerprintData {
 
   // Must be sorted.
   dependencies: {[dependency: ScriptReferenceString]: FingerprintData};
+
+  service:
+    | {
+        readyWhen: {
+          lineMatches: string | undefined;
+        };
+      }
+    | undefined;
 }
 
 /**
@@ -176,7 +184,7 @@ export class Fingerprint {
       // tracked.
       (script.command === undefined ||
         // A service. Fully tracked if we know its inputs. Can't produce output.
-        (script.service && script.files !== undefined) ||
+        (script.service !== undefined && script.files !== undefined) ||
         // A standard script. Fully tracked if we know both its inputs and
         // outputs.
         (script.files !== undefined && script.output !== undefined));
@@ -202,6 +210,14 @@ export class Fingerprint {
           aRef.localeCompare(bRef)
         )
       ),
+      service:
+        script.service === undefined
+          ? undefined
+          : {
+              readyWhen: {
+                lineMatches: script.service.readyWhen.lineMatches?.toString(),
+              },
+            },
     };
     fingerprint._data = data as FingerprintData;
     return fingerprint;

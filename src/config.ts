@@ -64,7 +64,7 @@ export type ScriptConfig =
 export interface NoCommandScriptConfig extends BaseScriptConfig {
   command: undefined;
   extraArgs: undefined;
-  service: false;
+  service: undefined;
 }
 
 /**
@@ -73,8 +73,14 @@ export interface NoCommandScriptConfig extends BaseScriptConfig {
 export interface StandardScriptConfig
   extends BaseScriptConfig,
     ScriptReferenceWithCommand {
-  service: false;
+  service: undefined;
 }
+
+export type ServiceConfig = {
+  readyWhen: {
+    lineMatches: RegExp | undefined;
+  };
+};
 
 /**
  * A service script.
@@ -82,7 +88,7 @@ export interface StandardScriptConfig
 export interface ServiceScriptConfig
   extends BaseScriptConfig,
     ScriptReferenceWithCommand {
-  service: true;
+  service: ServiceConfig;
 
   /**
    * Whether this service persists beyond the initial execution phase.
@@ -169,7 +175,7 @@ interface BaseScriptConfig extends ScriptReference {
   /**
    * Whether the script should run in service mode.
    */
-  service: boolean;
+  service: ServiceConfig | undefined;
 
   /**
    * The command string in the scripts section. i.e.:

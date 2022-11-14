@@ -432,11 +432,35 @@ If a service is a _dependency_ of one or more other scripts, then it will start
 up before any depending script runs, and will shut down after all depending
 scripts finish.
 
+### Service readiness
+
+By default, a service is considered _ready_ as soon as its process spawns,
+allowing any scripts that depend on that service to start.
+
+However, often times a service needs to perform certain actions before it is
+safe for dependents to interact with it, such as starting a server and listening
+on a network interface.
+
+Use `service.readyWhen.lineMatches` to tell Wireit to monitor the `stdout` and
+`stderr` of the service and defer readiness until a line is printed that matches
+the given regular expression.
+
+```json
+{
+  "command": "node my-server.js",
+  "service": {
+    "readyWhen": {
+      "lineMatches": "Server listening on port \\d+"
+    }
+  }
+}
+```
+
 ### Service restarts
 
 In watch mode, a service will be restarted whenever one of its input files or
 dependencies change, except for dependencies with
-[`cascade`](#execution-cascade) set to `false`. See
+[`cascade`](#execution-cascade) set to `false`.
 
 ### Service output
 

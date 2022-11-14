@@ -247,7 +247,7 @@ export class Executor {
     if (execution === undefined) {
       if (config.command === undefined) {
         execution = new NoCommandScriptExecution(config, this, this._logger);
-      } else if (config.service) {
+      } else if (config.service !== undefined) {
         execution = new ServiceScriptExecution(
           config,
           this,

@@ -8,6 +8,7 @@ import {BaseExecutionWithCommand} from './base.js';
 import {Fingerprint} from '../fingerprint.js';
 import {Deferred} from '../util/deferred.js';
 import {ScriptChildProcess} from '../script-child-process.js';
+import {LineMonitor} from '../util/line-monitor.js';
 
 import type {ExecutionResult} from './base.js';
 import type {Dependency, ServiceScriptConfig} from '../config.js';
@@ -53,6 +54,14 @@ type ServiceState =
       child: ScriptChildProcess;
       started: Deferred<Result<void, Failure>>;
       fingerprint: Fingerprint;
+      readyMonitor: LineMonitor | undefined;
+    }
+  | {
+      id: 'readying';
+      child: ScriptChildProcess;
+      started: Deferred<Result<void, Failure>>;
+      fingerprint: Fingerprint;
+      readyMonitor: LineMonitor;
     }
   | {
       id: 'started';
@@ -105,96 +114,110 @@ function unexpectedState(state: ServiceState) {
  *     ▼                execute
  *     │                   │
  *     │           ┌───────▼────────┐
- *     ├─◄─ abort ─┤ EXECUTING_DEPS ├──── depExecErr ────►───╮
- *     │           └───────┬────────┘                        │
- *     │                   │                                 │
- *     ▼              depsExecuted                           │
- *     │                   │                                 │
- *     │           ┌───────▼────────┐                        │
- *     ├─◄─ abort ─┤ FINGERPRINTING │                        │
- *     │           └───────┬────────┘                        │
- *     │                   │                                 │
- *     │             fingerprinted                           ▼
- *     │                   │                                 │
- *     │        ╔══════════▼════════════╗                    │
- *     ▼        ║ adoptee has different ╟─ yes ─╮            │
- *     │        ║     fingerprint?      ║       │            │
- *     │        ╚══════════╤════════════╝       │            │
- *     │                   │                    ▼            │
- *     │                   no                   │            │
- *     │                   │                    │            │
- *     │                   │          ┌─────────▼────────┐   │
- *     ├─◄─ abort ─────────│─────◄────┤ STOPPING_ADOPTEE │   │
- *     │                   │          └─────────┬────────┘   │
- *     │                   │                    │            │
- *     │                   ▼              adopteeStopped     │
- *     │                   │                    │            │
- *     │                   ├─────◄──────────────╯            │
- *     │                   │                                 │
- *     ▼           ╔═══════▼════════╗                        │
- *     │           ║ is persistent? ╟───── yes ──╮           │
- *     │           ╚═══════╤════════╝            │           │
- *     │                   │                     │           │
- *     │                   no                    │           │
- *     │                   │                     │           │
- *     │             ┌─────▼─────┐               │           │
- *     ├─◄─ abort ───┤ UNSTARTED │               ▼           │
- *     │             └─────┬─────┘               │           │
- *     │                   │                     │           │
- *     │                 start                   │           │
- *     │                   │                     │           │
- *     │                   │  ╭─────────◄────────╯           │
- *     │                   │  │                              │
- *     │                   │  │ ╭─╮                          │
- *     │                   │  │ │start                       │
- *     │           ┌───────▼──▼─▼─┴┐                         │
- *     ├─◄─ abort ─┤ DEPS_STARTING ├───── depStartErr ───►───┤
- *     │           └───────┬───────┘                         │
- *     │                   │                                 │
- *     │              depsStarted                            ▼
- *     │                   │                                 │
- *     │                   │                                 │
- *     ▼            ╔══════▼═══════╗                         │
- *     │            ║ has adoptee? ╟───── yes ───╮           │
- *     │            ╚══════╤═══════╝             │           │
- *     │                   │                     │           │
- *     │                   no                    │           │
- *     │                   │  ╭─╮                ▼           │
- *     │                   │  │ start            │           │
- *     │              ┌────▼──▼─┴┐               │           │
- *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►──────┤
- *     │    │         └────┬────┬┘               │           │
- *     │    │              │    │                │           │
- *     │    │              │    ╰─ depServiceExit ─►─╮       │
- *     ▼    │              │     (unless watch mode) │       │
- *     │    │              │                     │   │       │
- *     │    ▼              │                     ▼   ▼       ▼
- *     │    │           started                  │   │       │
- *     │    │          ╭─╮ │  ╭─────────◄────────╯   │       │
- *     │    │      start │ │  │                      │       │
- *     │    │         ┌▼─┴─▼──▼─┐                    │       │
- *     │    ├◄─ abort ┤ STARTED ├── exit ────────────────────┤
- *     │    │         └──────┬─┬┘                    │       │
- *     │    │                │ │                     │       │
- *     │    │                │ ╰── depServiceExit ─►─┤       │
- *     │    │                │   (unless watch mode) │       │
- *     │    │                │                       │       │
- *     │    │                ╰───── detach ──╮       │       │
- *     │    │                                │       │       │
- *     ▼    │                                ▼       │       ▼
- *     │    │         ┌──────────┐           │  ┌────▼────┐  │
- *     │    ╰─────────► STOPPING │           │  │ FAILING │  │
- *     │              └┬─▲─┬─────┘           │  └────┬────┘  │
- *     │           abort │ │                 │       │       │
- *     │               ╰─╯ │                 │      exit     │
- *     │                  exit               │       │       │
- *     │                   │ ╭─╮             │       ╰─────╮ │ ╭─╮
- *     │                   │ │ start         │             │ │ │ start
- *     │              ┌────▼─▼─┴┐       ┌────▼─────┐     ┌─▼─▼─▼─┴┐
- *     ╰──────────────► STOPPED │       │ DETACHED │     │ FAILED │
- *                    └┬─▲──────┘       └┬─▲───────┘     └┬─▲─────┘
- *                 abort │           *all* │          abort │
- *                     ╰─╯               ╰─╯              ╰─╯
+ *     ├─◄─ abort ─┤ EXECUTING_DEPS ├──── depExecErr ────►────╮
+ *     │           └───────┬────────┘                         │
+ *     │                   │                                  │
+ *     ▼              depsExecuted                            │
+ *     │                   │                                  │
+ *     │           ┌───────▼────────┐                         │
+ *     ├─◄─ abort ─┤ FINGERPRINTING │                         │
+ *     │           └───────┬────────┘                         │
+ *     │                   │                                  │
+ *     │             fingerprinted                            ▼
+ *     │                   │                                  │
+ *     │        ╔══════════▼════════════╗                     │
+ *     ▼        ║ adoptee has different ╟─ yes ─╮             │
+ *     │        ║     fingerprint?      ║       │             │
+ *     │        ╚══════════╤════════════╝       │             │
+ *     │                   │                    ▼             │
+ *     │                   no                   │             │
+ *     │                   │                    │             │
+ *     │                   │          ┌─────────▼────────┐    │
+ *     ├─◄─ abort ─────────│─────◄────┤ STOPPING_ADOPTEE │    │
+ *     │                   │          └─────────┬────────┘    │
+ *     │                   │                    │             │
+ *     │                   ▼              adopteeStopped      │
+ *     │                   │                    │             │
+ *     │                   ├─────◄──────────────╯             │
+ *     │                   │                                  │
+ *     ▼           ╔═══════▼════════╗                         │
+ *     │           ║ is persistent? ╟───── yes ──╮            │
+ *     │           ╚═══════╤════════╝            │            │
+ *     │                   │                     │            │
+ *     │                   no                    │            │
+ *     │                   │                     │            │
+ *     │             ┌─────▼─────┐               │            │
+ *     ├─◄─ abort ───┤ UNSTARTED │               ▼            │
+ *     │             └─────┬─────┘               │            │
+ *     │                   │                     │            │
+ *     │                 start                   │            │
+ *     │                   │                     │            │
+ *     │                   │  ╭─────────◄────────╯            │
+ *     │                   │  │                               │
+ *     │                   │  │ ╭─╮                           │
+ *     │                   │  │ │start                        │
+ *     │           ┌───────▼──▼─▼─┴┐                          │
+ *     ├─◄─ abort ─┤ DEPS_STARTING ├───── depStartErr ───►────┤
+ *     │           └───────┬───────┘                          │
+ *     │                   │                                  │
+ *     │              depsStarted                             ▼
+ *     │                   │                                  │
+ *     │                   │                                  │
+ *     ▼            ╔══════▼═══════╗                          │
+ *     │            ║ has adoptee? ╟───── yes ───────╮        │
+ *     │            ╚══════╤═══════╝                 │        │
+ *     │                   │                         │        │
+ *     │                   no                        │        │
+ *     │                   │  ╭─╮                    ▼        │
+ *     │                   │  │ start                │        │
+ *     │              ┌────▼──▼─┴┐                   │        │
+ *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►───────┤
+ *     │    │         └────┬────┬┘                   │        │
+ *     │    │              │    │                    │        │
+ *     │    │              │    ╰─ depServiceExit ───────────►──────────╮
+ *     │    │              │     (unless watch mode) │        │         │
+ *     │    │              │                         │        │         │
+ *     │    │            started                     │        │         │
+ *     │    │              │                         │        │         │
+ *     │    │   ╔══════════▼═══════════╗             │        │         │
+ *     ▼    │   ║ has ready condition? ╟──╮          │        │         │
+ *     │    │   ╚══════════╤═══════════╝  │          │        │         │
+ *     │    │              │              │          │        │         │
+ *     │    │              no            yes         │        │         │
+ *     │    │              │              │          │        │         │
+ *     │    ▼              ▼         ┌────▼─────┐    ▼        ▼         ▼
+ *     │    │              │         │ READYING │    │        │         │
+ *     │    │              │         └────┬───┬─┘    │        │         │
+ *     │    │              │              │   │      │        │         │
+ *     │    │              │            ready ╰── depServiceExit ───►───╮
+ *     │    │              │              │     (unless watch mode)     │
+ *     │    │              │ ╭─────◄──────╯          │        │         │
+ *     │    │              │ │                       │        │         │
+ *     │    │          ╭─╮ │ │ ╭──────────◄──────────╯        │         │
+ *     │    │      start │ │ │ │                              │         │
+ *     │    │         ┌▼─┴─▼─▼─▼┐                             │         │
+ *     │    ├◄─ abort ┤ STARTED ├── exit ──────────►──────────┤         │
+ *     │    │         └──────┬─┬┘                             │         │
+ *     │    │                │ │                              │         │
+ *     │    │                │ ╰── depServiceExit ────────────►─────────┤
+ *     │    │                │   (unless watch mode)          │         │
+ *     │    ▼                │                                │         │
+ *     │    │                ╰───── detach ──╮                │         │
+ *     │    │                                │                │         │
+ *     ▼    │                                │                │         │
+ *     │    │         ┌──────────┐           │                │    ┌────▼────┐
+ *     │    ╰─────────► STOPPING │           ▼                ▼    │ FAILING │
+ *     │              └┬─▲─┬─────┘           │                │    └────┬────┘
+ *     │           abort │ │                 │                │         │
+ *     │               ╰─╯ │                 │                │        exit
+ *     │                  exit               │                │         │
+ *     │                   │ ╭─╮             │                │ ╭─╮     │
+ *     │                   │ │ start         │                │ │ start │
+ *     │              ┌────▼─▼─┴┐       ┌────▼─────┐      ┌───▼─▼─┴┐    │
+ *     ╰──────────────► STOPPED │       │ DETACHED │      │ FAILED ◄────╯
+ *                    └┬─▲──────┘       └┬─▲───────┘      └┬─▲─────┘
+ *                 abort │           *all* │           abort │
+ *                     ╰─╯               ╰─╯               ╰─╯
  * ```
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
@@ -239,6 +262,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'failing': {
@@ -286,6 +310,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
@@ -339,6 +364,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'stopped':
@@ -380,6 +406,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'failing':
@@ -409,6 +436,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'failing':
@@ -465,6 +493,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'failing':
@@ -504,6 +533,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'failing':
@@ -560,7 +590,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return this._state.started.promise;
       }
       case 'depsStarting':
-      case 'starting': {
+      case 'starting':
+      case 'readying': {
         return this._state.started.promise;
       }
       case 'started': {
@@ -605,6 +636,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             child,
             started: this._state.started,
             fingerprint: this._state.fingerprint,
+            readyMonitor:
+              this._config.service.readyWhen.lineMatches === undefined
+                ? undefined
+                : new LineMonitor(
+                    child,
+                    this._config.service.readyWhen.lineMatches
+                  ),
           };
           void this._state.child.started.then(() => {
             this._onChildStarted();
@@ -665,6 +703,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stoppingAdoptee':
       case 'unstarted':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'stopping':
       case 'stopped':
@@ -699,6 +738,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'stoppingAdoptee':
       case 'unstarted':
       case 'starting':
+      case 'readying':
       case 'started':
       case 'detached': {
         throw unexpectedState(this._state);
@@ -725,7 +765,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         return;
       }
-      case 'starting': {
+      case 'starting':
+      case 'readying': {
         this._state = {
           id: 'failing',
           child: this._state.child,
@@ -762,6 +803,22 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onChildStarted() {
     switch (this._state.id) {
       case 'starting': {
+        if (this._state.readyMonitor !== undefined) {
+          this._state = {
+            id: 'readying',
+            child: this._state.child,
+            fingerprint: this._state.fingerprint,
+            started: this._state.started,
+            readyMonitor: this._state.readyMonitor,
+          };
+          void this._state.readyMonitor.matched.then((result) => {
+            if (result.ok) {
+              this._onChildReady();
+            }
+            // Otherwise the ready monitor aborted, so we don't care.
+          });
+          return;
+        }
         this._state.started.resolve({ok: true, value: undefined});
         this._logger.log({
           script: this._config,
@@ -780,6 +837,44 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._state.child.kill();
         return;
       }
+      case 'initial':
+      case 'executingDeps':
+      case 'fingerprinting':
+      case 'stoppingAdoptee':
+      case 'unstarted':
+      case 'depsStarting':
+      case 'readying':
+      case 'started':
+      case 'stopped':
+      case 'failed':
+      case 'detached': {
+        throw unexpectedState(this._state);
+      }
+      default: {
+        throw unknownState(this._state);
+      }
+    }
+  }
+
+  private _onChildReady() {
+    switch (this._state.id) {
+      case 'readying': {
+        this._state.started.resolve({ok: true, value: undefined});
+        this._logger.log({
+          script: this._config,
+          type: 'info',
+          detail: 'service-started',
+        });
+        this._state = {
+          id: 'started',
+          child: this._state.child,
+          fingerprint: this._state.fingerprint,
+        };
+        return;
+      }
+      case 'starting':
+      case 'stopping':
+      case 'failing':
       case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
@@ -806,6 +901,15 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           script: this._config,
           type: 'info',
           detail: 'service-stopped',
+        });
+        return;
+      }
+      case 'readying': {
+        this._state.readyMonitor.abort();
+        this._enterFailedState({
+          script: this._config,
+          type: 'failure',
+          reason: 'service-exited-unexpectedly',
         });
         return;
       }
@@ -862,6 +966,17 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         break;
       }
       case 'starting': {
+        this._state.readyMonitor?.abort();
+        this._state = {
+          id: 'stopping',
+          child: this._state.child,
+          fingerprint: this._state.fingerprint,
+        };
+        break;
+      }
+      case 'readying': {
+        this._state.readyMonitor.abort();
+        this._state.child.kill();
         this._state = {
           id: 'stopping',
           child: this._state.child,
