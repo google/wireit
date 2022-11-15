@@ -1,9 +1,13 @@
+<div align="center">
+
 <img src="wireit.svg" height="125" alt="wireit"/>
 
-> Wireit upgrades your npm scripts to make them smarter and more efficient.
+_Wireit upgrades your npm scripts to make them smarter and more efficient._
 
 [![Published on npm](https://img.shields.io/npm/v/wireit.svg?logo=npm)](https://www.npmjs.com/package/wireit)
 [![Build Status](https://github.com/google/wireit/actions/workflows/tests.yml/badge.svg)](https://github.com/google/wireit/actions/workflows/tests.yml)
+
+</div>
 
 ## Features
 
