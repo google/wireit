@@ -1085,7 +1085,6 @@ test(
     });
 
     // Initially everything runs.
-    console.log(0);
     {
       await rig.write('inputs/a', 'v1');
       await rig.write('inputs/b', 'v1');
@@ -1133,6 +1132,58 @@ test(
       assert.equal(b.numInvocations, 3);
       assert.equal(c.numInvocations, 2);
     }
+  })
+);
+
+test(
+  'can write fingerprint file for extremely large script graph',
+  timeout(async ({rig}) => {
+    // These numbers found experimentally, they were just enough to trigger an
+    // "Invalid string length" error from JSON.stringify while trying to write
+    // the fingerprint file.
+    const numScripts = 20;
+    const numInputFilesPerScript = 5;
+
+    const packageJson: {
+      scripts: Record<string, string>;
+      wireit: Record<
+        string,
+        {
+          command: string;
+          files: string[];
+          output: string[];
+          dependencies: string[];
+        }
+      >;
+    } = {
+      scripts: {},
+      wireit: {},
+    };
+    const files: Record<string, string | object> = {
+      'package.json': packageJson,
+    };
+    for (let s = 0; s < numScripts; s++) {
+      packageJson.scripts[s] = 'wireit';
+      packageJson.wireit[s] = {
+        command: 'true',
+        files: [`inputs/${s}/*`],
+        output: [],
+        dependencies: [],
+      };
+      for (let f = 0; f < numInputFilesPerScript; f++) {
+        files[`inputs/${s}/${f}`] = '';
+      }
+      // Add an explicit dependency on all subsequent scripts. This causes the
+      // fingerprint size to grow much faster than only including the next
+      // script.
+      for (let d = s + 1; d < numScripts; d++) {
+        packageJson.wireit[s].dependencies.push(`${d}`);
+      }
+    }
+    await rig.write(files);
+
+    const wireit = rig.exec('npm run 0');
+    assert.equal((await wireit.exit).code, 0);
   })
 );
 
