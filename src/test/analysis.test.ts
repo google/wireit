@@ -128,4 +128,103 @@ test('analyzes services', async ({rig}) => {
   assert.equal(e.serviceConsumers.length, 1);
 });
 
+test(
+  '.wireit/, .git/, and node_modules/ are automatically ' +
+    'excluded from input and output files by default',
+  async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          build: 'wireit',
+        },
+        wireit: {
+          build: {
+            command: 'true',
+            files: ['**/*.ts'],
+            output: ['**/*.js'],
+            // Don't also automatically add package-lock.json paths as input
+            // files, to make this test simpler/more focused.
+            packageLocks: [],
+          },
+        },
+      },
+    });
+
+    const analyzer = new Analyzer();
+    const result = await analyzer.analyze(
+      {
+        packageDir: rig.temp,
+        name: 'build',
+      },
+      []
+    );
+    if (!result.config.ok) {
+      console.log(result.config.error);
+      throw new Error('Not ok');
+    }
+
+    const withDefaultExcludes = result.config.value;
+    assert.equal(withDefaultExcludes.files?.values, [
+      '**/*.ts',
+      '!.git/',
+      '!.hg/',
+      '!.svn/',
+      '!.wireit/',
+      '!CVS/',
+      '!node_modules/',
+    ]);
+    assert.equal(withDefaultExcludes.output?.values, [
+      '**/*.js',
+      '!.git/',
+      '!.hg/',
+      '!.svn/',
+      '!.wireit/',
+      '!CVS/',
+      '!node_modules/',
+    ]);
+  }
+);
+
+test(
+  'Default excluded paths are not present when ' +
+    'allowUsuallyExcludedPaths is true',
+  async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          build: 'wireit',
+        },
+        wireit: {
+          build: {
+            command: 'true',
+            files: ['**/*.ts'],
+            output: ['**/*.js'],
+            packageLocks: [],
+            // Don't also automatically add package-lock.json paths as input
+            // files, to make this test simpler/more focused.
+            allowUsuallyExcludedPaths: true,
+          },
+        },
+      },
+    });
+
+    const analyzer = new Analyzer();
+    const result = await analyzer.analyze(
+      {
+        packageDir: rig.temp,
+        name: 'build',
+      },
+      []
+    );
+    if (!result.config.ok) {
+      console.log(result.config.error);
+      throw new Error('Not ok');
+    }
+
+    const build = result.config.value;
+    assert.equal(build.files?.values, ['**/*.ts']);
+    assert.equal(build.output?.values, ['**/*.js']);
+  }
+);
+
 test.run();
