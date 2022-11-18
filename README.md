@@ -261,6 +261,21 @@ Setting these properties allow you to use more features of Wireit:
 }
 ```
 
+#### Default excluded paths
+
+By default, the following folders are excluded from the `files` and `output`
+arrays:
+
+- `.git/`
+- `.hg/`
+- `.svn/`
+- `.wireit/`
+- `CVS/`
+- `node_modules/`
+
+In the highly unusual case that you need to reference a file in one of those
+folders, set `allowUsuallyExcludedPaths: true` to remove all default excludes.
+
 ## Incremental build
 
 Wireit can automatically skip execution of a script if nothing has changed that

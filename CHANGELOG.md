@@ -8,6 +8,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **[BREAKING]** The following folders are now excluded by default from both the
+  `files` and `output` arrays:
+
+  - `.git/`
+  - `.hg/`
+  - `.svn/`
+  - `.wireit/`
+  - `CVS/`
+  - `node_modules/`
+
+  In the highly unusual case that you need to reference a file in one of those
+  folders, set `allowUsuallyExcludedPaths: true` to remove all default excludes.
+
 ### Fixed
 
 - Fixed `Invalid string length` and `heap out of memory` errors when writing the
