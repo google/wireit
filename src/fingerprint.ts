@@ -241,7 +241,6 @@ export class Fingerprint {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this._str = JSON.stringify(this._data!) as FingerprintString;
     }
-    console.log(JSON.stringify(this._data, null, 2));
     return this._str;
   }
 
