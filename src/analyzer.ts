@@ -841,7 +841,7 @@ export class Analyzer {
       }
       values.push(result.value.value);
     }
-    if (!allowUsuallyExcludedPaths) {
+    if (!allowUsuallyExcludedPaths && values.length > 0) {
       values.push(...DEFAULT_EXCLUDE_PATHS);
     }
     return {node: filesNode, values};
@@ -898,7 +898,7 @@ export class Analyzer {
       }
       values.push(result.value.value);
     }
-    if (!allowUsuallyExcludedPaths) {
+    if (!allowUsuallyExcludedPaths && values.length > 0) {
       values.push(...DEFAULT_EXCLUDE_PATHS);
     }
     return {node: outputNode, values};

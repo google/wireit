@@ -227,4 +227,41 @@ test(
   }
 );
 
+test('Default excluded paths are not present when files and output are empty', async ({
+  rig,
+}) => {
+  await rig.write({
+    'package.json': {
+      scripts: {
+        build: 'wireit',
+      },
+      wireit: {
+        build: {
+          command: 'true',
+          files: [],
+          output: [],
+          packageLocks: [],
+        },
+      },
+    },
+  });
+
+  const analyzer = new Analyzer();
+  const result = await analyzer.analyze(
+    {
+      packageDir: rig.temp,
+      name: 'build',
+    },
+    []
+  );
+  if (!result.config.ok) {
+    console.log(result.config.error);
+    throw new Error('Not ok');
+  }
+
+  const build = result.config.value;
+  assert.equal(build.files?.values, []);
+  assert.equal(build.output?.values, []);
+});
+
 test.run();
