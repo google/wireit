@@ -7,6 +7,7 @@
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
+import {gracefulFs} from './graceful-fs.js';
 
 import type {Stats} from 'fs';
 
@@ -202,7 +203,9 @@ export class FilesystemTestRig {
    */
   async delete(filename: string): Promise<void> {
     this._assertState('running');
-    await fs.rm(this.resolve(filename), {force: true, recursive: true});
+    return gracefulFs(() =>
+      fs.rm(this.resolve(filename), {force: true, recursive: true})
+    );
   }
 
   /**
