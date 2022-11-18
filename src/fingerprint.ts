@@ -61,7 +61,7 @@ export interface FingerprintData {
   clean: boolean | 'if-file-deleted';
 
   // Must be sorted.
-  files: {[packageDirRelativeFilename: string]: Sha256HexDigest};
+  files: {[packageDirRelativeFilename: string]: FileSha256HexDigest};
 
   /**
    * The "output" glob patterns from the Wireit config.
@@ -77,7 +77,9 @@ export interface FingerprintData {
   output: string[];
 
   // Must be sorted.
-  dependencies: {[dependency: ScriptReferenceString]: FingerprintData};
+  dependencies: {
+    [dependency: ScriptReferenceString]: FingerprintSha256HexDigest;
+  };
 
   service:
     | {
@@ -98,8 +100,15 @@ export type FingerprintString = string & {
 /**
  * SHA256 hash hexadecimal digest of a file's content.
  */
-export type Sha256HexDigest = string & {
-  __Sha256HexDigestBrand__: never;
+export type FileSha256HexDigest = string & {
+  __FileSha256HexDigestBrand__: never;
+};
+
+/**
+ * SHA256 hash hexadecimal digest of a JSON-stringified fingerprint.
+ */
+type FingerprintSha256HexDigest = string & {
+  __FingerprintSha256HexDigestBrand__: never;
 };
 
 /**
@@ -123,7 +132,7 @@ export class Fingerprint {
   ): Promise<Fingerprint> {
     let allDependenciesAreFullyTracked = true;
     const filteredDependencyFingerprints: Array<
-      [ScriptReferenceString, FingerprintData]
+      [ScriptReferenceString, FingerprintSha256HexDigest]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
       if (!dep.cascade) {
@@ -136,11 +145,11 @@ export class Fingerprint {
       }
       filteredDependencyFingerprints.push([
         scriptReferenceToString(dep.config),
-        depFingerprint.data,
+        depFingerprint.hash,
       ]);
     }
 
-    let fileHashes: Array<[string, Sha256HexDigest]>;
+    let fileHashes: Array<[string, FileSha256HexDigest]>;
     if (script.files?.values.length) {
       const files = await glob(script.files.values, {
         cwd: script.packageDir,
@@ -162,13 +171,13 @@ export class Fingerprint {
       // otherwise re-use cached hashes that we store in e.g.
       // ".wireit/<script>/hashes".
       fileHashes = await Promise.all(
-        files.map(async (file): Promise<[string, Sha256HexDigest]> => {
+        files.map(async (file): Promise<[string, FileSha256HexDigest]> => {
           const absolutePath = file.path;
           const hash = createHash('sha256');
           for await (const chunk of createReadStream(absolutePath)) {
             hash.update(chunk as Buffer);
           }
-          return [file.path, hash.digest('hex') as Sha256HexDigest];
+          return [file.path, hash.digest('hex') as FileSha256HexDigest];
         })
       );
     } else {
@@ -225,6 +234,7 @@ export class Fingerprint {
 
   private _str?: FingerprintString;
   private _data?: FingerprintData;
+  private _hash?: FingerprintSha256HexDigest;
 
   get string(): FingerprintString {
     if (this._str === undefined) {
@@ -240,6 +250,15 @@ export class Fingerprint {
       this._data = JSON.parse(this._str!) as FingerprintData;
     }
     return this._data;
+  }
+
+  get hash(): FingerprintSha256HexDigest {
+    if (this._hash === undefined) {
+      this._hash = createHash('sha256')
+        .update(this.string)
+        .digest('hex') as FingerprintSha256HexDigest;
+    }
+    return this._hash;
   }
 
   equal(other: Fingerprint): boolean {
