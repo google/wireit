@@ -18,7 +18,7 @@
             "minLength": 1
           },
           "allowUsuallyExcludedPaths": {
-            "markdownDescription": "By default, the following folders are excluded from the `files` and `output` arrays: `.wireit/`, `.git/`, and `node_modules/`. In the highly unusual case that you need to reference a file in one of those folders, set `allowUsuallyExcludedPaths` to `true` to remove these exclusions.\n\nFor more info see: https://github.com/google/wireit#default-excluded-paths",
+            "markdownDescription": "By default, the following folders are excluded from the `files` and `output` arrays: `.git/`, `.hg/`, '.svn/', '.wireit/', 'CVS/', and `node_modules/`. In the highly unusual case that you need to reference a file in one of those folders, set `allowUsuallyExcludedPaths` to `true` to remove these exclusions.\n\nFor more info see: https://github.com/google/wireit#default-excluded-paths",
             "type": "boolean"
           },
           "dependencies": {
