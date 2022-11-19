@@ -448,22 +448,30 @@ const watchPathsEqual = (
   return true;
 };
 
-const makeWatcher = (
+/**
+ * Exported for testing.
+ *
+ * @param ignoreInitial Ignore the initial "add" events emitted when chokidar
+ * first discovers each file. We already do an initial run, so these events are
+ * just noise that may trigger an unnecessary second run.
+ * https://github.com/paulmillr/chokidar#path-filtering
+ */
+export const makeWatcher = (
   patterns: string[],
   cwd: string,
-  callback: () => void
+  callback: () => void,
+  ignoreInitial = true
 ): FileWatcher => {
+  // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
+  // currently various differences in what gets watched vs what actually affects
+  // the build. See https://github.com/google/wireit/issues/550.
   const watcher = chokidar.watch(
     // Trim leading slashes from patterns, to "re-root" all paths to the package
     // directory, just as we do when globbing for script execution.
     patterns.map((pattern) => pattern.replace(/^\/+/, '')),
     {
       cwd,
-      // Ignore the initial "add" events emitted when chokidar first discovers
-      // each file. We already do an initial run, so these events are just noise
-      // that may trigger an unnecessary second run.
-      // https://github.com/paulmillr/chokidar#path-filtering
-      ignoreInitial: true,
+      ignoreInitial,
     }
   );
   watcher.on('all', callback);
