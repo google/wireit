@@ -9,6 +9,7 @@ import * as assert from 'uvu/assert';
 import {suite} from 'uvu';
 import {glob} from '../util/glob.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
+import {makeWatcher} from '../watcher.js';
 
 interface Symlink {
   /** Where the symlink file points to. */
@@ -20,6 +21,7 @@ interface Symlink {
 }
 
 interface TestCase {
+  mode: 'once' | 'watch';
   files: Array<string | Symlink>;
   patterns: string[];
   expected: string[] | 'ERROR';
@@ -42,6 +44,7 @@ test.before.each(async (ctx) => {
     await rig.setup();
 
     ctx.check = async ({
+      mode,
       files,
       patterns,
       expected,
@@ -61,7 +64,7 @@ test.before.each(async (ctx) => {
             await rig.touch(file);
           }
         } else {
-          // symlink
+          // syk
           await rig.symlink(file.target, file.path, file.windowsType);
         }
       }
@@ -76,29 +79,59 @@ test.before.each(async (ctx) => {
         }
       }
 
-      let actual, error;
-      try {
-        actual = await glob(patterns, {
-          cwd: rig.resolve(cwd),
-          followSymlinks,
-          includeDirectories,
-          expandDirectories,
-          throwIfOutsideCwd,
-        });
-      } catch (e) {
-        error = e;
-      }
-      if (expected === 'ERROR') {
-        if (error === undefined) {
-          assert.unreachable('Expected an error');
+      if (mode === 'once') {
+        let actual, error;
+        try {
+          actual = await glob(patterns, {
+            cwd: rig.resolve(cwd),
+            followSymlinks,
+            includeDirectories,
+            expandDirectories,
+            throwIfOutsideCwd,
+          });
+        } catch (e) {
+          error = e;
         }
-      } else if (error !== undefined) {
-        throw error;
-      } else if (actual === undefined) {
-        throw new Error('Actual was undefined');
+        if (expected === 'ERROR') {
+          if (error === undefined) {
+            assert.unreachable('Expected an error');
+          }
+        } else if (error !== undefined) {
+          throw error;
+        } else if (actual === undefined) {
+          throw new Error('Actual was undefined');
+        } else {
+          const actualPaths = actual.map((file) => file.path);
+          assert.equal(actualPaths.sort(), expected.sort());
+        }
+      } else if (mode === 'watch') {
+        const actual: string[] = [];
+        if (patterns.length > 0) {
+          const {watcher} = makeWatcher(
+            patterns,
+            rig.resolve(cwd),
+            () => undefined,
+            // We need ignoreInitial=false because we need the initial "add"
+            // events to find out what chokidar has found (we usually only care
+            // about changes, not initial files).
+            false
+          );
+          watcher.on('add', (path) => {
+            actual.push(rig.resolve(path));
+          });
+          await new Promise<void>((resolve) =>
+            watcher.on('ready', () => {
+              resolve();
+            })
+          );
+          await watcher.close();
+        }
+        if (expected === 'ERROR') {
+          throw new Error('Not sure how to check chokidar errors yet');
+        }
+        assert.equal(actual.sort(), expected.sort());
       } else {
-        const actualPaths = actual.map((file) => file.path);
-        assert.equal(actualPaths.sort(), expected.sort());
+        throw new Error('Unknown mode', mode);
       }
     };
   } catch (error) {
