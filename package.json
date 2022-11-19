@@ -90,6 +90,7 @@
         "test:freshness",
         "test:glob",
         "test:ide",
+        "test:gc",
         "test:json-schema",
         "test:optimize-mkdirs",
         "test:parallelism",
