@@ -487,7 +487,12 @@ for (const mode of ['once', 'watch'] as const) {
   );
 
   skipIfWatch(`[${mode}] empty pattern throws`, ({check}) =>
-    check({mode, files: ['foo', 'bar'], patterns: [''], expected: 'ERROR'})
+    check({
+      mode,
+      files: ['foo', 'bar'],
+      patterns: [''],
+      expected: 'ERROR',
+    })
   );
 
   skipIfWatch(
@@ -503,7 +508,12 @@ for (const mode of ['once', 'watch'] as const) {
   );
 
   skipIfWatch(`[${mode}] whitespace pattern throws`, ({check}) =>
-    check({mode, files: ['foo', 'bar'], patterns: [' '], expected: 'ERROR'})
+    check({
+      mode,
+      files: ['foo', 'bar'],
+      patterns: [' '],
+      expected: 'ERROR',
+    })
   );
 
   skipIfWatch(
