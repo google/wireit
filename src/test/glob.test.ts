@@ -162,6 +162,38 @@ test('* star with ! negation', ({check}) =>
     expected: ['foo', 'baz'],
   }));
 
+test('inclusion of directory with trailing slash', ({check}) =>
+  check({
+    files: ['foo/good/1', 'foo/good/2'],
+    patterns: ['foo/'],
+    expected: ['foo/good/1', 'foo/good/2'],
+    expandDirectories: true,
+  }));
+
+test('inclusion of directory without trailing slash', ({check}) =>
+  check({
+    files: ['foo/good/1', 'foo/good/2'],
+    patterns: ['foo'],
+    expected: ['foo/good/1', 'foo/good/2'],
+    expandDirectories: true,
+  }));
+
+test('!exclusion of directory with trailing slash', ({check}) =>
+  check({
+    files: ['foo/good/1', 'foo/bad/1'],
+    patterns: ['foo', '!foo/bad/'],
+    expected: ['foo/good/1'],
+    expandDirectories: true,
+  }));
+
+test('!exclusion of directory without trailing slash', ({check}) =>
+  check({
+    files: ['foo/good/1', 'foo/bad/1'],
+    patterns: ['foo', '!foo/bad'],
+    expected: ['foo/good/1'],
+    expandDirectories: true,
+  }));
+
 test('explicit .dotfile', ({check}) =>
   check({
     files: ['.foo'],

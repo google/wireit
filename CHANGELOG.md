@@ -13,6 +13,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Fixed `Invalid string length` and `heap out of memory` errors when writing the
   fingerprint files for large script graphs.
 
+- Fixed bug where an exclude pattern for a folder with a trailing slash would
+  not be applied (e.g. `!foo` worked but `!foo/` did not).
+
 ## [0.7.3] - 2022-11-14
 
 ### Added
