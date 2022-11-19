@@ -836,13 +836,16 @@ input also affects the fingerprint:
 
 Wireit is supported on Linux, macOS, and Windows.
 
-Wireit is supported on Node Current (18), Active LTS (16), and the most recent
-Maintenance LTS (14). See [Node releases](https://nodejs.org/en/about/releases/)
-for the schedule.
+Wireit is supported on Node Current (19), LTS (18), and Maintenance (16 and 14).
+See [Node releases](https://nodejs.org/en/about/releases/) for the schedule.
 
-Wireit is supported on the npm versions that ship with the above supported Node
-versions (5 and 6), Yarn Classic (1), and on the latest versions of Yarn Berry
-(3) and pnpm (7).
+> **Warning**
+> Wireit will no longer work with Node 14 when it reaches end-of-life on
+> 2023-04-30. We recommend upgrading to Node 18 as soon as possible.
+
+Wireit is supported on the npm versions that ship with the latest versions of
+the above supported Node versions (6 and 8), Yarn Classic (1), Yarn Berry (3),
+and pnpm (7).
 
 ## Related tools
 
