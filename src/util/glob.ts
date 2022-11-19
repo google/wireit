@@ -99,7 +99,16 @@ export async function glob(
         // the npm package.json "files" array, where matching a directory
         // implicitly includes all transitive children.
         if (!isRecursive(expanded)) {
-          expandedPatterns.push(expanded + '/**');
+          const isExclusive = pattern[0] === '!';
+          if (!isExclusive) {
+            // We use the "ignore" feature of fast-glob for exclusive patterns,
+            // which already automatically recursively excludes directories by
+            // not recursing into them at all, so there is no need to also
+            // generate a recursive version when excluding.
+            expandedPatterns.push(
+              expanded + (expanded.endsWith('/') ? '**' : '/**')
+            );
+          }
         }
       }
     }
@@ -163,7 +172,11 @@ export async function glob(
         }
         groups.push(currentGroup);
       }
-      currentGroup.exclude.push(pattern);
+      currentGroup.exclude.push(
+        // Trim trailing slashes because fast-glob does not understand trailing
+        // slashes in "ignore" list entries (they have no effect!).
+        pattern.replace(/\/+$/, '')
+      );
     } else if (pattern.match(/^\s*$/)) {
       // fast-glob already throws on empty strings, but we also throw on
       // only-whitespace patterns.
