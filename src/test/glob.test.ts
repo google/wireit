@@ -154,49 +154,49 @@ test.after.each(async (ctx) => {
 });
 
 for (const mode of ['once', 'watch'] as const) {
-  test('empty patterns', ({check}) =>
+  test(`[${mode}] empty patterns`, ({check}) =>
     check({
       files: ['foo'],
       patterns: [],
       expected: [],
     }));
 
-  test('normalizes trailing / in pattern', ({check}) =>
+  test(`[${mode}] normalizes trailing / in pattern`, ({check}) =>
     check({
       files: ['foo'],
       patterns: ['foo/'],
       expected: ['foo'],
     }));
 
-  test('normalizes ../ in pattern', ({check}) =>
+  test(`[${mode}] normalizes ../ in pattern`, ({check}) =>
     check({
       files: ['foo'],
       patterns: ['bar/../foo'],
       expected: ['foo'],
     }));
 
-  test('explicit file that does not exist', ({check}) =>
+  test(`[${mode}] explicit file that does not exist`, ({check}) =>
     check({
       files: [],
       patterns: ['foo'],
       expected: [],
     }));
 
-  test('* star', ({check}) =>
+  test(`[${mode}] * star`, ({check}) =>
     check({
       files: ['foo', 'bar'],
       patterns: ['*'],
       expected: ['foo', 'bar'],
     }));
 
-  test('* star with ! negation', ({check}) =>
+  test(`[${mode}] * star with ! negation`, ({check}) =>
     check({
       files: ['foo', 'bar', 'baz'],
       patterns: ['*', '!bar'],
       expected: ['foo', 'baz'],
     }));
 
-  test('inclusion of directory with trailing slash', ({check}) =>
+  test(`[${mode}] inclusion of directory with trailing slash`, ({check}) =>
     check({
       files: ['foo/good/1', 'foo/good/2'],
       patterns: ['foo/'],
@@ -204,7 +204,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('inclusion of directory without trailing slash', ({check}) =>
+  test(`[${mode}] inclusion of directory without trailing slash`, ({check}) =>
     check({
       files: ['foo/good/1', 'foo/good/2'],
       patterns: ['foo'],
@@ -212,7 +212,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('!exclusion of directory with trailing slash', ({check}) =>
+  test(`[${mode}] !exclusion of directory with trailing slash`, ({check}) =>
     check({
       files: ['foo/good/1', 'foo/bad/1'],
       patterns: ['foo', '!foo/bad/'],
@@ -220,7 +220,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('!exclusion of directory without trailing slash', ({check}) =>
+  test(`[${mode}] !exclusion of directory without trailing slash`, ({check}) =>
     check({
       files: ['foo/good/1', 'foo/bad/1'],
       patterns: ['foo', '!foo/bad'],
@@ -228,28 +228,28 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('explicit .dotfile', ({check}) =>
+  test(`[${mode}] explicit .dotfile`, ({check}) =>
     check({
       files: ['.foo'],
       patterns: ['.foo'],
       expected: ['.foo'],
     }));
 
-  test('* star matches .dotfiles', ({check}) =>
+  test(`[${mode}] * star matches .dotfiles`, ({check}) =>
     check({
       files: ['.foo'],
       patterns: ['*'],
       expected: ['.foo'],
     }));
 
-  test('{} groups', ({check}) =>
+  test(`[${mode}] {} groups`, ({check}) =>
     check({
       files: ['foo', 'bar', 'baz'],
       patterns: ['{foo,baz}'],
       expected: ['foo', 'baz'],
     }));
 
-  test('matches explicit symlink', ({check}) =>
+  test(`[${mode}] matches explicit symlink`, ({check}) =>
     check({
       files: [
         'target',
@@ -259,14 +259,18 @@ for (const mode of ['once', 'watch'] as const) {
       expected: ['symlink'],
     }));
 
-  test('explicit directory excluded when includeDirectories=false', ({check}) =>
+  test(`[${mode}] explicit directory excluded when includeDirectories=false`, ({
+    check,
+  }) =>
     check({
       files: ['foo/'],
       patterns: ['foo'],
       expected: [],
     }));
 
-  test('explicit directory included when includeDirectories=true', ({check}) =>
+  test(`[${mode}] explicit directory included when includeDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['foo/'],
       patterns: ['foo'],
@@ -274,14 +278,18 @@ for (const mode of ['once', 'watch'] as const) {
       includeDirectories: true,
     }));
 
-  test('* star excludes directory when includeDirectories=false', ({check}) =>
+  test(`[${mode}] * star excludes directory when includeDirectories=false`, ({
+    check,
+  }) =>
     check({
       files: ['foo/'],
       patterns: ['*'],
       expected: [],
     }));
 
-  test('* star includes directory when includeDirectories=true', ({check}) =>
+  test(`[${mode}] * star includes directory when includeDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['foo/'],
       patterns: ['*'],
@@ -289,7 +297,9 @@ for (const mode of ['once', 'watch'] as const) {
       includeDirectories: true,
     }));
 
-  test('includeDirectories=false + expandDirectories=false', ({check}) =>
+  test(`[${mode}] includeDirectories=false + expandDirectories=false`, ({
+    check,
+  }) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
@@ -298,7 +308,9 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: false,
     }));
 
-  test('includeDirectories=true + expandDirectories=false', ({check}) =>
+  test(`[${mode}] includeDirectories=true + expandDirectories=false`, ({
+    check,
+  }) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
@@ -307,7 +319,9 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: false,
     }));
 
-  test('includeDirectories=false + expandDirectories=true', ({check}) =>
+  test(`[${mode}] includeDirectories=false + expandDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
@@ -316,7 +330,9 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('includeDirectories=true + expandDirectories=true', ({check}) =>
+  test(`[${mode}] includeDirectories=true + expandDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
@@ -333,7 +349,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('includeDirectories=true + expandDirectories=true + recursive !exclusion', ({
+  test(`[${mode}] includeDirectories=true + expandDirectories=true + recursive !exclusion`, ({
     check,
   }) =>
     check({
@@ -350,7 +366,9 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('. matches current directory with includeDirectories=true', ({check}) =>
+  test(`[${mode}] . matches current directory with includeDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['.'],
@@ -358,7 +376,9 @@ for (const mode of ['once', 'watch'] as const) {
       includeDirectories: true,
     }));
 
-  test('. matches current directory with expandDirectories=true', ({check}) =>
+  test(`[${mode}] . matches current directory with expandDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['.'],
@@ -366,7 +386,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('{} groups with expand directories', ({check}) =>
+  test(`[${mode}] {} groups with expand directories`, ({check}) =>
     check({
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['{foo,baz}'],
@@ -374,14 +394,16 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('empty pattern throws', ({check}) =>
+  test(`[${mode}] empty pattern throws`, ({check}) =>
     check({
       files: ['foo', 'bar'],
       patterns: [''],
       expected: 'ERROR',
     }));
 
-  test('empty pattern throws with expandDirectories=true', ({check}) =>
+  test(`[${mode}] empty pattern throws with expandDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['foo', 'bar'],
       patterns: [''],
@@ -389,14 +411,16 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('whitespace pattern throws', ({check}) =>
+  test(`[${mode}] whitespace pattern throws`, ({check}) =>
     check({
       files: ['foo', 'bar'],
       patterns: [' '],
       expected: 'ERROR',
     }));
 
-  test('whitespace pattern throws with expandDirectories=true', ({check}) =>
+  test(`[${mode}] whitespace pattern throws with expandDirectories=true`, ({
+    check,
+  }) =>
     check({
       files: ['foo', 'bar'],
       patterns: [' '],
@@ -404,14 +428,14 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('re-inclusion of file', ({check}) =>
+  test(`[${mode}] re-inclusion of file`, ({check}) =>
     check({
       files: ['foo'],
       patterns: ['!foo', 'foo'],
       expected: ['foo'],
     }));
 
-  test('re-inclusion of directory', ({check}) =>
+  test(`[${mode}] re-inclusion of directory`, ({check}) =>
     check({
       files: ['foo/'],
       patterns: ['!foo', 'foo'],
@@ -419,14 +443,14 @@ for (const mode of ['once', 'watch'] as const) {
       includeDirectories: true,
     }));
 
-  test('re-inclusion of file into directory', ({check}) =>
+  test(`[${mode}] re-inclusion of file into directory`, ({check}) =>
     check({
       files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
       patterns: ['foo/**', '!foo/bar/**', 'foo/bar/baz', '!foo/qux'],
       expected: ['foo/1', 'foo/bar/baz'],
     }));
 
-  test('re-inclusion of file into directory with expandDirectories=true', ({
+  test(`[${mode}] re-inclusion of file into directory with expandDirectories=true`, ({
     check,
   }) =>
     check({
@@ -436,7 +460,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('re-inclusion of directory into directory with expandDirectories=true', ({
+  test(`[${mode}] re-inclusion of directory into directory with expandDirectories=true`, ({
     check,
   }) =>
     check({
@@ -446,7 +470,7 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test('walks through symlinked directories when followSymlinks=true', ({
+  test(`[${mode}] walks through symlinked directories when followSymlinks=true`, ({
     check,
   }) =>
     check({
@@ -460,7 +484,7 @@ for (const mode of ['once', 'watch'] as const) {
       followSymlinks: true,
     }));
 
-  test('does not walk through symlinked directories when followSymlinks=false', ({
+  test(`[${mode}] does not walk through symlinked directories when followSymlinks=false`, ({
     check,
   }) =>
     check({
@@ -474,7 +498,7 @@ for (const mode of ['once', 'watch'] as const) {
       followSymlinks: false,
     }));
 
-  test('dirent tags files', async ({rig}) => {
+  test(`[${mode}] dirent tags files`, async ({rig}) => {
     await rig.touch('foo');
     const actual = await glob(['foo'], {
       cwd: rig.temp,
@@ -490,7 +514,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.not(actual[0].dirent.isSymbolicLink());
   });
 
-  test('dirent tags directories', async ({rig}) => {
+  test(`[${mode}] dirent tags directories`, async ({rig}) => {
     await rig.mkdir('foo');
     const actual = await glob(['foo'], {
       cwd: rig.temp,
@@ -506,7 +530,9 @@ for (const mode of ['once', 'watch'] as const) {
     assert.not(actual[0].dirent.isSymbolicLink());
   });
 
-  test('dirent tags symlinks when followSymlinks=false', async ({rig}) => {
+  test(`[${mode}] dirent tags symlinks when followSymlinks=false`, async ({
+    rig,
+  }) => {
     await rig.symlink('target', 'foo', 'file');
     const actual = await glob(['foo'], {
       cwd: rig.temp,
@@ -522,7 +548,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.ok(actual[0].dirent.isSymbolicLink());
   });
 
-  test('dirent tags symlinks to files as files when followSymlinks=true', async ({
+  test(`[${mode}] dirent tags symlinks to files as files when followSymlinks=true`, async ({
     rig,
   }) => {
     await rig.symlink('target', 'foo', 'file');
@@ -541,7 +567,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.not(actual[0].dirent.isSymbolicLink());
   });
 
-  test('dirent tags symlinks to directories as directories when followSymlinks=true', async ({
+  test(`[${mode}] dirent tags symlinks to directories as directories when followSymlinks=true`, async ({
     rig,
   }) => {
     await rig.symlink('target', 'foo', 'dir');
@@ -560,21 +586,21 @@ for (const mode of ['once', 'watch'] as const) {
     assert.not(actual[0].dirent.isSymbolicLink());
   });
 
-  test('re-roots to cwd', ({check}) =>
+  test(`[${mode}] re-roots to cwd`, ({check}) =>
     check({
       files: ['foo'],
       patterns: ['/foo'],
       expected: ['foo'],
     }));
 
-  test('re-roots to cwd with exclusion', ({check}) =>
+  test(`[${mode}] re-roots to cwd with exclusion`, ({check}) =>
     check({
       files: ['foo', 'bar', 'baz'],
       patterns: ['/*', '!/bar'],
       expected: ['foo', 'baz'],
     }));
 
-  test('re-rooting allows ../', ({check}) =>
+  test(`[${mode}] re-rooting allows ../`, ({check}) =>
     check({
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
@@ -582,14 +608,14 @@ for (const mode of ['once', 'watch'] as const) {
       expected: ['foo'],
     }));
 
-  test('re-rooting handles /./foo', ({check}) =>
+  test(`[${mode}] re-rooting handles /./foo`, ({check}) =>
     check({
       files: ['foo'],
       patterns: ['/./foo'],
       expected: ['foo'],
     }));
 
-  test('re-rooting handles /../foo', ({check}) =>
+  test(`[${mode}] re-rooting handles /../foo`, ({check}) =>
     check({
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
@@ -597,28 +623,30 @@ for (const mode of ['once', 'watch'] as const) {
       expected: ['foo'],
     }));
 
-  test('re-rooting handles /bar/../foo/', ({check}) =>
+  test(`[${mode}] re-rooting handles /bar/../foo/`, ({check}) =>
     check({
       files: ['foo'],
       patterns: ['/bar/../foo/'],
       expected: ['foo'],
     }));
 
-  test('re-roots to cwd with braces', ({check}) =>
+  test(`[${mode}] re-roots to cwd with braces`, ({check}) =>
     check({
       files: ['foo', 'bar'],
       patterns: ['{/foo,/bar}'],
       expected: ['foo', 'bar'],
     }));
 
-  test('braces can be escaped', ({check}) =>
+  test(`[${mode}] braces can be escaped`, ({check}) =>
     check({
       files: ['{foo,bar}'],
       patterns: ['\\{foo,bar\\}'],
       expected: ['{foo,bar}'],
     }));
 
-  test('disallows path outside cwd when throwIfOutsideCwd=true', ({check}) =>
+  test(`[${mode}] disallows path outside cwd when throwIfOutsideCwd=true`, ({
+    check,
+  }) =>
     check({
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
@@ -627,7 +655,9 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: true,
     }));
 
-  test('allows path outside cwd when throwIfOutsideCwd=false', ({check}) =>
+  test(`[${mode}] allows path outside cwd when throwIfOutsideCwd=false`, ({
+    check,
+  }) =>
     check({
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
@@ -636,7 +666,9 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: false,
     }));
 
-  test('allows path inside cwd when throwIfOutsideCwd=true', ({check}) =>
+  test(`[${mode}] allows path inside cwd when throwIfOutsideCwd=true`, ({
+    check,
+  }) =>
     check({
       files: ['foo'],
       patterns: ['foo'],
