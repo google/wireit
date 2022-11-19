@@ -155,6 +155,12 @@ test.after.each(async (ctx) => {
 });
 
 for (const mode of ['once', 'watch'] as const) {
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const skipIfWatch = mode === 'watch' ? test.skip : test;
+  const skipIfWatchOnWindows =
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    mode === 'watch' && IS_WINDOWS ? test.skip : test;
+
   test(`[${mode}] empty patterns`, ({check}) =>
     check({
       mode,
@@ -163,13 +169,14 @@ for (const mode of ['once', 'watch'] as const) {
       expected: [],
     }));
 
-  test(`[${mode}] normalizes trailing / in pattern`, ({check}) =>
+  skipIfWatch(`[${mode}] normalizes trailing / in pattern`, ({check}) =>
     check({
       mode,
       files: ['foo'],
       patterns: ['foo/'],
       expected: ['foo'],
-    }));
+    })
+  );
 
   test(`[${mode}] normalizes ../ in pattern`, ({check}) =>
     check({
@@ -291,9 +298,20 @@ for (const mode of ['once', 'watch'] as const) {
       mode,
       files: ['foo/'],
       patterns: ['foo'],
-      expected: ['foo'],
-      includeDirectories: true,
+      expected: [],
     }));
+
+  skipIfWatch(
+    `[${mode}] explicit directory included when includeDirectories=true`,
+    ({check}) =>
+      check({
+        mode,
+        files: ['foo/'],
+        patterns: ['foo'],
+        expected: ['foo'],
+        includeDirectories: true,
+      })
+  );
 
   test(`[${mode}] * star excludes directory when includeDirectories=false`, ({
     check,
@@ -305,40 +323,59 @@ for (const mode of ['once', 'watch'] as const) {
       expected: [],
     }));
 
-  test(`[${mode}] * star includes directory when includeDirectories=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['foo/'],
-      patterns: ['*'],
-      expected: ['foo'],
-      includeDirectories: true,
-    }));
+  skipIfWatch(
+    `[${mode}] * star includes directory when includeDirectories=true`,
+    ({check}) =>
+      check({
+        mode,
+        files: ['foo/'],
+        patterns: ['*'],
+        expected: ['foo'],
+        includeDirectories: true,
+      })
+  );
 
-  test(`[${mode}] includeDirectories=false + expandDirectories=false`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
-      patterns: ['foo'],
-      expected: [],
-      includeDirectories: false,
-      expandDirectories: false,
-    }));
+  skipIfWatch(
+    `[${mode}] includeDirectories=false + expandDirectories=false`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          '1',
+          '2',
+          'foo/1',
+          'foo/2',
+          'foo/bar/1',
+          'foo/bar/2',
+          'foo/baz/',
+        ],
+        patterns: ['foo'],
+        expected: [],
+        includeDirectories: false,
+        expandDirectories: false,
+      })
+  );
 
-  test(`[${mode}] includeDirectories=true + expandDirectories=false`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
-      patterns: ['foo'],
-      expected: ['foo'],
-      includeDirectories: true,
-      expandDirectories: false,
-    }));
+  skipIfWatch(
+    `[${mode}] includeDirectories=true + expandDirectories=false`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          '1',
+          '2',
+          'foo/1',
+          'foo/2',
+          'foo/bar/1',
+          'foo/bar/2',
+          'foo/baz/',
+        ],
+        patterns: ['foo'],
+        expected: ['foo'],
+        includeDirectories: true,
+        expandDirectories: false,
+      })
+  );
 
   test(`[${mode}] includeDirectories=false + expandDirectories=true`, ({
     check,
@@ -352,54 +389,81 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test(`[${mode}] includeDirectories=true + expandDirectories=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
-      patterns: ['foo'],
-      expected: [
-        'foo',
-        'foo/1',
-        'foo/2',
-        'foo/bar',
-        'foo/bar/1',
-        'foo/bar/2',
-        'foo/baz',
-      ],
-      includeDirectories: true,
-      expandDirectories: true,
-    }));
+  skipIfWatch(
+    `[${mode}] includeDirectories=true + expandDirectories=true`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          '1',
+          '2',
+          'foo/1',
+          'foo/2',
+          'foo/bar/1',
+          'foo/bar/2',
+          'foo/baz/',
+        ],
+        patterns: ['foo'],
+        expected: [
+          'foo',
+          'foo/1',
+          'foo/2',
+          'foo/bar',
+          'foo/bar/1',
+          'foo/bar/2',
+          'foo/baz',
+        ],
+        includeDirectories: true,
+        expandDirectories: true,
+      })
+  );
 
-  test(`[${mode}] includeDirectories=true + expandDirectories=true + recursive !exclusion`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
-      patterns: [
-        'foo',
-        // This exclusion pattern needs to match recursively too. We don't just
-        // exclude the "foo/bar" directory, we also exclude its recursive
-        // children.
-        '!foo/bar',
-      ],
-      expected: ['foo', 'foo/1', 'foo/2', 'foo/baz'],
-      includeDirectories: true,
-      expandDirectories: true,
-    }));
+  skipIfWatch(
+    `[${mode}] includeDirectories=true + expandDirectories=true + recursive !exclusion`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          '1',
+          '2',
+          'foo/1',
+          'foo/2',
+          'foo/bar/1',
+          'foo/bar/2',
+          'foo/baz/',
+        ],
+        patterns: [
+          'foo',
+          // This exclusion pattern needs to match recursively too. We don't just
+          // exclude the "foo/bar" directory, we also exclude its recursive
+          // children.
+          '!foo/bar',
+        ],
+        expected: ['foo', 'foo/1', 'foo/2', 'foo/baz'],
+        includeDirectories: true,
+        expandDirectories: true,
+      })
+  );
 
-  test(`[${mode}] . matches current directory with includeDirectories=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
-      patterns: ['.'],
-      expected: ['.'],
-      includeDirectories: true,
-    }));
+  skipIfWatch(
+    `[${mode}] . matches current directory with includeDirectories=true`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          '1',
+          '2',
+          'foo/1',
+          'foo/2',
+          'foo/bar/1',
+          'foo/bar/2',
+          'foo/baz/',
+        ],
+        patterns: ['.'],
+        expected: ['.'],
+        includeDirectories: true,
+      })
+  );
 
   test(`[${mode}] . matches current directory with expandDirectories=true`, ({
     check,
@@ -412,74 +476,75 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test(`[${mode}] {} groups with expand directories`, ({check}) =>
+  skipIfWatch(`[${mode}] {} groups with expand directories`, ({check}) =>
     check({
       mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['{foo,baz}'],
       expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
       expandDirectories: true,
-    }));
+    })
+  );
 
-  test(`[${mode}] empty pattern throws`, ({check}) =>
-    check({
-      mode,
-      files: ['foo', 'bar'],
-      patterns: [''],
-      expected: 'ERROR',
-    }));
+  skipIfWatch(`[${mode}] empty pattern throws`, ({check}) =>
+    check({mode, files: ['foo', 'bar'], patterns: [''], expected: 'ERROR'})
+  );
 
-  test(`[${mode}] empty pattern throws with expandDirectories=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['foo', 'bar'],
-      patterns: [''],
-      expected: 'ERROR',
-      expandDirectories: true,
-    }));
-
-  test(`[${mode}] whitespace pattern throws`, ({check}) =>
-    check({mode, files: ['foo', 'bar'], patterns: [' '], expected: 'ERROR'}));
-
-  test(`[${mode}] whitespace pattern throws with expandDirectories=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: ['foo', 'bar'],
-      patterns: [' '],
-      expected: 'ERROR',
-      expandDirectories: true,
-    }));
-
-  if (!(mode === 'watch' && IS_WINDOWS)) {
-    test(`[${mode}] re-inclusion of file`, ({check}) =>
+  skipIfWatch(
+    `[${mode}] empty pattern throws with expandDirectories=true`,
+    ({check}) =>
       check({
         mode,
-        files: ['foo'],
-        patterns: ['!foo', 'foo'],
-        expected: ['foo'],
-      }));
-  }
+        files: ['foo', 'bar'],
+        patterns: [''],
+        expected: 'ERROR',
+        expandDirectories: true,
+      })
+  );
 
-  test(`[${mode}] re-inclusion of directory`, ({check}) =>
+  skipIfWatch(`[${mode}] whitespace pattern throws`, ({check}) =>
+    check({mode, files: ['foo', 'bar'], patterns: [' '], expected: 'ERROR'})
+  );
+
+  skipIfWatch(
+    `[${mode}] whitespace pattern throws with expandDirectories=true`,
+    ({check}) =>
+      check({
+        mode,
+        files: ['foo', 'bar'],
+        patterns: [' '],
+        expected: 'ERROR',
+        expandDirectories: true,
+      })
+  );
+
+  skipIfWatchOnWindows(`[${mode}] re-inclusion of file`, ({check}) =>
+    check({
+      mode,
+      files: ['foo'],
+      patterns: ['!foo', 'foo'],
+      expected: ['foo'],
+    })
+  );
+
+  skipIfWatch(`[${mode}] re-inclusion of directory`, ({check}) =>
     check({
       mode,
       files: ['foo/'],
       patterns: ['!foo', 'foo'],
       expected: ['foo'],
       includeDirectories: true,
-    }));
+    })
+  );
 
-  test(`[${mode}] re-inclusion of file into directory`, ({check}) =>
+  skipIfWatch(`[${mode}] re-inclusion of file into directory`, ({check}) =>
     check({
       mode,
       files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
       patterns: ['foo/**', '!foo/bar/**', 'foo/bar/baz', '!foo/qux'],
       expected: ['foo/1', 'foo/bar/baz'],
-    }));
+    })
+  );
 
   test(`[${mode}] re-inclusion of file into directory with expandDirectories=true`, ({
     check,
@@ -503,35 +568,37 @@ for (const mode of ['once', 'watch'] as const) {
       expandDirectories: true,
     }));
 
-  test(`[${mode}] walks through symlinked directories when followSymlinks=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: [
-        'target/foo',
-        {target: 'target', path: 'symlink', windowsType: 'dir'},
-      ],
-      patterns: ['**'],
-      expected: ['target', 'target/foo', 'symlink', 'symlink/foo'],
-      includeDirectories: true,
-      followSymlinks: true,
-    }));
+  skipIfWatch(
+    `[${mode}] walks through symlinked directories when followSymlinks=true`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          'target/foo',
+          {target: 'target', path: 'symlink', windowsType: 'dir'},
+        ],
+        patterns: ['**'],
+        expected: ['target', 'target/foo', 'symlink', 'symlink/foo'],
+        includeDirectories: true,
+        followSymlinks: true,
+      })
+  );
 
-  test(`[${mode}] does not walk through symlinked directories when followSymlinks=false`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      files: [
-        'target/foo',
-        {target: 'target', path: 'symlink', windowsType: 'dir'},
-      ],
-      patterns: ['**'],
-      expected: ['target', 'target/foo', 'symlink'],
-      includeDirectories: true,
-      followSymlinks: false,
-    }));
+  skipIfWatch(
+    `[${mode}] does not walk through symlinked directories when followSymlinks=false`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          'target/foo',
+          {target: 'target', path: 'symlink', windowsType: 'dir'},
+        ],
+        patterns: ['**'],
+        expected: ['target', 'target/foo', 'symlink'],
+        includeDirectories: true,
+        followSymlinks: false,
+      })
+  );
 
   test(`[${mode}] dirent tags files`, async ({rig}) => {
     await rig.touch('foo');
@@ -622,7 +689,12 @@ for (const mode of ['once', 'watch'] as const) {
   });
 
   test(`[${mode}] re-roots to cwd`, ({check}) =>
-    check({mode, files: ['foo'], patterns: ['/foo'], expected: ['foo']}));
+    check({
+      mode,
+      files: ['foo'],
+      patterns: ['/foo'],
+      expected: ['foo'],
+    }));
 
   test(`[${mode}] re-roots to cwd with exclusion`, ({check}) =>
     check({
@@ -632,74 +704,85 @@ for (const mode of ['once', 'watch'] as const) {
       expected: ['foo', 'baz'],
     }));
 
-  test(`[${mode}] re-rooting allows ../`, ({check}) =>
-    check({
-      mode,
-      cwd: 'subdir',
-      files: ['foo', 'subdir/'],
-      patterns: ['../foo'],
-      expected: ['foo'],
-    }));
+  if (mode !== 'watch') {
+    test(`[${mode}] re-rooting allows ../`, ({check}) =>
+      check({
+        mode,
+        cwd: 'subdir',
+        files: ['foo', 'subdir/'],
+        patterns: ['../foo'],
+        expected: ['foo'],
+      }));
+  }
 
   test(`[${mode}] re-rooting handles /./foo`, ({check}) =>
-    check({mode, files: ['foo'], patterns: ['/./foo'], expected: ['foo']}));
-
-  test(`[${mode}] re-rooting handles /../foo`, ({check}) =>
-    check({
-      mode,
-      cwd: 'subdir',
-      files: ['foo', 'subdir/'],
-      patterns: ['/../foo'],
-      expected: ['foo'],
-    }));
-
-  test(`[${mode}] re-rooting handles /bar/../foo/`, ({check}) =>
     check({
       mode,
       files: ['foo'],
-      patterns: ['/bar/../foo/'],
+      patterns: ['/./foo'],
       expected: ['foo'],
     }));
 
-  test(`[${mode}] re-roots to cwd with braces`, ({check}) =>
-    check({
-      mode,
-      files: ['foo', 'bar'],
-      patterns: ['{/foo,/bar}'],
-      expected: ['foo', 'bar'],
-    }));
+  if (mode !== 'watch') {
+    test(`[${mode}] re-rooting handles /../foo`, ({check}) =>
+      check({
+        mode,
+        cwd: 'subdir',
+        files: ['foo', 'subdir/'],
+        patterns: ['/../foo'],
+        expected: ['foo'],
+      }));
 
-  test(`[${mode}] braces can be escaped`, ({check}) =>
-    check({
-      mode,
-      files: ['{foo,bar}'],
-      patterns: ['\\{foo,bar\\}'],
-      expected: ['{foo,bar}'],
-    }));
+    test(`[${mode}] re-rooting handles /bar/../foo/`, ({check}) =>
+      check({
+        mode,
+        files: ['foo'],
+        patterns: ['/bar/../foo/'],
+        expected: ['foo'],
+      }));
 
-  test(`[${mode}] disallows path outside cwd when throwIfOutsideCwd=true`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      cwd: 'subdir',
-      files: ['foo', 'subdir/'],
-      patterns: ['../foo'],
-      expected: 'ERROR',
-      throwIfOutsideCwd: true,
-    }));
+    test(`[${mode}] re-roots to cwd with braces`, ({check}) =>
+      check({
+        mode,
+        files: ['foo', 'bar'],
+        patterns: ['{/foo,/bar}'],
+        expected: ['foo', 'bar'],
+      }));
 
-  test(`[${mode}] allows path outside cwd when throwIfOutsideCwd=false`, ({
-    check,
-  }) =>
-    check({
-      mode,
-      cwd: 'subdir',
-      files: ['foo', 'subdir/'],
-      patterns: ['../foo'],
-      expected: ['foo'],
-      throwIfOutsideCwd: false,
-    }));
+    test(`[${mode}] braces can be escaped`, ({check}) =>
+      check({
+        mode,
+        files: ['{foo,bar}'],
+        patterns: ['\\{foo,bar\\}'],
+        expected: ['{foo,bar}'],
+      }));
+  }
+
+  skipIfWatch(
+    `[${mode}] disallows path outside cwd when throwIfOutsideCwd=true`,
+    ({check}) =>
+      check({
+        mode,
+        cwd: 'subdir',
+        files: ['foo', 'subdir/'],
+        patterns: ['../foo'],
+        expected: 'ERROR',
+        throwIfOutsideCwd: true,
+      })
+  );
+
+  skipIfWatch(
+    `[${mode}] allows path outside cwd when throwIfOutsideCwd=false`,
+    ({check}) =>
+      check({
+        mode,
+        cwd: 'subdir',
+        files: ['foo', 'subdir/'],
+        patterns: ['../foo'],
+        expected: ['foo'],
+        throwIfOutsideCwd: false,
+      })
+  );
 
   test(`[${mode}] allows path inside cwd when throwIfOutsideCwd=true`, ({
     check,
