@@ -17,6 +17,10 @@
             "type": "string",
             "minLength": 1
           },
+          "allowUsuallyExcludedPaths": {
+            "markdownDescription": "By default, the following folders are excluded from the `files` and `output` arrays: `.git/`, `.hg/`, '.svn/', '.wireit/', 'CVS/', and `node_modules/`. In the highly unusual case that you need to reference a file in one of those folders, set `allowUsuallyExcludedPaths` to `true` to remove these exclusions.\n\nFor more info see: https://github.com/google/wireit#default-excluded-paths",
+            "type": "boolean"
+          },
           "dependencies": {
             "markdownDescription": "Other npm scripts that will run before this one.\n\nThese scripts do not have to use wireit.\n\nDependencies can refer to scripts in other npm packages by using a relative path with the syntax `<relative-path>:<script-name>`. All cross-package dependencies should start with a `\".\"`. Cross-package dependencies work well for npm workspaces, as well as in other kinds of monorepos.\n\nFor example:\n\n```json\n\"dependencies\": [\n  \"build\",\n  \"./packages/foo:build\"\n]\n```\n\nFor more info, see https://github.com/google/wireit#dependencies",
             "items": {

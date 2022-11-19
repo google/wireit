@@ -91,6 +91,22 @@ interface PlaceholderInfo {
 }
 
 /**
+ * Globs that will be injected into both `files` and `output`, unless
+ * `allowUsuallyExcludedPaths` is `true`.
+ *
+ * See https://docs.npmjs.com/cli/v9/configuring-npm/package-json#files for the
+ * similar list of paths that npm ignores.
+ */
+const DEFAULT_EXCLUDE_PATHS = [
+  '!.git/',
+  '!.hg/',
+  '!.svn/',
+  '!.wireit/',
+  '!CVS/',
+  '!node_modules/',
+] as const;
+
+/**
  * Analyzes and validates a script along with all of its transitive
  * dependencies, producing a build graph that is ready to be executed.
  */
@@ -432,7 +448,18 @@ export class Analyzer {
       }
     }
 
-    const files = this._processFiles(placeholder, packageJson, syntaxInfo);
+    const allowUsuallyExcludedPaths = this._processAllowUsuallyExcludedPaths(
+      placeholder,
+      packageJson,
+      syntaxInfo
+    );
+
+    const files = this._processFiles(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      allowUsuallyExcludedPaths
+    );
 
     if (
       wireitConfig !== undefined &&
@@ -464,7 +491,8 @@ export class Analyzer {
       placeholder,
       packageJson,
       syntaxInfo,
-      command
+      command,
+      allowUsuallyExcludedPaths
     );
     const clean = this._processClean(placeholder, packageJson, syntaxInfo);
     const service = this._processService(
@@ -748,10 +776,45 @@ export class Analyzer {
     return {dependencies, encounteredError};
   }
 
-  private _processFiles(
+  private _processAllowUsuallyExcludedPaths(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo
+  ): boolean {
+    const defaultValue = false;
+    if (syntaxInfo.wireitConfigNode == null) {
+      return defaultValue;
+    }
+    const node = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'allowUsuallyExcludedPaths',
+    ]);
+    if (node === undefined) {
+      return defaultValue;
+    }
+    if (node.value === true || node.value === false) {
+      return node.value;
+    }
+    placeholder.failures.push({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script: placeholder,
+      diagnostic: {
+        severity: 'error',
+        message: `Must be true or false`,
+        location: {
+          file: packageJson.jsonFile,
+          range: {length: node.length, offset: node.offset},
+        },
+      },
+    });
+    return defaultValue;
+  }
+
+  private _processFiles(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    allowUsuallyExcludedPaths: boolean
   ): undefined | ArrayNode<string> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
@@ -778,6 +841,9 @@ export class Analyzer {
       }
       values.push(result.value.value);
     }
+    if (!allowUsuallyExcludedPaths && values.length > 0) {
+      values.push(...DEFAULT_EXCLUDE_PATHS);
+    }
     return {node: filesNode, values};
   }
 
@@ -785,7 +851,8 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
-    command: JsonAstNode<string> | undefined
+    command: JsonAstNode<string> | undefined,
+    allowUsuallyExcludedPaths: boolean
   ): undefined | ArrayNode<string> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
@@ -830,6 +897,9 @@ export class Analyzer {
         continue;
       }
       values.push(result.value.value);
+    }
+    if (!allowUsuallyExcludedPaths && values.length > 0) {
+      values.push(...DEFAULT_EXCLUDE_PATHS);
     }
     return {node: outputNode, values};
   }

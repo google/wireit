@@ -555,6 +555,35 @@ test(
 );
 
 test(
+  'allowUsuallyExcludedPaths is not a boolean',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            allowUsuallyExcludedPaths: 1,
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:8:36 Must be true or false
+          "allowUsuallyExcludedPaths": 1
+                                       ~`
+    );
+  })
+);
+
+test(
   'packageLocks is not an array',
   timeout(async ({rig}) => {
     await rig.write({
