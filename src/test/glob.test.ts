@@ -10,6 +10,7 @@ import {suite} from 'uvu';
 import {glob} from '../util/glob.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 import {makeWatcher} from '../watcher.js';
+import {IS_WINDOWS} from '../util/windows.js';
 
 interface Symlink {
   /** Where the symlink file points to. */
@@ -156,6 +157,7 @@ test.after.each(async (ctx) => {
 for (const mode of ['once', 'watch'] as const) {
   test(`[${mode}] empty patterns`, ({check}) =>
     check({
+      mode,
       files: ['foo'],
       patterns: [],
       expected: [],
@@ -163,6 +165,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] normalizes trailing / in pattern`, ({check}) =>
     check({
+      mode,
       files: ['foo'],
       patterns: ['foo/'],
       expected: ['foo'],
@@ -170,6 +173,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] normalizes ../ in pattern`, ({check}) =>
     check({
+      mode,
       files: ['foo'],
       patterns: ['bar/../foo'],
       expected: ['foo'],
@@ -177,6 +181,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] explicit file that does not exist`, ({check}) =>
     check({
+      mode,
       files: [],
       patterns: ['foo'],
       expected: [],
@@ -184,6 +189,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] * star`, ({check}) =>
     check({
+      mode,
       files: ['foo', 'bar'],
       patterns: ['*'],
       expected: ['foo', 'bar'],
@@ -191,6 +197,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] * star with ! negation`, ({check}) =>
     check({
+      mode,
       files: ['foo', 'bar', 'baz'],
       patterns: ['*', '!bar'],
       expected: ['foo', 'baz'],
@@ -198,6 +205,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] inclusion of directory with trailing slash`, ({check}) =>
     check({
+      mode,
       files: ['foo/good/1', 'foo/good/2'],
       patterns: ['foo/'],
       expected: ['foo/good/1', 'foo/good/2'],
@@ -206,6 +214,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] inclusion of directory without trailing slash`, ({check}) =>
     check({
+      mode,
       files: ['foo/good/1', 'foo/good/2'],
       patterns: ['foo'],
       expected: ['foo/good/1', 'foo/good/2'],
@@ -214,6 +223,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] !exclusion of directory with trailing slash`, ({check}) =>
     check({
+      mode,
       files: ['foo/good/1', 'foo/bad/1'],
       patterns: ['foo', '!foo/bad/'],
       expected: ['foo/good/1'],
@@ -222,6 +232,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] !exclusion of directory without trailing slash`, ({check}) =>
     check({
+      mode,
       files: ['foo/good/1', 'foo/bad/1'],
       patterns: ['foo', '!foo/bad'],
       expected: ['foo/good/1'],
@@ -230,6 +241,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] explicit .dotfile`, ({check}) =>
     check({
+      mode,
       files: ['.foo'],
       patterns: ['.foo'],
       expected: ['.foo'],
@@ -237,6 +249,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] * star matches .dotfiles`, ({check}) =>
     check({
+      mode,
       files: ['.foo'],
       patterns: ['*'],
       expected: ['.foo'],
@@ -244,6 +257,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] {} groups`, ({check}) =>
     check({
+      mode,
       files: ['foo', 'bar', 'baz'],
       patterns: ['{foo,baz}'],
       expected: ['foo', 'baz'],
@@ -251,6 +265,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] matches explicit symlink`, ({check}) =>
     check({
+      mode,
       files: [
         'target',
         {target: 'target', path: 'symlink', windowsType: 'file'},
@@ -263,6 +278,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo/'],
       patterns: ['foo'],
       expected: [],
@@ -272,6 +288,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo/'],
       patterns: ['foo'],
       expected: ['foo'],
@@ -282,6 +299,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo/'],
       patterns: ['*'],
       expected: [],
@@ -291,6 +309,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo/'],
       patterns: ['*'],
       expected: ['foo'],
@@ -301,6 +320,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
       expected: [],
@@ -312,6 +332,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
       expected: ['foo'],
@@ -323,6 +344,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
       expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
@@ -334,6 +356,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['foo'],
       expected: [
@@ -353,6 +376,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: [
         'foo',
@@ -370,6 +394,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['.'],
       expected: ['.'],
@@ -380,6 +405,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['.'],
       expected: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
@@ -388,6 +414,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] {} groups with expand directories`, ({check}) =>
     check({
+      mode,
       files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
       patterns: ['{foo,baz}'],
       expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
@@ -396,6 +423,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] empty pattern throws`, ({check}) =>
     check({
+      mode,
       files: ['foo', 'bar'],
       patterns: [''],
       expected: 'ERROR',
@@ -405,6 +433,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo', 'bar'],
       patterns: [''],
       expected: 'ERROR',
@@ -412,31 +441,32 @@ for (const mode of ['once', 'watch'] as const) {
     }));
 
   test(`[${mode}] whitespace pattern throws`, ({check}) =>
-    check({
-      files: ['foo', 'bar'],
-      patterns: [' '],
-      expected: 'ERROR',
-    }));
+    check({mode, files: ['foo', 'bar'], patterns: [' '], expected: 'ERROR'}));
 
   test(`[${mode}] whitespace pattern throws with expandDirectories=true`, ({
     check,
   }) =>
     check({
+      mode,
       files: ['foo', 'bar'],
       patterns: [' '],
       expected: 'ERROR',
       expandDirectories: true,
     }));
 
-  test(`[${mode}] re-inclusion of file`, ({check}) =>
-    check({
-      files: ['foo'],
-      patterns: ['!foo', 'foo'],
-      expected: ['foo'],
-    }));
+  if (!(mode === 'watch' && IS_WINDOWS)) {
+    test(`[${mode}] re-inclusion of file`, ({check}) =>
+      check({
+        mode,
+        files: ['foo'],
+        patterns: ['!foo', 'foo'],
+        expected: ['foo'],
+      }));
+  }
 
   test(`[${mode}] re-inclusion of directory`, ({check}) =>
     check({
+      mode,
       files: ['foo/'],
       patterns: ['!foo', 'foo'],
       expected: ['foo'],
@@ -445,6 +475,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] re-inclusion of file into directory`, ({check}) =>
     check({
+      mode,
       files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
       patterns: ['foo/**', '!foo/bar/**', 'foo/bar/baz', '!foo/qux'],
       expected: ['foo/1', 'foo/bar/baz'],
@@ -454,6 +485,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
       patterns: ['foo', '!foo/bar', 'foo/bar/baz', '!foo/qux'],
       expected: ['foo/1', 'foo/bar/baz'],
@@ -464,6 +496,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo/1', 'foo/bar/1', 'foo/bar/baz/1'],
       patterns: ['foo', '!foo/bar', 'foo/bar/baz'],
       expected: ['foo/1', 'foo/bar/baz/1'],
@@ -474,6 +507,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: [
         'target/foo',
         {target: 'target', path: 'symlink', windowsType: 'dir'},
@@ -488,6 +522,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: [
         'target/foo',
         {target: 'target', path: 'symlink', windowsType: 'dir'},
@@ -587,14 +622,11 @@ for (const mode of ['once', 'watch'] as const) {
   });
 
   test(`[${mode}] re-roots to cwd`, ({check}) =>
-    check({
-      files: ['foo'],
-      patterns: ['/foo'],
-      expected: ['foo'],
-    }));
+    check({mode, files: ['foo'], patterns: ['/foo'], expected: ['foo']}));
 
   test(`[${mode}] re-roots to cwd with exclusion`, ({check}) =>
     check({
+      mode,
       files: ['foo', 'bar', 'baz'],
       patterns: ['/*', '!/bar'],
       expected: ['foo', 'baz'],
@@ -602,6 +634,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] re-rooting allows ../`, ({check}) =>
     check({
+      mode,
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
       patterns: ['../foo'],
@@ -609,14 +642,11 @@ for (const mode of ['once', 'watch'] as const) {
     }));
 
   test(`[${mode}] re-rooting handles /./foo`, ({check}) =>
-    check({
-      files: ['foo'],
-      patterns: ['/./foo'],
-      expected: ['foo'],
-    }));
+    check({mode, files: ['foo'], patterns: ['/./foo'], expected: ['foo']}));
 
   test(`[${mode}] re-rooting handles /../foo`, ({check}) =>
     check({
+      mode,
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
       patterns: ['/../foo'],
@@ -625,6 +655,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] re-rooting handles /bar/../foo/`, ({check}) =>
     check({
+      mode,
       files: ['foo'],
       patterns: ['/bar/../foo/'],
       expected: ['foo'],
@@ -632,6 +663,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] re-roots to cwd with braces`, ({check}) =>
     check({
+      mode,
       files: ['foo', 'bar'],
       patterns: ['{/foo,/bar}'],
       expected: ['foo', 'bar'],
@@ -639,6 +671,7 @@ for (const mode of ['once', 'watch'] as const) {
 
   test(`[${mode}] braces can be escaped`, ({check}) =>
     check({
+      mode,
       files: ['{foo,bar}'],
       patterns: ['\\{foo,bar\\}'],
       expected: ['{foo,bar}'],
@@ -648,6 +681,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
       patterns: ['../foo'],
@@ -659,6 +693,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       cwd: 'subdir',
       files: ['foo', 'subdir/'],
       patterns: ['../foo'],
@@ -670,6 +705,7 @@ for (const mode of ['once', 'watch'] as const) {
     check,
   }) =>
     check({
+      mode,
       files: ['foo'],
       patterns: ['foo'],
       expected: ['foo'],
