@@ -5,11 +5,29 @@ on: [push, pull_request]
 jobs:
   tests:
     strategy:
-      # We support Node Latest, Active LTS, and the most recent Maintenance LTS.
-      # See https://nodejs.org/en/about/releases/ for Node release schedule.
+      # We support Node Current, LTS, and Maintenance. See
+      # https://nodejs.org/en/about/releases/ for release schedule.
+      #
+      # We test all supported Node versions on Linux, and the oldest and newest
+      # on macOS/Windows.
       matrix:
-        node: [14, 16, 18]
-        os: [ubuntu-20.04, macos-11, windows-2022]
+        include:
+          - node: 14
+            os: ubuntu-22.04
+          - node: 14
+            os: macos-12
+          - node: 14
+            os: windows-2022
+          - node: 16
+            os: ubuntu-22.04
+          - node: 18
+            os: ubuntu-22.04
+          - node: 19
+            os: ubuntu-22.04
+          - node: 19
+            os: macos-12
+          - node: 19
+            os: windows-2022
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
@@ -51,12 +69,12 @@ jobs:
 
   lint-and-format:
     timeout-minutes: 5
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
           cache: npm
 
       - run: npm ci
@@ -65,12 +83,12 @@ jobs:
 
   test-garbage-collection:
     timeout-minutes: 5
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
           cache: npm
       - uses: google/wireit@setup-github-actions-caching/v1
 
