@@ -22,6 +22,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `package-lock.json` was always used unless the `packageLocks` array was
   manually set).
 
+### Fixed
+
+- The `--watch` flag can now be passed to chained scripts when using yarn 1.x.
+  However due to https://github.com/yarnpkg/yarn/issues/8905, extra arguments
+  passed after a `--` are still not supported with yarn 1.x. Please consider
+  upgrading to yarn 3.x, or switching to npm.
+
 ## [0.8.0] - 2022-11-18
 
 ### Added
