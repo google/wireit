@@ -170,6 +170,7 @@ test(
       '!.hg/',
       '!.svn/',
       '!.wireit/',
+      '!.yarn/',
       '!CVS/',
       '!node_modules/',
     ]);
@@ -179,6 +180,7 @@ test(
       '!.hg/',
       '!.svn/',
       '!.wireit/',
+      '!.yarn/',
       '!CVS/',
       '!node_modules/',
     ]);

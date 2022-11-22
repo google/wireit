@@ -270,6 +270,7 @@ arrays:
 - `.hg/`
 - `.svn/`
 - `.wireit/`
+- `.yarn/`
 - `CVS/`
 - `node_modules/`
 

@@ -102,6 +102,7 @@ const DEFAULT_EXCLUDE_PATHS = [
   '!.hg/',
   '!.svn/',
   '!.wireit/',
+  '!.yarn/',
   '!CVS/',
   '!node_modules/',
 ] as const;
