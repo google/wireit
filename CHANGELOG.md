@@ -13,6 +13,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - **[BREAKING]** The `.yarn/` folder has been added to the list of default
   excluded paths.
 
+- It is now allowed to set the value of a wireit script to e.g.
+  `"../node_modules/.bin/wireit"` if you need to directly reference a wireit
+  binary in a specific location.
+
 ## [0.8.0] - 2022-11-18
 
 ### Added

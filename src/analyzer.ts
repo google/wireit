@@ -363,7 +363,11 @@ export class Analyzer {
     if (
       wireitConfig !== undefined &&
       scriptCommand.value !== 'wireit' &&
-      scriptCommand.value !== 'yarn run -TB wireit'
+      scriptCommand.value !== 'yarn run -TB wireit' &&
+      // This form is useful when using package managers like yarn or pnpm which
+      // do not automatically add all parent directory `node_modules/.bin`
+      // folders to PATH.
+      !/^(..\/)+node_modules\/\.bin\/wireit$/.test(scriptCommand.value)
     ) {
       const configName = wireitConfig.name;
       placeholder.failures.push({
