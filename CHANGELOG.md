@@ -17,6 +17,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `"../node_modules/.bin/wireit"` if you need to directly reference a wireit
   binary in a specific location.
 
+- `yarn.lock` and `pnpm-lock.yaml` are now automatically used as package lock
+  files when yarn and pnpm are detected, respectively. (Previously
+  `package-lock.json` was always used unless the `packageLocks` array was
+  manually set).
+
 ## [0.8.0] - 2022-11-18
 
 ### Added

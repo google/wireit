@@ -58,7 +58,7 @@ export class IdeAnalyzer {
   private _analyzer;
   constructor() {
     this._overlayFs = new OverlayFilesystem();
-    this._analyzer = new Analyzer(this._overlayFs);
+    this._analyzer = new Analyzer('npm', this._overlayFs);
   }
 
   /**
@@ -73,7 +73,7 @@ export class IdeAnalyzer {
    */
   setOpenFileContents(path: string, contents: string): void {
     this._overlayFs.overlay.set(path, contents);
-    this._analyzer = new Analyzer(this._overlayFs);
+    this._analyzer = new Analyzer('npm', this._overlayFs);
   }
 
   /**
@@ -81,7 +81,7 @@ export class IdeAnalyzer {
    */
   closeFile(path: string): void {
     this._overlayFs.overlay.delete(path);
-    this._analyzer = new Analyzer(this._overlayFs);
+    this._analyzer = new Analyzer('npm', this._overlayFs);
   }
 
   get openFiles(): Iterable<string> {

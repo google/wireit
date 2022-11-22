@@ -44,6 +44,8 @@ export const packageDir = await (async (): Promise<string | undefined> => {
 
 export const logger = new DefaultLogger(packageDir ?? process.cwd());
 
+export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
+
 export interface Options {
   script: ScriptReference;
   watch: boolean;
@@ -51,6 +53,7 @@ export interface Options {
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
   failureMode: FailureMode;
+  agent: Agent;
 }
 
 export const getOptions = (): Result<Options> => {
@@ -194,6 +197,7 @@ export const getOptions = (): Result<Options> => {
     };
   }
 
+  const agent = getNpmUserAgent();
   return {
     ok: true,
     value: {
@@ -201,7 +205,8 @@ export const getOptions = (): Result<Options> => {
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
-      ...getArgvOptions(script),
+      agent,
+      ...getArgvOptions(script, agent),
     },
   };
 };
@@ -210,12 +215,12 @@ export const getOptions = (): Result<Options> => {
  * Get options that are set as command-line arguments.
  */
 function getArgvOptions(
-  script: ScriptReference
+  script: ScriptReference,
+  agent: Agent
 ): Pick<Options, 'watch' | 'extraArgs'> {
   // The way command-line arguments are handled in npm, yarn, and pnpm are all
   // different. Our goal here is for `<agent> --watch -- --extra` to behave the
   // same in all agents.
-  const agent = getNpmUserAgent();
   switch (agent) {
     case 'npm': {
       // npm 6.14.17

@@ -98,7 +98,7 @@ test(
     });
 
     const logger = new DefaultLogger(rig.temp);
-    const script = await new Analyzer().analyze(
+    const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'standard'},
       []
     );
@@ -164,7 +164,7 @@ test(
     });
 
     const logger = new DefaultLogger(rig.temp);
-    const script = await new Analyzer().analyze(
+    const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'service'},
       []
     );
@@ -254,7 +254,7 @@ test(
     });
 
     const logger = new DefaultLogger(rig.temp);
-    const script = await new Analyzer().analyze(
+    const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'entrypoint'},
       []
     );

@@ -637,23 +637,22 @@ WIREIT_FAILURES=kill
 
 ## Package locks
 
-By default, Wireit automatically treats
-[`package-lock.json`](https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json)
-files in the package directory, plus all parent directories, as input files.
+By default, Wireit automatically treats package manager lock files as input
+files
+([`package-lock.json`](https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json)
+for npm,
+[`yarn.lock`](https://yarnpkg.com/configuration/yarnrc#lockfileFilename) for
+yarn, and [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles) for pnpm). Wireit
+will look for these lock files in the script's package, and all parent
+directories.
+
 This is useful because installing or upgrading your dependencies can affect the
 behavior of your scripts, so it's important to re-run them whenever your
 dependencies change.
 
-If you are using an alternative package manager instead of npm, then your
-package lock files might be named something else. Some examples are:
-
-- Yarn: [`yarn.lock`](https://yarnpkg.com/configuration/yarnrc#lockfileFilename) (configurable)
-- pnpm: [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles)
-
-To change the name of the package lock files Wireit should look for, specify it
-in the `wireit.<script>.packageLocks` array. Wireit will look for the given
-filenames in the script's directory, as well as in all of its parent
-directories. You can specify multiple filenames here, if needed.
+To change the name of the package lock file Wireit should look for, specify it
+in the `wireit.<script>.packageLocks` array. You can specify multiple filenames
+here, if needed.
 
 ```json
 {
@@ -665,7 +664,7 @@ directories. You can specify multiple filenames here, if needed.
       "command": "tsc",
       "files": ["src/**/*.ts", "tsconfig.json"],
       "output": ["lib/**"],
-      "packageLocks": ["yarn.lock"]
+      "packageLocks": ["another-package-manager.lock"]
     }
   }
 }

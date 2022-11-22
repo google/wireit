@@ -1506,69 +1506,80 @@ test(
   })
 );
 
-test(
-  'changing package-lock.json invalidates by default',
-  timeout(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'foo/package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            // Note we must define files/output, or else we would never be fresh
-            // anyway.
-            files: [],
-            output: [],
+for (const [agent, lockfile] of [
+  ['npm', 'package-lock.json'],
+  ['yarn', 'yarn.lock'],
+  ['pnpm', 'pnpm-lock.yaml'],
+]) {
+  test(
+    `changing ${lockfile} with ${agent} changes fingerprint`,
+    timeout(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'foo/package.json': {
+          scripts: {
+            // yarn and pnpm don't automatically add parent directories
+            // "node_modules/.bin" folders to PATH, but we do want to test that
+            // we are checking parent directory package lock files. So to allow
+            // the wireit binary to be found, we specify an exact path.
+            a: '../node_modules/.bin/wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              // Note we must define files/output, or else we would never be fresh
+              // anyway.
+              files: [],
+              output: [],
+            },
           },
         },
-      },
-      'foo/package-lock.json': 'v0',
-    });
+        [`foo/${lockfile}`]: 'v0',
+      });
 
-    // Initial run.
-    {
-      const exec = rig.exec('npm run a', {cwd: 'foo'});
-      const inv = await cmdA.nextInvocation();
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-    }
+      // Initial run.
+      {
+        const exec = rig.exec(`${agent} run a`, {cwd: 'foo'});
+        const inv = await cmdA.nextInvocation();
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+      }
 
-    // Nothing changed. Expect no run.
-    {
-      const exec = rig.exec('npm run a', {cwd: 'foo'});
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-    }
+      // Nothing changed. Expect no run.
+      {
+        const exec = rig.exec(`${agent} run a`, {cwd: 'foo'});
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+      }
 
-    // Change current package's package-lock.json. Expect another run.
-    {
-      await rig.write({'foo/package-lock.json': 'v1'});
-      const exec = rig.exec('npm run a', {cwd: 'foo'});
-      const inv = await cmdA.nextInvocation();
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
-    }
+      // Change current package's lock file. Expect another run.
+      {
+        await rig.write(`foo/${lockfile}`, 'v1');
+        const exec = rig.exec(`${agent} run a`, {cwd: 'foo'});
+        const inv = await cmdA.nextInvocation();
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 2);
+      }
 
-    // Create a package-lock.json in the parent. Expect another run.
-    {
-      await rig.write({'package-lock.json': 'v0'});
-      const exec = rig.exec('npm run a', {cwd: 'foo'});
-      const inv = await cmdA.nextInvocation();
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
-    }
-  })
-);
+      // Create a lock file in the parent. Expect another run, since we also
+      // check all parent directories.
+      {
+        await rig.write(lockfile, 'v0');
+        const exec = rig.exec(`${agent} run a`, {cwd: 'foo'});
+        const inv = await cmdA.nextInvocation();
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 3);
+      }
+    })
+  );
+}
 
 test(
   'changing package-lock.json does not invalidate when packageLocks is empty',
@@ -1623,7 +1634,7 @@ test(
 );
 
 test(
-  'changing yarn.lock invalidates when set in packageLocks',
+  'changing custom.lock invalidates when set in packageLocks',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -1638,11 +1649,11 @@ test(
             // anyway.
             files: [],
             output: [],
-            packageLocks: ['yarn.lock'],
+            packageLocks: ['custom.lock'],
           },
         },
       },
-      'yarn.lock': 'v0',
+      'custom.lock': 'v0',
     });
 
     // Initial run.
@@ -1663,9 +1674,9 @@ test(
       assert.equal(cmdA.numInvocations, 1);
     }
 
-    // Change current package's yarn.lock. Expect another run.
+    // Change custom lockfile. Expect another run.
     {
-      await rig.write({'yarn.lock': 'v1'});
+      await rig.write({'custom.lock': 'v1'});
       const exec = rig.exec('npm run a');
       const inv = await cmdA.nextInvocation();
       inv.exit(0);

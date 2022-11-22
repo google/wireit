@@ -76,7 +76,7 @@ test('analyzes services', async ({rig}) => {
     },
   });
 
-  const analyzer = new Analyzer();
+  const analyzer = new Analyzer('npm');
   const result = await analyzer.analyze({packageDir: rig.temp, name: 'a'}, []);
   if (!result.config.ok) {
     console.log(result.config.error);
@@ -150,7 +150,7 @@ test(
       },
     });
 
-    const analyzer = new Analyzer();
+    const analyzer = new Analyzer('npm');
     const result = await analyzer.analyze(
       {
         packageDir: rig.temp,
@@ -201,16 +201,16 @@ test(
             command: 'true',
             files: ['**/*.ts'],
             output: ['**/*.js'],
-            packageLocks: [],
             // Don't also automatically add package-lock.json paths as input
             // files, to make this test simpler/more focused.
+            packageLocks: [],
             allowUsuallyExcludedPaths: true,
           },
         },
       },
     });
 
-    const analyzer = new Analyzer();
+    const analyzer = new Analyzer('npm');
     const result = await analyzer.analyze(
       {
         packageDir: rig.temp,
@@ -248,7 +248,7 @@ test('Default excluded paths are not present when files and output are empty', a
     },
   });
 
-  const analyzer = new Analyzer();
+  const analyzer = new Analyzer('npm');
   const result = await analyzer.analyze(
     {
       packageDir: rig.temp,

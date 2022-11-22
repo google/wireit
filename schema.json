@@ -65,7 +65,7 @@
             "type": "array"
           },
           "packageLocks": {
-            "markdownDescription": "By default, Wireit automatically treats package-lock.json files in the package directory, plus all parent directories, as input files. This is useful because installing or upgrading your dependencies can affect the behavior of your scripts, so it's important to re-run them whenever your dependencies change.\n\nIf you are using an alternative package manager instead of npm, then your package lock files might be named something else.\n\nFor more info, see: https://github.com/google/wireit#package-locks",
+            "markdownDescription": "By default, Wireit automatically treats lock files in the package directory, plus all parent directories, as input files (package-lock.json with npm, yarn.lock with yarn, and pnpm-lock.yaml with pnpm). This is useful because installing or upgrading your dependencies can affect the behavior of your scripts, so it's important to re-run them whenever your dependencies change.\n\nIf you are using an alternative package manager instead of npm, then your package lock files might be named something else.\n\nFor more info, see: https://github.com/google/wireit#package-locks",
             "items": {
               "type": "string",
               "minLength": 1

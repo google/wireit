@@ -21,6 +21,7 @@ import type {
   ScriptReference,
   ScriptReferenceString,
 } from './config.js';
+import type {Agent} from './cli-options.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -107,6 +108,13 @@ const DEFAULT_EXCLUDE_PATHS = [
   '!node_modules/',
 ] as const;
 
+const DEFAULT_LOCKFILES: Record<Agent, string[]> = {
+  npm: ['package-lock.json'],
+  yarnClassic: ['yarn.lock'],
+  yarnBerry: ['yarn.lock'],
+  pnpm: ['pnpm-lock.yaml'],
+};
+
 /**
  * Analyzes and validates a script along with all of its transitive
  * dependencies, producing a build graph that is ready to be executed.
@@ -119,8 +127,10 @@ export class Analyzer {
   >();
   private readonly _ongoingWorkPromises: Array<Promise<undefined>> = [];
   private readonly _relevantConfigFilePaths = new Set<string>();
+  private readonly __agent: Agent;
 
-  constructor(filesystem?: FileSystem) {
+  constructor(agent: Agent, filesystem?: FileSystem) {
+    this.__agent = agent;
     this._packageJsonReader = new CachingPackageJsonReader(filesystem);
   }
 
@@ -1148,7 +1158,8 @@ export class Analyzer {
       // entirely.
       packageLocks?.values.length !== 0
     ) {
-      const lockfileNames = packageLocks?.values ?? ['package-lock.json'];
+      const lockfileNames: string[] =
+        packageLocks?.values ?? DEFAULT_LOCKFILES[this.__agent];
       // Generate "package-lock.json", "../package-lock.json",
       // "../../package-lock.json" etc. all the way up to the root of the
       // filesystem, because that's how Node package resolution works.
