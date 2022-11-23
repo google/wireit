@@ -10,6 +10,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **[BREAKING]** A `watch` argument (without the `--`) is now passed to the
+  script, instead of erroring, to make it consistent with all other arguments.
+  (The error was previously repoted to aid in migration from `watch` to
+  `--watch`, which changed in `v0.6.0).
+
 - **[BREAKING]** The `.yarn/` folder has been added to the list of default
   excluded paths.
 
