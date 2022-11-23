@@ -128,10 +128,10 @@ export class Analyzer {
   >();
   private readonly _ongoingWorkPromises: Array<Promise<undefined>> = [];
   private readonly _relevantConfigFilePaths = new Set<string>();
-  private readonly __agent: Agent;
+  private readonly _agent: Agent;
 
   constructor(agent: Agent, filesystem?: FileSystem) {
-    this.__agent = agent;
+    this._agent = agent;
     this._packageJsonReader = new CachingPackageJsonReader(filesystem);
   }
 
@@ -1164,7 +1164,7 @@ export class Analyzer {
       packageLocks?.values.length !== 0
     ) {
       const lockfileNames: string[] =
-        packageLocks?.values ?? DEFAULT_LOCKFILES[this.__agent];
+        packageLocks?.values ?? DEFAULT_LOCKFILES[this._agent];
       // Generate "package-lock.json", "../package-lock.json",
       // "../../package-lock.json" etc. all the way up to the root of the
       // filesystem, because that's how Node package resolution works.
