@@ -11,6 +11,7 @@ import {
 } from './util/package-json-reader.js';
 import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
+import {IS_WINDOWS} from './util/windows.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 import type {Diagnostic, MessageLocation, Result} from './error.js';
@@ -377,7 +378,11 @@ export class Analyzer {
       // This form is useful when using package managers like yarn or pnpm which
       // do not automatically add all parent directory `node_modules/.bin`
       // folders to PATH.
-      !/^(..\/)+node_modules\/\.bin\/wireit$/.test(scriptCommand.value)
+      !/^(\.\.\/)+node_modules\/\.bin\/wireit$/.test(scriptCommand.value) &&
+      !(
+        IS_WINDOWS &&
+        /^(\.\.\\)+node_modules\\\.bin\\wireit\.cmd$/.test(scriptCommand.value)
+      )
     ) {
       const configName = wireitConfig.name;
       placeholder.failures.push({

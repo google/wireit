@@ -10,6 +10,7 @@ import * as assert from 'uvu/assert';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {shuffle} from '../util/shuffle.js';
+import {IS_WINDOWS} from '../util/windows.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -1522,7 +1523,9 @@ for (const [agent, lockfile] of [
             // "node_modules/.bin" folders to PATH, but we do want to test that
             // we are checking parent directory package lock files. So to allow
             // the wireit binary to be found, we specify an exact path.
-            a: '../node_modules/.bin/wireit',
+            a: IS_WINDOWS
+              ? '..\\node_modules\\.bin\\wireit.cmd'
+              : '../node_modules/.bin/wireit',
           },
           wireit: {
             a: {
