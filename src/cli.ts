@@ -78,7 +78,8 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       logger,
       workerPool,
       cache,
-      options.failureMode
+      options.failureMode,
+      options.agent
     );
     process.on('SIGINT', () => {
       watcher.abort();
@@ -86,7 +87,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     await watcher.watch();
     return {ok: true, value: undefined};
   } else {
-    const analyzer = new Analyzer();
+    const analyzer = new Analyzer(options.agent);
     const {config} = await analyzer.analyze(options.script, options.extraArgs);
     if (!config.ok) {
       return config;

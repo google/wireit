@@ -6,7 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+- **[BREAKING]** A `watch` argument (without the `--`) is now passed to the
+  script, instead of erroring, to make it consistent with all other arguments.
+  (The error was previously repoted to aid in migration from `watch` to
+  `--watch`, which changed in `v0.6.0).
+
+- **[BREAKING]** The `.yarn/` folder has been added to the list of default
+  excluded paths.
+
+- It is now allowed to set the value of a wireit script to e.g.
+  `"../node_modules/.bin/wireit"` if you need to directly reference a wireit
+  binary in a specific location.
+
+- `yarn.lock` and `pnpm-lock.yaml` are now automatically used as package lock
+  files when yarn and pnpm are detected, respectively. (Previously
+  `package-lock.json` was always used unless the `packageLocks` array was
+  manually set).
+
+### Fixed
+
+- The `--watch` flag can now be passed to chained scripts when using yarn 1.x.
+  However due to https://github.com/yarnpkg/yarn/issues/8905, extra arguments
+  passed after a `--` are still not supported with yarn 1.x. Please consider
+  upgrading to yarn 3.x, or switching to npm.
 
 ## [0.8.0] - 2022-11-18
 

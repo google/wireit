@@ -11,6 +11,7 @@ import {
 } from './util/package-json-reader.js';
 import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
+import {IS_WINDOWS} from './util/windows.js';
 
 import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
 import type {Diagnostic, MessageLocation, Result} from './error.js';
@@ -21,6 +22,7 @@ import type {
   ScriptReference,
   ScriptReferenceString,
 } from './config.js';
+import type {Agent} from './cli-options.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -102,9 +104,17 @@ const DEFAULT_EXCLUDE_PATHS = [
   '!.hg/',
   '!.svn/',
   '!.wireit/',
+  '!.yarn/',
   '!CVS/',
   '!node_modules/',
 ] as const;
+
+const DEFAULT_LOCKFILES: Record<Agent, string[]> = {
+  npm: ['package-lock.json'],
+  yarnClassic: ['yarn.lock'],
+  yarnBerry: ['yarn.lock'],
+  pnpm: ['pnpm-lock.yaml'],
+};
 
 /**
  * Analyzes and validates a script along with all of its transitive
@@ -118,8 +128,10 @@ export class Analyzer {
   >();
   private readonly _ongoingWorkPromises: Array<Promise<undefined>> = [];
   private readonly _relevantConfigFilePaths = new Set<string>();
+  private readonly _agent: Agent;
 
-  constructor(filesystem?: FileSystem) {
+  constructor(agent: Agent, filesystem?: FileSystem) {
+    this._agent = agent;
     this._packageJsonReader = new CachingPackageJsonReader(filesystem);
   }
 
@@ -362,7 +374,15 @@ export class Analyzer {
     if (
       wireitConfig !== undefined &&
       scriptCommand.value !== 'wireit' &&
-      scriptCommand.value !== 'yarn run -TB wireit'
+      scriptCommand.value !== 'yarn run -TB wireit' &&
+      // This form is useful when using package managers like yarn or pnpm which
+      // do not automatically add all parent directory `node_modules/.bin`
+      // folders to PATH.
+      !/^(\.\.\/)+node_modules\/\.bin\/wireit$/.test(scriptCommand.value) &&
+      !(
+        IS_WINDOWS &&
+        /^(\.\.\\)+node_modules\\\.bin\\wireit\.cmd$/.test(scriptCommand.value)
+      )
     ) {
       const configName = wireitConfig.name;
       placeholder.failures.push({
@@ -1143,7 +1163,8 @@ export class Analyzer {
       // entirely.
       packageLocks?.values.length !== 0
     ) {
-      const lockfileNames = packageLocks?.values ?? ['package-lock.json'];
+      const lockfileNames: string[] =
+        packageLocks?.values ?? DEFAULT_LOCKFILES[this._agent];
       // Generate "package-lock.json", "../package-lock.json",
       // "../../package-lock.json" etc. all the way up to the root of the
       // filesystem, because that's how Node package resolution works.

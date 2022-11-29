@@ -44,6 +44,8 @@ export const packageDir = await (async (): Promise<string | undefined> => {
 
 export const logger = new DefaultLogger(packageDir ?? process.cwd());
 
+export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
+
 export interface Options {
   script: ScriptReference;
   watch: boolean;
@@ -51,6 +53,7 @@ export interface Options {
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
   failureMode: FailureMode;
+  agent: Agent;
 }
 
 export const getOptions = (): Result<Options> => {
@@ -178,22 +181,7 @@ export const getOptions = (): Result<Options> => {
     return failureModeResult;
   }
 
-  if (process.argv[2] === 'watch') {
-    // TODO(aomarks) Remove in upcoming release.
-    return {
-      ok: false,
-      error: {
-        script,
-        type: 'failure',
-        reason: 'invalid-usage',
-        message:
-          `As of wireit v0.6, use "--watch" instead of "watch". ` +
-          `In an upcoming release, the "watch" argument will be passed to the script, ` +
-          `consistent with how npm usually behaves.`,
-      },
-    };
-  }
-
+  const agent = getNpmUserAgent();
   return {
     ok: true,
     value: {
@@ -201,7 +189,8 @@ export const getOptions = (): Result<Options> => {
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
-      ...getArgvOptions(script),
+      agent,
+      ...getArgvOptions(script, agent),
     },
   };
 };
@@ -210,12 +199,12 @@ export const getOptions = (): Result<Options> => {
  * Get options that are set as command-line arguments.
  */
 function getArgvOptions(
-  script: ScriptReference
+  script: ScriptReference,
+  agent: Agent
 ): Pick<Options, 'watch' | 'extraArgs'> {
   // The way command-line arguments are handled in npm, yarn, and pnpm are all
   // different. Our goal here is for `<agent> --watch -- --extra` to behave the
   // same in all agents.
-  const agent = getNpmUserAgent();
   switch (agent) {
     case 'npm': {
       // npm 6.14.17
@@ -240,8 +229,11 @@ function getArgvOptions(
       //     it go to argv. Also a warning is emitted saying "In a future version, any
       //     explicit "--" will be forwarded as-is to the scripts."
       //   - The "npm_config_argv" environment variable contains full details as JSON,
-      //     though it is slightly different to the npm 6 version.
-      return parseRemainingArgs(findRemainingArgsFromNpmConfigArgv(script));
+      //     but unlike npm 6, it reflects the first script in a chain of scripts, instead
+      //     of the last.
+      return parseRemainingArgs(
+        findRemainingArgsFromNpmConfigArgv(script, agent)
+      );
     }
     case 'yarnBerry':
     case 'pnpm': {
@@ -262,7 +254,7 @@ function getArgvOptions(
 /**
  * Try to find the npm user agent being used. If we can't detect it, assume npm.
  */
-function getNpmUserAgent(): 'npm' | 'yarnClassic' | 'yarnBerry' | 'pnpm' {
+function getNpmUserAgent(): Agent {
   const userAgent = process.env['npm_config_user_agent'];
   if (userAgent !== undefined) {
     const match = userAgent.match(/^(npm|yarn|pnpm)\//);
@@ -287,7 +279,10 @@ function getNpmUserAgent(): 'npm' | 'yarnClassic' | 'yarnBerry' | 'pnpm' {
  * arguments that follow the main arguments. For example, given the result of
  * `"yarn run build --watch -- --extra"`, return `["--watch", "--", "--extra"]`.
  */
-function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
+function findRemainingArgsFromNpmConfigArgv(
+  script: ScriptReference,
+  agent: Agent
+): string[] {
   const configArgvStr = process.env['npm_config_argv'];
   if (!configArgvStr) {
     console.error(
@@ -322,12 +317,32 @@ function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
   // name first appeared in the "original" array.
   const scriptNameIdx = configArgv.original.indexOf(script.name);
   if (scriptNameIdx === -1) {
+    // We're probably dealing with a recursive situation where one yarn 1.x
+    // script is calling another, such as `"watch": "yarn run build --watch"`.
+    //
+    // Usually we would handle this situation by looking at the original raw
+    // arguments provided by the "npm_config_argv" environment variable, but in
+    // the recursive case we can't do that, because due to
+    // https://github.com/yarnpkg/yarn/issues/8905 that variable reflects the
+    // first script in the chain, instead of the current script (unlike npm 6.x
+    // which does it correctly).
+    //
+    // So instead, we'll log a warning and at least handle the case where there
+    // is no "--" argument. If there is no "--" argument, then argv will contain
+    // all arguments. However, if there was a "--" argument, then all arguments
+    // before the "--" are lost, and argv only contains the arguments after the
+    // "--" (e.g. `yarn run build --watch` works fine, but `yarn run build
+    // --watch -- --extra` loses the `--watch`).
     console.error(
       '⚠️ Wireit could not find the script name in ' +
         'the "npm_config_argv" environment variable. ' +
-        'Arguments may not be interpreted correctly.'
+        'Arguments may not be interpreted correctly. ' +
+        (agent === 'yarnClassic'
+          ? `See https://github.com/yarnpkg/yarn/issues/8905, ` +
+            `and please consider upgrading to yarn 3.x or switching to npm.`
+          : '')
     );
-    return [];
+    return process.argv.slice(2);
   }
   return configArgv.original.slice(scriptNameIdx + 1);
 }

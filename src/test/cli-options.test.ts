@@ -11,7 +11,6 @@ import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {Options} from '../cli-options.js';
 import {Result} from '../error.js';
-import {Failure} from '../event.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -49,7 +48,8 @@ const TEST_BINARY_COMMAND = `node ${pathlib.join(
 async function getOptionsResult(
   rig: WireitTestRig,
   command: string,
-  env?: Record<string, string | undefined>
+  env?: Record<string, string | undefined>,
+  extraScripts?: Record<string, string>
 ): Promise<Result<Options>> {
   await rig.write({
     'package.json': {
@@ -57,6 +57,7 @@ async function getOptionsResult(
         main: TEST_BINARY_COMMAND,
         test: TEST_BINARY_COMMAND,
         start: TEST_BINARY_COMMAND,
+        ...extraScripts,
       },
     },
   });
@@ -68,9 +69,10 @@ async function assertOptions(
   rig: WireitTestRig,
   command: string,
   expected: Partial<Options> & Pick<Options, 'script'>,
-  env?: Record<string, string | undefined>
+  env?: Record<string, string | undefined>,
+  extraScripts?: Record<string, string>
 ) {
-  const result = await getOptionsResult(rig, command, env);
+  const result = await getOptionsResult(rig, command, env, extraScripts);
   assert.equal(result, {
     ok: true,
     value: {
@@ -84,24 +86,18 @@ async function assertOptions(
   });
 }
 
-async function assertFailure(
-  rig: WireitTestRig,
-  command: string,
-  expected: Failure,
-  env?: Record<string, string | undefined>
-) {
-  const result = await getOptionsResult(rig, command, env);
-  assert.equal(result, {
-    ok: false,
-    error: expected,
-  });
-}
+for (const command of ['npm', 'yarn', 'pnpm'] as const) {
+  const agent = command === 'yarn' ? 'yarnClassic' : command;
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const skipIfYarn = command === 'yarn' ? test.skip : test;
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const skipIfPnpm = command === 'pnpm' ? test.skip : test;
 
-for (const agent of ['npm', 'yarn', 'pnpm']) {
   test(
-    `${agent} run main`,
+    `${command} run main`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} run main`, {
+      await assertOptions(rig, `${command} run main`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'main',
@@ -111,9 +107,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} test`,
+    `${command} test`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} test`, {
+      await assertOptions(rig, `${command} test`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'test',
@@ -123,9 +120,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} start`,
+    `${command} start`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} start`, {
+      await assertOptions(rig, `${command} start`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'start',
@@ -135,9 +133,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} run main -- --extra`,
+    `${command} run main -- --extra`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} run main -- --extra`, {
+      await assertOptions(rig, `${command} run main -- --extra`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'main',
@@ -148,11 +147,11 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  (agent === 'pnpm' ? test.skip : test)(
-    `${agent} test -- --extra`,
+  skipIfPnpm(
+    `${command} test -- --extra`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} test -- --extra`, {
+      await assertOptions(rig, `${command} test -- --extra`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'test',
@@ -163,9 +162,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} start -- --extra`,
+    `${command} start -- --extra`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} start -- --extra`, {
+      await assertOptions(rig, `${command} start -- --extra`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'start',
@@ -176,9 +176,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} run main --watch`,
+    `${command} run main --watch`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} run main --watch`, {
+      await assertOptions(rig, `${command} run main --watch`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'main',
@@ -189,11 +190,11 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  (agent === 'pnpm' ? test.skip : test)(
-    `${agent} test --watch`,
+  skipIfPnpm(
+    `${command} test --watch`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} test --watch`, {
+      await assertOptions(rig, `${command} test --watch`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'test',
@@ -204,9 +205,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} start --watch`,
+    `${command} start --watch`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} start --watch`, {
+      await assertOptions(rig, `${command} start --watch`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'start',
@@ -217,9 +219,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} run main --watch -- --extra`,
+    `${command} run main --watch -- --extra`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} run main --watch -- --extra`, {
+      await assertOptions(rig, `${command} run main --watch -- --extra`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'main',
@@ -231,11 +234,11 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  (agent === 'pnpm' ? test.skip : test)(
-    `${agent} test --watch -- --extra`,
+  skipIfPnpm(
+    `${command} test --watch -- --extra`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} test --watch -- --extra`, {
+      await assertOptions(rig, `${command} test --watch -- --extra`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'test',
@@ -247,9 +250,10 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `${agent} start --watch -- --extra`,
+    `${command} start --watch -- --extra`,
     timeout(async ({rig}) => {
-      await assertOptions(rig, `${agent} start --watch -- --extra`, {
+      await assertOptions(rig, `${command} start --watch -- --extra`, {
+        agent,
         script: {
           packageDir: rig.temp,
           name: 'start',
@@ -261,20 +265,53 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
   );
 
   test(
-    `temporary error on ${agent} run main watch`,
+    `${command} run recurse -> ${command} run start --watch`,
     timeout(async ({rig}) => {
-      await assertFailure(rig, `${agent} run main watch`, {
-        script: {
-          packageDir: rig.temp,
-          name: 'main',
+      await assertOptions(
+        rig,
+        `${command} run recurse`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'start',
+          },
+          extraArgs: [],
+          watch: true,
         },
-        type: 'failure',
-        reason: 'invalid-usage',
-        message:
-          `As of wireit v0.6, use "--watch" instead of "watch". ` +
-          `In an upcoming release, the "watch" argument will be passed to the script, ` +
-          `consistent with how npm usually behaves.`,
-      });
+        undefined,
+        {
+          recurse: `${command} run start --watch`,
+        }
+      );
+    })
+  );
+
+  // Doesn't work with yarn 1.x due to
+  // https://github.com/yarnpkg/yarn/issues/8905. Anything before a "--" is not
+  // included on argv, and the npm_config_argv variable does not let us
+  // reconstruct it, because it always reflects the first script in a chain,
+  // instead of the current script.
+  skipIfYarn(
+    `${command} run recurse -> ${command} run start --watch -- --extra`,
+    timeout(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${command} run recurse`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'start',
+          },
+          extraArgs: ['--extra'],
+          watch: true,
+        },
+        undefined,
+        {
+          recurse: `${command} run start --watch -- --extra`,
+        }
+      );
     })
   );
 }

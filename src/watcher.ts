@@ -18,6 +18,8 @@ import {
   scriptReferenceToString,
 } from './config.js';
 
+import type {Agent} from './cli-options.js';
+
 /**
  * ```
  *                                                            ┌─────────┐
@@ -94,6 +96,7 @@ export class Watcher {
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
   private readonly _failureMode: FailureMode;
+  private readonly _agent: Agent;
   private _executor?: Executor;
   private _debounceTimeoutId?: NodeJS.Timeout = undefined;
   private _previousIterationServices?: ServiceMap = undefined;
@@ -129,7 +132,8 @@ export class Watcher {
     logger: Logger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    failureMode: FailureMode
+    failureMode: FailureMode,
+    agent: Agent
   ) {
     this._rootScript = rootScript;
     this._extraArgs = extraArgs;
@@ -137,6 +141,7 @@ export class Watcher {
     this._workerPool = workerPool;
     this._failureMode = failureMode;
     this._cache = cache;
+    this._agent = agent;
   }
 
   watch(): Promise<void> {
@@ -212,7 +217,7 @@ export class Watcher {
       throw unexpectedState(this._state);
     }
 
-    const analyzer = new Analyzer();
+    const analyzer = new Analyzer(this._agent);
     const result = await analyzer.analyze(this._rootScript, this._extraArgs);
     if ((this._state as WatcherState) === 'aborted') {
       return;
