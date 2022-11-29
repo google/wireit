@@ -354,13 +354,13 @@ name: Tests
 on: [push, pull_request]
 jobs:
   tests:
-    os: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
-          cache: true
+          node-version: 18
+          cache: npm
 
       # Set up GitHub Actions caching for Wireit.
       - uses: google/wireit@setup-github-actions-caching/v1
