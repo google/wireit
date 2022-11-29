@@ -254,7 +254,7 @@ function getArgvOptions(
 /**
  * Try to find the npm user agent being used. If we can't detect it, assume npm.
  */
-function getNpmUserAgent(): 'npm' | 'yarnClassic' | 'yarnBerry' | 'pnpm' {
+function getNpmUserAgent(): Agent {
   const userAgent = process.env['npm_config_user_agent'];
   if (userAgent !== undefined) {
     const match = userAgent.match(/^(npm|yarn|pnpm)\//);
