@@ -6,6 +6,7 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 
 [![Published on npm](https://img.shields.io/npm/v/wireit.svg?logo=npm)](https://www.npmjs.com/package/wireit)
 [![Build Status](https://github.com/google/wireit/actions/workflows/tests.yml/badge.svg)](https://github.com/google/wireit/actions/workflows/tests.yml)
+[![Discord](https://discordapp.com/api/guilds/1036766782867914792/widget.png?style=shield)](https://discord.gg/chmdAwvq4e)
 
 </div>
 
@@ -24,6 +25,7 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 - [Install](#install)
 - [Setup](#setup)
 - [VSCode Extension](#vscode-extension)
+- [Discord](#discord)
 - [Dependencies](#dependencies)
   - [Vanilla scripts](#vanilla-scripts)
   - [Cross-package dependencies](#cross-package-dependencies)
@@ -118,6 +120,12 @@ Install it [from the marketplace](https://marketplace.visualstudio.com/items?ite
 ```
 code --install-extension google.wireit
 ```
+
+## Discord
+
+Join the [Wireit Discord](https://discord.gg/chmdAwvq4e) to chat with the Wireit community and get support for your project.
+
+[![Discord](https://discordapp.com/api/guilds/1036766782867914792/widget.png?style=banner2)](https://discord.gg/chmdAwvq4e)
 
 ## Dependencies
 
