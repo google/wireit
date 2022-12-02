@@ -524,6 +524,8 @@ export class Analyzer {
     );
     this._processPackageLocks(placeholder, packageJson, syntaxInfo, files);
 
+    const env = this._processEnv(placeholder, packageJson, syntaxInfo, command);
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.
@@ -542,6 +544,7 @@ export class Analyzer {
       configAstNode: wireitConfig,
       declaringFile: packageJson.jsonFile,
       services: [],
+      env,
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -1178,6 +1181,115 @@ export class Analyzer {
         }
       }
     }
+  }
+
+  private _processEnv(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined
+  ): Record<string, string> {
+    if (syntaxInfo.wireitConfigNode === undefined) {
+      return {};
+    }
+    const envNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['env']);
+    if (envNode === undefined) {
+      return {};
+    }
+    if (command === undefined) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: 'Can\'t set "env" unless "command" is set',
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: envNode.length, offset: envNode.offset},
+          },
+        },
+      });
+    }
+    if (envNode.type !== 'object') {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: 'Expected an object',
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: envNode.length, offset: envNode.offset},
+          },
+        },
+      });
+    }
+    if (envNode.children === undefined) {
+      return {};
+    }
+    const entries: Array<[string, string]> = [];
+    for (const propNode of envNode.children) {
+      if (propNode.children === undefined || propNode.children.length !== 2) {
+        throw new Error(
+          'Internal error: expected object JSON node children to be key/val pairs'
+        );
+      }
+      const [key, val] = propNode.children;
+      if (key.type !== 'string') {
+        throw new Error(
+          'Internal error: expected object JSON node child key to be string'
+        );
+      }
+      const keyStr = key.value as string;
+      if (val.type === 'string') {
+        entries.push([keyStr, val.value as string]);
+      } else if (val.type !== 'object') {
+        placeholder.failures.push({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: placeholder,
+          diagnostic: {
+            severity: 'error',
+            message: 'Expected a string or object',
+            location: {
+              file: packageJson.jsonFile,
+              range: {length: val.length, offset: val.offset},
+            },
+          },
+        });
+        continue;
+      } else {
+        const externalNode = findNodeAtLocation(val, ['external']);
+        if (externalNode?.value !== true) {
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            diagnostic: {
+              severity: 'error',
+              message: 'Expected "external" to be true',
+              location: {
+                file: packageJson.jsonFile,
+                range: {
+                  length: (externalNode ?? val).length,
+                  offset: (externalNode ?? val).offset,
+                },
+              },
+            },
+          });
+          continue;
+        }
+        const envValue = process.env[keyStr];
+        if (envValue !== undefined) {
+          entries.push([keyStr, envValue]);
+        }
+      }
+    }
+    // Sort for better fingerprint match rate.
+    entries.sort();
+    return Object.fromEntries(entries);
   }
 
   /**

@@ -2120,4 +2120,169 @@ test(
   })
 );
 
+test(
+  'env must be an object',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: [],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+        ❌ package.json:8:14 Expected an object
+          "env": []
+                 ~~`
+    );
+  })
+);
+
+test(
+  'env entry value must be a string or object',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: {
+              FOO: 1,
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+        ❌ package.json:9:16 Expected a string or object
+            "FOO": 1
+                   ~`
+    );
+  })
+);
+
+test(
+  'env entry value that is object must have an "external" property',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: {
+              FOO: {
+                EXTERNAL: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+      ❌ package.json:9:16 Expected "external" to be true
+            "FOO": {
+                   ~
+              "EXTERNAL": true
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~
+            }
+    ~~~~~~~~~`
+    );
+  })
+);
+
+test(
+  'env entry value that is object must have "external" set to true',
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: {
+              FOO: {
+                external: false,
+              },
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+      ❌ package.json:10:23 Expected "external" to be true
+              "external": false
+                          ~~~~~`
+    );
+  })
+);
+
+test(
+  "script with no command can't have env",
+  timeout(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            files: ['foo'],
+            env: {
+              FOO: 'foo',
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+      ❌ package.json:10:14 Can't set "env" unless "command" is set
+          "env": {
+                 ~
+            "FOO": "foo"
+    ~~~~~~~~~~~~~~~~~~~~
+          }
+    ~~~~~~~`
+    );
+  })
+);
+
 test.run();
