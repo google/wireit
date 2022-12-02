@@ -88,6 +88,8 @@ export interface FingerprintData {
         };
       }
     | undefined;
+
+  env: Record<string, string>;
 }
 
 /**
@@ -227,6 +229,7 @@ export class Fingerprint {
                 lineMatches: script.service.readyWhen.lineMatches?.toString(),
               },
             },
+      env: script.env,
     };
     fingerprint._data = data as FingerprintData;
     return fingerprint;
