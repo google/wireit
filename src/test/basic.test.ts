@@ -1187,4 +1187,49 @@ test(
   })
 );
 
+test(
+  'environment variables are passed to children',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: [],
+            output: [],
+            env: {
+              FOO: 'foo-good',
+              BAR: {
+                external: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run a', {
+      env: {
+        // Overridden in the script config
+        FOO: 'foo-bad',
+        // Other vars should be passed down, regardless of "external" (which
+        // only affects fingerprinting).
+        BAR: 'bar-good',
+        BAZ: 'baz-good',
+      },
+    });
+    const inv = await cmdA.nextInvocation();
+    const {env} = await inv.environment();
+    assert.equal(env.FOO, 'foo-good');
+    assert.equal(env.BAR, 'bar-good');
+    assert.equal(env.BAZ, 'baz-good');
+    inv.exit(0);
+    assert.equal((await wireit.exit).code, 0);
+  })
+);
+
 test.run();
