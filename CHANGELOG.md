@@ -6,7 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Added
+
+- Added `env` setting which allows either directly assigning environment
+  variables, or indicating that an externally-provided environment variable
+  should affect the fingerprint (and hence freshness/caching). Example:
+
+```json
+{
+"wireit": {
+  "rollup": {
+    "command": "rollup -c",
+    "files": ["lib/**/*.js", "rollup.config.js"],
+    "output": "dist/bundle.js",
+    "env": {
+      "MODE": "prod",
+      "DEBUG": {
+        "external": true
+      }
+    }
+  }
+}
+```
 
 ## [0.9.0] - 2022-11-29
 
