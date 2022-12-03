@@ -16,15 +16,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ```json
 {
-"wireit": {
-  "rollup": {
-    "command": "rollup -c",
-    "files": ["lib/**/*.js", "rollup.config.js"],
-    "output": "dist/bundle.js",
-    "env": {
-      "MODE": "prod",
-      "DEBUG": {
-        "external": true
+  "wireit": {
+    "bundle:prod": {
+      "command": "rollup -c",
+      "files": ["lib/**/*.js", "rollup.config.js"],
+      "output": ["dist/bundle.js"],
+      "env": {
+        "MODE": "prod",
+        "DEBUG": {
+          "external": true
+        }
       }
     }
   }
@@ -122,7 +123,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
       "bundle": {
         "command": "rollup -c",
         "files": ["rollup.config.json", "lib/**/*.js", "!lib/test"],
-        "output": "dist/bundle.js",
+        "output": ["dist/bundle.js"],
         "dependencies": {
           [
             "script": "build",
