@@ -94,6 +94,29 @@
                 }
               }
             ]
+          },
+          "env": {
+            "type": "object",
+            "markdownDescription": "Environment variables to either set directly, or which are set externally and affect the behavior of the script.\n\nFor more info see: https://github.com/google/wireit#environment-variables",
+            "additionalProperties": {
+              "markdownDescription": "An environment variable setting.\n\nFor more info see: https://github.com/google/wireit#environment-variables",
+              "additionalProperties": true,
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": ["external"],
+                  "properties": {
+                    "external": {
+                      "markdownDescription": "Do not re-use output if this externally-provided environment variable changes across iterations.\n\nFor more info see: https://github.com/google/wireit#indicating-external-environment-variables",
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
           }
         },
         "type": "object"
