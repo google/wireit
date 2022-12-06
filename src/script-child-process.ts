@@ -84,6 +84,7 @@ export class ScriptChildProcess {
       name: script.name,
       command: script.command,
       extraArgs: script.extraArgs,
+      env: script.env,
     };
 
     // TODO(aomarks) Update npm_ environment variables to reflect the new
@@ -105,6 +106,7 @@ export class ScriptChildProcess {
             ? 'true'
             : process.env.FORCE_COLOR,
         PATH: this._pathEnvironmentVariable,
+        ...this._script.env,
       }),
       // Set "detached" on Linux and macOS so that we create a new process
       // group, instead of being added to the process group for this Wireit

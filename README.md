@@ -40,6 +40,7 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 - [Watch mode](#watch-mode)
 - [Services](#services)
 - [Execution cascade](#execution-cascade)
+- [Environment variables](#environment-variables)
 - [Failures and errors](#failures-and-errors)
 - [Package locks](#package-locks)
 - [Recipes](#recipes)
@@ -48,7 +49,7 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 - [Reference](#reference)
   - [Configuration](#configuration)
   - [Dependency syntax](#dependency-syntax)
-  - [Environment variables](#environment-variables)
+  - [Environment variable reference](#environment-variable-reference)
   - [Glob patterns](#glob-patterns)
   - [Fingerprint](#fingerprint)
 - [Requirements](#requirements)
@@ -201,7 +202,7 @@ graph TD
 
 By default, Wireit will run up to 2 scripts in parallel for every logical CPU
 core detected on your system. To change this default, set the `WIREIT_PARALLEL`
-[environment variable](#environment-variables) to a positive integer, or
+[environment variable](#environment-variable-reference) to a positive integer, or
 `infinity` to run without a limit. You may want to lower this number if you
 experience resource starvation in large builds. For example, to run only one
 script at a time:
@@ -417,6 +418,62 @@ The benefit of Wireit's watch mode over built-in watch modes are:
 - It prevents problems that can occur when running many separate watch commands
   simultaneously, such as build steps being triggered before all preceding steps
   have finished.
+
+## Environment variables
+
+Use the `env` setting to either directly set environment variables, or to
+indicate that an externally-defined environment variable affects the behavior of
+a script.
+
+### Setting environment variables directly
+
+If a property value in the `env` object is a string, then that environment
+variable will be set to that value when the script's `command` runs,
+overriding any value from the parent process.
+
+Unlike built-in shell environment variable syntaxes, using `env` to set
+environment variables works the same in macOS/Linux vs Windows, and in all
+shells.
+
+> **Note** Setting an environment variable with `env` does not apply
+> transitively through dependencies. If you need the same environment variable
+> to be set for multiple scripts, you must configure it for each of them.
+
+```json
+{
+  "wireit": {
+    "my-script": {
+      "command": "my-command",
+      "env": {
+        "MY_VARIABLE": "my value"
+      }
+    }
+  }
+}
+```
+
+### Indicating external environment variables
+
+If an environment variable affects the behavior of a script but is set
+_externally_ (i.e. it is passed to the `wireit` parent process), set the `env`
+property to `{"external": true}`. This tells Wireit that if the value of an
+environment variable changes across executions of a script, then its output
+should not be re-used.
+
+```json
+{
+  "wireit": {
+    "my-script": {
+      "command": "my-command",
+      "env": {
+        "MY_VARIABLE": {
+          "external": true
+        }
+      }
+    }
+  }
+}
+```
 
 ## Services
 
@@ -754,17 +811,19 @@ This section contains advice about integrating specific build tools with Wireit.
 The following properties can be set inside `wireit.<script>` objects in
 `package.json` files:
 
-| Property                  | Type                           | Default                 | Description                                                                                                 |
-| ------------------------- | ------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `command`                 | `string`                       | `undefined`             | The shell command to run.                                                                                   |
-| `dependencies`            | `string[] \| object[]`         | `[]`                    | [Scripts that must run before this one](#dependencies).                                                     |
-| `dependencies[i].script`  | `string`                       | `undefined`             | [The name of the script, when the dependency is an object.](#dependencies).                                 |
-| `dependencies[i].cascade` | `boolean`                      | `true`                  | [Whether this dependency always causes this script to re-execute](#execution-cascade).                      |
-| `files`                   | `string[]`                     | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [fingerprint](#fingerprint).              |
-| `output`                  | `string[]`                     | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output). |
-| `clean`                   | `boolean \| "if-file-deleted"` | `true`                  | [Delete output files before running](#cleaning-output).                                                     |
-| `service`                 | `boolean`                      | `false`                 | [Whether this script is long-running, e.g. a server](#cleaning-output).                                     |
-| `packageLocks`            | `string[]`                     | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                              |
+| Property                  | Type                               | Default                 | Description                                                                                                                     |
+| ------------------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `command`                 | `string`                           | `undefined`             | The shell command to run.                                                                                                       |
+| `dependencies`            | `string[] \| object[]`             | `[]`                    | [Scripts that must run before this one](#dependencies).                                                                         |
+| `dependencies[i].script`  | `string`                           | `undefined`             | [The name of the script, when the dependency is an object.](#dependencies).                                                     |
+| `dependencies[i].cascade` | `boolean`                          | `true`                  | [Whether this dependency always causes this script to re-execute](#execution-cascade).                                          |
+| `files`                   | `string[]`                         | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [fingerprint](#fingerprint).                                  |
+| `output`                  | `string[]`                         | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output).                     |
+| `clean`                   | `boolean \| "if-file-deleted"`     | `true`                  | [Delete output files before running](#cleaning-output).                                                                         |
+| `env`                     | `Record<string, string \| object>` | `false`                 | [Environment variables](#environment-variables) to set when running this command, or that are external and affect the behavior. |
+| `env[i].external`         | `true \| undefined`                | `undefined`             | `true` if an [environment variable](#environment-variables) is set externally and affects the script's behavior.                |
+| `service`                 | `boolean`                          | `false`                 | [Whether this script is long-running, e.g. a server](#cleaning-output).                                                         |
+| `packageLocks`            | `string[]`                         | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                                                  |
 
 ### Dependency syntax
 
@@ -775,7 +834,7 @@ The following syntaxes can be used in the `wireit.<script>.dependencies` array:
 | `foo`        | Script named `"foo"` in the same package.                                                       |
 | `../foo:bar` | Script named `"bar"` in the package found at `../foo` ([details](#cross-package-dependencies)). |
 
-### Environment variables
+### Environment variable reference
 
 The following environment variables affect the behavior of Wireit:
 
@@ -829,6 +888,7 @@ cache](#caching).
 - The SHA256 content hashes of all files matching `files`.
 - The SHA256 content hashes of all files matching `packageLocks` in the current
   package and all parent directories.
+- The environment variable values configured in `env`.
 - The system platform (e.g. `linux`, `win32`).
 - The system CPU architecture (e.g. `x64`).
 - The system Node version (e.g. `16.7.0`).

@@ -1955,4 +1955,58 @@ test(
   })
 );
 
+test(
+  'changing external environment variable makes script stale',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: [],
+            output: [],
+            env: {
+              FOO: {
+                external: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Initial run.
+    {
+      const wireit = rig.exec('npm run a', {env: {FOO: '1'}});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await wireit.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Same environment variable, still fresh.
+    {
+      const wireit = rig.exec('npm run a', {env: {FOO: '1'}});
+      const res = await wireit.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+    }
+
+    // Change environment variable, now stale.
+    {
+      const wireit = rig.exec('npm run a', {env: {FOO: '2'}});
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      const res = await wireit.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+    }
+  })
+);
+
 test.run();

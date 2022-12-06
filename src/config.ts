@@ -42,6 +42,11 @@ export interface ScriptReferenceWithCommand extends ScriptReference {
    * Extra arguments to pass to the command.
    */
   extraArgs: string[] | undefined;
+
+  /**
+   * Environment variables.
+   */
+  env: Record<string, string>;
 }
 
 export interface Dependency<
@@ -65,6 +70,7 @@ export interface NoCommandScriptConfig extends BaseScriptConfig {
   command: undefined;
   extraArgs: undefined;
   service: undefined;
+  env: Record<string, string>;
 }
 
 /**
