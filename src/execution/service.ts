@@ -294,12 +294,12 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * Take over ownership of this service's running child process, if there is
    * one.
    */
-  detach(): ScriptChildProcess | undefined {
+  detach(): {child: ScriptChildProcess; fingerprint: Fingerprint} | undefined {
     switch (this._state.id) {
       case 'started':
       case 'stopping':
       case 'failing': {
-        const child = this._state.child;
+        const {child, fingerprint} = this._state;
         this._state = {id: 'detached'};
         // Note that for some reason, removing all listeners from stdout/stderr
         // without specifying the "data" event will also remove the listeners
@@ -307,7 +307,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         // e.g. the process has exited.
         child.stdout.removeAllListeners('data');
         child.stderr.removeAllListeners('data');
-        return child;
+        return {child, fingerprint};
       }
       case 'stopped':
       case 'failed': {
@@ -634,9 +634,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onDepsStarted() {
     switch (this._state.id) {
       case 'depsStarting': {
-        let child = this._state.adoptee?.detach();
-        if (child === undefined) {
-          child = new ScriptChildProcess(this._config);
+        const detached = this._state.adoptee?.detach();
+        if (detached === undefined) {
+          const child = new ScriptChildProcess(this._config);
           this._state = {
             id: 'starting',
             child,
@@ -657,7 +657,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           this._state.started.resolve({ok: true, value: undefined});
           this._state = {
             id: 'started',
-            child,
+            child: detached.child,
             fingerprint: this._state.fingerprint,
           };
         }
