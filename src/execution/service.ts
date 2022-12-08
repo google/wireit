@@ -301,12 +301,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'failing': {
         const {child, fingerprint} = this._state;
         this._state = {id: 'detached'};
-        // Note that for some reason, removing all listeners from stdout/stderr
-        // without specifying the "data" event will also remove the listeners
-        // directly on "child" inside the ScriptChildProceess for noticing when
-        // e.g. the process has exited.
-        child.stdout.removeAllListeners('data');
-        child.stderr.removeAllListeners('data');
+        this._stopLoggingChildStdio(child);
         return {child, fingerprint};
       }
       case 'stopped':
@@ -664,22 +659,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         void this._state.child.completed.then(() => {
           this._onChildExited();
         });
-        this._state.child.stdout.on('data', (data: string | Buffer) => {
-          this._logger.log({
-            script: this._config,
-            type: 'output',
-            stream: 'stdout',
-            data,
-          });
-        });
-        this._state.child.stderr.on('data', (data: string | Buffer) => {
-          this._logger.log({
-            script: this._config,
-            type: 'output',
-            stream: 'stderr',
-            data,
-          });
-        });
+        this._startLoggingChildStdio(this._state.child);
         if (!this._isWatchMode) {
           // If we're in watch mode, we don't care about our dependency services
           // exiting because:
@@ -1031,5 +1011,33 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     this._executor.notifyFailure();
     this._terminated.resolve({ok: false, error: failure});
     this._servicesNotNeeded.resolve();
+  }
+
+  private _startLoggingChildStdio(child: ScriptChildProcess) {
+    child.stdout.on('data', (data: string | Buffer) => {
+      this._logger.log({
+        script: this._config,
+        type: 'output',
+        stream: 'stdout',
+        data,
+      });
+    });
+    child.stderr.on('data', (data: string | Buffer) => {
+      this._logger.log({
+        script: this._config,
+        type: 'output',
+        stream: 'stderr',
+        data,
+      });
+    });
+  }
+
+  private _stopLoggingChildStdio(child: ScriptChildProcess) {
+    // Note that for some reason, removing all listeners from stdout/stderr
+    // without specifying the "data" event will also remove the listeners
+    // directly on "child" inside the ScriptChildProceess for noticing when e.g.
+    // the process has exited.
+    child.stdout.removeAllListeners('data');
+    child.stderr.removeAllListeners('data');
   }
 }
