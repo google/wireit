@@ -69,6 +69,12 @@ type ServiceState =
       fingerprint: Fingerprint;
     }
   | {
+      id: 'started-broken';
+      child: ScriptChildProcess;
+      fingerprint: Fingerprint;
+      failure: Failure;
+    }
+  | {
       id: 'stopping';
       child: ScriptChildProcess;
       fingerprint: Fingerprint;
@@ -270,6 +276,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing': {
         return this._state.fingerprint;
@@ -297,6 +304,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   detach(): {child: ScriptChildProcess; fingerprint: Fingerprint} | undefined {
     switch (this._state.id) {
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing': {
         const {child, fingerprint} = this._state;
@@ -367,6 +375,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'stopped':
       case 'failed':
@@ -409,6 +418,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
@@ -424,9 +434,16 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'executingDeps': {
         this._state.deferredFingerprint.resolve(result);
-        this._enterFailedState(result.error[0]);
+        const failure = result.error[0];
+        const detached = this._state.adoptee?.detach();
+        if (detached !== undefined) {
+          this._enterStartedBrokenState(failure, detached);
+        } else {
+          this._enterFailedState(failure);
+        }
         return;
       }
+      case 'started-broken':
       case 'stopped':
       case 'failed': {
         return;
@@ -496,6 +513,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
@@ -536,6 +554,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
@@ -598,6 +617,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'started': {
         return Promise.resolve({ok: true, value: undefined});
       }
+      case 'started-broken':
       case 'failing':
       case 'failed': {
         return Promise.resolve({ok: false, error: this._state.failure});
@@ -691,6 +711,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'stopped':
       case 'failing':
@@ -709,7 +730,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         // TODO(aomarks) The inconsistency between using single vs multiple
         // failure result types is inconvenient. It's ok to just use the first
         // one here, but would make more sense to return all of them.
-        this._terminated.resolve({ok: false, error: result.error[0]});
+        const failure = result.error[0];
+        const detached = this._state.adoptee?.detach();
+        if (detached !== undefined) {
+          this._enterStartedBrokenState(failure, detached);
+        } else {
+          this._enterFailedState(failure);
+        }
         return;
       }
       case 'failing':
@@ -726,6 +753,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'detached': {
         throw unexpectedState(this._state);
       }
@@ -737,7 +765,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
 
   private _onDepServiceExit() {
     switch (this._state.id) {
-      case 'started': {
+      case 'started':
+      case 'started-broken': {
         this._state.child.kill();
         this._state = {
           id: 'failing',
@@ -831,6 +860,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'depsStarting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopped':
       case 'failed':
       case 'detached': {
@@ -868,6 +898,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'started':
+      case 'started-broken':
       case 'stopped':
       case 'failed':
       case 'detached': {
@@ -901,7 +932,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._enterFailedState(event);
         return;
       }
-      case 'started': {
+      case 'started':
+      case 'started-broken': {
         const event = {
           script: this._config,
           type: 'failure',
@@ -946,7 +978,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    */
   abort(): Promise<void> {
     switch (this._state.id) {
-      case 'started': {
+      case 'started':
+      case 'started-broken': {
         this._state.child.kill();
         this._state = {
           id: 'stopping',
@@ -1011,6 +1044,22 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     this._executor.notifyFailure();
     this._terminated.resolve({ok: false, error: failure});
     this._servicesNotNeeded.resolve();
+  }
+
+  private _enterStartedBrokenState(
+    failure: Failure,
+    {child, fingerprint}: {child: ScriptChildProcess; fingerprint: Fingerprint}
+  ) {
+    this._startLoggingChildStdio(child);
+    void child.completed.then(() => {
+      this._onChildExited();
+    });
+    this._state = {
+      id: 'started-broken',
+      child,
+      fingerprint,
+      failure,
+    };
   }
 
   private _startLoggingChildStdio(child: ScriptChildProcess) {
