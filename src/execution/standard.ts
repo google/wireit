@@ -387,6 +387,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           });
         }
       } else {
+        this._logger.log(result.error);
         // This failure will propagate to the Executor eventually anyway, but
         // asynchronously.
         //

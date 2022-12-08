@@ -108,6 +108,10 @@ export class DefaultLogger implements Logger {
       }
 
       case 'failure': {
+        if (event.logged) {
+          return;
+        }
+        event.logged = true;
         const reason = event.reason;
         switch (reason) {
           default: {

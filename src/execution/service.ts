@@ -906,19 +906,23 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'readying': {
         this._state.readyMonitor.abort();
-        this._enterFailedState({
+        const event = {
           script: this._config,
           type: 'failure',
           reason: 'service-exited-unexpectedly',
-        });
+        } as const;
+        this._logger.log(event);
+        this._enterFailedState(event);
         return;
       }
       case 'started': {
-        this._enterFailedState({
+        const event = {
           script: this._config,
           type: 'failure',
           reason: 'service-exited-unexpectedly',
-        });
+        } as const;
+        this._logger.log(event);
+        this._enterFailedState(event);
         return;
       }
       case 'failing': {
@@ -1021,6 +1025,5 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     this._executor.notifyFailure();
     this._terminated.resolve({ok: false, error: failure});
     this._servicesNotNeeded.resolve();
-    this._logger.log(failure);
   }
 }

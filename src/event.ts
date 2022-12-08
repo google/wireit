@@ -100,6 +100,7 @@ export type Failure =
 interface ErrorBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
   type: 'failure';
+  logged?: true;
 }
 
 /**

@@ -112,12 +112,6 @@ const run = async (): Promise<Result<void, Failure[]>> => {
           errors.push(result.error);
         }
       }
-      if (errors.length > 0) {
-        return {
-          ok: false,
-          error: errors,
-        };
-      }
     }
     return errors.length === 0
       ? {ok: true, value: undefined}
