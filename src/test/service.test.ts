@@ -1275,4 +1275,102 @@ test(
   })
 );
 
+test(
+  'service watch mode recovery from dependency failure',
+  // service
+  //    |
+  //    v
+  // standard
+  timeout(async ({rig}) => {
+    const service = await rig.newCommand();
+    const standard = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          service: 'wireit',
+          standard: 'wireit',
+        },
+        wireit: {
+          service: {
+            command: service.command,
+            service: true,
+            dependencies: ['standard'],
+          },
+          standard: {
+            command: standard.command,
+            files: ['input'],
+          },
+        },
+      },
+    });
+
+    await rig.write('input', '1');
+    const wireit = rig.exec('npm run service --watch');
+
+    // Initial build is OK.
+    await wireit.waitForLog(/\[standard\] Running/);
+    (await standard.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[standard\] Executed successfully/);
+    await service.nextInvocation();
+    await wireit.waitForLog(/\[service\] Service started/);
+    await wireit.waitForLog(/\[service\] Watching for file changes/);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(service.numInvocations, 1);
+    assert.equal(standard.numInvocations, 1);
+
+    // Introduce an error. Service keeps running but goes into a temporary
+    // "started-broken" state, where it awaits its dependencies being fixed.
+    await rig.write('input', '2');
+    await wireit.waitForLog(/\[standard\] Running/);
+    (await standard.nextInvocation()).exit(1);
+    await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
+    await wireit.waitForLog(/\[service\] Watching for file changes/);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(service.numInvocations, 1);
+    assert.equal(standard.numInvocations, 2);
+
+    // Fix the error. Service restarts because the fingerprint of its dependency
+    // has changed.
+    await rig.write('input', '3');
+    await wireit.waitForLog(/\[standard\] Running/);
+    (await standard.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[standard\] Executed successfully/);
+    await service.nextInvocation();
+    await wireit.waitForLog(/\[service\] Service stopped/);
+    await wireit.waitForLog(/\[service\] Service started/);
+    await wireit.waitForLog(/\[service\] Watching for file changes/);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(service.numInvocations, 2);
+    assert.equal(standard.numInvocations, 3);
+
+    // Introduce another error. Again the service keeps running as
+    // "started-broken".
+    await rig.write('input', '4');
+    await wireit.waitForLog(/\[standard\] Running/);
+    (await standard.nextInvocation()).exit(1);
+    await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
+    await wireit.waitForLog(/\[service\] Watching for file changes/);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(service.numInvocations, 2);
+    assert.equal(standard.numInvocations, 4);
+
+    // Fix the error, this time by reverting. This time the service doesn't
+    // restart, because the fingerprint has been restored to what it was before
+    // the failure.
+    await rig.write('input', '3');
+    await wireit.waitForLog(/\[standard\] Running/);
+    (await standard.nextInvocation()).exit(0);
+    await wireit.waitForLog(/\[standard\] Executed successfully/);
+    await wireit.waitForLog(/\[service\] Watching for file changes/);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(service.numInvocations, 2);
+    assert.equal(standard.numInvocations, 5);
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(service.numInvocations, 2);
+    assert.equal(standard.numInvocations, 5);
+  })
+);
+
 test.run();

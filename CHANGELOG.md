@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Fixed
+
+- Fixed bug relating to services not getting shut down following an error in one
+  of its dependencies.
+- Fixed some cases of errors being logged multiple times.
+- Errors are now consistently logged immediately when they occur, instead of
+  sometimes only at the end of all execution.
 
 ## [0.9.1] - 2022-12-06
 

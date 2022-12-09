@@ -69,6 +69,12 @@ type ServiceState =
       fingerprint: Fingerprint;
     }
   | {
+      id: 'started-broken';
+      child: ScriptChildProcess;
+      fingerprint: Fingerprint;
+      failure: Failure;
+    }
+  | {
       id: 'stopping';
       child: ScriptChildProcess;
       fingerprint: Fingerprint;
@@ -147,7 +153,7 @@ function unexpectedState(state: ServiceState) {
  *     │                   no                    │            │
  *     │                   │                     │            │
  *     │             ┌─────▼─────┐               │            │
- *     ├─◄─ abort ───┤ UNSTARTED │               ▼            │
+ *     ├─◄─ abort ───┤ UNSTARTED │               ▼            ▼
  *     │             └─────┬─────┘               │            │
  *     │                   │                     │            │
  *     │                 start                   │            │
@@ -160,49 +166,55 @@ function unexpectedState(state: ServiceState) {
  *     ├─◄─ abort ─┤ DEPS_STARTING ├───── depStartErr ───►────┤
  *     │           └───────┬───────┘                          │
  *     │                   │                                  │
- *     │              depsStarted                             ▼
+ *     │              depsStarted                             │
  *     │                   │                                  │
- *     │                   │                                  │
- *     ▼            ╔══════▼═══════╗                          │
- *     │            ║ has adoptee? ╟───── yes ───────╮        │
- *     │            ╚══════╤═══════╝                 │        │
- *     │                   │                         │        │
- *     │                   no                        │        │
- *     │                   │  ╭─╮                    ▼        │
- *     │                   │  │ start                │        │
- *     │              ┌────▼──▼─┴┐                   │        │
- *     │    ╭◄─ abort ┤ STARTING ├──── startErr ──────►───────┤
- *     │    │         └────┬────┬┘                   │        │
- *     │    │              │    │                    │        │
+ *     │                   │   ┌────────────────┐       ╔═════▼════════╗
+ *     │    ╭◄─ abort ─────│─◄─┤ STARTED_BROKEN ◄─ yes ─╢ has adoptee? ║
+ *     │    │              │   └───────┬────────┘       ╚═════╤════════╝
+ *     │    │              │           │                      │
+ *     │    │              │         detach                   no
+ *     │    │              │           │                      │
+ *     │    │              │           ╰────────►────────╮    │
+ *     ▼    │       ╔══════▼═══════╗                     │    │
+ *     │    ▼       ║ has adoptee? ╟───── yes ───────╮   │    │
+ *     │    │       ╚══════╤═══════╝                 │   │    │
+ *     │    │              │                         │   │    │
+ *     │    │              no                        │   │    │
+ *     │    │              │  ╭─╮                    ▼   ▼    ▼
+ *     │    │              │  │ start                │   │    │
+ *     │    │         ┌────▼──▼─┴┐                   │   │    │
+ *     │    ├◄─ abort ┤ STARTING ├──── startErr ──────►───────┤
+ *     │    │         └────┬────┬┘                   │   │    │
+ *     │    │              │    │                    │   │    │
  *     │    │              │    ╰─ depServiceExit ───────────►──────────╮
- *     │    │              │     (unless watch mode) │        │         │
- *     │    │              │                         │        │         │
- *     │    │            started                     │        │         │
- *     │    │              │                         │        │         │
- *     │    │   ╔══════════▼═══════════╗             │        │         │
- *     ▼    │   ║ has ready condition? ╟──╮          │        │         │
- *     │    │   ╚══════════╤═══════════╝  │          │        │         │
- *     │    │              │              │          │        │         │
- *     │    │              no            yes         │        │         │
- *     │    │              │              │          │        │         │
- *     │    ▼              ▼         ┌────▼─────┐    ▼        ▼         ▼
- *     │    │              │         │ READYING │    │        │         │
- *     │    │              │         └────┬───┬─┘    │        │         │
- *     │    │              │              │   │      │        │         │
- *     │    │              │            ready ╰── depServiceExit ───►───╮
+ *     │    │              │     (unless watch mode) │   │    │         │
+ *     │    │              │                         │   │    │         │
+ *     │    │            started                     │   │    │         │
+ *     │    │              │                         │   │    │         │
+ *     │    │   ╔══════════▼═══════════╗             │   │    │         │
+ *     ▼    │   ║ has ready condition? ╟──╮          │   │    │         │
+ *     │    │   ╚══════════╤═══════════╝  │          │   │    │         │
+ *     │    │              │              │          │   │    │         │
+ *     │    │              no            yes         │   │    │         │
+ *     │    │              │              │          │   │    │         │
+ *     │    ▼              ▼         ┌────▼─────┐    ▼   ▼    ▼         ▼
+ *     │    │              │         │ READYING │    │   │    │         │
+ *     │    │              │         └────┬───┬─┘    │   │    │         │
+ *     │    │              │              │   │      │   │    │         │
+ *     │    │              │            ready ╰── depServiceExit ───►───┤
  *     │    │              │              │     (unless watch mode)     │
- *     │    │              │ ╭─────◄──────╯          │        │         │
- *     │    │              │ │                       │        │         │
- *     │    │          ╭─╮ │ │ ╭──────────◄──────────╯        │         │
- *     │    │      start │ │ │ │                              │         │
- *     │    │         ┌▼─┴─▼─▼─▼┐                             │         │
+ *     │    │              │ ╭─────◄──────╯          │   │    │         │
+ *     │    │              │ │                       │   │    │         │
+ *     │    │          ╭─╮ │ │ ╭──────────◄──────────╯   │    │         │
+ *     │    │      start │ │ │ │                         │    │         │
+ *     │    │         ┌▼─┴─▼─▼─▼┐                        │    │         │
  *     │    ├◄─ abort ┤ STARTED ├── exit ──────────►──────────┤         │
- *     │    │         └──────┬─┬┘                             │         │
- *     │    │                │ │                              │         │
+ *     │    │         └──────┬─┬┘                        │    │         │
+ *     │    │                │ │                         │    │         │
  *     │    │                │ ╰── depServiceExit ────────────►─────────┤
- *     │    │                │   (unless watch mode)          │         │
- *     │    ▼                │                                │         │
- *     │    │                ╰───── detach ──╮                │         │
+ *     │    │                │   (unless watch mode)     │    │         │
+ *     │    ▼                │                           │    │         │
+ *     │    │                ╰─── detach ──►─┬─────◄─────╯    │         │
  *     │    │                                │                │         │
  *     ▼    │                                │                │         │
  *     │    │         ┌──────────┐           │                │    ┌────▼────┐
@@ -264,6 +276,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing': {
         return this._state.fingerprint;
@@ -288,20 +301,16 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * Take over ownership of this service's running child process, if there is
    * one.
    */
-  detach(): ScriptChildProcess | undefined {
+  detach(): {child: ScriptChildProcess; fingerprint: Fingerprint} | undefined {
     switch (this._state.id) {
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing': {
-        const child = this._state.child;
+        const {child, fingerprint} = this._state;
         this._state = {id: 'detached'};
-        // Note that for some reason, removing all listeners from stdout/stderr
-        // without specifying the "data" event will also remove the listeners
-        // directly on "child" inside the ScriptChildProceess for noticing when
-        // e.g. the process has exited.
-        child.stdout.removeAllListeners('data');
-        child.stderr.removeAllListeners('data');
-        return child;
+        this._stopLoggingChildStdio(child);
+        return {child, fingerprint};
       }
       case 'stopped':
       case 'failed': {
@@ -366,6 +375,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'stopped':
       case 'failed':
@@ -408,6 +418,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
@@ -423,9 +434,16 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'executingDeps': {
         this._state.deferredFingerprint.resolve(result);
-        this._enterFailedState(result.error[0]);
+        const failure = result.error[0];
+        const detached = this._state.adoptee?.detach();
+        if (detached !== undefined) {
+          this._enterStartedBrokenState(failure, detached);
+        } else {
+          this._enterFailedState(failure);
+        }
         return;
       }
+      case 'started-broken':
       case 'stopped':
       case 'failed': {
         return;
@@ -495,6 +513,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
@@ -535,6 +554,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
@@ -597,6 +617,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'started': {
         return Promise.resolve({ok: true, value: undefined});
       }
+      case 'started-broken':
       case 'failing':
       case 'failed': {
         return Promise.resolve({ok: false, error: this._state.failure});
@@ -628,9 +649,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onDepsStarted() {
     switch (this._state.id) {
       case 'depsStarting': {
-        let child = this._state.adoptee?.detach();
-        if (child === undefined) {
-          child = new ScriptChildProcess(this._config);
+        const detached = this._state.adoptee?.detach();
+        if (detached === undefined) {
+          const child = new ScriptChildProcess(this._config);
           this._state = {
             id: 'starting',
             child,
@@ -651,29 +672,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           this._state.started.resolve({ok: true, value: undefined});
           this._state = {
             id: 'started',
-            child,
+            child: detached.child,
             fingerprint: this._state.fingerprint,
           };
         }
         void this._state.child.completed.then(() => {
           this._onChildExited();
         });
-        this._state.child.stdout.on('data', (data: string | Buffer) => {
-          this._logger.log({
-            script: this._config,
-            type: 'output',
-            stream: 'stdout',
-            data,
-          });
-        });
-        this._state.child.stderr.on('data', (data: string | Buffer) => {
-          this._logger.log({
-            script: this._config,
-            type: 'output',
-            stream: 'stderr',
-            data,
-          });
-        });
+        this._startLoggingChildStdio(this._state.child);
         if (!this._isWatchMode) {
           // If we're in watch mode, we don't care about our dependency services
           // exiting because:
@@ -705,6 +711,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'stopped':
       case 'failing':
@@ -723,7 +730,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         // TODO(aomarks) The inconsistency between using single vs multiple
         // failure result types is inconvenient. It's ok to just use the first
         // one here, but would make more sense to return all of them.
-        this._terminated.resolve({ok: false, error: result.error[0]});
+        const failure = result.error[0];
+        const detached = this._state.adoptee?.detach();
+        if (detached !== undefined) {
+          this._enterStartedBrokenState(failure, detached);
+        } else {
+          this._enterFailedState(failure);
+        }
         return;
       }
       case 'failing':
@@ -740,6 +753,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'detached': {
         throw unexpectedState(this._state);
       }
@@ -751,7 +765,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
 
   private _onDepServiceExit() {
     switch (this._state.id) {
-      case 'started': {
+      case 'started':
+      case 'started-broken': {
         this._state.child.kill();
         this._state = {
           id: 'failing',
@@ -845,6 +860,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'depsStarting':
       case 'readying':
       case 'started':
+      case 'started-broken':
       case 'stopped':
       case 'failed':
       case 'detached': {
@@ -882,6 +898,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'unstarted':
       case 'depsStarting':
       case 'started':
+      case 'started-broken':
       case 'stopped':
       case 'failed':
       case 'detached': {
@@ -906,19 +923,24 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       }
       case 'readying': {
         this._state.readyMonitor.abort();
-        this._enterFailedState({
+        const event = {
           script: this._config,
           type: 'failure',
           reason: 'service-exited-unexpectedly',
-        });
+        } as const;
+        this._logger.log(event);
+        this._enterFailedState(event);
         return;
       }
-      case 'started': {
-        this._enterFailedState({
+      case 'started':
+      case 'started-broken': {
+        const event = {
           script: this._config,
           type: 'failure',
           reason: 'service-exited-unexpectedly',
-        });
+        } as const;
+        this._logger.log(event);
+        this._enterFailedState(event);
         return;
       }
       case 'failing': {
@@ -956,7 +978,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    */
   abort(): Promise<void> {
     switch (this._state.id) {
-      case 'started': {
+      case 'started':
+      case 'started-broken': {
         this._state.child.kill();
         this._state = {
           id: 'stopping',
@@ -1021,6 +1044,49 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     this._executor.notifyFailure();
     this._terminated.resolve({ok: false, error: failure});
     this._servicesNotNeeded.resolve();
-    this._logger.log(failure);
+  }
+
+  private _enterStartedBrokenState(
+    failure: Failure,
+    {child, fingerprint}: {child: ScriptChildProcess; fingerprint: Fingerprint}
+  ) {
+    this._startLoggingChildStdio(child);
+    void child.completed.then(() => {
+      this._onChildExited();
+    });
+    this._state = {
+      id: 'started-broken',
+      child,
+      fingerprint,
+      failure,
+    };
+  }
+
+  private _startLoggingChildStdio(child: ScriptChildProcess) {
+    child.stdout.on('data', (data: string | Buffer) => {
+      this._logger.log({
+        script: this._config,
+        type: 'output',
+        stream: 'stdout',
+        data,
+      });
+    });
+    child.stderr.on('data', (data: string | Buffer) => {
+      this._logger.log({
+        script: this._config,
+        type: 'output',
+        stream: 'stderr',
+        data,
+      });
+    });
+  }
+
+  private _stopLoggingChildStdio(child: ScriptChildProcess) {
+    // Note that for some reason, removing all listeners from stdout/stderr
+    // without specifying the "data" event will also remove the listeners
+    // directly on "child" inside the ScriptChildProceess for noticing when e.g.
+    // the process has exited.
+    child.stdout.removeAllListeners('data');
+    child.stderr.removeAllListeners('data');
   }
 }
