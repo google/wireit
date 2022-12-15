@@ -23,7 +23,7 @@ whether you still have access to the PAT.
 1. Visit https://dev.azure.com/polymer-vscode/_usersSettings/tokens
 2. Click "New Token"
 3. Set Name to e.g. "Publish Wireit VSCode extension"
-4. Set Organization to "polmyer-vscode"
+4. Set Organization to "polymer-vscode"
 5. Set Expiration to "Custom defined" and set the date for e.g. 1 year
 6. Set Scopes to "Custom defined"
 7. Click "Show all scopes"
