@@ -4,6 +4,10 @@ All notable changes to the "wireit" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.5.0] - 2022-12-15
+
+- Updated to support the new "env" features of Wireit v0.9.1.
+
 ## [0.4.0] - 2022-11-14
 
 - Updated to support the new "service" and "cascade" features of Wireit v0.7.3.
