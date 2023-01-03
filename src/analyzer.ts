@@ -5,6 +5,7 @@
  */
 
 import * as pathlib from 'path';
+import * as fs from 'fs/promises';
 import {
   CachingPackageJsonReader,
   FileSystem,
@@ -522,7 +523,12 @@ export class Analyzer {
       command,
       output
     );
-    this._processPackageLocks(placeholder, packageJson, syntaxInfo, files);
+    await this._processPackageLocks(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+      files
+    );
 
     const env = this._processEnv(placeholder, packageJson, syntaxInfo, command);
 
@@ -1107,12 +1113,12 @@ export class Analyzer {
     return {readyWhen: {lineMatches}};
   }
 
-  private _processPackageLocks(
+  private async _processPackageLocks(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
     files: undefined | ArrayNode<string>
-  ): void {
+  ): Promise<void> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
     }
@@ -1172,12 +1178,35 @@ export class Analyzer {
       // "../../package-lock.json" etc. all the way up to the root of the
       // filesystem, because that's how Node package resolution works.
       const depth = placeholder.packageDir.split(pathlib.sep).length;
+      const paths = [];
       for (let i = 0; i < depth; i++) {
         // Glob patterns are specified with forward-slash delimiters, even on
         // Windows.
         const prefix = Array(i + 1).join('../');
         for (const lockfileName of lockfileNames) {
-          files.values.push(prefix + lockfileName);
+          paths.push(prefix + lockfileName);
+        }
+      }
+      // Only add the package locks that currently exist to the list of files
+      // for this script. This way, in watch mode we won't create watchers for
+      // all parent directories, just in case a package lock file is created at
+      // some later time during watch, which is a rare and not especially
+      // important event. Creating watchers for all parent directories is
+      // potentially expensive, and on Windows will also result in occasional
+      // errors.
+      const existing = await Promise.all(
+        paths.map(async (path) => {
+          try {
+            await fs.access(pathlib.join(placeholder.packageDir, path));
+            return path;
+          } catch {
+            return undefined;
+          }
+        })
+      );
+      for (const path of existing) {
+        if (path !== undefined) {
+          files.values.push(path);
         }
       }
     }
