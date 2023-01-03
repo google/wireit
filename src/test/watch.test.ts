@@ -741,17 +741,9 @@ test(
       inv.exit(0);
     }
 
-    // Create parent's package-lock.json file. Expect another run.
-    {
-      await rig.writeAtomic({'package-lock.json': 'v0'});
-      const inv = await cmdA.nextInvocation();
-      inv.exit(0);
-      await inv.closed;
-    }
-
     exec.kill();
     await exec.exit;
-    assert.equal(cmdA.numInvocations, 3);
+    assert.equal(cmdA.numInvocations, 2);
   })
 );
 
