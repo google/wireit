@@ -54,6 +54,7 @@ export interface Options {
   cache: 'local' | 'github' | 'none';
   failureMode: FailureMode;
   agent: Agent;
+  graph: boolean;
 }
 
 export const getOptions = (): Result<Options> => {
@@ -201,7 +202,7 @@ export const getOptions = (): Result<Options> => {
 function getArgvOptions(
   script: ScriptReference,
   agent: Agent
-): Pick<Options, 'watch' | 'extraArgs'> {
+): Pick<Options, 'watch' | 'extraArgs' | 'graph'> {
   // The way command-line arguments are handled in npm, yarn, and pnpm are all
   // different. Our goal here is for `<agent> --watch -- --extra` to behave the
   // same in all agents.
@@ -219,6 +220,7 @@ function getArgvOptions(
       return {
         watch: process.env['npm_config_watch'] !== undefined,
         extraArgs: process.argv.slice(2),
+        graph: true,
       };
     }
     case 'yarnClassic': {
@@ -355,7 +357,7 @@ function findRemainingArgsFromNpmConfigArgv(
  */
 function parseRemainingArgs(
   args: string[]
-): Pick<Options, 'watch' | 'extraArgs'> {
+): Pick<Options, 'watch' | 'extraArgs' | 'graph'> {
   let watch = false;
   let extraArgs: string[] = [];
   const unrecognized = [];
@@ -381,5 +383,6 @@ function parseRemainingArgs(
   return {
     watch,
     extraArgs,
+    graph: true,
   };
 }
