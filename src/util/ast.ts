@@ -11,7 +11,7 @@ import {Failure} from '../event.js';
 import * as pathlib from 'path';
 export {ParseError} from 'jsonc-parser';
 
-type ValueTypes = string | number | boolean | null | undefined;
+export type ValueTypes = string | number | boolean | null | undefined;
 
 export interface JsonFile {
   path: string;
