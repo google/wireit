@@ -24,11 +24,14 @@
     },
     "serve": {
       "command": "wds --root-dir=_site --watch --open",
+      "service": true,
       "dependencies": [
-        "build"
+        {
+          "script": "build",
+          "cascade": false
+        }
       ],
-      "files": [],
-      "output": []
+      "files": []
     }
   },
   "dependencies": {
