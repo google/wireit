@@ -161,6 +161,12 @@ vanilla `npm` scripts. This lets you only use Wireit for some of your scripts,
 or to upgrade incrementally. Scripts that haven't been configured for Wireit are
 always safe to use as dependencies; they just won't be fully optimized.
 
+### Wireit-only scripts
+
+It is valid to define a script in the `wireit` section that is not in the
+`scripts` section, but such scripts can only be used as `dependencies` from
+other wireit scripts, and can never be run directly.
+
 ### Cross-package dependencies
 
 Dependencies can refer to scripts in other npm packages by using a relative path
