@@ -456,7 +456,9 @@ export class Analyzer {
           reason: 'script-not-wireit',
           script: placeholder,
           diagnostic: {
-            message: `This command should just be "wireit", as this script is configured in the wireit section.`,
+            message:
+              `This command should just be "wireit", ` +
+              `as this script is configured in the wireit section.`,
             severity: 'warning',
             location: {
               file: packageJson.jsonFile,
