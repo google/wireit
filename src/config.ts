@@ -193,7 +193,7 @@ interface BaseScriptConfig extends ScriptReference {
    *   }
    * ```
    */
-  scriptAstNode: NamedAstNode<string>;
+  scriptAstNode: NamedAstNode<string> | undefined;
 
   /**
    * The entire config in the wireit section. i.e.:

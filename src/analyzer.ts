@@ -14,7 +14,12 @@ import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
 import {findNodeAtLocation, JsonFile} from './util/ast.js';
 import {IS_WINDOWS} from './util/windows.js';
 
-import type {ArrayNode, JsonAstNode, NamedAstNode} from './util/ast.js';
+import type {
+  ArrayNode,
+  JsonAstNode,
+  NamedAstNode,
+  ValueTypes,
+} from './util/ast.js';
 import type {Diagnostic, MessageLocation, Result} from './error.js';
 import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
@@ -116,6 +121,18 @@ const DEFAULT_LOCKFILES: Record<Agent, string[]> = {
   yarnBerry: ['yarn.lock'],
   pnpm: ['pnpm-lock.yaml'],
 };
+
+function isValidWireitScriptCommand(command: string): boolean {
+  return (
+    command === 'wireit' ||
+    command === 'yarn run -TB wireit' ||
+    // This form is useful when using package managers like yarn or pnpm which
+    // do not automatically add all parent directory `node_modules/.bin`
+    // folders to PATH.
+    /^(\.\.\/)+node_modules\/\.bin\/wireit$/.test(command) ||
+    (IS_WINDOWS && /^(\.\.\\)+node_modules\\\.bin\\wireit\.cmd$/.test(command))
+  );
+}
 
 /**
  * Analyzes and validates a script along with all of its transitive
@@ -344,79 +361,43 @@ export class Analyzer {
     placeholder.failures.push(...packageJson.failures);
 
     const syntaxInfo = packageJson.getScriptInfo(placeholder.name);
-    if (syntaxInfo === undefined || syntaxInfo.scriptNode === undefined) {
-      let node;
-      let reason;
-      if (syntaxInfo?.wireitConfigNode?.name !== undefined) {
-        node = syntaxInfo.wireitConfigNode.name;
-        reason = 'wireit-config-but-no-script' as const;
-      } else {
-        node ??= packageJson.scriptsSection?.name;
-        reason = 'script-not-found' as const;
-      }
-      const range = node
-        ? {offset: node.offset, length: node.length}
-        : {offset: 0, length: 0};
+    if (syntaxInfo?.wireitConfigNode !== undefined) {
+      await this._handleWireitScript(
+        placeholder,
+        packageJson,
+        syntaxInfo,
+        syntaxInfo.wireitConfigNode
+      );
+    } else if (syntaxInfo?.scriptNode !== undefined) {
+      this._handlePlainNpmScript(
+        placeholder,
+        packageJson,
+        syntaxInfo.scriptNode
+      );
+    } else {
       placeholder.failures.push({
         type: 'failure',
-        reason,
+        reason: 'script-not-found',
         script: placeholder,
         diagnostic: {
           severity: 'error',
           message: `Script "${placeholder.name}" not found in the scripts section of this package.json.`,
-          location: {file: packageJson.jsonFile, range},
-        },
-      });
-      return undefined;
-    }
-    const scriptCommand = syntaxInfo.scriptNode;
-    const wireitConfig = syntaxInfo.wireitConfigNode;
-
-    if (
-      wireitConfig !== undefined &&
-      scriptCommand.value !== 'wireit' &&
-      scriptCommand.value !== 'yarn run -TB wireit' &&
-      // This form is useful when using package managers like yarn or pnpm which
-      // do not automatically add all parent directory `node_modules/.bin`
-      // folders to PATH.
-      !/^(\.\.\/)+node_modules\/\.bin\/wireit$/.test(scriptCommand.value) &&
-      !(
-        IS_WINDOWS &&
-        /^(\.\.\\)+node_modules\\\.bin\\wireit\.cmd$/.test(scriptCommand.value)
-      )
-    ) {
-      const configName = wireitConfig.name;
-      placeholder.failures.push({
-        type: 'failure',
-        reason: 'script-not-wireit',
-        script: placeholder,
-        diagnostic: {
-          message: `This command should just be "wireit", as this script is configured in the wireit section.`,
-          severity: 'warning',
           location: {
             file: packageJson.jsonFile,
-            range: {
-              length: scriptCommand.length,
-              offset: scriptCommand.offset,
-            },
+            range: {offset: 0, length: 0},
           },
-          supplementalLocations: [
-            {
-              message: `The wireit config is here.`,
-              location: {
-                file: packageJson.jsonFile,
-                range: {
-                  length: configName.length,
-                  offset: configName.offset,
-                },
-              },
-            },
-          ],
         },
       });
     }
+    return undefined;
+  }
 
-    if (wireitConfig === undefined && scriptCommand.value === 'wireit') {
+  private _handlePlainNpmScript(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    scriptCommand: NamedAstNode<string>
+  ): void {
+    if (isValidWireitScriptCommand(scriptCommand.value)) {
       placeholder.failures.push({
         type: 'failure',
         reason: 'invalid-config-syntax',
@@ -434,38 +415,90 @@ export class Analyzer {
         },
       });
     }
+    // It's important to in-place update the placeholder object, instead of
+    // creating a new object, because other configs may be referencing this
+    // exact object in their dependencies.
+    const remainingConfig: LocallyValidScriptConfig = {
+      ...placeholder,
+      state: 'locally-valid',
+      failures: placeholder.failures,
+      command: scriptCommand,
+      extraArgs: undefined,
+      dependencies: [],
+      files: undefined,
+      output: undefined,
+      clean: false,
+      service: undefined,
+      scriptAstNode: scriptCommand,
+      configAstNode: undefined,
+      declaringFile: packageJson.jsonFile,
+      services: [],
+      env: {},
+    };
+    Object.assign(placeholder, remainingConfig);
+  }
+
+  private async _handleWireitScript(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    wireitConfig: NamedAstNode<ValueTypes>
+  ): Promise<void> {
+    const scriptCommand = syntaxInfo.scriptNode;
+    if (
+      scriptCommand !== undefined &&
+      !isValidWireitScriptCommand(scriptCommand.value)
+    ) {
+      {
+        const configName = wireitConfig.name;
+        placeholder.failures.push({
+          type: 'failure',
+          reason: 'script-not-wireit',
+          script: placeholder,
+          diagnostic: {
+            message:
+              `This command should just be "wireit", ` +
+              `as this script is configured in the wireit section.`,
+            severity: 'warning',
+            location: {
+              file: packageJson.jsonFile,
+              range: {
+                length: scriptCommand.length,
+                offset: scriptCommand.offset,
+              },
+            },
+            supplementalLocations: [
+              {
+                message: `The wireit config is here.`,
+                location: {
+                  file: packageJson.jsonFile,
+                  range: {
+                    length: configName.length,
+                    offset: configName.offset,
+                  },
+                },
+              },
+            ],
+          },
+        });
+      }
+    }
 
     const {dependencies, encounteredError: dependenciesErrored} =
       this._processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
-    if (wireitConfig === undefined) {
-      const result = failUnlessNonBlankString(
-        scriptCommand,
-        packageJson.jsonFile
-      );
+    const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
+      | undefined
+      | JsonAstNode<string>;
+    if (commandAst !== undefined) {
+      const result = failUnlessNonBlankString(commandAst, packageJson.jsonFile);
       if (result.ok) {
         command = result.value;
       } else {
         commandError = true;
         placeholder.failures.push(result.error);
-      }
-    } else {
-      const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
-        | undefined
-        | JsonAstNode<string>;
-      if (commandAst !== undefined) {
-        const result = failUnlessNonBlankString(
-          commandAst,
-          packageJson.jsonFile
-        );
-        if (result.ok) {
-          command = result.value;
-        } else {
-          commandError = true;
-          placeholder.failures.push(result.error);
-        }
       }
     }
 
@@ -483,7 +516,6 @@ export class Analyzer {
     );
 
     if (
-      wireitConfig !== undefined &&
       dependencies.length === 0 &&
       !dependenciesErrored &&
       command === undefined &&
@@ -1392,7 +1424,7 @@ export class Analyzer {
           nextNode?.specifier ??
           // But failing that, fall back to the best node we have.
           current.configAstNode?.name ??
-          current.scriptAstNode?.name;
+          current.scriptAstNode!.name;
         supplementalLocations.push({
           message,
           location: {
@@ -1414,10 +1446,10 @@ export class Analyzer {
           range: {
             length:
               config.configAstNode?.name.length ??
-              config.scriptAstNode?.name.length,
+              config.scriptAstNode!.name.length,
             offset:
               config.configAstNode?.name.offset ??
-              config.scriptAstNode?.name.length,
+              config.scriptAstNode!.name.length,
           },
         },
         supplementalLocations,
