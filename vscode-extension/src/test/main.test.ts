@@ -95,7 +95,6 @@ test('warns on a package.json based on semantic analysis in the language server'
     [
       'This command should just be "wireit", as this script is configured in the wireit section.',
       'A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.',
-      'Script "not_in_scripts" not found in the scripts section of this package.json.',
     ],
     JSON.stringify(diagnostics.map((d) => d.message))
   );
@@ -107,7 +106,6 @@ test('warns on a package.json based on semantic analysis in the language server'
     [
       {start: {line: 2, character: 26}, end: {line: 2, character: 31}},
       {start: {line: 17, character: 4}, end: {line: 17, character: 38}},
-      {start: {line: 11, character: 4}, end: {line: 11, character: 20}},
     ],
     JSON.stringify(
       diagnostics.map((d) => ({

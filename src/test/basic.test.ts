@@ -1232,4 +1232,38 @@ test(
   })
 );
 
+test(
+  'dependency which is not in script section',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: [],
+            output: [],
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            files: [],
+            output: [],
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run a');
+    (await cmdB.nextInvocation()).exit(0);
+    (await cmdA.nextInvocation()).exit(0);
+    const {code} = await wireit.exit;
+    assert.equal(code, 0);
+  })
+);
+
 test.run();
