@@ -1,5 +1,8 @@
 {
   "javascript.preferences.importModuleSpecifierEnding": "js",
   "typescript.preferences.importModuleSpecifierEnding": "js",
-  "editor.defaultFormatter": "esbenp.prettier-vscode"
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[njk]": {
+    "editor.defaultFormatter": "eseom.nunjucks-template"
+  }
 }

@@ -2,41 +2,35 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} | Wireit</title>
-    <link rel="stylesheet" href="{{ base }}/style.css">
-    <link rel="stylesheet" href="{{ base }}/prism-light.css" media="(prefers-color-scheme:light)">
-    <link rel="stylesheet" href="{{ base }}/prism-dark.css" media="(prefers-color-scheme:dark)">
+    {% include "head.njk" %} <link rel="stylesheet" href="{{ base }}/docs.css">
   </head>
   <body>
-    <nav>
-      <a id="skipnav" href="#content">Skip to main content</a>
-      <img src="{{ base }}/wireit.svg" alt="Wireit" width="160" height="44">
-      <div id="badges">
-        <span id="githubStarsBadge">
-          <a
-            class="github-button"
-            href="https://github.com/google/wireit"
-            data-color-scheme="no-preference: light; light: light; dark: dark;"
-            data-icon="octicon-star"
-            data-size="medium"
-            data-show-count="true"
-            aria-label="Star google/wireit on GitHub">Star</a>
-        </span>
-        <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src="">
-        </a>
-      </div>
-      {{ collections.all
-         | eleventyNavigation
-         | eleventyNavigationToHtml({
-             activeKey: eleventyNavigation.key,
-             activeListItemClass: "active"
-           })
-         | safe }}
-    </nav>
-    <main id="content">
-      <article>
+    {% include "header.njk" %}
+    <main>
+      <nav>
+        <div id="badges">
+          <span id="githubStarsBadge">
+            <a
+              class="github-button"
+              href="https://github.com/google/wireit"
+              data-color-scheme="no-preference: light; light: light; dark: dark;"
+              data-icon="octicon-star"
+              data-size="medium"
+              data-show-count="true"
+              aria-label="Star google/wireit on GitHub">Star</a>
+          </span>
+          <a id="npmBadge" href="https://www.npmjs.com/package/wireit" rel="nofollow"><img src="https://img.shields.io/npm/v/wireit?color=%230051af&logo=npm" alt="Published on npm" data-canonical-src="">
+          </a>
+        </div>
+        {{ collections.all
+          | eleventyNavigation
+          | eleventyNavigationToHtml({
+              activeKey: eleventyNavigation.key,
+              activeListItemClass: "active"
+            })
+          | safe }}
+      </nav>
+      <article id="content">
         {{ content | safe }}
       </article>
     </main>

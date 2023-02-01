@@ -1,0 +1,15 @@
+{% set base = page.url | relativePathToRoot -%}
+<!doctype html>
+<html lang="en">
+  <head>
+    {% include "head.njk" %} <link rel="stylesheet" href="{{ base }}/index.css">
+  </head>
+  <body>
+    {% include "header.njk" %}
+    <main id="content">
+      <article>
+        {{ content | safe }}
+      </article>
+    </main>
+  </body>
+</html>

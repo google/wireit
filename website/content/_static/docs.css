@@ -26,31 +26,17 @@ html {
   }
 }
 
-body {
+main {
   background: var(--background-color);
   color: var(--text-color);
   display: grid;
   grid-template-areas: 'nav main';
   grid-template-columns: 12em 1fr;
-  margin: 0;
   height: 100vh;
   background: var(--background-color);
   font-family: sans-serif;
   font-size: 16px;
   line-height: 1.5em;
-}
-
-#skipnav {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  background: inherit;
-  padding: 0.5em;
-  margin: 1em;
-  color: var(--link-color);
-}
-#skipnav:focus {
-  left: 0;
 }
 
 #badges {
@@ -74,38 +60,38 @@ code {
   font-size: 14px;
 }
 
-nav {
+main > nav {
   grid-area: nav;
   line-height: 2em;
   background: var(--nav-background);
   overflow-y: auto;
   padding-bottom: 1em;
 }
-nav > img {
+main > nav > img {
   padding: 1em;
   display: block;
   margin: auto;
 }
-nav > ul {
+main > nav > ul {
   padding: 0 1.5em 0 0;
   margin: 0;
 }
-nav > ul > li {
+main > nav > ul > li {
   display: flex;
 }
-nav > ul > li > a {
+main > nav > ul > li > a {
   flex: 1;
   color: var(--nav-link-color);
   text-decoration: none;
   text-align: right;
 }
-nav > ul > li > a:hover {
+main > nav > ul > li > a:hover {
   text-decoration: underline;
 }
-nav > ul > li > a:visited {
+main > nav > ul > li > a:visited {
   color: var(--nav-link-color);
 }
-nav > ul > li.active > a {
+main > nav > ul > li.active > a {
   color: var(--nav-active-link-color);
   font-weight: bold;
   font-style: italic;
