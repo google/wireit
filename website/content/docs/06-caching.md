@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Caching
-permalink: caching/index.html
+permalink: docs/caching/index.html
 eleventyNavigation:
   key: Caching
   order: 6

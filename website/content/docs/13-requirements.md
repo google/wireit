@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Requirements
-permalink: requirements/index.html
+permalink: docs/requirements/index.html
 eleventyNavigation:
   key: Requirements
   order: 13

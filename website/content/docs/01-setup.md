@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Setup
-permalink: setup/index.html
+permalink: docs/setup/index.html
 eleventyNavigation:
   key: Setup
   order: 1

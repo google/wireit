@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Incremental build
-permalink: incremental-build/index.html
+permalink: docs/incremental-build/index.html
 eleventyNavigation:
   key: Incremental build
   order: 5

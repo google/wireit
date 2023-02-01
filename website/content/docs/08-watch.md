@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Watch
-permalink: watch/index.html
+permalink: docs/watch/index.html
 eleventyNavigation:
   key: Watch
   order: 8

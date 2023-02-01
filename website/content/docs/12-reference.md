@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Reference
-permalink: reference/index.html
+permalink: docs/reference/index.html
 eleventyNavigation:
   key: Reference
   order: 12

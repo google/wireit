@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Related tools
-permalink: related-tools/index.html
+permalink: docs/related-tools/index.html
 eleventyNavigation:
   key: Related tools
   order: 14

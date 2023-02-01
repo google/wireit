@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Dependencies
-permalink: dependencies/index.html
+permalink: docs/dependencies/index.html
 eleventyNavigation:
   key: Dependencies
   order: 2

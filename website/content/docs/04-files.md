@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Files
-permalink: files/index.html
+permalink: docs/files/index.html
 eleventyNavigation:
   key: Files
   order: 4

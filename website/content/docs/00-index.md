@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Introduction
-permalink: index.html
+permalink: docs/index.html
 eleventyNavigation:
   key: Introduction
   order: 0

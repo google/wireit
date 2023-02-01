@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Parallelism
-permalink: parallelism/index.html
+permalink: docs/parallelism/index.html
 eleventyNavigation:
   key: Parallelism
   order: 3

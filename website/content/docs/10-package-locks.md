@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Package locks
-permalink: package-locks/index.html
+permalink: docs/package-locks/index.html
 eleventyNavigation:
   key: Package locks
   order: 10

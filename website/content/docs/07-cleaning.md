@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Cleaning
-permalink: cleaning/index.html
+permalink: docs/cleaning/index.html
 eleventyNavigation:
   key: Cleaning
   order: 7

@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Recipes
-permalink: recipes/index.html
+permalink: docs/recipes/index.html
 eleventyNavigation:
   key: Recipes
   order: 11

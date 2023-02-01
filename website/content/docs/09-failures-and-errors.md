@@ -1,7 +1,7 @@
 ---
-layout: layout.njk
+layout: docs.njk
 title: Failures
-permalink: failures/index.html
+permalink: docs/failures/index.html
 eleventyNavigation:
   key: Failures
   order: 9
