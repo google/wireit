@@ -7,9 +7,10 @@
   <body>
     {% include "header.njk" %}
     <main id="content">
-      <article>
-        {{ content | safe }}
-      </article>
+      <section>
+        {% renderFile "content/_includes/intro/01-npm.md" %}
+      </section>
     </main>
+    <script type="module" src="/js/intro.js"></script>
   </body>
 </html>

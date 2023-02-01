@@ -7,8 +7,10 @@
 const markdownIt = require('markdown-it');
 const markdownItAnchor = require('markdown-it-anchor');
 const pathlib = require('path');
+const {EleventyRenderPlugin} = require('@11ty/eleventy');
 
 module.exports = function (eleventyConfig) {
+  eleventyConfig.addPlugin(EleventyRenderPlugin);
   eleventyConfig.addPlugin(require('@11ty/eleventy-navigation'));
   eleventyConfig.addPlugin(require('@11ty/eleventy-plugin-syntaxhighlight'));
 

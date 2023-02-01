@@ -23,11 +23,19 @@
       "clean": "if-file-deleted"
     },
     "serve": {
-      "command": "wds --root-dir=_site --watch --open",
+      "command": "wds --root-dir=_site --watch --open --node-resolve",
       "service": true,
       "dependencies": [
         {
           "script": "build",
+          "cascade": false
+        },
+        {
+          "script": "./client:build",
+          "cascade": false
+        },
+        {
+          "script": "./client:check",
           "cascade": false
         }
       ],
@@ -35,12 +43,12 @@
     }
   },
   "dependencies": {
+    "@11ty/eleventy": "^1.0.1",
     "@11ty/eleventy-navigation": "^0.3.3",
     "@11ty/eleventy-plugin-syntaxhighlight": "^4.0.0",
-    "@11ty/eleventy": "^1.0.1",
     "@web/dev-server": "^0.1.31",
-    "markdown-it-anchor": "^8.6.3",
     "markdown-it": "^13.0.1",
+    "markdown-it-anchor": "^8.6.3",
     "prism-themes": "^1.9.0"
   }
 }

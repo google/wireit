@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "es2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "useDefineForClassFields": false,
+    "lib": ["es2022", "dom"],
+    "rootDir": "src",
+    "outDir": "lib",
+    "strict": true,
+    "sourceMap": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "useUnknownInCatchVariables": true,
+    "noImplicitOverride": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "composite": true,
+    "experimentalDecorators": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": []
+}

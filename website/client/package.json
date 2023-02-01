@@ -1,0 +1,36 @@
+{
+  "name": "@wireit/internal-website-client",
+  "description": "The client-side code for the wireit website",
+  "private": true,
+  "version": "0.0.0",
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "wireit",
+    "check": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "find src -name \"*.ts\" | xargs esbuild --color --outdir=lib",
+      "files": [
+        "src/**/*.ts"
+      ],
+      "output": [
+        "lib/"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "check": {
+      "command": "tsc --pretty --noEmit",
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "lit": "^2.6.1"
+  }
+}

@@ -1,0 +1,9 @@
+h2 {
+  font-size: 32px;
+}
+
+section {
+  margin: 0 auto;
+  max-width: 600px;
+  padding: 100px;
+}

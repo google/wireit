@@ -398,6 +398,7 @@
   },
   "workspaces": [
     "vscode-extension",
-    "website"
+    "website",
+    "website/client"
   ]
 }
