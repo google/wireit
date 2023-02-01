@@ -66,7 +66,6 @@ header > nav {
   display: flex;
   align-items: center;
 }
-
 header > nav a {
   padding: 10px 20px;
   font-size: 18px;

@@ -14,7 +14,8 @@
     "build": {
       "command": "find src -name \"*.ts\" | xargs esbuild --color --outdir=lib",
       "files": [
-        "src/**/*.ts"
+        "src/**/*.ts",
+        "tsconfig.json"
       ],
       "output": [
         "lib/"
