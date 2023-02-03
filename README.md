@@ -18,7 +18,7 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 - 🥬 Skip scripts that are already fresh
 - ♻️ Cache output locally and remotely on GitHub Actions for free
 - 🛠️ Works with single packages, npm workspaces, and other monorepos
-- 📝 [VSCode plugin](https://marketplace.visualstudio.com/items?itemName=google.wireit) gives suggestions, documentation, and warnings as you develop
+- ✏️ [VSCode plugin](https://marketplace.visualstudio.com/items?itemName=google.wireit) gives suggestions, documentation, and warnings as you develop
 
 ## Contents
 
