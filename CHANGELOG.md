@@ -8,6 +8,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [Unreleased]
+
+### Changed
+
+- Better attribute socket errors, and don't crash when a socket is closed
+  unexpectedly.
+
 ## [0.9.4] - 2023-01-30
 
 ### Changed

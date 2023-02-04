@@ -133,7 +133,8 @@ export class WireitTestRigCommandInvocation extends IpcClient<
   RigToChildMessage
 > {
   readonly command: WireitTestRigCommand;
-  private _state: 'connected' | 'closing' | 'closed' = 'connected';
+  private _state: 'connected' | 'closing' | 'closed' | 'earlyexit' =
+    'connected';
   private _environmentResponse?: Deferred<EnvironmentResponseMessage>;
   private _sigintReceived?: Deferred<void>;
 
@@ -142,6 +143,22 @@ export class WireitTestRigCommandInvocation extends IpcClient<
     this.command = command;
     void this.closed.then(() => {
       this._state = 'closed';
+    });
+    socket.on('error', (err) => {
+      if (this._state === 'closed') {
+        // don't care
+        return;
+      }
+      // The connection was reset, but this is an IPC socket, so this means
+      // that the child process exited early.
+      if (err.message === 'read ECONNRESET') {
+        this._state = 'earlyexit';
+        return;
+      }
+      console.error(
+        `Unhandled IPC socket error ${err.message} in WireitTestRigCommandInvocation`
+      );
+      process.exit(1);
     });
   }
 

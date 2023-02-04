@@ -630,6 +630,16 @@ function request(
       req.on('error', (error) => {
         resolve({ok: false, error});
       });
+      req.on('socket', (socket) => {
+        socket.on('error', () => {
+          resolve({ok: false, error: new Error('socket error')});
+        });
+        socket.on('close', (hadError) => {
+          if (hadError) {
+            resolve({ok: false, error: new Error('socket closed with error')});
+          }
+        });
+      });
     }
   );
   return {req, resPromise};
@@ -651,6 +661,14 @@ function readBody(res: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     res.on('error', (error: Error) => {
       reject(error);
+    });
+    res.socket.on('error', () => {
+      reject(new Error('socket error'));
+    });
+    res.socket.on('close', (hadError) => {
+      if (hadError) {
+        reject(new Error('socket closed with error'));
+      }
     });
     res.on('end', () => {
       resolve(Buffer.concat(chunks).toString());
