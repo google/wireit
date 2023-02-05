@@ -1,9 +1,85 @@
 h2 {
-  font-size: 32px;
+  font-size: 42px;
 }
 
-section {
+main section {
   margin: 0 auto;
-  max-width: 600px;
   padding: 100px;
+  color: white;
+  height: max(auto, 30vh);
+}
+
+main section:nth-child(1) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: rgb(112, 112, 112);
+}
+
+main section wireit-runner-picker {
+  margin-left: 10px;
+  font-size: 24px;
+}
+
+main section:nth-child(1) p {
+  font-size: 24px;
+  text-align: center;
+}
+
+main section:nth-child(2) pre {
+  border-radius: 10px;
+  box-shadow: rgb(0 0 0 / 20%) -1px 1px 8px 1px;
+  width: 50%;
+  margin-top: 50px;
+}
+
+main section:nth-child(2) {
+  background: linear-gradient(90deg, #00c943, #00774f);
+}
+main section:nth-child(3) {
+  color: rgb(112, 112, 112);
+}
+main section:nth-child(4) {
+  background: linear-gradient(90deg, #ff7f00, #ff0000);
+}
+main section:nth-child(5) {
+  color: rgb(112, 112, 112);
+}
+main section:nth-child(6) {
+  background: linear-gradient(90deg, #00c943, #00774f);
+}
+/* main section:nth-child(5) {
+  color: rgb(112, 112, 112);
+  display: grid;
+  grid-template: 30px 30px 30px;
+  background: linear-gradient(90deg, #7edf00, #007a06);
+}
+main section:nth-child(6) {
+  color: rgb(112, 112, 112);
+  background: linear-gradient(90deg, #ffffff, #ffffff);
+} */
+
+main section p {
+  font-size: 24px;
+}
+
+main section:nth-child(6) p {
+  font-size: 18px;
+}
+
+main section a.more-button {
+  color: white;
+  padding: 7px 25px;
+  border-radius: 10px;
+  background: #00000075;
+  margin: 40px 0;
+  box-shadow: rgb(0 0 0 / 20%) -1px 1px 8px 1px;
+}
+main section a:hover {
+  background: #000;
+}
+
+main section p {
+  margin-top: 40px;
 }

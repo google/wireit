@@ -1,24 +1,24 @@
 <header>
   <a id="skipnav" href="#content">Skip to main content</a>
-  <img src="{{ base }}/wireit.svg" alt="Wireit" height="45">
-  <wireit-runner-picker></wireit-runner-picker>
-  <nav>
-    <a href="{{ base }}/" class="active">Intro</a>
-    <a href="{{ base }}/docs">Docs</a>
-    <a href="{{ base }}/examples">Examples</a>
-    <div id="social">
-      <a href="https://github.com/google/wireit" target="_blank">
-        <svg width="35" height="35">
-          <title>GitHub</title>
-          <use xlink:href="/images/github.svg#logo"></use>
-        </svg>
-      </a>
-      <a href="https://discord.gg/chmdAwvq4e" target="_blank">
-        <svg width="35" height="35">
-          <title>Discord</title>
-          <use xlink:href="/images/discord.svg#logo"></use>
-        </svg>
-      </a>
-    </div>
-  </nav>
-</header>
+  <a href="/">
+    <img src="{{ base }}/wireit-vlockup-color-light.svg" alt="Wireit" height="60"></a>
+    <nav>
+      <a href="{{ base }}/" {% if page.url == '/' %} class="active" {% endif %}>Intro</a>
+      <a href="{{ base }}/docs" {% if page.url.startsWith('/docs/') %} class="active" {% endif %}>Docs</a>
+      <div id="social">
+        <a href="https://github.com/google/wireit" target="_blank">
+          <svg width="35" height="35">
+            <title>GitHub</title>
+            <use xlink:href="/images/github.svg#logo"></use>
+          </svg>
+        </a>
+        <a href="https://discord.gg/chmdAwvq4e" target="_blank">
+          <svg width="35" height="35">
+            <title>Discord</title>
+            <use xlink:href="/images/discord.svg#logo"></use>
+          </svg>
+        </a>
+        <wireit-theme-picker></wireit-theme-picker>
+      </div>
+    </nav>
+  </header>

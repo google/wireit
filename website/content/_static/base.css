@@ -8,8 +8,12 @@ a {
   text-decoration: none;
 }
 
-/* Light theme colors */
 html {
+  /* Global variables */
+  --header-height: 80px;
+  --footer-height: 300px;
+
+  /* Light theme colors */
   --background-color: #fff;
   --background-color-alt: #00000009;
   --text-color: #000;
@@ -51,15 +55,26 @@ html {
 
 header {
   width: 100%;
-  border-width: 0 0 1px 0;
+  border-width: 0 0 4px 0;
   border-style: solid;
   border-image: linear-gradient(to right, #c8e259, #0ed7d5) 1;
-  height: 80px;
+  height: var(--header-height);
   padding: 0 20px 0 20px;
+  position: sticky;
+  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
+  background: white;
+  box-shadow: rgb(0 0 0 / 20%) -1px 1px 8px 1px;
+  z-index: 1;
+}
+
+header > wireit-runner-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 header > nav {
@@ -69,20 +84,67 @@ header > nav {
 header > nav a {
   padding: 10px 20px;
   font-size: 18px;
-  color: #707070;
   font-weight: 500;
 }
 header > nav a.active,
-header > nav a:hover {
+header > nav a:hover,
+header wireit-theme-picker:hover {
   color: #000;
 }
 header > nav > #social {
   margin-left: 20px;
+  color: #9b9b9b;
 }
 header > nav > #social > a {
   padding: 5px;
-  color: #9b9b9b;
 }
 header > nav > #social > a:hover {
   color: rgb(0, 0, 0);
+}
+
+main {
+  min-height: calc(100vh - var(--header-height) - var(--footer-height));
+  box-sizing: border-box;
+}
+
+footer {
+  background: #eee;
+  display: flex;
+  justify-content: space-between;
+  padding: 50px 120px;
+  height: var(--footer-height);
+  box-sizing: border-box;
+}
+
+footer img {
+  opacity: 20%;
+}
+
+footer h3 {
+  text-transform: uppercase;
+  font-size: 16px;
+  color: rgb(65, 65, 65);
+}
+
+footer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  color: #333;
+}
+footer li {
+  line-height: 40px;
+}
+footer a:hover {
+  color: #000;
+  text-decoration: underline;
+}
+
+#copyright {
+  color: #666;
+  margin: 20px 0 0 0;
+}
+
+#copyright p {
+  margin: 0 0 0 0;
 }

@@ -26,10 +26,11 @@ module.exports = function (eleventyConfig) {
     'md',
     markdownIt({
       html: true,
-    }).use(markdownItAnchor, {
-      level: 3,
-      permalink: markdownItAnchor.permalink.headerLink(),
     })
+    // .use(markdownItAnchor, {
+    //   level: 4,
+    //   permalink: markdownItAnchor.permalink.headerLink(),
+    // })
   );
 
   /**
