@@ -7,7 +7,11 @@
 import {NoCommandScriptExecution} from './execution/no-command.js';
 import {StandardScriptExecution} from './execution/standard.js';
 import {ServiceScriptExecution} from './execution/service.js';
-import {ScriptReferenceString, scriptReferenceToString} from './config.js';
+import {
+  ScriptReference,
+  ScriptReferenceString,
+  scriptReferenceToString,
+} from './config.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {Deferred} from './util/deferred.js';
 
@@ -20,6 +24,7 @@ import type {
   StandardScriptConfig,
 } from './config.js';
 import type {Failure} from './event.js';
+import type {Fingerprint} from './fingerprint.js';
 
 type Execution =
   | NoCommandScriptExecution
@@ -71,6 +76,9 @@ export class Executor {
   private readonly _workerPool: WorkerPool;
   private readonly _cache?: Cache;
   private readonly _isWatchMode: boolean;
+  private readonly _previousWatchIterationFailures:
+    | Map<ScriptReferenceString, Fingerprint>
+    | undefined;
 
   /** Resolves when the first failure occurs in any script. */
   private readonly _failureOccured = new Deferred<void>();
@@ -88,7 +96,8 @@ export class Executor {
     cache: Cache | undefined,
     failureMode: FailureMode,
     previousIterationServices: ServiceMap | undefined,
-    isWatchMode: boolean
+    isWatchMode: boolean,
+    previousWatchIterationFailures?: Map<ScriptReferenceString, Fingerprint>
   ) {
     executorConstructorHook?.(this);
     this._rootConfig = rootConfig;
@@ -97,6 +106,7 @@ export class Executor {
     this._cache = cache;
     this._previousIterationServices = previousIterationServices;
     this._isWatchMode = isWatchMode;
+    this._previousWatchIterationFailures = previousWatchIterationFailures;
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
@@ -276,6 +286,41 @@ export class Executor {
     // execution type guarantees. We could make a smarter Map type, but not
     // really worth it here.
     return execution as ConfigToExecution<T>;
+  }
+
+  /**
+   * If we're in watch mode, check whether in the previous watch iteration the
+   * given script failed with the given fingerprint.
+   */
+  failedInPreviousWatchIteration(
+    script: ScriptReference,
+    fingerprint: Fingerprint
+  ): boolean {
+    if (this._previousWatchIterationFailures === undefined) {
+      return false;
+    }
+    const previous = this._previousWatchIterationFailures.get(
+      scriptReferenceToString(script)
+    );
+    if (previous === undefined) {
+      return false;
+    }
+    return previous.equal(fingerprint);
+  }
+
+  /**
+   * If we're in watch mode, record that a script failed for the purpose of
+   * preventing it from running unless its fingerprint changes in the next watch
+   * iteration.
+   */
+  registerWatchIterationFailure(
+    script: ScriptReference,
+    fingerprint: Fingerprint
+  ): void {
+    this._previousWatchIterationFailures?.set(
+      scriptReferenceToString(script),
+      fingerprint
+    );
   }
 }
 
