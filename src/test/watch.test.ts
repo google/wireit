@@ -869,12 +869,7 @@ test(
             command: cmdA.command,
             files: ['b.out'],
             output: ['a.out'],
-            dependencies: [
-              {
-                script: 'b',
-                cascade: false,
-              },
-            ],
+            dependencies: ['b'],
           },
           b: {
             command: cmdB.command,
