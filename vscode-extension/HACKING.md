@@ -43,6 +43,7 @@ You'll need to do this every time you publish the extension.
    VSCode, and do a bit of manual testing to be sure that everything is working
    (we have automated testing but it's worth double checking little fit and
    finish details).
-6. `npx vsce login google`
-7. Enter your [PAT](#creating-a-personal-access-token-pat)
-8. `npx vsce publish -i built/wireit.vsix`
+6. Send a PR with the above changes, get it reviewed, and merge to `main`.
+7. `npx vsce login google`
+8. Enter your [PAT](#creating-a-personal-access-token-pat)
+9. `npx vsce publish -i built/wireit.vsix`
