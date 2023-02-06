@@ -11,6 +11,7 @@ import {Executor, FailureMode, ServiceMap} from './executor.js';
 import {Logger} from './logging/logger.js';
 import {Deferred} from './util/deferred.js';
 import {WorkerPool} from './util/worker-pool.js';
+import {WatchLogger} from './logging/watch-logger.js';
 import {
   ScriptConfig,
   ScriptReference,
@@ -19,6 +20,7 @@ import {
 } from './config.js';
 
 import type {Agent} from './cli-options.js';
+import type {Fingerprint} from './fingerprint.js';
 
 /**
  * ```
@@ -100,6 +102,10 @@ export class Watcher {
   private _executor?: Executor;
   private _debounceTimeoutId?: NodeJS.Timeout = undefined;
   private _previousIterationServices?: ServiceMap = undefined;
+  private _previousIterationFailures = new Map<
+    ScriptReferenceString,
+    Fingerprint
+  >();
 
   /**
    * The most recent analysis of the root script. As soon as we detect it might
@@ -137,7 +143,7 @@ export class Watcher {
   ) {
     this._rootScript = rootScript;
     this._extraArgs = extraArgs;
-    this._logger = logger;
+    this._logger = new WatchLogger(logger);
     this._workerPool = workerPool;
     this._failureMode = failureMode;
     this._cache = cache;
@@ -266,12 +272,17 @@ export class Watcher {
       this._cache,
       this._failureMode,
       this._previousIterationServices,
-      true
+      true,
+      this._previousIterationFailures
     );
     const result = await this._executor.execute();
     this._previousIterationServices = result.persistentServices;
-    for (const error of result.errors) {
-      this._logger.log(error);
+    if (result.errors.length > 0) {
+      for (const error of result.errors) {
+        this._logger.log(error);
+      }
+    } else {
+      this._previousIterationFailures = new Map();
     }
     this._onRunDone();
   }

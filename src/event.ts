@@ -75,6 +75,7 @@ export type Failure =
   | ExitSignal
   | SpawnError
   | StartCancelled
+  | FailedPreviousWatchIteration
   | Killed
   | LaunchedIncorrectly
   | MissingPackageJson
@@ -133,6 +134,14 @@ export interface SpawnError extends ErrorBase {
  */
 export interface StartCancelled extends ErrorBase {
   reason: 'start-cancelled';
+}
+
+/**
+ * A script failed on the previous watch iteration, and its fingerprint hasn't
+ * changed, so it was skipped.
+ */
+export interface FailedPreviousWatchIteration extends ErrorBase {
+  reason: 'failed-previous-watch-iteration';
 }
 
 /**
