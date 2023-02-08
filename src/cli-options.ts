@@ -8,6 +8,7 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {Result} from './error.js';
+import {SummaryLogger} from './logging/summary-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
@@ -42,7 +43,9 @@ export const packageDir = await (async (): Promise<string | undefined> => {
   }
 })();
 
-export const logger = new DefaultLogger(packageDir ?? process.cwd());
+export const logger = new SummaryLogger(
+  new DefaultLogger(packageDir ?? process.cwd())
+);
 
 export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 

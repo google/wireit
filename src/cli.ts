@@ -85,6 +85,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       watcher.abort();
     });
     await watcher.watch();
+    logger.printSummary();
     return {ok: true, value: undefined};
   } else {
     const analyzer = new Analyzer(options.agent);

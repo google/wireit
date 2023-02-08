@@ -12,7 +12,6 @@ import type {Logger} from './logger.js';
 import type {PackageReference, ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
-import {hrtime} from 'process';
 
 const getWireitVersion = (() => {
   let version: string | undefined;
@@ -34,11 +33,6 @@ const getWireitVersion = (() => {
 export class DefaultLogger implements Logger {
   private readonly _rootPackageDir: string;
   private readonly _diagnosticPrinter: DiagnosticPrinter;
-  private _totalScripts: number;
-  private _ranScripts: number;
-  private _freshScripts: number;
-  private _cachedScripts: number;
-  private _startTime: [number, number];
 
   /**
    * @param rootPackage The npm package directory that the root script being
@@ -47,11 +41,6 @@ export class DefaultLogger implements Logger {
   constructor(rootPackage: string) {
     this._rootPackageDir = rootPackage;
     this._diagnosticPrinter = new DiagnosticPrinter(this._rootPackageDir);
-    this._totalScripts = 0;
-    this._ranScripts = 0;
-    this._freshScripts = 0;
-    this._cachedScripts = 0;
-    this._startTime = hrtime();
   }
 
   /**
@@ -100,8 +89,6 @@ export class DefaultLogger implements Logger {
           }
           case 'exit-zero': {
             console.log(`✅${prefix} Executed successfully`);
-            this._ranScripts++;
-            this._totalScripts++;
             break;
           }
           case 'no-command': {
@@ -110,13 +97,9 @@ export class DefaultLogger implements Logger {
           }
           case 'fresh': {
             console.log(`✅${prefix} Already fresh`);
-            this._freshScripts++;
-            this._totalScripts++;
             break;
           }
           case 'cached': {
-            this._cachedScripts++;
-            this._totalScripts++;
             console.log(`✅${prefix} Restored from cache`);
             break;
           }
@@ -322,52 +305,5 @@ export class DefaultLogger implements Logger {
         }
       }
     }
-  }
-
-  /**
-   * Displays a summary of the script execution results to the console.
-   */
-  printSummary() {
-    const elapsedTime = this._getElapsedTime();
-
-    const percentRan = this._calculatePercentage(
-      this._ranScripts,
-      this._totalScripts
-    );
-
-    const percentFresh = this._calculatePercentage(
-      this._freshScripts,
-      this._totalScripts
-    );
-
-    const percentCached = this._calculatePercentage(
-      this._cachedScripts,
-      this._totalScripts
-    );
-
-    console.log(`🏁 [summary] Executed ${this._totalScripts} script(s) in ${elapsedTime} seconds
-    Ran:              ${this._ranScripts} (${percentRan}%)
-    Skipped (fresh):  ${this._freshScripts} (${percentFresh}%)
-    Skipped (cached): ${this._cachedScripts} (${percentCached}%)`);
-  }
-
-  /**
-   * Calculates the elapsed time in seconds since the start of this run.
-   */
-  private _getElapsedTime(): string {
-    const elapsed = hrtime(this._startTime);
-    const elapsedSeconds = elapsed[0] + elapsed[1] / 1e9;
-    return elapsedSeconds.toFixed(2);
-  }
-
-  /**
-   * Calculates the percentage of part with respect to whole.
-   */
-  private _calculatePercentage(part: number, whole: number): number {
-    if (whole === 0) {
-      return 0;
-    }
-
-    return Math.floor(part / whole) * 100;
   }
 }
