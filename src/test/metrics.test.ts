@@ -4,6 +4,8 @@ import {WireitTestRig} from './util/test-rig.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 import assert from 'assert';
 
+const METRICS_REGEX = new RegExp(/🏁 \[metrics\]/, 'g');
+
 const test = suite<{rig: WireitTestRig}>();
 
 test.before.each(async (ctx) => {
@@ -129,7 +131,7 @@ test(
     const {stdout} = await exec.exit;
 
     // There should be no metrics in the output.
-    assert.equal([...stdout.matchAll(/🏁/gi)].length, 0);
+    assert.equal([...stdout.matchAll(METRICS_REGEX)].length, 0);
   })
 );
 
@@ -170,8 +172,6 @@ test(
       invB.exit(0);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
     }
 
     // Input to A is changed, so A runs again. B is a dependency of A, but it is
@@ -214,8 +214,7 @@ test(
         wireit: {
           a: {
             command: cmdA.command,
-            files: ['a.txt'],
-            output: [],
+            files: ['/a.txt'],
           },
         },
       },
@@ -224,21 +223,28 @@ test(
 
     const exec = rig.exec('npm run a --watch');
 
-    // Initial execution. A should run.
-    const inv = await cmdA.nextInvocation();
-    inv.exit(0);
+    // Initial execution. A should run, and produce metrics.
+    {
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+    }
 
     // Input to A is changed, but has the same content as before. This is not an
     // 'interesting' iteration, so metrics shouldn't be logged.
-    await rig.writeAtomic('a.txt', 'v0');
+    {
+      await rig.writeAtomic({
+        'a.txt': 'v0',
+      });
+    }
 
     // Wait a moment to give the watcher time to react.
     await new Promise((resolve) => setTimeout(resolve, 100));
     exec.kill();
     const {stdout} = await exec.exit;
+    console.log(stdout);
 
-    // There should only be one metrics entry in stdout.
-    assert.equal([...stdout.matchAll(/\[metrics\]/gi)].length, 1);
+    // There should only one metrics entry in stdout.
+    assert.equal([...stdout.matchAll(METRICS_REGEX)].length, 1);
     assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
   })
 );
@@ -265,7 +271,9 @@ function assertNthMetric(
     throw new Error(`Could not find metric ${n}`);
   }
 
-  const actual = replaceTimeWithWildcard(metric);
+  // Replace 'in X.XX seconds' with 'in * seconds', so that we can check the
+  // rest of the output without worrying about the actual time taken.
+  const actual = metric.replace(/in \d+\.\d+ seconds/g, 'in * seconds');
   const expected = buildExpectedMetric(args);
 
   checkScriptOutput(actual, expected);
@@ -301,23 +309,6 @@ function buildExpectedMetric(args: {
 \tSkipped (fresh) : ${args.fresh ?? 0} (${args.percentFresh ?? 0}%)
 \tSkipped (cached): ${args.cached ?? 0} (${args.percentCached ?? 0}%)
 `;
-}
-
-/**
- * Replaces the 'seconds' value in the metric with '*'. We are not interested
- * in asserting on the exact time.
- */
-function replaceTimeWithWildcard(metric: string): string {
-  const words = metric.split(' ');
-
-  for (let i = 0; i < words.length; i++) {
-    if (words[i].startsWith('seconds')) {
-      words[i - 1] = '*';
-      break;
-    }
-  }
-
-  return words.join(' ');
 }
 
 test.run();

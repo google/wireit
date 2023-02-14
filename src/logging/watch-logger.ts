@@ -29,8 +29,6 @@ export class WatchLogger implements Logger {
       this._actualLogger.printMetrics();
 
       if (this._isWatchRunEnd(event)) {
-        // only want to print metrics at the end of a watch iteration that
-        // actually was interesting
         this._iterationIsInteresting = false;
       }
     } else if (this._isWatchRunEnd(event)) {
