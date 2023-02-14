@@ -853,4 +853,106 @@ test(
   })
 );
 
+test(
+  'script fails but still emits output consumed by another script',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['b.out'],
+            output: ['a.out'],
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            files: ['b.in'],
+            output: ['b.out'],
+          },
+        },
+      },
+    });
+
+    const exec = rig.exec('npm run a --watch');
+
+    // B fails, but still emits an output file.
+    const invB = await cmdB.nextInvocation();
+    await rig.write('b.out', 'v0');
+    invB.exit(1);
+
+    // Since the output file was emitted while B was running, and A directly
+    // consumes that input file, another execution iteration is going to get
+    // queued up.
+    //
+    // However, it doesn't make sense to re-run B, because none of its input
+    // files changed. If we do, and it emits another copy of its output file,
+    // we'll get into an infinite loop.
+    //
+    // The standard Wireit behavior for non-watch mode is to not keep any memory
+    // of failures, so that the next time the user runs wireit failed scripts
+    // will always be retried. In watch mode, however, we do need to store a
+    // record of failures to prevent this kind of loop.
+    //
+    // Wait a moment to ensure the second run of B doesn't occur.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    exec.kill();
+    const {stdout, stderr} = await exec.exit;
+    assert.equal(cmdA.numInvocations, 0);
+    assert.equal(cmdB.numInvocations, 1);
+
+    // Also check that we don't log anything for the second iteration which
+    // ultimately doesn't do anything new.
+    assert.equal([...stdout.matchAll(/Running command/gi)].length, 1);
+    assert.equal([...stdout.matchAll(/Watching for file changes/gi)].length, 1);
+    assert.equal([...stderr.matchAll(/Failed/gi)].length, 1);
+  })
+);
+
+test(
+  'input file changes but the contents are the same',
+  timeout(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: [],
+          },
+        },
+      },
+      input: 'foo',
+    });
+
+    const exec = rig.exec('npm run a --watch');
+    const inv = await cmdA.nextInvocation();
+    inv.exit(0);
+
+    // Write an input file, but it's the same content. This will cause the file
+    // watcher to trigger, and will start an execution, but the execution will
+    // ultimately do nothing interesting because the fingerprint is the same, so
+    // we shouldn't actually expect any logging.
+    await rig.writeAtomic('input', 'foo');
+    // Wait a moment to give the watcher time to react.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    exec.kill();
+    const {stdout} = await exec.exit;
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal([...stdout.matchAll(/Watching for file changes/gi)].length, 1);
+  })
+);
+
 test.run();

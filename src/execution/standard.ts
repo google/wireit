@@ -83,6 +83,23 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           this._config,
           dependencyFingerprints.value
         );
+        if (
+          this._executor.failedInPreviousWatchIteration(
+            this._config,
+            fingerprint
+          )
+        ) {
+          return {
+            ok: false,
+            error: [
+              {
+                script: this._config,
+                type: 'failure',
+                reason: 'failed-previous-watch-iteration',
+              },
+            ],
+          };
+        }
         if (await this._fingerprintIsFresh(fingerprint)) {
           const manifestFresh = await this._outputManifestIsFresh();
           if (!manifestFresh.ok) {
@@ -407,6 +424,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     this._state = 'after-running';
 
     if (!childResult.ok) {
+      this._executor.registerWatchIterationFailure(this._config, fingerprint);
       return {
         ok: false,
         error: Array.isArray(childResult.error)

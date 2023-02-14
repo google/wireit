@@ -180,6 +180,10 @@ export class DefaultLogger implements Logger {
             // fairly noisy. Maybe in a verbose mode.
             break;
           }
+          case 'failed-previous-watch-iteration': {
+            console.error(`❌${prefix} Failed on previous watch iteration`);
+            break;
+          }
           case 'killed': {
             console.error(`💀${prefix} Killed`);
             break;
