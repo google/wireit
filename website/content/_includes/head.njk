@@ -8,3 +8,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins"/>
 <script type="module" src="/js/runner-picker.js"></script>
 <script type="module" src="/js/theme-picker.js"></script>
+<script type="module">
+  let theme = localStorage.getItem('theme');
+  if (theme !== 'dark' && theme !== 'light') {
+    theme = matchMedia('(prefers-color-scheme:dark)').matches
+      ? 'dark'
+      : 'light';
+  };
+  document
+    .body
+    .classList
+    .add(theme);
+</script>

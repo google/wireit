@@ -8,14 +8,21 @@ a {
   text-decoration: none;
 }
 
-html {
+body {
   /* Global variables */
   --header-height: 80px;
   --footer-height: 300px;
+  background: var(--background-color);
+  color: var(--foreground-color);
+}
 
-  /* Light theme colors */
+body.light {
   --background-color: #fff;
-  --background-color-alt: #00000009;
+  --foreground-color: #0d1117;
+  --header-logo-url: url('/wireit-vlockup-color-light.svg');
+  --wireit-runner-picker-pill-color: #24bb69;
+  /* --background-color: #fff;
+  --background-color-alt: #dbdbdb09;
   --text-color: #000;
   --link-color: #cb0040;
   --line-color: #ccc;
@@ -23,21 +30,26 @@ html {
   --nav-link-color: #333;
   --nav-active-link-color: #cb0040;
   --blockquote-stripe-color: #14df5c;
+  --footer-foreground-color: #000;
+  --footer-background-color: #eee; */
 }
 
-/* Dark theme colors */
-@media (prefers-color-scheme: dark) {
-  html {
-    --background-color: #0d1117;
-    --background-color-alt: #ffffff17;
-    --text-color: #ddd;
-    --link-color: #58a6ff;
-    --line-color: #444;
-    --nav-background: #000000a6;
-    --nav-link-color: #ddd;
-    --nav-active-link-color: #14df5c;
-    --blockquote-stripe-color: #0c8838;
-  }
+body.dark {
+  --background-color: #0d1117;
+  --foreground-color: #fff;
+  --header-logo-url: url('/wireit-vlockup-color-dark.svg');
+  --wireit-runner-picker-pill-color: #24bb69;
+  /**
+  --background-color-alt: #ffffff17;
+  --text-color: #ddd;
+  --link-color: #58a6ff;
+  --line-color: #444;
+  --nav-background: #000000a6;
+  --nav-link-color: #ddd;
+  --nav-active-link-color: #14df5c;
+  --blockquote-stripe-color: #0c8838;
+  --footer-foreground-color: #ddd;
+  --footer-background-color: #444; */
 }
 
 #skipnav {
@@ -47,7 +59,7 @@ html {
   background: inherit;
   padding: 0.5em;
   margin: 1em;
-  color: var(--link-color);
+  /* color: var(--link-color); */
 }
 #skipnav:focus {
   left: 0;
@@ -66,9 +78,16 @@ header {
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
-  background: white;
+  /* background: var(--header-background-color); */
+  background-color: inherit;
   box-shadow: rgb(0 0 0 / 20%) -1px 1px 8px 1px;
   z-index: 1;
+}
+
+header .wireit-logo {
+  background-image: var(--header-logo-url);
+  width: 60px;
+  height: 60px;
 }
 
 header > wireit-runner-picker {
@@ -89,17 +108,17 @@ header > nav a {
 header > nav a.active,
 header > nav a:hover,
 header wireit-theme-picker:hover {
-  color: #000;
+  /* color: #000; */
 }
 header > nav > #social {
   margin-left: 20px;
-  color: #9b9b9b;
+  /* color: var(--text-color); */
 }
 header > nav > #social > a {
   padding: 5px;
 }
 header > nav > #social > a:hover {
-  color: rgb(0, 0, 0);
+  /* color: rgb(0, 0, 0); */
 }
 
 main {
@@ -108,7 +127,8 @@ main {
 }
 
 footer {
-  background: #eee;
+  /* color: var(--footer-foreground-color); */
+  /* background: var(--footer-background-color); */
   display: flex;
   justify-content: space-between;
   padding: 50px 120px;
@@ -123,25 +143,22 @@ footer img {
 footer h3 {
   text-transform: uppercase;
   font-size: 16px;
-  color: rgb(65, 65, 65);
 }
 
 footer ul {
   list-style: none;
   padding: 0;
   margin: 0;
-  color: #333;
 }
 footer li {
   line-height: 40px;
 }
 footer a:hover {
-  color: #000;
+  /* color: #000; */
   text-decoration: underline;
 }
 
 #copyright {
-  color: #666;
   margin: 20px 0 0 0;
 }
 

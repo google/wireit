@@ -34,6 +34,7 @@ export class WireitIntroDiagram1 extends LitElement {
       box-shadow: rgb(0 0 0 / 10%) 0px 0px 5px 0px inset;
     }
     button {
+      color: inherit;
       font-family: inherit;
       background: transparent;
       border: none;
@@ -46,10 +47,10 @@ export class WireitIntroDiagram1 extends LitElement {
       padding-left: 10px;
     }
     button[aria-checked='true'] {
-      color: white;
+      /* color: white; */
     }
     #pill {
-      background: #24bb69;
+      background: var(--wireit-runner-picker-pill-color, #ccc);
       border-radius: 15px;
       width: 32%;
       height: 85%;

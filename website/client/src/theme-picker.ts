@@ -35,13 +35,16 @@ const lightIcon = html`<svg
 @customElement('wireit-theme-picker')
 export class WireitThemePicker extends LitElement {
   @property({reflect: true})
-  theme: Theme = (() => {
-    const val = localStorage.getItem('theme');
-    if (val === 'dark' || val === 'light') {
-      return val;
+  theme: Theme;
+
+  constructor() {
+    super();
+    let theme = localStorage.getItem('theme');
+    if (theme !== 'dark' && theme !== 'light') {
+      theme = prefersDark.matches ? 'dark' : 'light';
     }
-    return prefersDark.matches ? 'dark' : 'light';
-  })();
+    this.theme = theme as Theme;
+  }
 
   static override styles = css`
     button {
@@ -93,6 +96,7 @@ export class WireitThemePicker extends LitElement {
     }
     this.theme = theme;
     localStorage.setItem('theme', theme);
-    document.body.setAttribute('theme', theme);
+    document.body.classList.toggle('dark', theme === 'dark');
+    document.body.classList.toggle('light', theme === 'light');
   }
 }

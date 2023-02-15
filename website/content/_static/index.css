@@ -5,7 +5,7 @@ h2 {
 main section {
   margin: 0 auto;
   padding: 100px;
-  color: white;
+  /* color: white; */
   height: max(auto, 30vh);
 }
 
@@ -14,7 +14,7 @@ main section:nth-child(1) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: rgb(112, 112, 112);
+  /* color: rgb(112, 112, 112); */
 }
 
 main section wireit-runner-picker {
@@ -35,19 +35,19 @@ main section:nth-child(2) pre {
 }
 
 main section:nth-child(2) {
-  background: linear-gradient(90deg, #00c943, #00774f);
+  /* background: linear-gradient(90deg, #00c943, #00774f); */
 }
 main section:nth-child(3) {
-  color: rgb(112, 112, 112);
+  /* color: rgb(112, 112, 112); */
 }
 main section:nth-child(4) {
-  background: linear-gradient(90deg, #ff7f00, #ff0000);
+  /* background: linear-gradient(90deg, #ff7f00, #ff0000); */
 }
 main section:nth-child(5) {
-  color: rgb(112, 112, 112);
+  /* color: rgb(112, 112, 112); */
 }
 main section:nth-child(6) {
-  background: linear-gradient(90deg, #00c943, #00774f);
+  /* background: linear-gradient(90deg, #00c943, #00774f); */
 }
 /* main section:nth-child(5) {
   color: rgb(112, 112, 112);
@@ -69,15 +69,15 @@ main section:nth-child(6) p {
 }
 
 main section a.more-button {
-  color: white;
+  /* color: white; */
   padding: 7px 25px;
   border-radius: 10px;
-  background: #00000075;
+  /* background: #00000075; */
   margin: 40px 0;
   box-shadow: rgb(0 0 0 / 20%) -1px 1px 8px 1px;
 }
 main section a:hover {
-  background: #000;
+  /* background: #000; */
 }
 
 main section p {

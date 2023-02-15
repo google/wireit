@@ -24,7 +24,7 @@ main > nav > ul > li > a {
 
 main > nav > ul > li > a:hover,
 main > nav > ul > li.active > a {
-  background: rgb(240, 240, 240);
+  /* background: rgb(240, 240, 240); */
   border-radius: 10px;
 }
 
@@ -39,16 +39,16 @@ main > article > h2 {
   font-size: 32px;
   font-weight: 400;
   margin: 30px 0 30px 0;
-  color: rgb(82, 82, 82);
+  /* color: rgb(82, 82, 82); */
 }
 
 main > article > h3 {
   font-weight: 600;
   font-size: 20px;
-  color: rgb(124, 124, 124);
+  /* color: rgb(124, 124, 124); */
 }
 
 main > article a {
-  color: rgb(0, 122, 41);
+  /* color: rgb(0, 122, 41); */
   text-decoration: underline;
 }
