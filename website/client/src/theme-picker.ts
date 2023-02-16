@@ -12,8 +12,9 @@ const prefersDark = window.matchMedia('(prefers-color-scheme:dark)');
 
 const darkIcon = html`<svg
   xmlns="http://www.w3.org/2000/svg"
-  height="40"
-  width="40"
+  height="25"
+  width="25"
+  viewBox="0 0 40 40"
   fill="currentcolor"
 >
   <path
@@ -23,8 +24,9 @@ const darkIcon = html`<svg
 
 const lightIcon = html`<svg
   xmlns="http://www.w3.org/2000/svg"
-  height="40"
-  width="40"
+  height="25"
+  width="25"
+  viewBox="0 0 40 40"
   fill="currentcolor"
 >
   <path

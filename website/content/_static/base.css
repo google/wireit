@@ -112,18 +112,24 @@ header wireit-theme-picker:hover {
 }
 header > nav > #social {
   margin-left: 20px;
-  /* color: var(--text-color); */
 }
 header > nav > #social > a {
   padding: 5px;
 }
-header > nav > #social > a:hover {
-  /* color: rgb(0, 0, 0); */
+header > nav > #social > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 70%;
+}
+header > nav > #social > *:hover {
+  opacity: 100%;
 }
 
 main {
   min-height: calc(100vh - var(--header-height) - var(--footer-height));
   box-sizing: border-box;
+  margin: auto;
 }
 
 footer {
@@ -164,4 +170,8 @@ footer a:hover {
 
 #copyright p {
   margin: 0 0 0 0;
+}
+
+.splash {
+  margin-top: 100px;
 }

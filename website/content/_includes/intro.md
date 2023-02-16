@@ -1,4 +1,4 @@
-<section>
+<section class="splash">
 
 <img src="{{ base }}/wireit.svg" alt="Wireit" height="200">
 
@@ -8,6 +8,7 @@ The missing smart script runner for
 </section>
 
 <section class="background-gradient-1">
+<div class="max-width center">
 
 ## Smarter builds
 
@@ -28,6 +29,7 @@ build done faster.
 
 <img src="{{ base }}/images/diagram.svg"  height="600">
 
+</div>
 </div>
 
 </section>

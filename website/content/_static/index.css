@@ -60,7 +60,7 @@ main section a:hover {
 
 main section p {
   margin-top: 40px;
-  max-width: 25em;
+  /* max-width: 25em; */
 }
 
 .side-by-side {
@@ -81,4 +81,12 @@ strong {
   border-width: 4px 0 4px 0;
   border-style: solid;
   border-image: linear-gradient(to right, #c8e259, #0ed7d5) 1;
+}
+
+.max-width {
+  max-width: 1000px;
+}
+
+.center {
+  margin: auto;
 }
