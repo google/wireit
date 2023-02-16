@@ -7,12 +7,7 @@
   <body>
     {% include "header.njk" %}
     <main id="content">
-      <section>{% renderFile "content/_includes/intro/00.md" %}</section>
-      <section>{% renderFile "content/_includes/intro/01.md" %}</section>
-      <section>{% renderFile "content/_includes/intro/02.md" %}</section>
-      <section>{% renderFile "content/_includes/intro/03.md" %}</section>
-      <section>{% renderFile "content/_includes/intro/04.md" %}</section>
-      <section>{% renderFile "content/_includes/intro/05.md" %}</section>
+      {% renderFile "content/_includes/intro.md" %}
     </main>
     {% include "footer.njk" %}
     <script type="module" src="/js/intro.js"></script>
