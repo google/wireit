@@ -48,11 +48,11 @@
     "test:gc": "wireit",
     "test:glob": "wireit",
     "test:json-schema": "wireit",
+    "test:metrics": "wireit",
     "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
     "test:service": "wireit",
-    "test:watch": "wireit",
-    "test:summary": "wireit"
+    "test:watch": "wireit"
   },
   "wireit": {
     "build": {
@@ -313,6 +313,17 @@
       ],
       "output": []
     },
+    "test:metrics": {
+      "command": "uvu lib/test \"^metrics\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
     "test:optimize-mkdirs": {
       "command": "uvu lib/test \"^optimize-mkdirs\\.test\\.js$\"",
       "env": {
@@ -348,17 +359,6 @@
     },
     "test:watch": {
       "command": "uvu lib/test \"^watch\\.test\\.js$\"",
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
-      },
-      "dependencies": [
-        "build"
-      ],
-      "files": [],
-      "output": []
-    },
-    "test:summary": {
-      "command": "uvu lib/test \"^summary\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },

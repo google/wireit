@@ -6,17 +6,18 @@
 
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
+import {MetricsLogger} from './metrics-logger.js';
 
 /**
  * A logger for watch mode that avoids useless output.
  */
 export class WatchLogger implements Logger {
-  private readonly _actualLogger: Logger;
+  private readonly _actualLogger: MetricsLogger;
   private readonly _iterationBuffer: Event[] = [];
   private _iterationIsInteresting =
     /* The first iteration is always interesting. */ true;
 
-  constructor(actualLogger: Logger) {
+  constructor(actualLogger: MetricsLogger) {
     this._actualLogger = actualLogger;
   }
 
@@ -25,7 +26,11 @@ export class WatchLogger implements Logger {
       // This iteration previously had an interesting event (or it's the very
       // first one, which we always show).
       this._actualLogger.log(event);
+      this._actualLogger.printMetrics();
+
       if (this._isWatchRunEnd(event)) {
+        // only want to print metrics at the end of a watch iteration that
+        // actually was interesting
         this._iterationIsInteresting = false;
       }
     } else if (this._isWatchRunEnd(event)) {

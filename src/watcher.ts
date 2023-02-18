@@ -21,6 +21,7 @@ import {
 
 import type {Agent} from './cli-options.js';
 import type {Fingerprint} from './fingerprint.js';
+import {MetricsLogger} from './logging/metrics-logger.js';
 
 /**
  * ```
@@ -135,7 +136,7 @@ export class Watcher {
   constructor(
     rootScript: ScriptReference,
     extraArgs: string[] | undefined,
-    logger: Logger,
+    logger: MetricsLogger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,

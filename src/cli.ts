@@ -85,7 +85,6 @@ const run = async (): Promise<Result<void, Failure[]>> => {
       watcher.abort();
     });
     await watcher.watch();
-    logger.printSummary();
     return {ok: true, value: undefined};
   } else {
     const analyzer = new Analyzer(options.agent);
@@ -114,7 +113,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
         }
       }
     }
-    logger.printSummary();
+    logger.printMetrics();
     return errors.length === 0
       ? {ok: true, value: undefined}
       : {ok: false, error: errors};
