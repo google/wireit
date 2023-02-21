@@ -11,6 +11,7 @@ import {Executor, FailureMode, ServiceMap} from './executor.js';
 import {Logger} from './logging/logger.js';
 import {Deferred} from './util/deferred.js';
 import {WorkerPool} from './util/worker-pool.js';
+import {MetricsLogger} from './logging/metrics-logger.js';
 import {WatchLogger} from './logging/watch-logger.js';
 import {
   ScriptConfig,
@@ -135,7 +136,7 @@ export class Watcher {
   constructor(
     rootScript: ScriptReference,
     extraArgs: string[] | undefined,
-    logger: Logger,
+    logger: MetricsLogger,
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,

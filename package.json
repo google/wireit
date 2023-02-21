@@ -48,6 +48,7 @@
     "test:gc": "wireit",
     "test:glob": "wireit",
     "test:json-schema": "wireit",
+    "test:metrics": "wireit",
     "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
     "test:service": "wireit",
@@ -310,6 +311,17 @@
       "files": [
         "schema.json"
       ],
+      "output": []
+    },
+    "test:metrics": {
+      "command": "uvu lib/test \"^metrics\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
       "output": []
     },
     "test:optimize-mkdirs": {
