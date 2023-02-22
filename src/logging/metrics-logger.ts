@@ -17,7 +17,9 @@ export class MetricsLogger implements Logger {
   private readonly _metrics: Metric[] = [
     {
       name: 'Success',
-      matches: (e: Event) => e.type === 'success',
+      // 'no-command' is technically a success, but we don't want to count it as
+      // a success for this metric because nothing was actually run.
+      matches: (e: Event) => e.type === 'success' && e.reason !== 'no-command',
       count: 0,
     },
     {
