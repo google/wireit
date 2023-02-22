@@ -297,9 +297,9 @@ function buildExpectedMetric(args: {
   percentCached?: number;
 }): string {
   return `🏁 [metrics] Executed ${args.total ?? 0} script(s) in * seconds
-\tRan             : ${args.ran ?? 0} (${args.percentRan ?? 0}%)
-\tSkipped (fresh) : ${args.fresh ?? 0} (${args.percentFresh ?? 0}%)
-\tSkipped (cached): ${args.cached ?? 0} (${args.percentCached ?? 0}%)
+\tRan                 : ${args.ran ?? 0} (${args.percentRan ?? 0}%)
+\tSkipped (fresh)     : ${args.fresh ?? 0} (${args.percentFresh ?? 0}%)
+\tRestored from cache : ${args.cached ?? 0} (${args.percentCached ?? 0}%)
 `;
 }
 

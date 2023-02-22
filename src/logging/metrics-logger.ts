@@ -31,7 +31,7 @@ export class MetricsLogger implements Logger {
       count: 0,
     },
     {
-      name: 'Skipped (cached)',
+      name: 'Restored from cache',
       matches: (e: Event) => e.type === 'success' && e.reason === 'cached',
       count: 0,
     },
@@ -61,7 +61,7 @@ export class MetricsLogger implements Logger {
     }
 
     const elapsed = this._getElapsedTime();
-    const nameOffset = 16;
+    const nameOffset = 20;
 
     const out: string[] = [
       `🏁 [metrics] Executed ${successes} script(s) in ${elapsed} seconds`,
