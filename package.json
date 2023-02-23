@@ -93,6 +93,7 @@
         "test:ide",
         "test:gc",
         "test:json-schema",
+        "test:metrics",
         "test:optimize-mkdirs",
         "test:parallelism",
         "test:service",
