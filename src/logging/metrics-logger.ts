@@ -1,6 +1,6 @@
 import {hrtime} from 'process';
 import {Event} from '../event.js';
-import {Logger} from './logger.js';
+import {DefaultLogger} from './default-logger.js';
 
 interface Metric {
   name: string;
@@ -11,8 +11,7 @@ interface Metric {
 /**
  * A {@link Logger} that keeps track of metrics.
  */
-export class MetricsLogger implements Logger {
-  private readonly _actualLogger: Logger;
+export class MetricsLogger extends DefaultLogger {
   private _startTime: [number, number] = hrtime();
   private readonly _metrics: Metric[] = [
     {
@@ -39,22 +38,26 @@ export class MetricsLogger implements Logger {
     },
   ];
 
-  constructor(actualLogger: Logger) {
-    this._actualLogger = actualLogger;
+  /**
+   * @param rootPackage The npm package directory that the root script being
+   * executed belongs to.
+   */
+  constructor(rootPackage: string) {
+    super(rootPackage);
   }
 
   /**
-   * Update relevant metrics for an event and pass it along to the next logger.
+   * Update relevant metrics for an event and pass it up to the parent logger.
    */
-  log(event: Event): void {
+  override log(event: Event): void {
     this._updateMetrics(event);
-    this._actualLogger.log(event);
+    super.log(event);
   }
 
   /**
    * Log the current metrics and reset the state of each metric.
    */
-  printMetrics(): void {
+  override printMetrics(): void {
     const successes = this._metrics[0].count;
 
     if (!successes) {

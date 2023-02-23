@@ -8,7 +8,6 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {Result} from './error.js';
-import {DefaultLogger} from './logging/default-logger.js';
 import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
@@ -43,9 +42,7 @@ export const packageDir = await (async (): Promise<string | undefined> => {
   }
 })();
 
-export const logger = new MetricsLogger(
-  new DefaultLogger(packageDir ?? process.cwd())
-);
+export const logger = new MetricsLogger(packageDir ?? process.cwd());
 
 export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 

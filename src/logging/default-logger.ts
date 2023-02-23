@@ -306,4 +306,8 @@ export class DefaultLogger implements Logger {
       }
     }
   }
+
+  printMetrics(): void {
+    // printMetrics() not used in default-logger.
+  }
 }

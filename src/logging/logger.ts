@@ -11,4 +11,5 @@ import type {Event} from '../event.js';
  */
 export interface Logger {
   log(event: Event): void;
+  printMetrics(): void;
 }
