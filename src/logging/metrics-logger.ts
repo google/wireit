@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2023 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import {hrtime} from 'process';
 import {Event} from '../event.js';
 import {DefaultLogger} from './default-logger.js';
