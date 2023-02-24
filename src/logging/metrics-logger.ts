@@ -56,6 +56,11 @@ export class MetricsLogger extends DefaultLogger {
    * Update relevant metrics for an event and pass it up to the parent logger.
    */
   override log(event: Event): void {
+    // When in watch mode, metrics should reset at the start of each run.
+    if (event.type === 'info' && event.detail === 'watch-run-start') {
+      this._resetMetrics();
+    }
+
     this._updateMetrics(event);
     super.log(event);
   }
