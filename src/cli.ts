@@ -113,6 +113,7 @@ const run = async (): Promise<Result<void, Failure[]>> => {
         }
       }
     }
+    logger.printMetrics();
     return errors.length === 0
       ? {ok: true, value: undefined}
       : {ok: false, error: errors};

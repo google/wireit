@@ -25,6 +25,8 @@ export class WatchLogger implements Logger {
       // This iteration previously had an interesting event (or it's the very
       // first one, which we always show).
       this._actualLogger.log(event);
+      this._actualLogger.printMetrics();
+
       if (this._isWatchRunEnd(event)) {
         this._iterationIsInteresting = false;
       }
@@ -44,6 +46,10 @@ export class WatchLogger implements Logger {
       // An uninteresting event in a thus far uninteresting iteration.
       this._iterationBuffer.push(event);
     }
+  }
+
+  printMetrics(): void {
+    // printMetrics() not used in watch-logger.
   }
 
   private _isInteresting(event: Event): boolean {

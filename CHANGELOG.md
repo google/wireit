@@ -8,6 +8,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [Unreleased]
+
+### Added
+
+- Added tracking of metrics for successful script executions. Metrics are emitted
+  at the end of each run where at least one successful execution occurred.
+
 ## [0.9.5] - 2023-02-06
 
 ### Changed
