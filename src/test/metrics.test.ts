@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2023 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import {suite} from 'uvu';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
