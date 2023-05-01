@@ -20,11 +20,11 @@ jobs:
             os: windows-2022
           - node: 18
             os: ubuntu-22.04
-          - node: 19
+          - node: 20
             os: ubuntu-22.04
-          - node: 19
+          - node: 20
             os: macos-12
-          - node: 19
+          - node: 20
             os: windows-2022
           - node: 20
             os: ubuntu-22.04
@@ -73,7 +73,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 19
+          node-version: 20
           cache: npm
 
       - run: npm ci

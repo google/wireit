@@ -29,6 +29,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.10.0] - 2023-07-10
 
+### Changed
+
+- **[BREAKING]** Node 14 is no longer supported. [It is past its end of life](https://github.com/nodejs/Release#release-schedule).
+
 ### Added
 
 - Added tracking of metrics for successful script executions. Metrics are emitted
