@@ -67,6 +67,11 @@ async function retryWithGcUntilCallbackDoesNotThrow(
   cb: () => void
 ): Promise<void> {
   for (const wait of [0, 10, 100, 500, 1000]) {
+    if (global.gc == null) {
+      throw new Error(
+        `Expected node garbage collection APIs to be available, this test must be run with --expose-gc`
+      );
+    }
     global.gc();
     try {
       cb();
