@@ -603,79 +603,79 @@ There are two main reasons you might want to set `cascade` to `false`:
 
 1. **Your script only consumes a subset of a dependency's output.**
 
-    For example, `tsc` produces both `.js` files and `.d.ts` files, but only the
-    `.js` files might be consumed by `rollup`. There is no need to re-bundle
-    when a typings-only changed occurred.
+   For example, `tsc` produces both `.js` files and `.d.ts` files, but only the
+   `.js` files might be consumed by `rollup`. There is no need to re-bundle
+   when a typings-only changed occurred.
 
-    > **Note**
-    > In addition to setting `cascade` to `false`, the subset of output that
-    > _does_ matter (`lib/**/*.js`) has been added to the `files` array.
+   > **Note**
+   > In addition to setting `cascade` to `false`, the subset of output that
+   > _does_ matter (`lib/**/*.js`) has been added to the `files` array.
 
-    ```json
-    {
-      "scripts": {
-        "build": "wireit",
-        "bundle": "wireit"
-      },
-      "wireit": {
-        "build": {
-          "command": "tsc",
-          "files": ["src/**/*.ts", "tsconfig.json"],
-          "output": ["lib/**"]
-        },
-        "bundle": {
-          "command": "rollup -c",
-          "dependencies": [
-            {
-              "script": "build",
-              "cascade": false
-            }
-          ],
-          "files": ["rollup.config.json", "lib/**/*.js"],
-          "output": ["dist/bundle.js"]
-        }
-      }
-    }
-    ```
+   ```json
+   {
+     "scripts": {
+       "build": "wireit",
+       "bundle": "wireit"
+     },
+     "wireit": {
+       "build": {
+         "command": "tsc",
+         "files": ["src/**/*.ts", "tsconfig.json"],
+         "output": ["lib/**"]
+       },
+       "bundle": {
+         "command": "rollup -c",
+         "dependencies": [
+           {
+             "script": "build",
+             "cascade": false
+           }
+         ],
+         "files": ["rollup.config.json", "lib/**/*.js"],
+         "output": ["dist/bundle.js"]
+       }
+     }
+   }
+   ```
 
 2. **Your server doesn't need to restart for certain changes.**
 
-    For example, a web server depends on some static assets, but the server
-    reads those assets from disk dynamically on each request. In [`watch`](#watch-mode) mode,
-    there is no need to restart the server when the assets change.
+   For example, a web server depends on some static assets, but the server
+   reads those assets from disk dynamically on each request. In [`watch`](#watch-mode) mode,
+   there is no need to restart the server when the assets change.
 
-    > **Note**
-    > The `build:server` dependency uses the default `cascade` behavior
-    > (`true`), because changing the implementation of the server itself _does_
-    > require the server to be restarted.
+   > **Note**
+   > The `build:server` dependency uses the default `cascade` behavior
+   > (`true`), because changing the implementation of the server itself _does_
+   > require the server to be restarted.
 
-    ```json
-    {
-      "scripts": {
-        "start": "wireit",
-        "build:server": "wireit"
-      },
-      "wireit": {
-        "start": {
-          "command": "node lib/server.js",
-          "service": true,
-          "dependencies": [
-            "build:server",
-            {
-              "script": "../assets:build",
-              "cascade": false
-            }
-          ],
-          "files": ["lib/**/*.js"]
-        },
-        "build:server": {
-          "command": "tsc",
-          "files": ["src/**/*.ts", "tsconfig.json"],
-          "output": ["lib/**"]
-        }
-      }
-    }
-    ```
+   ```json
+   {
+     "scripts": {
+       "start": "wireit",
+       "build:server": "wireit"
+     },
+     "wireit": {
+       "start": {
+         "command": "node lib/server.js",
+         "service": true,
+         "dependencies": [
+           "build:server",
+           {
+             "script": "../assets:build",
+             "cascade": false
+           }
+         ],
+         "files": ["lib/**/*.js"]
+       },
+       "build:server": {
+         "command": "tsc",
+         "files": ["src/**/*.ts", "tsconfig.json"],
+         "output": ["lib/**"]
+       }
+     }
+   }
+   ```
 
 ## Failures and errors
 
