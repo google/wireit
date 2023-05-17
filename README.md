@@ -33,6 +33,8 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 - [Parallelism](#parallelism)
 - [Extra arguments](#extra-arguments)
 - [Input and output files](#input-and-output-files)
+  - [Example configuration](#example-configuration)
+  - [Default excluded paths](#default-excluded-paths)
 - [Incremental build](#incremental-build)
 - [Caching](#caching)
   - [Local caching](#local-caching)
@@ -119,7 +121,7 @@ If you use VSCode, consider installing the `google.wireit` extension. It adds do
 
 Install it [from the marketplace](https://marketplace.visualstudio.com/items?itemName=google.wireit) or on the command line like:
 
-```
+```sh
 code --install-extension google.wireit
 ```
 
@@ -253,7 +255,7 @@ Setting these properties allow you to use more features of Wireit:
 | [**Incremental build**](#incremental-build) |         ☑️          |          ☑️          |
 |                     [**Caching**](#caching) |         ☑️          |          ☑️          |
 
-#### Example configuration
+### Example configuration
 
 ```json
 {
@@ -277,7 +279,7 @@ Setting these properties allow you to use more features of Wireit:
 }
 ```
 
-#### Default excluded paths
+### Default excluded paths
 
 By default, the following folders are excluded from the `files` and `output`
 arrays:
@@ -599,81 +601,81 @@ an object, and setting the `cascade` property to `false`:
 
 There are two main reasons you might want to set `cascade` to `false`:
 
-1.  **Your script only consumes a subset of a dependency's output.**
+1. **Your script only consumes a subset of a dependency's output.**
 
-    For example, `tsc` produces both `.js` files and `.d.ts` files, but only the
-    `.js` files might be consumed by `rollup`. There is no need to re-bundle
-    when a typings-only changed occured.
+   For example, `tsc` produces both `.js` files and `.d.ts` files, but only the
+   `.js` files might be consumed by `rollup`. There is no need to re-bundle
+   when a typings-only changed occurred.
 
-    > **Note**
-    > In addition to setting `cascade` to `false`, the subset of output that
-    > _does_ matter (`lib/**/*.js`) has been added to the `files` array.
+   > **Note**
+   > In addition to setting `cascade` to `false`, the subset of output that
+   > _does_ matter (`lib/**/*.js`) has been added to the `files` array.
 
-    ```json
-    {
-      "scripts": {
-        "build": "wireit",
-        "bundle": "wireit"
-      },
-      "wireit": {
-        "build": {
-          "command": "tsc",
-          "files": ["src/**/*.ts", "tsconfig.json"],
-          "output": ["lib/**"]
-        },
-        "bundle": {
-          "command": "rollup -c",
-          "dependencies": [
-            {
-              "script": "build",
-              "cascade": false
-            }
-          ],
-          "files": ["rollup.config.json", "lib/**/*.js"],
-          "output": ["dist/bundle.js"]
-        }
-      }
-    }
-    ```
+   ```json
+   {
+     "scripts": {
+       "build": "wireit",
+       "bundle": "wireit"
+     },
+     "wireit": {
+       "build": {
+         "command": "tsc",
+         "files": ["src/**/*.ts", "tsconfig.json"],
+         "output": ["lib/**"]
+       },
+       "bundle": {
+         "command": "rollup -c",
+         "dependencies": [
+           {
+             "script": "build",
+             "cascade": false
+           }
+         ],
+         "files": ["rollup.config.json", "lib/**/*.js"],
+         "output": ["dist/bundle.js"]
+       }
+     }
+   }
+   ```
 
-2.  **Your server doesn't need to restart for certain changes.**
+2. **Your server doesn't need to restart for certain changes.**
 
-    For example, a web server depends on some static assets, but the server
-    reads those assets from disk dynamically on each request. In [`watch`](#watch-mode) mode,
-    there is no need to restart the server when the assets change.
+   For example, a web server depends on some static assets, but the server
+   reads those assets from disk dynamically on each request. In [`watch`](#watch-mode) mode,
+   there is no need to restart the server when the assets change.
 
-    > **Note**
-    > The `build:server` dependency uses the default `cascade` behavior
-    > (`true`), because changing the implementation of the server itself _does_
-    > require the server to be restarted.
+   > **Note**
+   > The `build:server` dependency uses the default `cascade` behavior
+   > (`true`), because changing the implementation of the server itself _does_
+   > require the server to be restarted.
 
-    ```json
-    {
-      "scripts": {
-        "start": "wireit",
-        "build:server": "wireit"
-      },
-      "wireit": {
-        "start": {
-          "command": "node lib/server.js",
-          "service": true,
-          "dependencies": [
-            "build:server",
-            {
-              "script": "../assets:build",
-              "cascade": false
-            }
-          ],
-          "files": ["lib/**/*.js"]
-        },
-        "build:server": {
-          "command": "tsc",
-          "files": ["src/**/*.ts", "tsconfig.json"],
-          "output": ["lib/**"]
-        }
-      }
-    }
-    ```
+   ```json
+   {
+     "scripts": {
+       "start": "wireit",
+       "build:server": "wireit"
+     },
+     "wireit": {
+       "start": {
+         "command": "node lib/server.js",
+         "service": true,
+         "dependencies": [
+           "build:server",
+           {
+             "script": "../assets:build",
+             "cascade": false
+           }
+         ],
+         "files": ["lib/**/*.js"]
+       },
+       "build:server": {
+         "command": "tsc",
+         "files": ["src/**/*.ts", "tsconfig.json"],
+         "output": ["lib/**"]
+       }
+     }
+   }
+   ```
 
 ## Failures and errors
 
