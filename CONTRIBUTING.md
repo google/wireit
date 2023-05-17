@@ -44,7 +44,7 @@ npm test
 npm test watch
 ```
 
-### Testing environment variables:
+### Testing environment variables
 
 - `TEST_TIMEOUT`: Default millisecond timeout for test cases.
 - `SHOW_TEST_OUTPUT`: Set to show all `stdout` and `stderr` from spawned wireit
