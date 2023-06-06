@@ -386,7 +386,7 @@
     "eslint-plugin-no-only-tests": "^3.0.0",
     "jsonc-parser": "^3.0.0",
     "jsonschema": "^1.4.0",
-    "pnpm": "^7.0.0",
+    "pnpm": "^8.6.1",
     "prettier": "^2.6.2",
     "selfsigned": "^2.0.1",
     "typescript": "~5.0.2",
