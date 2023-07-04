@@ -5,7 +5,7 @@
  */
 
 import * as os from 'os';
-import * as fs from 'fs/promises';
+import * as fs from './util/fs.js';
 import * as pathlib from 'path';
 import {Result} from './error.js';
 import {MetricsLogger} from './logging/metrics-logger.js';

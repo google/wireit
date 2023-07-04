@@ -5,7 +5,7 @@
  */
 
 import {createHash} from 'crypto';
-import {createReadStream} from 'fs';
+import {createReadStream} from './util/fs.js';
 import {glob} from './util/glob.js';
 import {scriptReferenceToString} from './config.js';
 
@@ -176,7 +176,7 @@ export class Fingerprint {
         files.map(async (file): Promise<[string, FileSha256HexDigest]> => {
           const absolutePath = file.path;
           const hash = createHash('sha256');
-          for await (const chunk of createReadStream(absolutePath)) {
+          for await (const chunk of await createReadStream(absolutePath)) {
             hash.update(chunk as Buffer);
           }
           return [file.path, hash.digest('hex') as FileSha256HexDigest];

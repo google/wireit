@@ -5,7 +5,7 @@
  */
 
 import * as pathlib from 'path';
-import * as fs from 'fs/promises';
+import * as fs from './util/fs.js';
 import {
   CachingPackageJsonReader,
   FileSystem,

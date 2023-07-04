@@ -5,7 +5,8 @@
  */
 
 import * as pathlib from 'path';
-import * as fs from 'fs/promises';
+import * as unbudgetedFs from 'fs/promises';
+import * as fs from '../util/fs.js'
 import * as https from 'https';
 import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
@@ -20,6 +21,7 @@ import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
+import { reserveFileBudget } from '../util/fs.js';
 
 /**
  * Caches script output to the GitHub Actions caching service.
@@ -233,7 +235,10 @@ export class GitHubActionsCache implements Cache {
     // Reference:
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     const maxChunkSize = 32 * 1024 * 1024;
-    const tarballHandle = await fs.open(tarballPath, 'r');
+    // TODO: update to TypeScript 5.2 and use the new `using` syntax for the
+    // budget object.
+    const fileBudget = await reserveFileBudget();
+    const tarballHandle = await unbudgetedFs.open(tarballPath, 'r');
     let offset = 0;
     try {
       // TODO(aomarks) Chunks could be uploaded in parallel.
@@ -282,6 +287,7 @@ export class GitHubActionsCache implements Cache {
       return true;
     } finally {
       await tarballHandle.close();
+      fileBudget[Symbol.dispose]();
     }
   }
 
