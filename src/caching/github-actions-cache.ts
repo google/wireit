@@ -12,7 +12,6 @@ import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {execFile} from 'child_process';
-import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
@@ -248,7 +247,7 @@ export class GitHubActionsCache implements Cache {
         const end = offset + chunkSize - 1;
         offset += maxChunkSize;
 
-        const tarballChunkStream = createReadStream(tarballPath, {
+        const tarballChunkStream = await fs.createReadStream(tarballPath, {
           fd: tarballHandle.fd,
           start,
           end,
@@ -584,8 +583,8 @@ class GitHubActionsCacheHit implements CacheHit {
         `GitHub Cache download HTTP ${String(response.statusCode)} error`
       );
     }
+    const writeTarballStream = await fs.createWriteStream(tarballPath);
     await new Promise<void>((resolve, reject) => {
-      const writeTarballStream = createWriteStream(tarballPath);
       writeTarballStream.on('error', (error) => reject(error));
       response.on('error', (error) => reject(error));
       response.pipe(writeTarballStream);

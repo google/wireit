@@ -8,7 +8,7 @@ import {Result} from '../error.js';
 import {AsyncCache} from './async-cache.js';
 import {PackageJson} from './package-json.js';
 import * as pathlib from 'path';
-import * as fs from 'fs/promises';
+import * as fs from './fs.js';
 import {parseTree} from './ast.js';
 
 export const astKey = Symbol('ast');

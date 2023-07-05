@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'fs/promises';
+import * as fs from './fs.js';
 import * as pathlib from 'path';
 import {optimizeMkdirs} from './optimize-mkdirs.js';
-import {constants} from 'fs';
 import {IS_WINDOWS} from '../util/windows.js';
 
 import type {AbsoluteEntry} from './glob.js';
@@ -80,7 +79,7 @@ export const copyEntries = async (
  */
 const copyFileGracefully = async (src: string, dest: string): Promise<void> => {
   try {
-    await fs.copyFile(src, dest, constants.COPYFILE_EXCL);
+    await fs.copyFile(src, dest, fs.constants.COPYFILE_EXCL);
   } catch (error) {
     const {code} = error as {code: string};
     if (code === /* does not exist */ 'ENOENT') {

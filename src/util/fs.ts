@@ -8,6 +8,8 @@ import {
   createWriteStream as rawCreateWriteStream,
 } from 'fs';
 import {Deferred} from './deferred.js';
+export {constants} from 'fs';
+export type * from 'fs';
 
 declare global {
   interface SymbolConstructor {
@@ -25,7 +27,7 @@ interface Disposable {
 
 let maxOpenFiles = Number(process.env['WIREIT_MAX_OPEN_FILES']);
 if (isNaN(maxOpenFiles)) {
-  maxOpenFiles = 8000;
+  maxOpenFiles = 4000;
 }
 
 export function setMaxOpenFiles(n: number): void {
@@ -144,11 +146,29 @@ export async function access(path: string): Promise<void> {
   }
 }
 
+type ReadStreamOptions =
+  | BufferEncoding
+  | {
+      flags?: string | undefined;
+      encoding?: BufferEncoding | undefined;
+      fd?: number | undefined;
+      mode?: number | undefined;
+      autoClose?: boolean | undefined;
+      /**
+       * @default false
+       */
+      emitClose?: boolean | undefined;
+      start?: number | undefined;
+      end?: number | undefined;
+      highWaterMark?: number | undefined;
+    };
+
 export async function createReadStream(
-  path: string
+  path: string,
+  options?: ReadStreamOptions
 ): Promise<fsTypes.ReadStream> {
   const budget = await reserveFileBudget();
-  const stream = rawCreateReadStream(path);
+  const stream = rawCreateReadStream(path, options);
   stream.on('close', () => budget[Symbol.dispose]());
   return stream;
 }
@@ -161,3 +181,69 @@ export async function createWriteStream(
   stream.on('close', () => budget[Symbol.dispose]());
   return stream;
 }
+
+export async function copyFile(
+  src: fsTypes.PathLike,
+  dest: fsTypes.PathLike,
+  flags?: number | undefined
+) {
+  const budget = await reserveFileBudget();
+  try {
+    return await fs.copyFile(src, dest, flags);
+  } finally {
+    budget[Symbol.dispose]();
+  }
+}
+
+export function readlink(
+  path: fsTypes.PathLike,
+  options?: fsTypes.BaseEncodingOptions | BufferEncoding | null
+): Promise<string>;
+export function readlink(
+  path: fsTypes.PathLike,
+  options: fsTypes.BufferEncodingOption
+): Promise<Buffer>;
+export async function readlink(
+  path: fsTypes.PathLike,
+  options?:
+    | fsTypes.BaseEncodingOptions
+    | fsTypes.BufferEncodingOption
+    | string
+    | null
+): Promise<string | Buffer> {
+  const budget = await reserveFileBudget();
+  try {
+    return await fs.readlink(path, options as any);
+  } finally {
+    budget[Symbol.dispose]();
+  }
+}
+
+export async function symlink(target: fsTypes.PathLike, path: fsTypes.PathLike, type?: string|null) {
+const budget = await reserveFileBudget();
+try {
+  return await fs.symlink(target, path, type);
+} finally {
+  budget[Symbol.dispose]();
+}
+}
+
+export async function unlink(target: string) {
+const budget = await reserveFileBudget();
+try {
+  return await fs.unlink(target);
+} finally {
+  budget[Symbol.dispose]();
+}
+}
+
+export async function rmdir(target: string) {
+  const budget = await reserveFileBudget();
+  try {
+    return await fs.rmdir(target);
+  } finally {
+    budget[Symbol.dispose]();
+  }
+}
+
+

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'fs/promises';
+import * as fs from './fs.js';
 import * as pathlib from 'path';
 
 import type {AbsoluteEntry} from './glob.js';
