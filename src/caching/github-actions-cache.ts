@@ -6,7 +6,7 @@
 
 import * as pathlib from 'path';
 import * as unbudgetedFs from 'fs/promises';
-import * as fs from '../util/fs.js'
+import * as fs from '../util/fs.js';
 import * as https from 'https';
 import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
@@ -20,7 +20,7 @@ import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
-import { reserveFileBudget } from '../util/fs.js';
+import {reserveFileBudget} from '../util/fs.js';
 
 /**
  * Caches script output to the GitHub Actions caching service.

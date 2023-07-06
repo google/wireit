@@ -9,12 +9,10 @@ import {
 } from 'fs';
 import {Deferred} from './deferred.js';
 export {constants} from 'fs';
-export type * from 'fs';
 
 declare global {
   interface SymbolConstructor {
     readonly dispose: unique symbol;
-    readonly asyncDispose: unique symbol;
   }
 }
 
@@ -22,8 +20,9 @@ interface Disposable {
   [Symbol.dispose](): void;
 }
 
+// Polyfill Symbol.dispose.
+// eslint-disable-next-line
 (Symbol as any).dispose ??= Symbol('Symbol.dispose');
-(Symbol as any).asyncDispose ??= Symbol('Symbol.asyncDispose');
 
 let maxOpenFiles = Number(process.env['WIREIT_MAX_OPEN_FILES']);
 if (isNaN(maxOpenFiles)) {
@@ -36,7 +35,7 @@ export function setMaxOpenFiles(n: number): void {
 
 export const reserveFileBudget = (() => {
   let openFiles = 0;
-  let waiting: Deferred<void>[] = [];
+  const waiting: Deferred<void>[] = [];
   async function reserveFileBudget(): Promise<Disposable> {
     while (openFiles + 1 > maxOpenFiles) {
       const deferred = new Deferred<void>();
@@ -213,28 +212,32 @@ export async function readlink(
 ): Promise<string | Buffer> {
   const budget = await reserveFileBudget();
   try {
-    return await fs.readlink(path, options as any);
+    return await fs.readlink(path, options as fsTypes.BaseEncodingOptions);
   } finally {
     budget[Symbol.dispose]();
   }
 }
 
-export async function symlink(target: fsTypes.PathLike, path: fsTypes.PathLike, type?: string|null) {
-const budget = await reserveFileBudget();
-try {
-  return await fs.symlink(target, path, type);
-} finally {
-  budget[Symbol.dispose]();
-}
+export async function symlink(
+  target: fsTypes.PathLike,
+  path: fsTypes.PathLike,
+  type?: string | null
+) {
+  const budget = await reserveFileBudget();
+  try {
+    return await fs.symlink(target, path, type);
+  } finally {
+    budget[Symbol.dispose]();
+  }
 }
 
 export async function unlink(target: string) {
-const budget = await reserveFileBudget();
-try {
-  return await fs.unlink(target);
-} finally {
-  budget[Symbol.dispose]();
-}
+  const budget = await reserveFileBudget();
+  try {
+    return await fs.unlink(target);
+  } finally {
+    budget[Symbol.dispose]();
+  }
 }
 
 export async function rmdir(target: string) {
@@ -245,5 +248,3 @@ export async function rmdir(target: string) {
     budget[Symbol.dispose]();
   }
 }
-
-

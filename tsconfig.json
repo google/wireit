@@ -5,7 +5,7 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "useDefineForClassFields": false,
-    "lib": ["es2022", "esnext.disposable"],
+    "lib": ["es2022"],
     "rootDir": "src",
     "outDir": "lib",
     "strict": true,
