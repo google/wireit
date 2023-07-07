@@ -389,7 +389,7 @@
     "pnpm": "^7.0.0",
     "prettier": "^2.6.2",
     "selfsigned": "^2.0.1",
-    "typescript": "~5.0.2",
+    "typescript": "~5.1.0",
     "uvu": "^0.5.3",
     "vsce": "^2.7.0",
     "vscode-languageclient": "^8.0.1",
