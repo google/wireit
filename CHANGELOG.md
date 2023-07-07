@@ -15,6 +15,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added tracking of metrics for successful script executions. Metrics are emitted
   at the end of each run where at least one successful execution occurred.
 
+- Wireit now limits its number of file descriptors. This is to prevent crashes, and the default value of 200 should be high enough not to regress performance. Set the WIREIT_MAX_OPEN_FILES env variable to override the default.
+
 ## [0.9.5] - 2023-02-06
 
 ### Changed
