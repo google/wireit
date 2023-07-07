@@ -11,7 +11,7 @@ test('Semaphore restricts resource access', async () => {
   const reservation1 = await semaphore.reserve();
   const reservation2Promise = semaphore.reserve();
   let hasResovled = false;
-  reservation2Promise.then(() => {
+  void reservation2Promise.then(() => {
     hasResovled = true;
   });
   // Wait a bit to make sure the promise has had a chance to resolve.

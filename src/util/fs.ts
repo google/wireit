@@ -32,7 +32,7 @@ export class Semaphore {
 
   constructor(numSlots: number) {
     if (numSlots <= 0) {
-      throw new Error('numSlots must be positive, got ' + numSlots);
+      throw new Error(`numSlots must be positive, got ${numSlots}`);
     }
     this.#remaining = numSlots;
   }
