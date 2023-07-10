@@ -5,7 +5,7 @@
  */
 
 import * as pathlib from 'path';
-import * as fs from 'fs/promises';
+import * as fs from '../util/fs.js';
 import {WorkerPool} from '../util/worker-pool.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {unreachable} from '../util/unreachable.js';
@@ -183,7 +183,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // details proper-lockfile handles.
     const lockFile = pathlib.join(this._dataDir, 'lock');
     await fs.mkdir(pathlib.dirname(lockFile), {recursive: true});
-    await fs.writeFile(lockFile, '');
+    await fs.writeFile(lockFile, '', 'utf8');
     let loggedLocked = false;
     while (true) {
       try {

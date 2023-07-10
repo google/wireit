@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'fs/promises';
+import * as fs from '../util/fs.js';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
 import {getScriptDataDir} from '../util/script-data-dir.js';

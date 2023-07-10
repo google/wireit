@@ -44,6 +44,7 @@
     "test:errors-usage": "wireit",
     "test:failures": "wireit",
     "test:freshness": "wireit",
+    "test:fs": "wireit",
     "test:ide": "wireit",
     "test:gc": "wireit",
     "test:glob": "wireit",
@@ -89,6 +90,7 @@
         "test:errors-usage",
         "test:failures",
         "test:freshness",
+        "test:fs",
         "test:glob",
         "test:ide",
         "test:gc",
@@ -360,6 +362,17 @@
     },
     "test:watch": {
       "command": "uvu lib/test \"^watch\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:fs": {
+      "command": "uvu lib/test \"^fs\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },

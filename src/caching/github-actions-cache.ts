@@ -5,13 +5,13 @@
  */
 
 import * as pathlib from 'path';
-import * as fs from 'fs/promises';
+import * as unbudgetedFs from 'fs/promises';
+import * as fs from '../util/fs.js';
 import * as https from 'https';
 import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {execFile} from 'child_process';
-import {createReadStream, createWriteStream} from 'fs';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
@@ -20,6 +20,7 @@ import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
+import {fileBudget} from '../util/fs.js';
 
 /**
  * Caches script output to the GitHub Actions caching service.
@@ -233,7 +234,10 @@ export class GitHubActionsCache implements Cache {
     // Reference:
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     const maxChunkSize = 32 * 1024 * 1024;
-    const tarballHandle = await fs.open(tarballPath, 'r');
+    // TODO: update to TypeScript 5.2 and use the new `using` syntax for the
+    // budget object.
+    const reservation = await fileBudget.reserve();
+    const tarballHandle = await unbudgetedFs.open(tarballPath, 'r');
     let offset = 0;
     try {
       // TODO(aomarks) Chunks could be uploaded in parallel.
@@ -243,7 +247,7 @@ export class GitHubActionsCache implements Cache {
         const end = offset + chunkSize - 1;
         offset += maxChunkSize;
 
-        const tarballChunkStream = createReadStream(tarballPath, {
+        const tarballChunkStream = await fs.createReadStream(tarballPath, {
           fd: tarballHandle.fd,
           start,
           end,
@@ -282,6 +286,7 @@ export class GitHubActionsCache implements Cache {
       return true;
     } finally {
       await tarballHandle.close();
+      reservation[Symbol.dispose]();
     }
   }
 
@@ -578,8 +583,8 @@ class GitHubActionsCacheHit implements CacheHit {
         `GitHub Cache download HTTP ${String(response.statusCode)} error`
       );
     }
+    const writeTarballStream = await fs.createWriteStream(tarballPath);
     await new Promise<void>((resolve, reject) => {
-      const writeTarballStream = createWriteStream(tarballPath);
       writeTarballStream.on('error', (error) => reject(error));
       response.on('error', (error) => reject(error));
       response.pipe(writeTarballStream);

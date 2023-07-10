@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as fs from 'fs/promises';
+import * as fs from './util/fs.js';
 import {Analyzer} from './analyzer.js';
 import * as url from 'url';
 import * as pathlib from 'path';

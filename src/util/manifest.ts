@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Stats} from 'fs';
+import type {Stats} from 'fs';
 
 /**
  * Metadata about a file which we use as a heuristic to decide whether two files
