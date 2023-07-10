@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2023 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // Like node fs/promises, only we maintain a budget of open files to prevent
 // running out of file descriptors.
 

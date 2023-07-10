@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2023 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import {Semaphore} from '../util/fs.js';
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
