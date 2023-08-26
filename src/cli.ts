@@ -10,15 +10,11 @@ import {Executor} from './executor.js';
 import {WorkerPool} from './util/worker-pool.js';
 import {unreachable} from './util/unreachable.js';
 import {Failure} from './event.js';
-import {logger, getOptions} from './cli-options.js';
+import {packageDir, getOptions, Options} from './cli-options.js';
+import {DefaultLogger} from './logging/default-logger.js';
 
-const run = async (): Promise<Result<void, Failure[]>> => {
-  const optionsResult = getOptions();
-  if (!optionsResult.ok) {
-    return {ok: false, error: [optionsResult.error]};
-  }
-  const options = optionsResult.value;
-
+const run = async (options: Options): Promise<Result<void, Failure[]>> => {
+  const logger = options.logger;
   const workerPool = new WorkerPool(options.numWorkers);
 
   let cache;
@@ -120,10 +116,20 @@ const run = async (): Promise<Result<void, Failure[]>> => {
   }
 };
 
-const result = await run();
+const optionsResult = getOptions();
+if (!optionsResult.ok) {
+  // if we can't figure out our options, we can't figure out what logger
+  // we should use here, so just use the default logger.
+  const logger = new DefaultLogger(packageDir ?? process.cwd());
+  logger.log(optionsResult.error);
+  process.exit(1);
+}
+
+const options = optionsResult.value;
+const result = await run(options);
 if (!result.ok) {
   for (const failure of result.error) {
-    logger.log(failure);
+    options.logger.log(failure);
   }
   process.exitCode = 1;
 }
