@@ -119,7 +119,8 @@
         ".eslintignore",
         ".eslintrc.cjs",
         "src/**/*.ts",
-        "vscode-extension/src/**/*.ts"
+        "vscode-extension/src/**/*.ts",
+        "tsconfig.json"
       ],
       "output": []
     },
@@ -409,7 +410,7 @@
     "pnpm": "^7.0.0",
     "prettier": "^2.6.2",
     "selfsigned": "^2.0.1",
-    "typescript": "~5.1.6",
+    "typescript": "^5.2.2",
     "uvu": "^0.5.3",
     "vsce": "^2.7.0",
     "vscode-languageclient": "^8.0.1",

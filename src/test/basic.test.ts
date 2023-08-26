@@ -10,12 +10,15 @@ import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
+import {checkScriptOutput} from './util/check-script-output.js';
 
 const test = suite<{rig: WireitTestRig}>();
 
 test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
+    // process.env['SHOW_TEST_OUTPUT'] = 'true';
+    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
     await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -96,17 +99,22 @@ test(
       },
     });
     const exec = rig.exec('npm run a');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
-    invA.stdout('a stdout');
-    invA.stderr('a stderr');
+    invA.stdout('a stdout\n');
+    // immediately logged, because it's the root command
+    await exec.waitForLog(/a stdout/);
+    invA.stderr('a stderr\n');
+    await exec.waitForLog(/a stderr/);
     invA.exit(0);
 
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
-    assert.match(res.stderr, 'a stderr');
+    checkScriptOutput(res.stderr, 'a stderr\n');
+    assert.match(res.stdout, 'a stdout\n');
+    assert.match(res.stdout, '✅ Ran 1 script and skipped 0 in');
   })
 );
 
@@ -133,17 +141,22 @@ test(
     // have a package.json, we should find the nearest package.json up the
     // filesystem hierarchy.
     const exec = rig.exec('npm run a', {cwd: 'subdir'});
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
-    invA.stdout('a stdout');
-    invA.stderr('a stderr');
+    invA.stdout('a stdout\n');
+    // immediately logged, because it's the root command
+    await exec.waitForLog(/a stdout/);
+    invA.stderr('a stderr\n');
+    await exec.waitForLog(/a stderr/);
     invA.exit(0);
 
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
-    assert.match(res.stderr, 'a stderr');
+    checkScriptOutput(res.stderr, 'a stderr\n');
+    assert.match(res.stdout, 'a stdout\n');
+    assert.match(res.stdout, '✅ Ran 1 script and skipped 0 in');
   })
 );
 
@@ -177,20 +190,26 @@ test(
       },
     });
     const exec = rig.exec('npm run a');
+    await exec.waitForLog(/0% \[0 \/ 3\] \[1 running\] c/);
 
     const invC = await cmdC.nextInvocation();
     invC.stdout('c stdout');
     invC.stderr('c stderr');
     invC.exit(0);
+    await exec.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
 
     const invB = await cmdB.nextInvocation();
     invB.stdout('b stdout');
     invB.stderr('b stderr');
     invB.exit(0);
+    await exec.waitForLog(/67% \[2 \/ 3\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
-    invA.stdout('a stdout');
-    invA.stderr('a stderr');
+    invA.stdout('a stdout\n');
+    // immediately logged, because it's the root command
+    await exec.waitForLog(/a stdout/);
+    invA.stderr('a stderr\n');
+    await exec.waitForLog(/a stderr/);
     invA.exit(0);
 
     const res = await exec.exit;
@@ -198,8 +217,10 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
-    assert.match(res.stdout, /c stdout.*b stdout.*a stdout/s);
-    assert.match(res.stderr, /c stderr.*b stderr.*a stderr/s);
+    assert.match(res.stdout, 'a stdout\n');
+    assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
+    // we only see the output of the root command
+    checkScriptOutput(res.stderr, 'a stderr\n');
   })
 );
 
@@ -231,20 +252,26 @@ test(
       },
     });
     const exec = rig.exec('npm run a');
+    await exec.waitForLog(/0% \[0 \/ 3\] \[1 running\] c/);
 
     const invC = await cmdC.nextInvocation();
     invC.stdout('c stdout');
     invC.stderr('c stderr');
     invC.exit(0);
+    await exec.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
 
     const invB = await cmdB.nextInvocation();
     invB.stdout('b stdout');
     invB.stderr('b stderr');
     invB.exit(0);
+    await exec.waitForLog(/67% \[2 \/ 3\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
-    invA.stdout('a stdout');
-    invA.stderr('a stderr');
+    invA.stdout('a stdout\n');
+    // immediately logged, because it's the root command
+    await exec.waitForLog(/a stdout/);
+    invA.stderr('a stderr\n');
+    await exec.waitForLog(/a stderr/);
     invA.exit(0);
 
     const res = await exec.exit;
@@ -252,8 +279,10 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
-    assert.match(res.stdout, /c stdout.*b stdout.*a stdout/s);
-    assert.match(res.stderr, /c stderr.*b stderr.*a stderr/s);
+    assert.match(res.stdout, 'a stdout\n');
+    assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
+    // we only see the output of the root command
+    checkScriptOutput(res.stderr, 'a stderr\n');
   })
 );
 
@@ -299,14 +328,18 @@ test(
       },
     });
     const exec = rig.exec('npm run a');
+    await exec.waitForLog(/0% \[0 \/ 4\] \[1 running\] d/);
 
     const invD = await cmdD.nextInvocation();
     invD.exit(0);
+    await exec.waitForLog(/25% \[1 \/ 4\] \[2 running\] (b|c)/);
 
     const invB = await cmdB.nextInvocation();
     const invC = await cmdC.nextInvocation();
     invB.exit(0);
+    await exec.waitForLog(/50% \[2 \/ 4\] \[1 running\] c/);
     invC.exit(0);
+    await exec.waitForLog(/75% \[3 \/ 4\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
     invA.exit(0);
@@ -317,6 +350,7 @@ test(
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
     assert.equal(cmdD.numInvocations, 1);
+    assert.match(res.stdout, /Ran 4 scripts and skipped 0/s);
   })
 );
 
@@ -349,9 +383,11 @@ test(
       },
     });
     const exec = rig.exec('npm run a', {cwd: 'foo'});
+    await exec.waitForLog(/0% \[0 \/ 2\] \[1 running\] \.\.\/bar:b/);
 
     const invB = await cmdB.nextInvocation();
     invB.exit(0);
+    await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
     invA.exit(0);
@@ -360,6 +396,7 @@ test(
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
+    assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
   })
 );
 
@@ -396,9 +433,11 @@ test(
       },
     });
     const exec = rig.exec('npm run a', {cwd: 'foo'});
+    await exec.waitForLog(/0% \[0 \/ 2\] \[1 running\] \.\.\/bar:b/);
 
     const invB = await cmdB.nextInvocation();
     invB.exit(0);
+    await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
     invA.exit(0);
@@ -407,6 +446,7 @@ test(
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
+    assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
   })
 );
 
@@ -447,12 +487,15 @@ test(
       },
     });
     const exec = rig.exec('npm run a', {cwd: 'foo'});
+    await exec.waitForLog(/0% \[0 \/ 3\] \[1 running\] c/);
 
     const invC = await cmdC.nextInvocation();
     invC.exit(0);
+    await exec.waitForLog(/33% \[1 \/ 3\] \[1 running\] \.\.\/bar:b/);
 
     const invB = await cmdB.nextInvocation();
     invB.exit(0);
+    await exec.waitForLog(/67% \[2 \/ 3\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
     invA.exit(0);
@@ -462,6 +505,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
+    assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
   })
 );
 
@@ -638,7 +682,9 @@ test(
     assert.equal(cmd.numInvocations, 0);
     assert.match(
       res.stderr,
-      IS_WINDOWS ? "'test-binary' is not recognized" : 'exit status 127'
+      IS_WINDOWS
+        ? "'test-binary' is not recognized"
+        : 'exited with exit code 127'
     );
   })
 );
@@ -753,10 +799,12 @@ test(
       },
     });
     const exec = rig.exec('yarn run a');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
     (await cmdA.nextInvocation()).exit(0);
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, /Ran 1 script and skipped 0/s);
   })
 );
 
@@ -777,10 +825,12 @@ test(
       },
     });
     const exec = rig.exec('pnpm run a');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
     (await cmdA.nextInvocation()).exit(0);
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, /Ran 1 script and skipped 0/s);
   })
 );
 
@@ -942,12 +992,17 @@ test(
     });
 
     const exec = rig.exec('npm run a', {cwd: 'foo'});
+    await exec.waitForLog(
+      /0% \[0 \/ 3\] \[2 running\] (\.\.\/bar:b|\.\.\/baz:c)/
+    );
 
     const invC = await cmdC.nextInvocation();
     invC.exit(0);
+    await exec.waitForLog(/33% \[1 \/ 3\] \[1 running\] \.\.\/bar:b/);
 
     const invB = await cmdB.nextInvocation();
     invB.exit(0);
+    await exec.waitForLog(/67% \[2 \/ 3\] \[1 running\] a/);
 
     const invA = await cmdA.nextInvocation();
     invA.exit(0);
@@ -957,6 +1012,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
+    assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
   })
 );
 
@@ -983,6 +1039,11 @@ test(
     await inv.closed;
     await wireit.exit;
     assert.equal(main.numInvocations, 1);
+    // on windows we just die without reporting anything when we get a SIGINT
+    if (!IS_WINDOWS) {
+      await wireit.waitForLog(/❌ \[main\] killed/);
+      await wireit.waitForLog(/❌ 1 script failed/);
+    }
   })
 );
 
@@ -1018,12 +1079,14 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
         ]);
         inv.exit(0);
         assert.equal((await wireit.exit).code, 0);
+        await wireit.waitForLog(/Ran 1 script and skipped 0/s); //
       }
 
       // Nothing changed, fresh.
       {
         const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
         assert.equal((await wireit.exit).code, 0);
+        await wireit.waitForLog(/Ran 0 scripts and skipped 1/s); //
       }
 
       // Changing the extra args should change the fingerprint so that we're
@@ -1038,6 +1101,7 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
         ]);
         inv.exit(0);
         assert.equal((await wireit.exit).code, 0);
+        await wireit.waitForLog(/Ran 1 script and skipped 0/s); //
       }
     })
   );
@@ -1090,36 +1154,45 @@ test(
       await rig.write('inputs/b', 'v1');
       await rig.write('inputs/c', 'v1');
       const wireit = rig.exec('npm run a');
+      await wireit.waitForLog(/0% \[0 \/ 3\] \[1 running\] c/);
       (await c.nextInvocation()).exit(0);
+      await wireit.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
       (await b.nextInvocation()).exit(0);
+      await wireit.waitForLog(/67% \[2 \/ 3\] \[1 running\] a/);
       (await a.nextInvocation()).exit(0);
       assert.equal((await wireit.exit).code, 0);
       assert.equal(a.numInvocations, 1);
       assert.equal(b.numInvocations, 1);
       assert.equal(c.numInvocations, 1);
+      await wireit.waitForLog(/Ran 3 scripts and skipped 0/);
     }
 
     // Changing input of B re-runs B but not A.
     {
       await rig.write('inputs/b', 'v2');
       const wireit = rig.exec('npm run a');
+      await wireit.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
       (await b.nextInvocation()).exit(0);
       assert.equal((await wireit.exit).code, 0);
       assert.equal(a.numInvocations, 1);
       assert.equal(b.numInvocations, 2);
       assert.equal(c.numInvocations, 1);
+      await wireit.waitForLog(/Ran 1 script and skipped 2/);
     }
 
     // Changing input of C re-runs B and C but not A.
     {
       await rig.write('inputs/c', 'v2');
       const wireit = rig.exec('npm run a');
+      await wireit.waitForLog(/0% \[0 \/ 3\] \[1 running\] c/);
       (await c.nextInvocation()).exit(0);
+      await wireit.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
       (await b.nextInvocation()).exit(0);
       assert.equal((await wireit.exit).code, 0);
       assert.equal(a.numInvocations, 1);
       assert.equal(b.numInvocations, 3);
       assert.equal(c.numInvocations, 2);
+      await wireit.waitForLog(/Ran 2 scripts and skipped 1/);
     }
 
     // Changing input of A re-runs A (just to be sure!).
@@ -1259,10 +1332,13 @@ test(
     });
 
     const wireit = rig.exec('npm run a');
+    await wireit.waitForLog(/0% \[0 \/ 2\] \[1 running\] b/);
     (await cmdB.nextInvocation()).exit(0);
+    await wireit.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
     (await cmdA.nextInvocation()).exit(0);
     const {code} = await wireit.exit;
     assert.equal(code, 0);
+    await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
   })
 );
 

@@ -12,6 +12,9 @@ import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
 import {unreachable} from './util/unreachable.js';
+import {Logger} from './logging/logger.js';
+import {QuietLogger} from './logging/quiet-logger.js';
+import {DefaultLogger} from './logging/default-logger.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
   // Recent versions of npm set this environment variable that tells us the
@@ -42,8 +45,6 @@ export const packageDir = await (async (): Promise<string | undefined> => {
   }
 })();
 
-export const logger = new MetricsLogger(packageDir ?? process.cwd());
-
 export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 
 export interface Options {
@@ -54,6 +55,7 @@ export interface Options {
   cache: 'local' | 'github' | 'none';
   failureMode: FailureMode;
   agent: Agent;
+  logger: Logger;
 }
 
 export const getOptions = (): Result<Options> => {
@@ -182,6 +184,38 @@ export const getOptions = (): Result<Options> => {
   }
 
   const agent = getNpmUserAgent();
+
+  const loggerResult = ((): Result<Logger> => {
+    const packageRoot = packageDir ?? process.cwd();
+    const str = process.env['WIREIT_LOGGER'];
+    if (!str) {
+      return {ok: true, value: new MetricsLogger(packageRoot)};
+    }
+    if (str === 'quiet') {
+      return {ok: true, value: new QuietLogger(packageRoot)};
+    }
+    if (str === 'simple') {
+      return {ok: true, value: new DefaultLogger(packageRoot)};
+    }
+    if (str === 'metrics') {
+      return {ok: true, value: new MetricsLogger(packageRoot)};
+    }
+    return {
+      ok: false,
+      error: {
+        reason: 'invalid-usage',
+        message:
+          `Expected the WIREIT_LOGGER env variable to be ` +
+          `"quiet", "simple", or "metrics", got ${JSON.stringify(str)}`,
+        script,
+        type: 'failure',
+      },
+    };
+  })();
+  if (!loggerResult.ok) {
+    return loggerResult;
+  }
+
   return {
     ok: true,
     value: {
@@ -190,6 +224,7 @@ export const getOptions = (): Result<Options> => {
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
       agent,
+      logger: loggerResult.value,
       ...getArgvOptions(script, agent),
     },
   };

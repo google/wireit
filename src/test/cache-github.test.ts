@@ -56,6 +56,7 @@ test.before.each(async (ctx) => {
     const actionsCacheUrl = await ctx.server.listen();
     ctx.rig = new WireitTestRig();
     ctx.rig.env = {
+      ...ctx.rig.env,
       WIREIT_CACHE: 'github',
       ACTIONS_CACHE_URL: actionsCacheUrl,
       ACTIONS_RUNTIME_TOKEN: authToken,

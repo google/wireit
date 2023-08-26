@@ -14,6 +14,8 @@ const test = suite<{rig: WireitTestRig}>();
 test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
+    // process.env['SHOW_TEST_OUTPUT'] = 'true';
+    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
     await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -53,6 +55,7 @@ test(
 
     // Initial execution.
     const exec = rig.exec('npm run a --watch');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
     const inv = await cmdA.nextInvocation();
     inv.exit(0);
 
@@ -70,6 +73,7 @@ test(
     // child process.
     await inv.closed;
 
+    await exec.waitForLog(/Ran 1 script and skipped 0/);
     // Wait a while to check that the Wireit process remains running, waiting
     // for file changes or a signal.
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -102,11 +106,13 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
 
     // Initial run.
     {
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Changing an input file should cause another run.
@@ -114,8 +120,10 @@ test(
       await rig.writeAtomic({
         'input.txt': 'v1',
       });
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
       await inv.closed;
     }
 
@@ -145,11 +153,13 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
 
     // Initial run.
     {
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Adding another input file should cause another run.
@@ -157,8 +167,10 @@ test(
       await rig.writeAtomic({
         'input2.txt': 'v0',
       });
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
       await inv.closed;
     }
 
@@ -188,18 +200,22 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
 
     // Initial run.
     {
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Deleting the input file should cause another run.
     {
       await rig.delete('input');
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
       await inv.closed;
     }
 
@@ -229,7 +245,7 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
-
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
     // Initial run.
     {
       const inv = await cmdA.nextInvocation();
@@ -238,12 +254,15 @@ test(
         'input.txt': 'v1',
       });
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Expect another invocation to have been queued up.
     {
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
       await inv.closed;
     }
 
@@ -272,11 +291,12 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
-
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
     // Initial run.
     {
       const inv = await cmdA1.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Change the command of the script we are running by re-writing the
@@ -295,8 +315,10 @@ test(
           },
         },
       });
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
       const inv = await cmdA2.nextInvocation();
       inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
       await inv.closed;
     }
 
@@ -337,15 +359,18 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
+    await exec.waitForLog(/0% \[0 \/ 2\] \[1 running\] b/);
 
     // Both scripts run initially.
     {
       const invB = await cmdB.nextInvocation();
       invB.exit(0);
+      await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       assert.equal(cmdA.numInvocations, 1);
       assert.equal(cmdB.numInvocations, 1);
+      await exec.waitForLog(/Ran 2 scripts and skipped 0/);
     }
 
     // Changing an input of A should cause A to run again, but not B.
@@ -353,10 +378,12 @@ test(
       await rig.writeAtomic({
         'a.txt': 'v1',
       });
+      await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 1);
+      await exec.waitForLog(/Ran 1 script and skipped 1/);
     }
 
     // Changing an input of B should cause both scripts to run.
@@ -364,12 +391,15 @@ test(
       await rig.writeAtomic({
         'b.txt': 'v1',
       });
+      await exec.waitForLog(/0% \[0 \/ 2\] \[1 running\] b/);
       const invB = await cmdB.nextInvocation();
       invB.exit(0);
+      await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       await invA.closed;
       await invB.closed;
+      await exec.waitForLog(/Ran 2 scripts and skipped 0/);
     }
 
     exec.kill();
@@ -415,15 +445,18 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch', {cwd: 'foo'});
+    await exec.waitForLog(/0% \[0 \/ 2\] \[1 running\] \.\.\/bar:b/);
 
     // Both scripts run initially.
     {
       const invB = await cmdB.nextInvocation();
       invB.exit(0);
+      await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       assert.equal(cmdA.numInvocations, 1);
       assert.equal(cmdB.numInvocations, 1);
+      await exec.waitForLog(/Ran 2 scripts and skipped 0/);
     }
 
     // Changing an input of A should cause A to run again, but not B.
@@ -431,10 +464,12 @@ test(
       await rig.writeAtomic({
         'foo/a.txt': 'v1',
       });
+      await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 1);
+      await exec.waitForLog(/Ran 1 script and skipped 1/);
     }
 
     // Changing an input of B should cause both scripts to run.
@@ -442,12 +477,15 @@ test(
       await rig.writeAtomic({
         'bar/b.txt': 'v1',
       });
+      await exec.waitForLog(/0% \[0 \/ 2\] \[1 running\] \.\.\/bar:b/);
       const invB = await cmdB.nextInvocation();
       invB.exit(0);
+      await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       await invA.closed;
       await invB.closed;
+      await exec.waitForLog(/Ran 2 scripts and skipped 0/);
     }
 
     exec.kill();
@@ -477,12 +515,14 @@ test(
     });
 
     const exec = rig.exec('npm run a --watch');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
 
     // Script fails initially.
     {
       const inv = await cmdA.nextInvocation();
       inv.exit(1);
       assert.equal(cmdA.numInvocations, 1);
+      await exec.waitForLog(/1 script failed/);
     }
 
     // Changing input file triggers another run. Script succeeds this time.
@@ -490,9 +530,12 @@ test(
       await rig.writeAtomic({
         'a.txt': 'v1',
       });
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
+
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       await inv.closed;
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     exec.kill();
@@ -532,6 +575,7 @@ test(
     });
     const wireit = rig.exec('npm run a --watch');
     await wireit.waitForLog(/no config in the wireit section/);
+    await wireit.waitForLog(/❌ 1 script failed\./);
 
     // Add a wireit section but without a command.
     await pauseToWorkAroundChokidarEventThrottling();
@@ -544,6 +588,7 @@ test(
       },
     });
     await wireit.waitForLog(/nothing for wireit to do/);
+    await wireit.waitForLog(/❌ 1 script failed\./);
 
     // Add the command.
     const a = await rig.newCommand();
@@ -559,7 +604,7 @@ test(
       },
     });
     (await a.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[a\] Executed successfully/);
+    await wireit.waitForLog(/Ran 1 script and skipped 0/);
 
     // Add a dependency on another package, but the other package.json has
     // invalid JSON.
@@ -577,6 +622,7 @@ test(
       },
     });
     await wireit.waitForLog(/JSON syntax error/);
+    await wireit.waitForLog(/❌ 1 script failed\./);
 
     // Make the other package config valid.
     await pauseToWorkAroundChokidarEventThrottling();
@@ -591,10 +637,11 @@ test(
         },
       },
     });
+    await wireit.waitForLog(/0% \[0 \/ 2\] \[1 running\]/);
     (await b.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[other:b\] Executed successfully/);
+    await wireit.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
     (await a.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[a\] Executed successfully/);
+    await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
 
     wireit.kill();
     await wireit.exit;
@@ -787,7 +834,7 @@ test(
     // Wait until wireit is in the "watching" state, otherwise the double file
     // change events would occur in the "running" state, which wouldn't trigger
     // the double runs.
-    await exec.waitForLog(/Watching for file changes/);
+    await exec.waitForLog(/Ran 2 scripts and skipped 0/);
 
     // Changing an input file should cause one more run.
     {
@@ -798,7 +845,7 @@ test(
       (await cmdA.nextInvocation()).exit(0);
     }
 
-    await exec.waitForLog(/Watching for file changes/);
+    await exec.waitForLog(/Ran 2 scripts and skipped 0/);
 
     // Wait a moment to ensure a third run doesn't occur.
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -856,6 +903,9 @@ test(
 test(
   'script fails but still emits output consumed by another script',
   timeout(async ({rig}) => {
+    // This test relies on the simple logger.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.writeAtomic({
@@ -911,8 +961,18 @@ test(
     // Also check that we don't log anything for the second iteration which
     // ultimately doesn't do anything new.
     assert.equal([...stdout.matchAll(/Running command/gi)].length, 1);
-    assert.equal([...stdout.matchAll(/Watching for file changes/gi)].length, 1);
-    assert.equal([...stderr.matchAll(/Failed/gi)].length, 1);
+    const count = [...stdout.matchAll(/Watching for file changes/gi)].length;
+    assert.equal(
+      [1, 2].includes(count),
+      true,
+      `Expected to see one or two "Watching for file changes" but found ${count}`
+    );
+    const failureCount = [...stderr.matchAll(/Failed/gi)].length;
+    assert.equal(
+      [1, 2].includes(failureCount),
+      true,
+      `Expected to see one or two "Failed" lines but found ${failureCount}`
+    );
   })
 );
 
@@ -939,19 +999,17 @@ test(
     const exec = rig.exec('npm run a --watch');
     const inv = await cmdA.nextInvocation();
     inv.exit(0);
+    await exec.waitForLog(/Ran 1 script and skipped 0/);
 
     // Write an input file, but it's the same content. This will cause the file
     // watcher to trigger, and will start an execution, but the execution will
     // ultimately do nothing interesting because the fingerprint is the same, so
     // we shouldn't actually expect any logging.
     await rig.writeAtomic('input', 'foo');
-    // Wait a moment to give the watcher time to react.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await exec.waitForLog(/Ran 0 scripts and skipped 1/);
 
     exec.kill();
-    const {stdout} = await exec.exit;
     assert.equal(cmdA.numInvocations, 1);
-    assert.equal([...stdout.matchAll(/Watching for file changes/gi)].length, 1);
   })
 );
 

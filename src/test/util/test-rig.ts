@@ -32,7 +32,11 @@ export class WireitTestRig extends FilesystemTestRig {
   /**
    * Environment variables to set on spawned child processes.
    */
-  env: Record<string, string | undefined> = {};
+  env: Record<string, string | undefined> = {
+    // We expect the quiet logger to be the default soon, so we want to use
+    // it by default in tests.
+    WIREIT_LOGGER: 'quiet',
+  };
 
   /**
    * Initialize the temporary filesystem, and set up the wireit binary to be
