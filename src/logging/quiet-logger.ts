@@ -177,10 +177,26 @@ class StackMap<K, V> extends Map<K, V> {
  * one per iteration.
  */
 class RunTracker {
+  /**
+   * Currently running scripts, or failed scripts that we're about to
+   * report on. A script is added to this when it starts, and removed
+   * only when it successfully exits.
+   */
   private readonly _running = new StackMap<string, ScriptState>();
+  /** The number of commands we've started. */
   private _ran = 0;
-  private _cached = 0;
-  private _scriptCount = 0;
+  /**
+   * The number of scripts with commands that were either fresh or whose output
+   * we restored.
+   */
+  private _skipped = 0;
+  /**
+   * The total number of commands we expect to execute as part of this run.
+   */
+  private _scriptCount = -1;
+  /**
+   * Any failure event that we've encountered.
+   */
   private readonly _failures: Array<Failure> = [];
   private _state: 'initial' | 'analyzing' | 'running' | 'analysis failed' =
     'initial';
@@ -194,9 +210,10 @@ class RunTracker {
   }
 
   makeInstanceForNewRun(): RunTracker {
+    // Reuse the default logger, a minor savings.
     const instance = new RunTracker(this._rootPackage, this._defaultLogger);
-    // This will get overridden if we do another analysis, but if we skip it
-    // we need to know how many scripts we expect to run.
+    // More importantly, this will get overridden if we do another analysis,
+    // but if we skip it we need to know how many scripts we expect to run.
     instance._scriptCount = this._scriptCount;
     return instance;
   }
@@ -232,6 +249,9 @@ class RunTracker {
     }
   }
 
+  /**
+   * Should be called once, at the end of a run.
+   */
   printSummary() {
     if (this._failures.length > 0 || this._running.size > 0) {
       this._printFailureSummary();
@@ -328,7 +348,7 @@ class RunTracker {
     const elapsed = Math.round((Date.now() - this._startTime) / 100) / 10;
 
     console.log(
-      `✅ Ran ${this._ran.toLocaleString()} scripts and skipped ${this._cached.toLocaleString()} in ${elapsed.toLocaleString()}s.`
+      `✅ Ran ${this._ran.toLocaleString()} scripts and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`
     );
   }
 
@@ -367,7 +387,7 @@ class RunTracker {
             peekResult.scriptReference
           );
         }
-        const done = this._ran + this._cached;
+        const done = this._ran + this._skipped;
         const percentDone =
           String(Math.round((done / this._scriptCount) * 100)).padStart(
             3,
@@ -465,11 +485,11 @@ class RunTracker {
     }
     switch (event.reason) {
       case 'cached': {
-        this._cached++;
+        this._skipped++;
         return this._getStatusLine();
       }
       case 'fresh': {
-        this._cached++;
+        this._skipped++;
         return this._getStatusLine();
       }
       case 'exit-zero': {
