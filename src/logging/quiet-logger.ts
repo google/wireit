@@ -202,6 +202,7 @@ class StackMap<K, V> extends Map<K, V> {
  * info.
  */
 interface AnalysisInfo {
+  rootScript: string;
   services: number;
   scriptsWithCommands: number;
 }
@@ -610,7 +611,8 @@ class RunTracker {
     switch (event.stream) {
       case 'stdout':
       case 'stderr': {
-        const state = this._running.get(this._getKey(event.script));
+        const key = this._getKey(event.script);
+        const state = this._running.get(key);
         if (!state) {
           throw new Error(
             `Internal error: Got output event for unknown script. Events delivered out of order?
@@ -620,10 +622,14 @@ class RunTracker {
             )}`
           );
         }
-        if (state.service) {
+        // Immediately pass along output from the script we're trying to run.
+        if (state.service || key === this._analysisInfo?.rootScript) {
           using _pause = this._writeoverLine.clearUntilDisposed();
           process.stderr.write(event.data);
-        } else {
+        }
+        if (!state.service) {
+          // Also buffer all non-service output, so that we can print it
+          // (possibly a second time) in case of failure.
           state.output.push(event.data);
         }
         return;
@@ -635,11 +641,11 @@ class RunTracker {
     }
   }
 
-  private _countScriptsWithCommands(scriptConfig: ScriptConfig): AnalysisInfo {
+  private _countScriptsWithCommands(rootScript: ScriptConfig): AnalysisInfo {
     let scriptsWithCommands = 0;
     let services = 0;
-    const seen = new Set([this._getKey(scriptConfig)]);
-    const toVisit = [scriptConfig];
+    const seen = new Set([this._getKey(rootScript)]);
+    const toVisit = [rootScript];
     while (toVisit.length > 0) {
       const script = toVisit.pop()!;
       if (script.service) {
@@ -658,6 +664,6 @@ class RunTracker {
         toVisit.push(dependency.config);
       }
     }
-    return { services, scriptsWithCommands };
+    return { rootScript: this._getKey(rootScript), services, scriptsWithCommands };
   }
 }
