@@ -12,6 +12,7 @@ import type {Logger} from './logger.js';
 import type {PackageReference, ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
+import { WatchLogger } from './watch-logger.js';
 
 const getWireitVersion = (() => {
   let version: string | undefined;
@@ -287,6 +288,10 @@ export class DefaultLogger implements Logger {
 
   printMetrics(): void {
     // printMetrics() not used in default-logger.
+  }
+
+  getWatchLogger(): Logger {
+    return new WatchLogger(this);
   }
 }
 

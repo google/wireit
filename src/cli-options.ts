@@ -185,6 +185,8 @@ export const getOptions = (): Result<Options> => {
 
   const agent = getNpmUserAgent();
 
+  const argvOptions = getArgvOptions(script, agent);
+
   const loggerResult = ((): Result<Logger> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
@@ -225,7 +227,7 @@ export const getOptions = (): Result<Options> => {
       failureMode: failureModeResult.value,
       agent,
       logger: loggerResult.value,
-      ...getArgvOptions(script, agent),
+      ...argvOptions,
     },
   };
 };
