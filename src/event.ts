@@ -31,7 +31,7 @@ interface EventBase<T extends PackageReference = ScriptReference> {
 // Success events
 // -------------------------------
 
-type Success = ExitZero | NoCommand | Fresh | Cached;
+export type Success = ExitZero | NoCommand | Fresh | Cached;
 
 interface SuccessBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -313,7 +313,7 @@ export interface UnknownErrorThrown extends ErrorBase {
 // Output events
 // -------------------------------
 
-type Output = Stdout | Stderr;
+export type Output = Stdout | Stderr;
 
 interface OutputBase extends EventBase<ScriptConfig> {
   type: 'output';
@@ -338,7 +338,7 @@ export interface Stderr extends OutputBase {
 // Informational events
 // -------------------------------
 
-type Info =
+export type Info =
   | ScriptRunning
   | ScriptLocked
   | OutputModified
