@@ -12,6 +12,9 @@ import {Logger} from './logger.js';
 
 const DEBUG = false;
 
+// Quick Symbol.dispose polyfill.
+(Symbol as any).dispose = Symbol.dispose ?? Symbol('dispose');
+
 /**
  * A {@link Logger} that prints less to the console.
  *
@@ -27,7 +30,7 @@ export class QuietLogger implements Logger {
 
   constructor(rootPackage: string) {
     this._rootPackage = rootPackage;
-    this.runTracker = new RunTracker(this._rootPackage);
+    this.runTracker = new RunTracker(this._rootPackage, this._writeoverLine);
   }
 
   printMetrics() {
@@ -60,8 +63,10 @@ export class QuietLogger implements Logger {
 class ScriptState {
   readonly output: Array<string | Buffer> = [];
   readonly scriptReference: ScriptReference;
-  constructor(scriptReference: ScriptReference) {
+  readonly service: boolean;
+  constructor(scriptReference: ScriptReference, service: boolean) {
     this.scriptReference = scriptReference;
+    this.service = service;
   }
 }
 
@@ -92,6 +97,7 @@ class WriteoverLine {
       clearInterval(this._spinnerInterval);
       this._spinnerInterval = undefined;
     }
+    this._line = '';
     this._writeLineAndScrubPrevious('');
   }
 
@@ -116,6 +122,16 @@ class WriteoverLine {
     this._spinnerInterval = setInterval(() => {
       this._writeLatestLineWithSpinner();
     }, 1000 / 60);
+  }
+
+  clearUntilDisposed(): Disposable {
+    const line = this._line;
+    this.clearAndStopSpinner();
+    return {
+      [Symbol.dispose]: () => {
+        this.writeLine(line);
+      }
+    };
   }
 
   private _writeLatestLineWithSpinner() {
@@ -171,6 +187,15 @@ class StackMap<K, V> extends Map<K, V> {
 }
 
 /**
+ * The info we expect to get from an analysis in order to report progress
+ * info.
+ */
+interface AnalysisInfo {
+  services: number;
+  scriptsWithCommands: number;
+}
+
+/**
  * Tracks the state of a run, and produces a single line of status text.
  *
  * A QuietLogger usually just has one of these, but in --watch mode we use
@@ -190,10 +215,8 @@ class RunTracker {
    * we restored.
    */
   private _skipped = 0;
-  /**
-   * The total number of commands we expect to execute as part of this run.
-   */
-  private _scriptCount = -1;
+  private _servicesRunning = 0;
+  private _analysisInfo: AnalysisInfo | undefined = undefined;
   /**
    * Any failure event that we've encountered.
    */
@@ -203,18 +226,34 @@ class RunTracker {
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
   private readonly _defaultLogger: Logger;
+  private readonly _writeoverLine;
 
-  constructor(rootPackage: string, defaultLogger?: Logger) {
+  constructor(
+    rootPackage: string,
+    _writeoverLine: WriteoverLine,
+    defaultLogger?: Logger
+  ) {
     this._rootPackage = rootPackage;
+    this._writeoverLine = _writeoverLine;
     this._defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
   }
 
   makeInstanceForNewRun(): RunTracker {
     // Reuse the default logger, a minor savings.
-    const instance = new RunTracker(this._rootPackage, this._defaultLogger);
+    const instance = new RunTracker(
+      this._rootPackage,
+      this._writeoverLine,
+      this._defaultLogger
+    );
     // More importantly, this will get overridden if we do another analysis,
     // but if we skip it we need to know how many scripts we expect to run.
-    instance._scriptCount = this._scriptCount;
+    instance._analysisInfo = this._analysisInfo;
+    for (const [key, state] of this._running) {
+      if (state.service) {
+        instance._servicesRunning++;
+        instance._running.set(key, state);
+      }
+    }
     return instance;
   }
 
@@ -253,7 +292,14 @@ class RunTracker {
    * Should be called once, at the end of a run.
    */
   printSummary() {
-    if (this._failures.length > 0 || this._running.size > 0) {
+    let scriptsStillRunning = false;
+    for (const state of this._running.values()) {
+      if (state.service) {
+        continue;
+      }
+      scriptsStillRunning = true;
+    }
+    if (this._failures.length > 0 || scriptsStillRunning) {
       this._printFailureSummary();
       return;
     }
@@ -334,7 +380,7 @@ class RunTracker {
     }
     for (const [_, state] of this._running) {
       const key = labelForScript(this._rootPackage, state.scriptReference);
-      if (reported.has(key)) {
+      if (reported.has(key) || state.service) {
         continue;
       }
       const label = labelForScript(this._rootPackage, state.scriptReference);
@@ -379,6 +425,9 @@ class RunTracker {
         return 'Analyzing';
       }
       case 'running': {
+        if (this._analysisInfo === undefined) {
+          return `??? Internal error: Analysis info missing ???`;
+        }
         const peekResult = this._running.peek()?.[1];
         let mostRecentScript = '';
         if (peekResult !== undefined) {
@@ -387,16 +436,27 @@ class RunTracker {
             peekResult.scriptReference
           );
         }
-        const done = this._ran + this._skipped;
+        const done = this._ran + this._skipped + this._servicesRunning;
+        const total = this._analysisInfo.scriptsWithCommands + this._analysisInfo.services;
+        if (done === total) {
+          // We're apparently done, so don't show a status line or a spinner.
+          // We can stay in this state for a while and get more events if
+          // we have services running.
+          return null;
+        }
         const percentDone =
-          String(Math.round((done / this._scriptCount) * 100)).padStart(
+          String(Math.round((done / total) * 100)).padStart(
             3,
             ' '
           ) + '%';
 
-        return `${percentDone} [${done.toLocaleString()} / ${this._scriptCount.toLocaleString()}] [${
+        let servicesInfo = '';
+        if (this._analysisInfo.services > 0) {
+          servicesInfo = ` [${this._servicesRunning.toLocaleString()} / ${this._analysisInfo.services.toLocaleString()} services]`;
+        }
+        return `${percentDone} [${done.toLocaleString()} / ${total}] [${
           this._running.size
-        } running] ${mostRecentScript}`;
+        } running]${servicesInfo} ${mostRecentScript}`;
       }
       case 'analysis failed': {
         return null;
@@ -417,13 +477,20 @@ class RunTracker {
       case 'running': {
         this._running.set(
           this._getKey(event.script),
-          new ScriptState(event.script)
+          new ScriptState(event.script, false)
         );
         return this._getStatusLine();
       }
       case 'service-started':
+        // Services don't end, so we count this as having finished.
+        this._servicesRunning++;
+        this._running.set(
+          this._getKey(event.script),
+          new ScriptState(event.script, true)
+        );
+        return this._getStatusLine();
       case 'service-stopped':
-        throw new Error(`Quiet logger does not support services.`);
+        break;
       case 'watch-run-start':
         // We might be in either running or analyzing state at this point,
         // it's impossible to know at this point, because it depends on
@@ -461,7 +528,7 @@ class RunTracker {
           return;
         } else {
           this._state = 'running';
-          this._scriptCount = this._countScriptsWithCommands(
+          this._analysisInfo = this._countScriptsWithCommands(
             event.analyzeResult.config.value
           );
         }
@@ -542,7 +609,12 @@ class RunTracker {
             )}`
           );
         }
-        state.output.push(event.data);
+        if (state.service) {
+          using _pause = this._writeoverLine.clearUntilDisposed();
+          process.stderr.write(event.data);
+        } else {
+          state.output.push(event.data);
+        }
         return;
       }
       default: {
@@ -552,16 +624,19 @@ class RunTracker {
     }
   }
 
-  private _countScriptsWithCommands(scriptConfig: ScriptConfig) {
-    let count = 0;
+  private _countScriptsWithCommands(scriptConfig: ScriptConfig): AnalysisInfo {
+    let scriptsWithCommands = 0;
+    let services = 0;
     const seen = new Set([this._getKey(scriptConfig)]);
     const toVisit = [scriptConfig];
     while (toVisit.length > 0) {
       const script = toVisit.pop()!;
-      if (script.command !== undefined) {
+      if (script.service) {
+        services++;
+      } else if (script.command !== undefined) {
         // We only want to count scripts that actually run, rather than
         // just holding dependencies.
-        count++;
+        scriptsWithCommands++;
       }
       for (const dependency of script.dependencies.values()) {
         const key = this._getKey(dependency.config);
@@ -572,6 +647,6 @@ class RunTracker {
         toVisit.push(dependency.config);
       }
     }
-    return count;
+    return { services, scriptsWithCommands };
   }
 }
