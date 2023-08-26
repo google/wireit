@@ -302,6 +302,10 @@ export class DefaultLogger implements Logger {
             console.log(`⬇️${prefix} Service stopped`);
             break;
           }
+          case 'analysis-started':
+          case 'analysis-completed': {
+            break;
+          }
         }
       }
     }

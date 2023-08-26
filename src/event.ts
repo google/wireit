@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {UnvalidatedConfig} from './analyzer.js';
+import {AnalyzeResult, UnvalidatedConfig} from './analyzer.js';
 import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
@@ -346,6 +346,8 @@ type Info =
   | WatchRunEnd
   | ServiceStarted
   | ServiceStopped
+  | AnalysisStarted
+  | AnalysisCompleted
   | GenericInfo;
 
 interface InfoBase<T extends PackageReference = ScriptReference>
@@ -376,6 +378,25 @@ export interface ScriptLocked extends InfoBase {
 export interface OutputModified extends InfoBase {
   detail: 'output-modified';
 }
+
+/**
+ * The analysis phase for an execution has begun, where we load package.json
+ * files, analyze their wireit configs, and build the dependency graph.
+ */
+export interface AnalysisStarted extends InfoBase {
+  detail: 'analysis-started';
+}
+
+/**
+ * The analysis phase for an execution has begun, where we load package.json
+ * files, analyze their wireit configs, and build the dependency graph.
+ */
+export interface AnalysisCompleted extends InfoBase {
+  detail: 'analysis-completed';
+  analyzeResult: AnalyzeResult
+}
+
+
 
 /**
  * A watch mode iteration started.

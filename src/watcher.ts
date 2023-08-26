@@ -223,7 +223,7 @@ export class Watcher {
       throw unexpectedState(this._state);
     }
 
-    const analyzer = new Analyzer(this._agent);
+    const analyzer = new Analyzer(this._agent, this._logger);
     const result = await analyzer.analyze(this._rootScript, this._extraArgs);
     if ((this._state as WatcherState) === 'aborted') {
       return;
