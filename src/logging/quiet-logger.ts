@@ -81,6 +81,8 @@ class Spinner {
   }
 }
 
+const noopDisposable: Disposable = { [Symbol.dispose]() { } };
+
 /**
  * Handles displaying a single line of status text, overwriting the previously
  * written line, and displaying a spinner to indicate liveness.
@@ -116,15 +118,24 @@ class WriteoverLine {
       // will render on next frame
       return;
     }
-    // render now
+    // render now, and then schedule future renders.
     this._writeLatestLineWithSpinner();
+    // a smooth sixty
+    let targetFps = 60;
+    // Don't flood the CI log system with spinner frames.
+    if (process.env.CI) {
+      targetFps = 1 / 5;
+    }
     // schedule future renders so the spinner stays going
     this._spinnerInterval = setInterval(() => {
       this._writeLatestLineWithSpinner();
-    }, 1000 / 60);
+    }, 1000 / targetFps);
   }
 
   clearUntilDisposed(): Disposable {
+    if (this._spinnerInterval === undefined) {
+      return noopDisposable;
+    }
     const line = this._line;
     this.clearAndStopSpinner();
     return {
