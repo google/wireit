@@ -19,7 +19,7 @@ export function checkScriptOutput(
   expected: string,
   message?: string
 ) {
-  actual = removeOverwrittenLines(removeAnsiColors(actual.trim()));
+  actual = removeOverwrittenLines(removeAnsiColors(actual)).trim();
   expected = expected.trim();
   if (actual !== expected) {
     for (let i = 0; i < actual.length; i++) {
@@ -54,7 +54,7 @@ function removeOverwrittenLines(output: string) {
     for (const split of splits) {
       // This split overrides the content up to its length, and then
       // any additional content from the previous line is retained.
-      content = split + content.slice(split.length);
+      content = split + content.slice(split.length).trimEnd();
     }
     result.push(content);
   }

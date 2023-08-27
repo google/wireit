@@ -81,8 +81,6 @@ class Spinner {
   }
 }
 
-const noopDisposable: Disposable = { [Symbol.dispose]() { } };
-
 /**
  * Handles displaying a single line of status text, overwriting the previously
  * written line, and displaying a spinner to indicate liveness.
@@ -134,9 +132,10 @@ class WriteoverLine {
     }, 1000 / targetFps);
   }
 
-  clearUntilDisposed(): Disposable {
+  clearUntilDisposed(): Disposable | undefined {
+    // already cleared, nothing to do
     if (this._spinnerInterval === undefined) {
-      return noopDisposable;
+      return undefined;
     }
     const line = this._line;
     this.clearAndStopSpinner();
@@ -350,9 +349,9 @@ class RunTracker {
     }
     if (this._failed > 0) {
       const s = this._failed === 1 ? '' : 's';
-      process.stderr.write(`\n❌ ${this._failed.toLocaleString()} script${s} failed.\n`);
+      process.stderr.write(`❌ ${this._failed.toLocaleString()} script${s} failed.\n`);
     } else {
-      process.stderr.write(`\n❌ Failed.\n`);
+      process.stderr.write(`❌ Failed.\n`);
     }
   }
 
@@ -503,7 +502,7 @@ class RunTracker {
         if (!event.analyzeResult.config.ok) {
           // will report the error in printSummary
           this._state = 'analysis failed';
-          return;
+          return this._getStatusLine();
         } else {
           this._state = 'running';
           this._analysisInfo = this._countScriptsWithCommands(
@@ -576,23 +575,26 @@ class RunTracker {
     this._scriptsWithAlreadyReportedErrors.add(key);
     const label = labelForScript(this._rootPackage, failure.script);
     switch (failure.reason) {
-      case 'exit-non-zero': {
-        process.stderr.write(
-          `\n❌ ${label} exited with exit code ${failure.status}. Output:\n\n`
-        );
-        this._reportOutputForFailingScript(failure.script, failure);
-        break;
-      }
-      case 'signal': {
-        process.stderr.write(
-          `\n❌ ${label} was killed by signal ${failure.signal}. Output:\n`
-        );
-        this._reportOutputForFailingScript(failure.script, failure);
-        break;
-      }
+      case 'exit-non-zero':
+      case 'signal':
       case 'killed': {
-        process.stderr.write(`\n❌ ${label} killed.`);
-        this._reportOutputForFailingScript(failure.script, failure);
+        let message;
+        if (failure.reason === 'exit-non-zero') {
+          message = `exited with exit code ${failure.status}`;
+        } else if (failure.reason === 'signal') {
+          message = `was killed by signal ${failure.signal}`;
+        } else {
+          message = `killed`;
+        }
+        const scriptHadOutput = this._scriptHadOutput(failure.script);
+        const trailer = scriptHadOutput ? ' Output:\n' : '';
+        process.stderr.write(
+          `\n❌ ${label} ${message}.${trailer}\n`
+        );
+        this._failed++;
+        if (scriptHadOutput) {
+          this._reportOutputForFailingScript(failure.script, failure);
+        }
         break;
       }
       case 'start-cancelled':
@@ -634,6 +636,19 @@ class RunTracker {
     }
   }
 
+  private _scriptHadOutput(script: ScriptReference): boolean {
+    const state = this._running.get(this._getKey(script));
+    if (!state) {
+      throw new Error(
+        `Internal error: could not find state for failing script. Events delivered out of order?
+        Script with output: ${this._getKey(script)}
+        ${this._running.size.toLocaleString()} known running scripts: ${inspect(
+          [...this._running.keys()]
+        )}`
+      );
+    }
+    return state.output.some((output) => output.length > 0);
+  }
   private _handleOutput(event: Output): string | null | undefined {
     if (DEBUG) {
       console.log(

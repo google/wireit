@@ -1696,11 +1696,6 @@ test(`we don't produce a duplicate not found error when there's multiple deps in
       'child/package.json'
     )}"
             "./child:error1",
-             ~~~~~~~
-❌ package.json:9:10 package.json file missing: "${rig.resolve(
-      'child/package.json'
-    )}"
-            "./child:error2"
              ~~~~~~~`
   );
 });
@@ -1736,11 +1731,6 @@ test(`we don't produce a duplicate error when there's multiple deps into the sam
       'child'
     )}"
             "./child:error1",
-                     ~~~~~~
-❌ package.json:9:18 Cannot find script named "error2" in package "${rig.resolve(
-      'child'
-    )}"
-            "./child:error2"
                      ~~~~~~`
   );
 });
@@ -1782,7 +1772,8 @@ test(`we don't produce a duplicate error when there's multiple deps on a script 
   checkScriptOutput(
     done.stderr,
     `
-❌ [errors] Failed with exit status 1`
+❌ errors exited with exit code 1.
+❌ 1 script failed.`
   );
 });
 
