@@ -234,6 +234,7 @@ class RunTracker {
    * The number of scripts that finished with errors.
    */
   private _failed = 0;
+  private _encounteredFailures = false;
   private _servicesRunning = 0;
   private _analysisInfo: AnalysisInfo | undefined = undefined;
   private _state: 'initial' | 'analyzing' | 'running' | 'analysis failed' =
@@ -330,7 +331,7 @@ class RunTracker {
       }
       scriptsStillRunning = true;
     }
-    if (this._failed > 0 || scriptsStillRunning) {
+    if (this._encounteredFailures || scriptsStillRunning) {
       this._printFailureSummary();
       return;
     }
@@ -561,6 +562,7 @@ class RunTracker {
         )}`
       );
     }
+    this._encounteredFailures = true;
     {
       using _pause = this._writeoverLine.clearUntilDisposed();
       this._reportFailure(event);
