@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [],
+      "service": true
+    }
+  }
+}

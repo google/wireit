@@ -82,6 +82,9 @@ test(
 test(
   'runs one script that succeeds',
   timeout(async ({rig}) => {
+    // This test asserts about stdout and stderr being passed through,
+    // so use the simple logger.
+    rig.env['WIREIT_LOGGER'] = 'simple';
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -113,6 +116,9 @@ test(
 test(
   'runs one script that succeeds from a package sub-directory',
   timeout(async ({rig}) => {
+    // This test asserts about stdout and stderr being passed through,
+    // so use the simple logger.
+    rig.env['WIREIT_LOGGER'] = 'simple';
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -150,6 +156,9 @@ test(
 test(
   'dependency chain in one package that succeeds',
   timeout(async ({rig}) => {
+    // This test asserts about stdout and stderr being passed through,
+    // so use the simple logger.
+    rig.env['WIREIT_LOGGER'] = 'simple';
     // a --> b --> c
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
@@ -206,6 +215,9 @@ test(
 test(
   'dependency chain with vanilla npm script at the end',
   timeout(async ({rig}) => {
+    // This test asserts about stdout and stderr being passed through,
+    // so use the simple logger.
+    rig.env['WIREIT_LOGGER'] = 'simple';
     // a --> b --> c
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
@@ -638,7 +650,9 @@ test(
     assert.equal(cmd.numInvocations, 0);
     assert.match(
       res.stderr,
-      IS_WINDOWS ? "'test-binary' is not recognized" : 'exit status 127'
+      IS_WINDOWS
+        ? "'test-binary' is not recognized"
+        : 'exited with exit code 127'
     );
   })
 );
