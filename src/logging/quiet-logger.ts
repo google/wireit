@@ -99,11 +99,14 @@ class WriteoverLine {
       clearInterval(this._spinnerInterval);
       this._spinnerInterval = undefined;
     }
-    this._line = '';
-    this._writeLineAndScrubPrevious('');
+    if (this._line !== '') {
+      this._line = '';
+      this._writeLineAndScrubPrevious('');
+    }
   }
 
   writeLine(line: string) {
+    this._line = line;
     if (line === '') {
       // Writeover the previous line and cancel the spinner interval.
       if (this._spinnerInterval !== undefined) {
@@ -113,7 +116,6 @@ class WriteoverLine {
       this._writeLineAndScrubPrevious('');
       return;
     }
-    this._line = line;
     if (this._spinnerInterval !== undefined) {
       // will render on next frame
       return;
@@ -240,6 +242,11 @@ class RunTracker {
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
   private readonly _defaultLogger: Logger;
+  /**
+   * True once the root script of this run (i.e. the script "foo" that the
+   * user invoked with "npm run foo") has emitted output to stdout/stderr
+   */
+  private _rootScriptHasOutput = false;
   private readonly _writeoverLine;
   /**
    * Sometimes a script will fail multiple times, but we only want to report
@@ -395,10 +402,10 @@ class RunTracker {
             peekResult.scriptReference
           );
         }
-        if (this._running.size === 1 && peekResult !== undefined && this._analysisInfo.rootScript === this._getKey(peekResult.scriptReference)) {
-          // Ok, we're running the root script and nothing else. In that
-          // case we don't need to show a status line, because we're just
-          // outputing its output directly.
+        if (this._running.size === 1 && peekResult !== undefined && this._analysisInfo.rootScript === this._getKey(peekResult.scriptReference) && this._rootScriptHasOutput) {
+          // Ok, we're running the root script and nothing else, and the
+          // root script isn't silent. In that case we just want to
+          // defer all output to it rather than showing a status line.
           return null;
         }
         const done = this._ran + this._skipped + this._servicesRunning;
@@ -625,7 +632,7 @@ class RunTracker {
     }
   }
 
-  private _handleOutput(event: Output): string | undefined {
+  private _handleOutput(event: Output): string | null | undefined {
     if (DEBUG) {
       console.log(
         `output: ${event.stream} ${labelForScript(
@@ -650,8 +657,10 @@ class RunTracker {
         }
         // Immediately pass along output from the script we're trying to run.
         if (state.service || key === this._analysisInfo?.rootScript) {
+          this._rootScriptHasOutput = true;
           using _pause = this._writeoverLine.clearUntilDisposed();
           process.stderr.write(event.data);
+          return this._getStatusLine();
         }
         if (!state.service) {
           // Also buffer all non-service output, so that we can print it
