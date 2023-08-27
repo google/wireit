@@ -350,7 +350,7 @@ class RunTracker {
     }
     if (this._failed > 0) {
       const s = this._failed === 1 ? '' : 's';
-      process.stderr.write(`❌ ${this._failed.toLocaleString()} script${s} failed.\n`);
+      process.stderr.write(`❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`);
     } else {
       process.stderr.write(`❌ Failed.\n`);
     }

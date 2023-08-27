@@ -58,8 +58,6 @@ export interface Options {
   logger: Logger;
 }
 
-export const defaultLoggerClass = QuietLogger;
-
 export const getOptions = (): Result<Options> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
@@ -193,7 +191,7 @@ export const getOptions = (): Result<Options> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
-      return {ok: true, value: new defaultLoggerClass(packageRoot)};
+      return {ok: true, value: new MetricsLogger(packageRoot)};
     }
     if (str === 'quiet') {
       return {ok: true, value: new QuietLogger(packageRoot)};

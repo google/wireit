@@ -9,7 +9,7 @@ import * as assert from 'uvu/assert';
 import {suite} from 'uvu';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
-import {Options, defaultLoggerClass} from '../cli-options.js';
+import {Options} from '../cli-options.js';
 import {Result} from '../error.js';
 
 const test = suite<{rig: WireitTestRig}>();
@@ -82,7 +82,7 @@ async function assertOptions(
       cache: 'local',
       numWorkers: 10,
       failureMode: 'no-new',
-      logger: defaultLoggerClass.name,
+      logger: 'QuietLogger',
       ...expected,
     },
   });
