@@ -349,7 +349,8 @@ class RunTracker {
       this._reportOutputForFailingScript(state.scriptReference);
     }
     if (this._failed > 0) {
-      process.stderr.write(`\n❌ ${this._failed.toLocaleString()} scripts failed.`);
+      const s = this._failed === 1 ? '' : 's';
+      process.stderr.write(`\n❌ ${this._failed.toLocaleString()} script${s} failed.\n`);
     } else {
       process.stderr.write(`\n❌ Failed.\n`);
     }
@@ -358,8 +359,9 @@ class RunTracker {
   private _printSuccessSummary() {
     const elapsed = Math.round((Date.now() - this._startTime) / 100) / 10;
 
+    const s = this._ran === 1 ? '' : 's';
     console.log(
-      `✅ Ran ${this._ran.toLocaleString()} scripts and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`
+      `✅ Ran ${this._ran.toLocaleString()} script${s} and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`
     );
   }
 
