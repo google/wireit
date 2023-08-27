@@ -142,7 +142,7 @@ class WriteoverLine {
     return {
       [Symbol.dispose]: () => {
         this.writeLine(line);
-      }
+      },
     };
   }
 
@@ -350,7 +350,9 @@ class RunTracker {
     }
     if (this._failed > 0) {
       const s = this._failed === 1 ? '' : 's';
-      process.stderr.write(`❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`);
+      process.stderr.write(
+        `❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`
+      );
     } else {
       process.stderr.write(`❌ Failed.\n`);
     }
@@ -365,7 +367,10 @@ class RunTracker {
     );
   }
 
-  private _reportOutputForFailingScript(script: ScriptReference, cause?: Failure) {
+  private _reportOutputForFailingScript(
+    script: ScriptReference,
+    cause?: Failure
+  ) {
     this._failed++;
     const state = this._running.get(this._getKey(script));
     if (!state) {
@@ -404,14 +409,21 @@ class RunTracker {
             peekResult.scriptReference
           );
         }
-        if (this._running.size === 1 && peekResult !== undefined && this._analysisInfo.rootScript === this._getKey(peekResult.scriptReference) && this._rootScriptHasOutput) {
+        if (
+          this._running.size === 1 &&
+          peekResult !== undefined &&
+          this._analysisInfo.rootScript ===
+            this._getKey(peekResult.scriptReference) &&
+          this._rootScriptHasOutput
+        ) {
           // Ok, we're running the root script and nothing else, and the
           // root script isn't silent. In that case we just want to
           // defer all output to it rather than showing a status line.
           return null;
         }
         const done = this._ran + this._skipped + this._servicesRunning;
-        const total = this._analysisInfo.scriptsWithCommands + this._analysisInfo.services;
+        const total =
+          this._analysisInfo.scriptsWithCommands + this._analysisInfo.services;
         if (done === total) {
           // We're apparently done, so don't show a status line or a spinner.
           // We can stay in this state for a while and get more events if
@@ -419,10 +431,7 @@ class RunTracker {
           return null;
         }
         const percentDone =
-          String(Math.round((done / total) * 100)).padStart(
-            3,
-            ' '
-          ) + '%';
+          String(Math.round((done / total) * 100)).padStart(3, ' ') + '%';
 
         let servicesInfo = '';
         if (this._analysisInfo.services > 0) {
@@ -591,9 +600,7 @@ class RunTracker {
         }
         const scriptHadOutput = this._scriptHadOutput(failure.script);
         const trailer = scriptHadOutput ? ' Output:\n' : '';
-        process.stderr.write(
-          `\n❌ ${label} ${message}.${trailer}\n`
-        );
+        process.stderr.write(`\n❌ ${label} ${message}.${trailer}\n`);
         this._failed++;
         if (scriptHadOutput) {
           this._reportOutputForFailingScript(failure.script, failure);
@@ -719,6 +726,10 @@ class RunTracker {
         toVisit.push(dependency.config);
       }
     }
-    return { rootScript: this._getKey(rootScript), services, scriptsWithCommands };
+    return {
+      rootScript: this._getKey(rootScript),
+      services,
+      scriptsWithCommands,
+    };
   }
 }
