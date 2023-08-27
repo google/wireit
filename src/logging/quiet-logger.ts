@@ -12,8 +12,13 @@ import {Logger} from './logger.js';
 
 const DEBUG = false;
 
-// Quick Symbol.dispose polyfill.
-(Symbol as any).dispose = Symbol.dispose ?? Symbol('dispose');
+{
+  type Mutable<T> = {-readonly [P in keyof T]: T[P]};
+
+  // Quick Symbol.dispose polyfill.
+  (Symbol as Mutable<typeof Symbol>).dispose =
+    Symbol.dispose ?? Symbol('dispose');
+}
 
 /**
  * A {@link Logger} that prints less to the console.
@@ -68,6 +73,11 @@ class ScriptState {
     this.scriptReference = scriptReference;
     this.service = service;
   }
+}
+
+// TODO: remove this once we can add esnext.disposable to tsconfig.json
+interface Disposable {
+  [Symbol.dispose]: () => void;
 }
 
 class Spinner {
@@ -339,7 +349,7 @@ class RunTracker {
   }
 
   private _printFailureSummary() {
-    for (const [_, state] of this._running) {
+    for (const [, state] of this._running) {
       const key = labelForScript(this._rootPackage, state.scriptReference);
       if (this._scriptsWithAlreadyReportedErrors.has(key) || state.service) {
         continue;
@@ -379,7 +389,7 @@ class RunTracker {
           cause?.reason ? `${cause.reason} event` : 'leftover script'
         } for script without a start event. Events delivered out of order?
     Script with failure: ${this._getKey(script)}
-    Known scripts: ${[...this._running.keys()]}
+    Known scripts: ${inspect([...this._running.keys()])}
 `
       );
     }
@@ -573,8 +583,10 @@ class RunTracker {
     }
     this._encounteredFailures = true;
     {
-      using _pause = this._writeoverLine.clearUntilDisposed();
+      // TODO: switch to the 'using' syntax, once prettier and eslint support it
+      const pause = this._writeoverLine.clearUntilDisposed();
       this._reportFailure(event);
+      pause?.[Symbol.dispose]();
     }
     return;
   }
@@ -685,8 +697,11 @@ class RunTracker {
         // Immediately pass along output from the script we're trying to run.
         if (state.service || key === this._analysisInfo?.rootScript) {
           this._rootScriptHasOutput = true;
-          using _pause = this._writeoverLine.clearUntilDisposed();
+          // TODO: switch to the 'using' syntax, once prettier and eslint
+          // support it
+          const pause = this._writeoverLine.clearUntilDisposed();
           process.stderr.write(event.data);
+          pause?.[Symbol.dispose]();
           return this._getStatusLine();
         }
         if (!state.service) {

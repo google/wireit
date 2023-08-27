@@ -223,7 +223,7 @@ test(
 
     // Consumer is killed
     await consumerInv.closed;
-    await wireit.waitForLog(/consumer\ killed/);
+    await wireit.waitForLog(/consumer killed/);
 
     // Wireit exits with an error code
     assert.equal((await wireit.exit).code, 1);

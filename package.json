@@ -112,7 +112,8 @@
         ".eslintignore",
         ".eslintrc.cjs",
         "src/**/*.ts",
-        "vscode-extension/src/**/*.ts"
+        "vscode-extension/src/**/*.ts",
+        "tsconfig.json"
       ],
       "output": []
     },
