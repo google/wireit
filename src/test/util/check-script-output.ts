@@ -19,9 +19,16 @@ export function checkScriptOutput(
   expected: string,
   message?: string
 ) {
-  actual = removeAnsiColors(actual.trim());
+  actual = removeOverwrittenLines(removeAnsiColors(actual.trim()));
   expected = expected.trim();
   if (actual !== expected) {
+    for (let i = 0; i < actual.length; i++) {
+      if (actual[i] !== expected[i]) {
+        console.log(`${i}: ${actual[i]} !== ${expected[i]}`);
+        break;
+      }
+    }
+
     console.log(`Copy-pastable output:\n${actual}`);
     for (let i = 0; i < actual.length; i++) {
       if (actual[i] !== expected[i]) {
@@ -33,4 +40,23 @@ export function checkScriptOutput(
   const assertOutputEqualish =
     NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
   assertOutputEqualish(actual, expected, message);
+}
+
+/**
+ * Remove content that's overwritten with a \r
+ */
+function removeOverwrittenLines(output: string) {
+  const lines = output.split('\n');
+  const result = [];
+  for (const line of lines) {
+    let content = '';
+    const splits = line.split('\r');
+    for (const split of splits) {
+      // This split overrides the content up to its length, and then
+      // any additional content from the previous line is retained.
+      content = split + content.slice(split.length);
+    }
+    result.push(content);
+  }
+  return result.join('\n');
 }
