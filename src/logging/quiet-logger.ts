@@ -458,7 +458,7 @@ class RunTracker {
         );
         return this._getStatusLine();
       }
-      case 'service-started':
+      case 'service-process-started':
         // Services don't end, so we count this as having finished.
         this._servicesRunning++;
         this._running.set(
@@ -466,6 +466,7 @@ class RunTracker {
           new ScriptState(event.script, true)
         );
         return this._getStatusLine();
+      case 'service-started':
       case 'service-stopped':
         break;
       case 'watch-run-start':

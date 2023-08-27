@@ -68,7 +68,6 @@ test(
 
     // The service starts because the consumer depends on it
     const serviceInv = await service.nextInvocation();
-    await wireit.waitForLog(/Service started/);
 
     // Confirm we show stdout/stderr from services
     serviceInv.stdout('service stdout');
@@ -85,7 +84,6 @@ test(
 
     // The service stops because the consumer is done
     await serviceInv.closed;
-    await wireit.waitForLog(/Service stopped/);
 
     assert.equal((await wireit.exit).code, 0);
     assert.equal(service.numInvocations, 1);
@@ -103,6 +101,10 @@ test(
     //     |
     //     v
     // standardDep
+
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
 
     const consumer = await rig.newCommand();
     const service = await rig.newCommand();
@@ -221,7 +223,7 @@ test(
 
     // Consumer is killed
     await consumerInv.closed;
-    await wireit.waitForLog(/\[consumer\] Killed/);
+    await wireit.waitForLog(/consumer\ killed/);
 
     // Wireit exits with an error code
     assert.equal((await wireit.exit).code, 1);
@@ -384,6 +386,10 @@ test(
   //    v
   // service2
   timeout(async ({rig}) => {
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const service1 = await rig.newCommand();
     const service2 = await rig.newCommand();
     await rig.writeAtomic({
@@ -463,6 +469,10 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
     //               v
     //            service2
     timeout(async ({rig}) => {
+      // This test uses standard logger output to ensure that
+      // certain operations happen in the right order.
+      rig.env['WIREIT_LOGGER'] = 'simple';
+
       const standard = await rig.newCommand();
       const service1 = await rig.newCommand();
       const service2 = await rig.newCommand();
@@ -632,14 +642,14 @@ for (const failureMode of ['continue', 'no-new']) {
       const serviceInv = await service.nextInvocation();
       const standardInv1 = await standard.nextInvocation();
       standardInv1.exit(1);
-      await wireit.waitForLog(/Watching for file changes/);
+      await wireit.waitForLog(/1 script failed/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(serviceInv.isRunning);
 
       await rig.write('input/standard', '2');
       const standardInv2 = await standard.nextInvocation();
       standardInv2.exit(0);
-      await wireit.waitForLog(/Watching for file changes/);
+      await wireit.waitForLog(/Ran 1 script and skipped 0/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(serviceInv.isRunning);
 
@@ -765,6 +775,10 @@ test(
     //    v
     // service2
 
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const service1 = await rig.newCommand();
     const service2 = await rig.newCommand();
     const standard = await rig.newCommand();
@@ -839,6 +853,10 @@ test(
     //        /   \
     //       v     v
     // standard   service (gets deleted)
+
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
 
     const standard = await rig.newCommand();
     const service = await rig.newCommand();
@@ -1030,7 +1048,7 @@ test(
       const consumerInv1 = await consumer.nextInvocation();
       consumerInv1.exit(0);
       await serviceInv.closed;
-      await wireit.waitForLog(/Watching for file changes/);
+      await wireit.waitForLog(/Ran 1 script and skipped 0/);
       assert.equal(service.numInvocations, 1);
       assert.equal(consumer.numInvocations, 1);
     }
@@ -1042,7 +1060,7 @@ test(
       const consumerInv1 = await consumer.nextInvocation();
       consumerInv1.exit(0);
       await serviceInv.closed;
-      await wireit.waitForLog(/Watching for file changes/);
+      await wireit.waitForLog(/Ran 1 script and skipped 0/);
       assert.equal(service.numInvocations, 2);
       assert.equal(consumer.numInvocations, 2);
     }
@@ -1050,8 +1068,7 @@ test(
     // 3rd run with input A. Restored from cache.
     {
       await rig.write('input', 'A');
-      await wireit.waitForLog(/Restored from cache/);
-      await wireit.waitForLog(/Watching for file changes/);
+      await wireit.waitForLog(/Ran 0 scripts and skipped 1/);
       assert.equal(service.numInvocations, 2);
       assert.equal(consumer.numInvocations, 2);
     }
@@ -1070,6 +1087,11 @@ test(
     //    /    \
     //   v      v
     // hard    soft
+
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const service = await rig.newCommand();
     const hard = await rig.newCommand();
     const soft = await rig.newCommand();
@@ -1150,6 +1172,10 @@ test(
   //    v
   // childService (restarts and fails)
   timeout(async ({rig}) => {
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const parentService = await rig.newCommand();
     const childService = await rig.newCommand();
     await rig.writeAtomic({
@@ -1282,6 +1308,10 @@ test(
   //    v
   // standard
   timeout(async ({rig}) => {
+    // This test uses standard logger output to ensure that
+    // certain operations happen in the right order.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const service = await rig.newCommand();
     const standard = await rig.newCommand();
     await rig.writeAtomic({

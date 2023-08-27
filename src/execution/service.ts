@@ -818,6 +818,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   private _onChildStarted() {
     switch (this._state.id) {
       case 'starting': {
+        this._logger.log({
+          script: this._config,
+          type: 'info',
+          detail: 'service-process-started',
+        });
         if (this._state.readyMonitor !== undefined) {
           this._state = {
             id: 'readying',

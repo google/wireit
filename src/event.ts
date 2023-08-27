@@ -344,6 +344,7 @@ export type Info =
   | OutputModified
   | WatchRunStart
   | WatchRunEnd
+  | ServiceProcessStarted
   | ServiceStarted
   | ServiceStopped
   | AnalysisStarted
@@ -393,10 +394,8 @@ export interface AnalysisStarted extends InfoBase {
  */
 export interface AnalysisCompleted extends InfoBase {
   detail: 'analysis-completed';
-  analyzeResult: AnalyzeResult
+  analyzeResult: AnalyzeResult;
 }
-
-
 
 /**
  * A watch mode iteration started.
@@ -413,7 +412,15 @@ export interface WatchRunEnd extends InfoBase {
 }
 
 /**
- * A service started running.
+ * A service process started running.
+ */
+export interface ServiceProcessStarted extends InfoBase {
+  detail: 'service-process-started';
+}
+
+/**
+ * A service started running and if it has a readyWhen condition,
+ * that condition is met.
  */
 export interface ServiceStarted extends InfoBase {
   detail: 'service-started';

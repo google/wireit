@@ -12,7 +12,7 @@ import type {Logger} from './logger.js';
 import type {PackageReference, ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
-import { WatchLogger } from './watch-logger.js';
+import {WatchLogger} from './watch-logger.js';
 
 const getWireitVersion = (() => {
   let version: string | undefined;
@@ -267,6 +267,10 @@ export class DefaultLogger implements Logger {
           }
           case 'generic': {
             console.log(`ℹ️${prefix} ${event.message}`);
+            break;
+          }
+          case 'service-process-started': {
+            console.log(`⬆️${prefix} Service starting...`);
             break;
           }
           case 'service-started': {
