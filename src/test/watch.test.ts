@@ -559,7 +559,7 @@ test(
       },
     });
     (await a.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[a\] Executed successfully/);
+    await wireit.waitForLog(/Ran 1 script and skipped 0/);
 
     // Add a dependency on another package, but the other package.json has
     // invalid JSON.
@@ -591,10 +591,11 @@ test(
         },
       },
     });
+    await wireit.waitForLog(/0% \[0 \/ 2\] \[1 running\]/);
     (await b.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[other:b\] Executed successfully/);
+    await wireit.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
     (await a.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[a\] Executed successfully/);
+    await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
 
     wireit.kill();
     await wireit.exit;
@@ -787,7 +788,7 @@ test(
     // Wait until wireit is in the "watching" state, otherwise the double file
     // change events would occur in the "running" state, which wouldn't trigger
     // the double runs.
-    await exec.waitForLog(/Watching for file changes/);
+    await exec.waitForLog(/Ran 2 scripts and skipped 0/);
 
     // Changing an input file should cause one more run.
     {
@@ -798,7 +799,7 @@ test(
       (await cmdA.nextInvocation()).exit(0);
     }
 
-    await exec.waitForLog(/Watching for file changes/);
+    await exec.waitForLog(/Ran 2 scripts and skipped 0/);
 
     // Wait a moment to ensure a third run doesn't occur.
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -856,6 +857,9 @@ test(
 test(
   'script fails but still emits output consumed by another script',
   timeout(async ({rig}) => {
+    // This test relies on the simple logger.
+    rig.env['WIREIT_LOGGER'] = 'simple';
+
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.writeAtomic({
@@ -939,19 +943,17 @@ test(
     const exec = rig.exec('npm run a --watch');
     const inv = await cmdA.nextInvocation();
     inv.exit(0);
+    await exec.waitForLog(/Ran 1 script and skipped 0/);
 
     // Write an input file, but it's the same content. This will cause the file
     // watcher to trigger, and will start an execution, but the execution will
     // ultimately do nothing interesting because the fingerprint is the same, so
     // we shouldn't actually expect any logging.
     await rig.writeAtomic('input', 'foo');
-    // Wait a moment to give the watcher time to react.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await exec.waitForLog(/Ran 0 scripts and skipped 1/);
 
     exec.kill();
-    const {stdout} = await exec.exit;
     assert.equal(cmdA.numInvocations, 1);
-    assert.equal([...stdout.matchAll(/Watching for file changes/gi)].length, 1);
   })
 );
 

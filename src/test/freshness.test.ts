@@ -1877,15 +1877,17 @@ test(
       const inv = await main.nextInvocation();
       // Write some output.
       await rig.write('output/subdir/foo', '1');
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] main/); //
       inv.exit(0);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 1);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Fresh because nothing changed.
     {
       const exec = rig.exec('npm run main');
-      await exec.waitForLog(/Already fresh/);
+      await exec.waitForLog(/Ran 0 scripts and skipped 1/);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 1);
     }
@@ -1900,19 +1902,18 @@ test(
           WIREIT_CACHE: 'none',
         },
       });
-      await exec.waitForLog(
-        /Output files were modified since the previous run/
-      );
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] main/); //
       const inv = await main.nextInvocation();
       inv.exit(0);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
     // Fresh again because nothing changed.
     {
       const exec = rig.exec('npm run main');
-      await exec.waitForLog(/Already fresh/);
+      await exec.waitForLog(/Ran 0 scripts and skipped 1/);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
     }
@@ -1923,10 +1924,7 @@ test(
       await rig.write('output/subdir/bar', '0');
       // Don't disable caching this time.
       const exec = rig.exec('npm run main');
-      await exec.waitForLog(
-        /Output files were modified since the previous run/
-      );
-      await exec.waitForLog(/Restored from cache/);
+      await exec.waitForLog(/Ran 0 scripts and skipped 1/);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
       assert.equal(await rig.read('output/subdir/foo'), '1');
@@ -1936,7 +1934,7 @@ test(
     // Fresh again because nothing changed.
     {
       const exec = rig.exec('npm run main');
-      await exec.waitForLog(/Already fresh/);
+      await exec.waitForLog(/Ran 0 scripts and skipped 1/);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
       assert.equal(await rig.read('output/subdir/foo'), '1');
@@ -1948,7 +1946,7 @@ test(
     {
       await rig.touch('output/subdir/excluded');
       const exec = rig.exec('npm run main');
-      await exec.waitForLog(/Already fresh/);
+      await exec.waitForLog(/Ran 0 scripts and skipped 1/);
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
     }
