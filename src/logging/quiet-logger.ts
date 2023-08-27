@@ -218,6 +218,8 @@ class RunTracker {
    * Currently running scripts, or failed scripts that we're about to
    * report on. A script is added to this when it starts, and removed
    * only when it successfully exits.
+   *
+   * Keyed by this._getKey
    */
   private readonly _running = new StackMap<string, ScriptState>();
   /** The number of commands we've started. */
@@ -227,18 +229,29 @@ class RunTracker {
    * we restored.
    */
   private _skipped = 0;
+  /**
+   * The number of scripts that finished with errors.
+   */
+  private _failed = 0;
   private _servicesRunning = 0;
   private _analysisInfo: AnalysisInfo | undefined = undefined;
-  /**
-   * Any failure event that we've encountered.
-   */
-  private readonly _failures: Array<Failure> = [];
   private _state: 'initial' | 'analyzing' | 'running' | 'analysis failed' =
     'initial';
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
   private readonly _defaultLogger: Logger;
   private readonly _writeoverLine;
+  /**
+   * Sometimes a script will fail multiple times, but we only want to report
+   * about the first failure for it that we find. Sometimes a script will
+   * even end up with multiple failures for the same reason, like multiple
+   * non-zero-exit-code events. This looks to be coming at the NodeJS level
+   * or above, and so we just cope.
+   *
+   * Keyed by this._getKey
+   */
+
+  private readonly _scriptsWithAlreadyReportedErrors = new Set<string>();
 
   constructor(
     rootPackage: string,
@@ -311,7 +324,7 @@ class RunTracker {
       }
       scriptsStillRunning = true;
     }
-    if (this._failures.length > 0 || scriptsStillRunning) {
+    if (this._failed > 0 || scriptsStillRunning) {
       this._printFailureSummary();
       return;
     }
@@ -319,87 +332,20 @@ class RunTracker {
   }
 
   private _printFailureSummary() {
-    // Sometimes a script will fail multiple times, but we only want to report
-    // about the first failure for it that we find. Sometimes a script will
-    // even end up with multiple failures for the same reason, like multiple
-    // non-zero-exit-code events. This looks to be coming at the NodeJS level
-    // or above, and so we just cope.
-    const reported = new Set<string>();
-    for (const failure of this._failures) {
-      const key = labelForScript(this._rootPackage, failure.script);
-      if (reported.has(key)) {
-        continue;
-      }
-      reported.add(key);
-      const label = labelForScript(this._rootPackage, failure.script);
-      switch (failure.reason) {
-        case 'exit-non-zero': {
-          process.stderr.write(
-            `\n❌ ${label} exited with exit code ${failure.status}. Output:\n\n`
-          );
-          this._reportOutput(failure.script, failure);
-          break;
-        }
-        case 'signal': {
-          process.stderr.write(
-            `\n❌ ${label} was killed by signal ${failure.signal}. Output:\n`
-          );
-          this._reportOutput(failure.script, failure);
-          break;
-        }
-        case 'killed': {
-          process.stderr.write(`\n❌ ${label} killed.`);
-          this._reportOutput(failure.script, failure);
-          break;
-        }
-        case 'start-cancelled':
-        case 'aborted': {
-          // These events aren't very useful to log, because they are downstream
-          // of failures that already get reported elsewhere.
-          this._running.delete(this._getKey(failure.script));
-          break;
-        }
-        case 'dependency-service-exited-unexpectedly': {
-          // Also logged elswhere.
-          break;
-        }
-        case 'service-exited-unexpectedly':
-        case 'cycle':
-        case 'dependency-invalid':
-        case 'dependency-on-missing-package-json':
-        case 'dependency-on-missing-script':
-        case 'duplicate-dependency':
-        case 'failed-previous-watch-iteration':
-        case 'invalid-config-syntax':
-        case 'invalid-json-syntax':
-        case 'invalid-usage':
-        case 'launched-incorrectly':
-        case 'missing-package-json':
-        case 'no-scripts-in-package-json':
-        case 'script-not-found':
-        case 'script-not-wireit':
-        case 'spawn-error':
-        case 'unknown-error-thrown':
-        case 'wireit-config-but-no-script':
-          // The default log for these is good.
-          this._defaultLogger.log(failure);
-          break;
-        default: {
-          const never: never = failure;
-          throw new Error(`Unknown failure event: ${JSON.stringify(never)}`);
-        }
-      }
-    }
     for (const [_, state] of this._running) {
       const key = labelForScript(this._rootPackage, state.scriptReference);
-      if (reported.has(key) || state.service) {
+      if (this._scriptsWithAlreadyReportedErrors.has(key) || state.service) {
         continue;
       }
       const label = labelForScript(this._rootPackage, state.scriptReference);
       process.stderr.write(`\n❌ ${label} did not exit successfully.`);
-      this._reportOutput(state.scriptReference);
+      this._reportOutputForFailingScript(state.scriptReference);
     }
-    process.stderr.write(`\n❌ Failed.\n`);
+    if (this._failed > 0) {
+      process.stderr.write(`\n❌ ${this._failed.toLocaleString()} scripts failed.`);
+    } else {
+      process.stderr.write(`\n❌ Failed.\n`);
+    }
   }
 
   private _printSuccessSummary() {
@@ -410,13 +356,14 @@ class RunTracker {
     );
   }
 
-  private _reportOutput(script: ScriptReference, cause?: Failure) {
+  private _reportOutputForFailingScript(script: ScriptReference, cause?: Failure) {
+    this._failed++;
     const state = this._running.get(this._getKey(script));
     if (!state) {
       throw new Error(
         `Internal error: Got ${
           cause?.reason ? `${cause.reason} event` : 'leftover script'
-        } for unknown script. Events delivered out of order?
+        } for script without a start event. Events delivered out of order?
     Script with failure: ${this._getKey(script)}
     Known scripts: ${[...this._running.keys()]}
 `
@@ -448,6 +395,12 @@ class RunTracker {
             peekResult.scriptReference
           );
         }
+        if (this._running.size === 1 && peekResult !== undefined && this._analysisInfo.rootScript === this._getKey(peekResult.scriptReference)) {
+          // Ok, we're running the root script and nothing else. In that
+          // case we don't need to show a status line, because we're just
+          // outputing its output directly.
+          return null;
+        }
         const done = this._ran + this._skipped + this._servicesRunning;
         const total = this._analysisInfo.scriptsWithCommands + this._analysisInfo.services;
         if (done === total) {
@@ -466,9 +419,13 @@ class RunTracker {
         if (this._analysisInfo.services > 0) {
           servicesInfo = ` [${this._servicesRunning.toLocaleString()} / ${this._analysisInfo.services.toLocaleString()} services]`;
         }
+        let failureInfo = '';
+        if (this._failed > 0) {
+          failureInfo = ` [${this._failed.toLocaleString()} failed]`;
+        }
         return `${percentDone} [${done.toLocaleString()} / ${total}] [${
           this._running.size
-        } running]${servicesInfo} ${mostRecentScript}`;
+        } running]${servicesInfo}${failureInfo} ${mostRecentScript}`;
       }
       case 'analysis failed': {
         return null;
@@ -595,8 +552,77 @@ class RunTracker {
         )}`
       );
     }
-    this._failures.push(event);
+    {
+      using _pause = this._writeoverLine.clearUntilDisposed();
+      this._reportFailure(event);
+    }
     return;
+  }
+
+  private _reportFailure(failure: Failure) {
+    const key = labelForScript(this._rootPackage, failure.script);
+    if (this._scriptsWithAlreadyReportedErrors.has(key)) {
+      return;
+    }
+    this._scriptsWithAlreadyReportedErrors.add(key);
+    const label = labelForScript(this._rootPackage, failure.script);
+    switch (failure.reason) {
+      case 'exit-non-zero': {
+        process.stderr.write(
+          `\n❌ ${label} exited with exit code ${failure.status}. Output:\n\n`
+        );
+        this._reportOutputForFailingScript(failure.script, failure);
+        break;
+      }
+      case 'signal': {
+        process.stderr.write(
+          `\n❌ ${label} was killed by signal ${failure.signal}. Output:\n`
+        );
+        this._reportOutputForFailingScript(failure.script, failure);
+        break;
+      }
+      case 'killed': {
+        process.stderr.write(`\n❌ ${label} killed.`);
+        this._reportOutputForFailingScript(failure.script, failure);
+        break;
+      }
+      case 'start-cancelled':
+      case 'aborted': {
+        // These events aren't very useful to log, because they are downstream
+        // of failures that already get reported elsewhere.
+        this._running.delete(this._getKey(failure.script));
+        break;
+      }
+      case 'dependency-service-exited-unexpectedly': {
+        // Also logged elswhere.
+        break;
+      }
+      case 'service-exited-unexpectedly':
+      case 'cycle':
+      case 'dependency-invalid':
+      case 'dependency-on-missing-package-json':
+      case 'dependency-on-missing-script':
+      case 'duplicate-dependency':
+      case 'failed-previous-watch-iteration':
+      case 'invalid-config-syntax':
+      case 'invalid-json-syntax':
+      case 'invalid-usage':
+      case 'launched-incorrectly':
+      case 'missing-package-json':
+      case 'no-scripts-in-package-json':
+      case 'script-not-found':
+      case 'script-not-wireit':
+      case 'spawn-error':
+      case 'unknown-error-thrown':
+      case 'wireit-config-but-no-script':
+        // The default log for these is good.
+        this._defaultLogger.log(failure);
+        break;
+      default: {
+        const never: never = failure;
+        throw new Error(`Unknown failure event: ${JSON.stringify(never)}`);
+      }
+    }
   }
 
   private _handleOutput(event: Output): string | undefined {
