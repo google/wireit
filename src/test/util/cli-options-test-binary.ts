@@ -10,4 +10,8 @@
 import {getOptions} from '../../cli-options.js';
 import {writeFileSync} from 'fs';
 
-writeFileSync('options.json', JSON.stringify(getOptions()));
+const options = getOptions();
+if (options.ok) {
+  options.value.logger = options.value.logger.constructor.name as any;
+}
+writeFileSync('options.json', JSON.stringify(options));
