@@ -37,6 +37,7 @@ test.after.each(async (ctx) => {
 test(
   'runs one script that fails',
   timeout(async ({rig}) => {
+    rig.env['WIREIT_LOGGER'] = 'quiet';
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -60,7 +61,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 1);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
+    assert.match(res.stderr, 'a stdout');
     assert.match(res.stderr, 'a stderr');
   })
 );
