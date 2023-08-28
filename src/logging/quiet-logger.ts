@@ -101,6 +101,13 @@ class WriteoverLine {
   private _spinnerInterval: NodeJS.Timeout | undefined;
   private _spinner = new Spinner();
 
+  consturctor() {
+    // If the user does a ctrl-c then we stop the spinner.
+    process.on('SIGINT', () => {
+      this.clearAndStopSpinner();
+    });
+  }
+
   clearAndStopSpinner() {
     // Writeover the previous line and cancel the spinner interval.
     if (this._spinnerInterval !== undefined) {
