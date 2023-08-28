@@ -407,7 +407,7 @@ test(
   })
 );
 
-test.only(
+test(
   'changes are detected in cross-package dependencies',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -542,7 +542,7 @@ test(
   })
 );
 
-test.only(
+test(
   'recovers from analysis errors',
   timeout(async ({rig}) => {
     // In this test we do very fast sequences of writes, which causes chokidar
