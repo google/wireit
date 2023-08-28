@@ -1033,8 +1033,11 @@ test(
     await inv.closed;
     await wireit.exit;
     assert.equal(main.numInvocations, 1);
-    await wireit.waitForLog(/❌ main killed/);
-    await wireit.waitForLog(/❌ 1 script failed/);
+    // on windows we just die without reporting anything when we get a SIGINT
+    if (!IS_WINDOWS) {
+      await wireit.waitForLog(/❌ main killed/);
+      await wireit.waitForLog(/❌ 1 script failed/);
+    }
   })
 );
 
