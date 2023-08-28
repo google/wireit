@@ -9,10 +9,11 @@ import {removeAnsiColors} from './colors.js';
 import {NODE_MAJOR_VERSION} from './node-version.js';
 
 /**
- * The npm version that ships with with Node 14 produces a bunch of additional
- * logs when running a script, so we need to use the less strict `assert.match`.
- * However, `assert.equal` gives a better error message, so we reproduce that
- * manually.
+ * Remove ANSI colors and \r writeover lines and compare the final output as
+ * the user would see it in their scrollback to the expected output.
+ *
+ * In Node 14 and earlier there's a bunch of additional chatter in the output,
+ * so we use a sloppier comparison there.
  */
 export function checkScriptOutput(
   actual: string,
@@ -37,6 +38,7 @@ export function checkScriptOutput(
       }
     }
   }
+  console.log(actual);
   const assertOutputEqualish =
     NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
   assertOutputEqualish(actual, expected, message);

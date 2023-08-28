@@ -218,6 +218,34 @@ interface AnalysisInfo {
   scriptsWithCommands: number;
 }
 
+type RunState =
+  /**
+   * The initial state for a one-time command.
+   *
+   * Runs as part of a watch command will jump straight to 'running', but
+   * they may regress back to 'analyzing' from there if a new analysis is
+   * needed.
+   */
+  | 'initial'
+  /**
+   * After analysis has started, but before it has finished.
+   */
+  | 'analyzing'
+  /**
+   * The analysis has failed, and this run is over.
+   */
+  | 'analysis failed'
+  /**
+   * Analysis has finished, we're running scripts. Some may have failed.
+   */
+  | 'running'
+  /**
+   * We're running the root script, and it's emitting output. We don't want
+   * to show a status line in this case, because we want to defer all output
+   * to the root script.
+   */
+  | 'passing through root command output';
+
 /**
  * Tracks the state of a run, and produces a single line of status text.
  *
@@ -247,8 +275,7 @@ class RunTracker {
   private _encounteredFailures = false;
   private _servicesRunning = 0;
   private _analysisInfo: AnalysisInfo | undefined = undefined;
-  private _state: 'initial' | 'analyzing' | 'running' | 'analysis failed' =
-    'initial';
+  private _state: RunState = 'initial';
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
   private readonly _defaultLogger: Logger;
@@ -455,8 +482,14 @@ class RunTracker {
           this._running.size
         } running]${servicesInfo}${failureInfo} ${mostRecentScript}`;
       }
-      case 'analysis failed': {
+      case 'analysis failed':
+      case 'passing through root command output': {
+        // No status line in these cases
         return null;
+      }
+      default: {
+        const never: never = this._state;
+        throw new Error(`Unknown state: ${JSON.stringify(never)}`);
       }
     }
   }
@@ -671,6 +704,7 @@ class RunTracker {
     }
     return state.output.some((output) => output.length > 0);
   }
+
   private _handleOutput(event: Output): string | null | undefined {
     if (DEBUG) {
       console.log(
@@ -697,12 +731,10 @@ class RunTracker {
         // Immediately pass along output from the script we're trying to run.
         if (state.service || key === this._analysisInfo?.rootScript) {
           this._rootScriptHasOutput = true;
-          // TODO: switch to the 'using' syntax, once prettier and eslint
-          // support it
-          const pause = this._writeoverLine.clearUntilDisposed();
+          this._writeoverLine.clearAndStopSpinner();
+          this._state = 'passing through root command output';
           process.stderr.write(event.data);
-          pause?.[Symbol.dispose]();
-          return this._getStatusLine();
+          return null;
         }
         if (!state.service) {
           // Also buffer all non-service output, so that we can print it
