@@ -201,6 +201,12 @@ export class Watcher {
         if (this._latestRootScriptConfig === undefined) {
           void this._analyze();
         } else {
+          this._logger.log({
+            type: 'info',
+            detail: 'analysis-completed',
+            script: this._rootScript,
+            rootScriptConfig: this._latestRootScriptConfig,
+          });
           void this._execute(this._latestRootScriptConfig);
         }
         return;

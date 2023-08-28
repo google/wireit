@@ -10,8 +10,8 @@ import {Event, Failure, Info, Output, Success} from '../event.js';
 import {DefaultLogger, labelForScript} from './default-logger.js';
 import {Logger} from './logger.js';
 
-const DEBUG = false;
-
+const DEBUG = true;
+// ??
 {
   type Mutable<T> = {-readonly [P in keyof T]: T[P]};
 
@@ -228,10 +228,6 @@ interface AnalysisInfo {
 type RunState =
   /**
    * The initial state for a one-time command.
-   *
-   * Runs as part of a watch command will jump straight to 'running', but
-   * they may regress back to 'analyzing' from there if a new analysis is
-   * needed.
    */
   | 'initial'
   /**
@@ -281,11 +277,13 @@ class RunTracker {
   private _failed = 0;
   private _encounteredFailures = false;
   private _servicesRunning = 0;
+  private _servicesStarted = 0;
+  private _servicesPersistedFromPreviousRun = 0;
   private _analysisInfo: AnalysisInfo | undefined = undefined;
   private _state: RunState = 'initial';
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
-  private readonly _defaultLogger: Logger;
+  private readonly _defaultLogger: DefaultLogger;
   /**
    * True once the root script of this run (i.e. the script "foo" that the
    * user invoked with "npm run foo") has emitted output to stdout/stderr
@@ -307,7 +305,7 @@ class RunTracker {
   constructor(
     rootPackage: string,
     _writeoverLine: WriteoverLine,
-    defaultLogger?: Logger
+    defaultLogger?: DefaultLogger
   ) {
     this._rootPackage = rootPackage;
     this._writeoverLine = _writeoverLine;
@@ -321,11 +319,11 @@ class RunTracker {
       this._writeoverLine,
       this._defaultLogger
     );
-    // More importantly, this will get overridden if we do another analysis,
-    // but if we skip it we need to know how many scripts we expect to run.
-    instance._analysisInfo = this._analysisInfo;
+    // Persistent services stay running between runs, so pass along what we
+    // know.
     for (const [key, state] of this._running) {
       if (state.service) {
+        instance._servicesPersistedFromPreviousRun++;
         instance._servicesRunning++;
         instance._running.set(key, state);
       }
@@ -393,7 +391,7 @@ class RunTracker {
       this._reportOutputForFailingScript(state.scriptReference);
     }
     if (this._failed > 0) {
-      const s = this._failed === 1 ? '' : 's';
+      const s = this._scriptsWithAlreadyReportedErrors.size === 1 ? '' : 's';
       process.stderr.write(
         `❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`
       );
@@ -404,10 +402,12 @@ class RunTracker {
 
   private _printSuccessSummary() {
     const elapsed = Math.round((Date.now() - this._startTime) / 100) / 10;
-
-    const s = this._ran === 1 ? '' : 's';
+    // In watch mode, we want to count services that we started as part of this
+    // run.
+    const count = this._ran + this._servicesStarted;
+    const s = count === 1 ? '' : 's';
     console.log(
-      `✅ Ran ${this._ran.toLocaleString()} script${s} and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`
+      `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`
     );
   }
 
@@ -465,7 +465,12 @@ class RunTracker {
           // defer all output to it rather than showing a status line.
           return null;
         }
-        const done = this._ran + this._skipped + this._servicesRunning;
+        const done =
+          this._ran +
+          this._skipped +
+          this._failed +
+          this._servicesStarted +
+          this._servicesPersistedFromPreviousRun;
         const total =
           this._analysisInfo.scriptsWithCommands + this._analysisInfo.services;
         if (done === total) {
@@ -479,12 +484,14 @@ class RunTracker {
 
         let servicesInfo = '';
         if (this._analysisInfo.services > 0) {
-          servicesInfo = ` [${this._servicesRunning.toLocaleString()} / ${this._analysisInfo.services.toLocaleString()} services]`;
+          const s = this._servicesRunning === 1 ? '' : 's';
+          servicesInfo = ` [${this._servicesRunning.toLocaleString()} service${s}]`;
         }
         let failureInfo = '';
         if (this._failed > 0) {
           failureInfo = ` [${this._failed.toLocaleString()} failed]`;
         }
+        // console.log(this);
         return `${percentDone} [${done.toLocaleString()} / ${total}] [${
           this._running.size
         } running]${servicesInfo}${failureInfo} ${mostRecentScript}`;
@@ -521,22 +528,18 @@ class RunTracker {
       case 'service-process-started':
         // Services don't end, so we count this as having finished.
         this._servicesRunning++;
+        this._servicesStarted++;
         this._running.set(
           this._getKey(event.script),
           new ScriptState(event.script, true)
         );
         return this._getStatusLine();
-      case 'service-started':
       case 'service-stopped':
-        break;
+        this._servicesRunning--;
+        this._running.delete(this._getKey(event.script));
+        return this._getStatusLine();
+      case 'service-started':
       case 'watch-run-start':
-        // We might be in either running or analyzing state at this point,
-        // it's impossible to know at this point, because it depends on
-        // whether the changed files include package.json files, but if we
-        // are in analyzing mode we'll get an analysis start event quickly,
-        // and that's the exception, so this is a good default.
-        this._state = 'running';
-        break;
       case 'watch-run-end':
         return;
       case 'locked': {
@@ -560,14 +563,14 @@ class RunTracker {
         return this._getStatusLine();
       }
       case 'analysis-completed': {
-        if (!event.analyzeResult.config.ok) {
+        if (!event.rootScriptConfig) {
           // will report the error in printSummary
           this._state = 'analysis failed';
           return this._getStatusLine();
         } else {
           this._state = 'running';
           this._analysisInfo = this._countScriptsWithCommands(
-            event.analyzeResult.config.value
+            event.rootScriptConfig
           );
         }
         return this._getStatusLine();

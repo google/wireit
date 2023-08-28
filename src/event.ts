@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {AnalyzeResult, UnvalidatedConfig} from './analyzer.js';
+import {UnvalidatedConfig} from './analyzer.js';
 import {Diagnostic} from './error.js';
 import type {
   ScriptConfig,
@@ -394,7 +394,7 @@ export interface AnalysisStarted extends InfoBase {
  */
 export interface AnalysisCompleted extends InfoBase {
   detail: 'analysis-completed';
-  analyzeResult: AnalyzeResult;
+  rootScriptConfig: undefined | ScriptConfig;
 }
 
 /**
