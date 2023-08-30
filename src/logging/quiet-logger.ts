@@ -5,7 +5,12 @@
  */
 
 import {inspect} from 'util';
-import {ScriptConfig, ScriptReference} from '../config.js';
+import {
+  ScriptConfig,
+  ScriptReference,
+  ScriptReferenceString,
+  scriptReferenceToString,
+} from '../config.js';
 import {Event, Failure, Info, Output, Success} from '../event.js';
 import {DefaultLogger, labelForScript} from './default-logger.js';
 import {Logger} from './logger.js';
@@ -232,10 +237,10 @@ class StackMap<K, V> extends Map<K, V> {
  * info.
  */
 interface AnalysisInfo {
-  readonly rootScript: string;
+  readonly rootScript: ScriptReferenceString;
   // The scripts that we need to actually run, including services, scripts
   // we can skip because of freshness / output restoration, etc.
-  readonly scriptsWithCommands: ReadonlySet<string>;
+  readonly scriptsWithCommands: ReadonlySet<ScriptReferenceString>;
   // Whether we might need to run services as part of this run.
   readonly hasServices: boolean;
 }
@@ -282,7 +287,10 @@ class RunTracker {
    *
    * Keyed by this._getKey
    */
-  private readonly _running = new StackMap<string, ScriptState>();
+  private readonly _running = new StackMap<
+    ScriptReferenceString,
+    ScriptState
+  >();
   /** The number of commands we've started. */
   private _ran = 0;
   /**
@@ -295,7 +303,7 @@ class RunTracker {
   private _servicesStarted = 0;
   private _servicesPersistedFromPreviousRun = 0;
   private _analysisInfo: AnalysisInfo | undefined = undefined;
-  private _finishedScriptsWithCommands = new Set<string>();
+  private _finishedScriptsWithCommands = new Set<ScriptReferenceString>();
   private _state: RunState = 'initial';
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
@@ -316,7 +324,8 @@ class RunTracker {
    * Keyed by this._getKey
    */
 
-  private readonly _scriptsWithAlreadyReportedErrors = new Set<string>();
+  private readonly _scriptsWithAlreadyReportedErrors =
+    new Set<ScriptReferenceString>();
 
   constructor(
     rootPackage: string,
@@ -346,10 +355,6 @@ class RunTracker {
       }
     }
     return instance;
-  }
-
-  private _getKey(script: ScriptReference) {
-    return `${script.packageDir}:${script.name}`;
   }
 
   /**
@@ -400,11 +405,11 @@ class RunTracker {
 
   private _printFailureSummary() {
     for (const [, state] of this._running) {
-      const key = labelForScript(this._rootPackage, state.scriptReference);
+      const label = labelForScript(this._rootPackage, state.scriptReference);
+      const key = scriptReferenceToString(state.scriptReference);
       if (this._scriptsWithAlreadyReportedErrors.has(key) || state.service) {
         continue;
       }
-      const label = labelForScript(this._rootPackage, state.scriptReference);
       process.stderr.write(`\n❌ ${label} did not exit successfully.`);
       this._reportOutputForFailingScript(state.scriptReference);
     }
@@ -433,13 +438,13 @@ class RunTracker {
     script: ScriptReference,
     cause?: Failure
   ) {
-    const state = this._running.get(this._getKey(script));
+    const state = this._running.get(scriptReferenceToString(script));
     if (!state) {
       throw new Error(
         `Internal error: Got ${
           cause?.reason ? `${cause.reason} event` : 'leftover script'
         } for script without a start event. Events delivered out of order?
-    Script with failure: ${this._getKey(script)}
+    Script with failure: ${scriptReferenceToString(script)}
     Known scripts: ${inspect([...this._running.keys()])}
 `
       );
@@ -474,7 +479,7 @@ class RunTracker {
           this._running.size === 1 &&
           peekResult !== undefined &&
           this._analysisInfo.rootScript ===
-            this._getKey(peekResult.scriptReference) &&
+            scriptReferenceToString(peekResult.scriptReference) &&
           this._rootScriptHasOutput
         ) {
           // Ok, we're running the root script and nothing else, and the
@@ -521,7 +526,7 @@ class RunTracker {
   }
 
   private _markScriptAsFinished(script: ScriptReference) {
-    const key = this._getKey(script);
+    const key = scriptReferenceToString(script);
     // Optimistically mark it as finished if we don't have analysis info yet.
     // We'll remove it later if we find out it's not actually a script we
     // care about.
@@ -545,7 +550,7 @@ class RunTracker {
     switch (event.detail) {
       case 'running': {
         this._running.set(
-          this._getKey(event.script),
+          scriptReferenceToString(event.script),
           new ScriptState(event.script, false)
         );
         return this._getStatusLine();
@@ -555,14 +560,14 @@ class RunTracker {
         this._servicesRunning++;
         this._servicesStarted++;
         this._running.set(
-          this._getKey(event.script),
+          scriptReferenceToString(event.script),
           new ScriptState(event.script, true)
         );
         this._markScriptAsFinished(event.script);
         return this._getStatusLine();
       case 'service-stopped':
         this._servicesRunning--;
-        this._running.delete(this._getKey(event.script));
+        this._running.delete(scriptReferenceToString(event.script));
         return this._getStatusLine();
       case 'service-started':
       case 'watch-run-start':
@@ -634,7 +639,7 @@ class RunTracker {
         return this._getStatusLine();
       }
       case 'exit-zero': {
-        this._running.delete(this._getKey(event.script));
+        this._running.delete(scriptReferenceToString(event.script));
         this._markScriptAsFinished(event.script);
         this._ran++;
         return this._getStatusLine();
@@ -669,7 +674,7 @@ class RunTracker {
   }
 
   private _reportFailure(failure: Failure) {
-    const key = labelForScript(this._rootPackage, failure.script);
+    const key = scriptReferenceToString(failure.script as ScriptReference);
     if (this._scriptsWithAlreadyReportedErrors.has(key)) {
       return;
     }
@@ -701,7 +706,7 @@ class RunTracker {
       case 'aborted': {
         // These events aren't very useful to log, because they are downstream
         // of failures that already get reported elsewhere.
-        this._running.delete(this._getKey(failure.script));
+        this._running.delete(scriptReferenceToString(failure.script));
         return this._getStatusLine();
       }
       case 'dependency-service-exited-unexpectedly': {
@@ -737,11 +742,11 @@ class RunTracker {
   }
 
   private _scriptHadOutput(script: ScriptReference): boolean {
-    const state = this._running.get(this._getKey(script));
+    const state = this._running.get(scriptReferenceToString(script));
     if (!state) {
       throw new Error(
         `Internal error: could not find state for failing script. Events delivered out of order?
-        Script with output: ${this._getKey(script)}
+        Script with output: ${labelForScript(this._rootPackage, script)}
         ${this._running.size.toLocaleString()} known running scripts: ${inspect(
           [...this._running.keys()]
         )}`
@@ -762,12 +767,12 @@ class RunTracker {
     switch (event.stream) {
       case 'stdout':
       case 'stderr': {
-        const key = this._getKey(event.script);
+        const key = scriptReferenceToString(event.script);
         const state = this._running.get(key);
         if (!state) {
           throw new Error(
             `Internal error: Got output event for unknown script. Events delivered out of order?
-        Script with output: ${this._getKey(event.script)}
+        Script with output: ${labelForScript(this._rootPackage, event.script)}
         ${this._running.size.toLocaleString()} known running scripts: ${inspect(
               [...this._running.keys()]
             )}`
@@ -799,9 +804,9 @@ class RunTracker {
   }
 
   private _countScriptsWithCommands(rootScript: ScriptConfig): AnalysisInfo {
-    const scriptsWithCommands = new Set<string>();
+    const scriptsWithCommands = new Set<ScriptReferenceString>();
     let hasServices = false;
-    const seen = new Set([this._getKey(rootScript)]);
+    const seen = new Set([scriptReferenceToString(rootScript)]);
     const toVisit = [rootScript];
     while (toVisit.length > 0) {
       const script = toVisit.pop()!;
@@ -811,10 +816,10 @@ class RunTracker {
       if (script.command !== undefined) {
         // We only want to count scripts that actually run, rather than
         // just holding dependencies.
-        scriptsWithCommands.add(this._getKey(script));
+        scriptsWithCommands.add(scriptReferenceToString(script));
       }
       for (const dependency of script.dependencies.values()) {
-        const key = this._getKey(dependency.config);
+        const key = scriptReferenceToString(dependency.config);
         if (seen.has(key)) {
           continue;
         }
@@ -823,7 +828,7 @@ class RunTracker {
       }
     }
     return {
-      rootScript: this._getKey(rootScript),
+      rootScript: scriptReferenceToString(rootScript),
       scriptsWithCommands,
       hasServices,
     };
