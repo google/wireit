@@ -416,7 +416,7 @@
     "vscode-languageclient": "^8.0.1",
     "vscode-languageserver": "^8.0.1",
     "vscode-languageserver-textdocument": "^1.0.4",
-    "wireit": "^0.9.1",
+    "wireit": "^0.11.0",
     "yarn": "^1.22.18"
   },
   "prettier": {
