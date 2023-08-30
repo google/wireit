@@ -29,6 +29,7 @@ import type {
   ScriptReferenceString,
 } from './config.js';
 import type {Agent} from './cli-options.js';
+import {Logger} from './logging/logger.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -147,9 +148,11 @@ export class Analyzer {
   private readonly _ongoingWorkPromises: Array<Promise<undefined>> = [];
   private readonly _relevantConfigFilePaths = new Set<string>();
   private readonly _agent: Agent;
+  private readonly _logger: Logger | undefined;
 
-  constructor(agent: Agent, filesystem?: FileSystem) {
+  constructor(agent: Agent, logger?: Logger, filesystem?: FileSystem) {
     this._agent = agent;
+    this._logger = logger;
     this._packageJsonReader = new CachingPackageJsonReader(filesystem);
   }
 
@@ -198,6 +201,27 @@ export class Analyzer {
    * a cycle in the dependency graph.
    */
   async analyze(
+    root: ScriptReference,
+    extraArgs: string[] | undefined
+  ): Promise<AnalyzeResult> {
+    this._logger?.log({
+      type: 'info',
+      detail: 'analysis-started',
+      script: root,
+    });
+    const analyzeResult = await this._actuallyAnalyze(root, extraArgs);
+    this._logger?.log({
+      type: 'info',
+      detail: 'analysis-completed',
+      script: root,
+      rootScriptConfig: analyzeResult.config.ok
+        ? analyzeResult.config.value
+        : undefined,
+    });
+    return analyzeResult;
+  }
+
+  private async _actuallyAnalyze(
     root: ScriptReference,
     extraArgs: string[] | undefined
   ): Promise<AnalyzeResult> {

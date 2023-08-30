@@ -11,7 +11,6 @@ import {Executor, FailureMode, ServiceMap} from './executor.js';
 import {Logger} from './logging/logger.js';
 import {Deferred} from './util/deferred.js';
 import {WorkerPool} from './util/worker-pool.js';
-import {WatchLogger} from './logging/watch-logger.js';
 import {
   ScriptConfig,
   ScriptReference,
@@ -143,7 +142,7 @@ export class Watcher {
   ) {
     this._rootScript = rootScript;
     this._extraArgs = extraArgs;
-    this._logger = new WatchLogger(logger);
+    this._logger = logger.getWatchLogger?.() ?? logger;
     this._workerPool = workerPool;
     this._failureMode = failureMode;
     this._cache = cache;
@@ -202,6 +201,15 @@ export class Watcher {
         if (this._latestRootScriptConfig === undefined) {
           void this._analyze();
         } else {
+          // We already have a valid config, so we can skip the analysis step.
+          // but if the logger needs to know about the analysis, this lets
+          // it know.
+          this._logger.log({
+            type: 'info',
+            detail: 'analysis-completed',
+            script: this._rootScript,
+            rootScriptConfig: this._latestRootScriptConfig,
+          });
           void this._execute(this._latestRootScriptConfig);
         }
         return;
@@ -223,7 +231,7 @@ export class Watcher {
       throw unexpectedState(this._state);
     }
 
-    const analyzer = new Analyzer(this._agent);
+    const analyzer = new Analyzer(this._agent, this._logger);
     const result = await analyzer.analyze(this._rootScript, this._extraArgs);
     if ((this._state as WatcherState) === 'aborted') {
       return;

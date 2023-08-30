@@ -189,7 +189,7 @@ export class GitHubActionsCache implements Cache {
       this._logger.log({
         script,
         type: 'info',
-        detail: 'generic',
+        detail: 'cache-info',
         message:
           `Output was too big to be cached: ` +
           `${Math.round(tarballBytes / GB)}GB > ` +
@@ -364,7 +364,7 @@ export class GitHubActionsCache implements Cache {
         this._logger.log({
           script,
           type: 'info',
-          detail: 'generic',
+          detail: 'cache-info',
           message:
             `Connection error from GitHub Actions service, caching disabled. ` +
             'Detail: ' +
@@ -381,7 +381,7 @@ export class GitHubActionsCache implements Cache {
             this._logger.log({
               script,
               type: 'info',
-              detail: 'generic',
+              detail: 'cache-info',
               message: `Hit GitHub Actions cache rate limit, caching disabled.`,
             });
           }
@@ -392,7 +392,7 @@ export class GitHubActionsCache implements Cache {
             this._logger.log({
               script,
               type: 'info',
-              detail: 'generic',
+              detail: 'cache-info',
               message: `GitHub Actions service is unavailable, caching disabled.`,
             });
           }

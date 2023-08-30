@@ -31,7 +31,10 @@ interface EventBase<T extends PackageReference = ScriptReference> {
 // Success events
 // -------------------------------
 
-type Success = ExitZero | NoCommand | Fresh | Cached;
+/**
+ * A script finished successfully.
+ */
+export type Success = ExitZero | NoCommand | Fresh | Cached;
 
 interface SuccessBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -70,6 +73,9 @@ export interface Cached extends SuccessBase {
 // Failure events
 // -------------------------------
 
+/**
+ * A problem was encountered.
+ */
 export type Failure =
   | ExitNonZero
   | ExitSignal
@@ -313,7 +319,10 @@ export interface UnknownErrorThrown extends ErrorBase {
 // Output events
 // -------------------------------
 
-type Output = Stdout | Stderr;
+/**
+ * A script emitted output.
+ */
+export type Output = Stdout | Stderr;
 
 interface OutputBase extends EventBase<ScriptConfig> {
   type: 'output';
@@ -338,15 +347,21 @@ export interface Stderr extends OutputBase {
 // Informational events
 // -------------------------------
 
-type Info =
+/**
+ * Something happened, neither success nor failure, though often progress.
+ */
+export type Info =
   | ScriptRunning
   | ScriptLocked
   | OutputModified
   | WatchRunStart
   | WatchRunEnd
-  | ServiceStarted
+  | ServiceProcessStarted
+  | ServiceReady
   | ServiceStopped
-  | GenericInfo;
+  | AnalysisStarted
+  | AnalysisCompleted
+  | CacheInfo;
 
 interface InfoBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -378,6 +393,24 @@ export interface OutputModified extends InfoBase {
 }
 
 /**
+ * The analysis phase for a run has begun, where we load package.json
+ * files, analyze their wireit configs, and build the dependency graph.
+ */
+export interface AnalysisStarted extends InfoBase {
+  detail: 'analysis-started';
+}
+
+/**
+ * The analysis phase for a run has completed. If successful, we have a
+ * rootScriptConfig with a full dependency graph. If unsuccessful, it is
+ * undefined, and there will be a Failure event with more information.
+ */
+export interface AnalysisCompleted extends InfoBase {
+  detail: 'analysis-completed';
+  rootScriptConfig: undefined | ScriptConfig;
+}
+
+/**
  * A watch mode iteration started.
  */
 export interface WatchRunStart extends InfoBase {
@@ -392,10 +425,18 @@ export interface WatchRunEnd extends InfoBase {
 }
 
 /**
- * A service started running.
+ * A service process started running.
  */
-export interface ServiceStarted extends InfoBase {
-  detail: 'service-started';
+export interface ServiceProcessStarted extends InfoBase {
+  detail: 'service-process-started';
+}
+
+/**
+ * A service started running and if it has a readyWhen condition,
+ * that condition is met.
+ */
+export interface ServiceReady extends InfoBase {
+  detail: 'service-ready';
 }
 
 /**
@@ -406,9 +447,9 @@ export interface ServiceStopped extends InfoBase {
 }
 
 /**
- * A generic info event.
+ * An advisory event about caching.
  */
-export interface GenericInfo extends InfoBase {
-  detail: 'generic';
+export interface CacheInfo extends InfoBase {
+  detail: 'cache-info';
   message: string;
 }

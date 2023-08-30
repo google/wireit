@@ -30,6 +30,7 @@
     "format:check": "prettier . -c",
     "test": "wireit",
     "test:headless": "wireit",
+    "test:local": "wireit",
     "test:analysis": "wireit",
     "test:basic": "wireit",
     "test:cache-github": "wireit",
@@ -76,9 +77,15 @@
     },
     "test:headless": {
       "dependencies": [
+        "test:cache-github",
+        "test:local"
+      ]
+    },
+    "test:local": {
+      "#comment": "Run tests that don't require network access.",
+      "dependencies": [
         "test:analysis",
         "test:basic",
-        "test:cache-github",
         "test:cache-local",
         "test:clean",
         "test:cli-options",
