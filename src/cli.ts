@@ -92,6 +92,13 @@ const run = async (): Promise<Result<void, Failure[]>> => {
     if (!config.ok) {
       return config;
     }
+    if (options.graph) {
+      const {Graph} = await import('./graph.js');
+      const graph = new Graph(config.value);
+      await graph.generate();
+      return {ok: true, value: undefined};
+    }
+    console.log('\n\n\n\n\nOH NO!\n\n\n\n\n\n');
     const executor = new Executor(
       config.value,
       logger,
