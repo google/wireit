@@ -97,8 +97,6 @@ export type Failure =
   | DependencyOnMissingScript
   | Cycle
   | UnknownErrorThrown
-  | DependencyOnMissingPackageJson
-  | DependencyOnMissingScript
   | DependencyInvalid
   | ServiceExitedUnexpectedly
   | DependencyServiceExitedUnexpectedly

@@ -38,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext) {
         },
       ],
       traceOutputChannel: outputChannel,
-    }
+    },
   );
   context.subscriptions.push(
     client.onNotification(
@@ -48,8 +48,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // the console (when running as part of a test).
         outputChannel.appendLine(`languageServer: ${message}`);
         console.error(`languageServer: ${message}`);
-      }
-    )
+      },
+    ),
   );
 
   await client.start();

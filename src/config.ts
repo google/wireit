@@ -50,7 +50,7 @@ export interface ScriptReferenceWithCommand extends ScriptReference {
 }
 
 export interface Dependency<
-  Config extends PotentiallyValidScriptConfig = ScriptConfig
+  Config extends PotentiallyValidScriptConfig = ScriptConfig,
 > {
   config: Config;
   specifier: JsonAstNode<string>;
@@ -228,7 +228,7 @@ export const scriptReferenceToString = ({
  * Inverse of {@link scriptReferenceToString}.
  */
 export const stringToScriptReference = (
-  str: ScriptReferenceString
+  str: ScriptReferenceString,
 ): ScriptReference => {
   const [packageDir, name] = JSON.parse(str) as [string, string];
   return {packageDir, name};

@@ -124,7 +124,7 @@ export class IdeAnalyzer {
 
   async getCodeActions(
     path: string,
-    range: PositionRange
+    range: PositionRange,
   ): Promise<CodeAction[]> {
     const codeActions: CodeAction[] = [];
     // file isn't open
@@ -140,11 +140,11 @@ export class IdeAnalyzer {
     }
     const packageJson = packageJsonResult.value;
     const ourRange = OffsetToPositionConverter.get(
-      packageJson.jsonFile
+      packageJson.jsonFile,
     ).ideRangeToRange(range);
     const scriptInfo = await this._getInfoAboutLocation(
       packageJson,
-      ourRange.offset
+      ourRange.offset,
     );
     if (scriptInfo === undefined) {
       return codeActions;
@@ -278,7 +278,7 @@ export class IdeAnalyzer {
 
   async getDefinition(
     path: string,
-    position: Position
+    position: Position,
   ): Promise<DefinitionLink[] | undefined> {
     const packageDir = pathlib.dirname(path);
     const packageJsonResult = await this._analyzer.getPackageJson(packageDir);
@@ -287,11 +287,11 @@ export class IdeAnalyzer {
     }
     const packageJson = packageJsonResult.value;
     const ourPosition = OffsetToPositionConverter.get(
-      packageJson.jsonFile
+      packageJson.jsonFile,
     ).idePositionToOffset(position);
     const scriptInfo = await this._getInfoAboutLocation(
       packageJson,
-      ourPosition
+      ourPosition,
     );
     if (scriptInfo?.kind === 'dependency') {
       const dep = scriptInfo.dependency;
@@ -303,12 +303,12 @@ export class IdeAnalyzer {
 
       const targetConverter = OffsetToPositionConverter.get(targetFile);
       const sourceConverter = OffsetToPositionConverter.get(
-        packageJson.jsonFile
+        packageJson.jsonFile,
       );
       return [
         {
           originSelectionRange: sourceConverter.toIdeRange(
-            scriptInfo.dependency.specifier
+            scriptInfo.dependency.specifier,
           ),
           targetUri: url.pathToFileURL(targetFile.path).toString(),
           targetRange: targetConverter.toIdeRange(
@@ -316,7 +316,7 @@ export class IdeAnalyzer {
             // So we preview the whole thing when looking at the definition:
             //      "build": {"command": "tsc"}
             //      ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            targetNode.parent ?? targetNode
+            targetNode.parent ?? targetNode,
           ),
           targetSelectionRange: targetConverter.toIdeRange(targetNode.name),
         },
@@ -324,7 +324,7 @@ export class IdeAnalyzer {
     }
     if (scriptInfo?.kind === 'scripts-section-script') {
       const sourceConverter = OffsetToPositionConverter.get(
-        packageJson.jsonFile
+        packageJson.jsonFile,
       );
       const syntaxInfo = scriptInfo.scriptSyntaxInfo;
       if (syntaxInfo.scriptNode && syntaxInfo.wireitConfigNode) {
@@ -332,14 +332,14 @@ export class IdeAnalyzer {
         return [
           {
             originSelectionRange: sourceConverter.toIdeRange(
-              syntaxInfo.scriptNode.parent ?? syntaxInfo.scriptNode
+              syntaxInfo.scriptNode.parent ?? syntaxInfo.scriptNode,
             ),
             targetUri: url.pathToFileURL(packageJson.jsonFile.path).toString(),
             targetRange: sourceConverter.toIdeRange(
-              syntaxInfo.wireitConfigNode.parent ?? syntaxInfo.wireitConfigNode
+              syntaxInfo.wireitConfigNode.parent ?? syntaxInfo.wireitConfigNode,
             ),
             targetSelectionRange: sourceConverter.toIdeRange(
-              syntaxInfo.wireitConfigNode.name
+              syntaxInfo.wireitConfigNode.name,
             ),
           },
         ];
@@ -348,7 +348,7 @@ export class IdeAnalyzer {
   }
 
   async getPackageJsonForTest(
-    filename: string
+    filename: string,
   ): Promise<PackageJson | undefined> {
     const packageDir = pathlib.dirname(filename);
     const packageJsonResult = await this._analyzer.getPackageJson(packageDir);
@@ -360,7 +360,7 @@ export class IdeAnalyzer {
 
   private async _getInfoAboutLocation(
     packageJson: PackageJson,
-    offset: number
+    offset: number,
   ) {
     const locationInfo = packageJson.getInfoAboutLocation(offset);
     if (locationInfo === undefined) {
@@ -400,8 +400,8 @@ function getEdit(file: JsonFile, modifications: Modification[]): WorkspaceEdit {
         file.contents,
         path,
         value,
-        inferModificationOptions(file)
-      )
+        inferModificationOptions(file),
+      ),
     );
   }
   const converter = OffsetToPositionConverter.get(file);
@@ -415,7 +415,7 @@ function getEdit(file: JsonFile, modifications: Modification[]): WorkspaceEdit {
 }
 
 function inferModificationOptions(
-  file: JsonFile
+  file: JsonFile,
 ): jsonParser.ModificationOptions {
   const firstPostNewlineWhitespace = file.contents.match(/\n(\s+)/)?.[1];
   if (firstPostNewlineWhitespace === undefined) {
@@ -464,7 +464,7 @@ function convertDiagnostic(d: Diagnostic): IdeDiagnostic {
 }
 
 function convertSeverity(
-  severity: 'error' | 'warning' | 'info'
+  severity: 'error' | 'warning' | 'info',
 ): DiagnosticSeverity {
   switch (severity) {
     case 'error':

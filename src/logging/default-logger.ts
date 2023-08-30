@@ -58,7 +58,7 @@ export class DefaultLogger implements Logger {
         switch (reason) {
           default: {
             throw new Error(
-              `Unknown success reason: ${unreachable(reason) as string}`
+              `Unknown success reason: ${unreachable(reason) as string}`,
             );
           }
           case 'exit-zero': {
@@ -90,19 +90,19 @@ export class DefaultLogger implements Logger {
         switch (reason) {
           default: {
             throw new Error(
-              `Unknown failure reason: ${unreachable(reason) as string}`
+              `Unknown failure reason: ${unreachable(reason) as string}`,
             );
           }
           case 'launched-incorrectly': {
             console.error(
-              `❌${prefix} wireit must be launched with "npm run" or a compatible command.`
+              `❌${prefix} wireit must be launched with "npm run" or a compatible command.`,
             );
             console.error(`    More info: ${event.detail}`);
             break;
           }
           case 'missing-package-json': {
             console.error(
-              `❌${prefix} No package.json was found in ${event.script.packageDir}`
+              `❌${prefix} No package.json was found in ${event.script.packageDir}`,
             );
             break;
           }
@@ -115,7 +115,7 @@ export class DefaultLogger implements Logger {
 
           case 'no-scripts-in-package-json': {
             console.error(
-              `❌${prefix} No "scripts" section defined in package.json in ${event.script.packageDir}`
+              `❌${prefix} No "scripts" section defined in package.json in ${event.script.packageDir}`,
             );
             break;
           }
@@ -136,7 +136,7 @@ export class DefaultLogger implements Logger {
           }
           case 'exit-non-zero': {
             console.error(
-              `❌${prefix} Failed with exit status ${event.status}`
+              `❌${prefix} Failed with exit status ${event.status}`,
             );
             break;
           }
@@ -165,8 +165,8 @@ export class DefaultLogger implements Logger {
           case 'unknown-error-thrown': {
             console.error(
               `❌${prefix} Internal error! Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.\n    Unknown error thrown: ${String(
-                event.error
-              )}`
+                event.error,
+              )}`,
             );
             const maybeError = event.error as Partial<Error> | undefined;
             if (maybeError?.stack) {
@@ -178,8 +178,8 @@ export class DefaultLogger implements Logger {
             console.error(
               `❌${prefix} Depended, perhaps indirectly, on ${labelForScript(
                 this._rootPackageDir,
-                event.dependency
-              )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`
+                event.dependency,
+              )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`,
             );
             break;
           }
@@ -202,7 +202,7 @@ export class DefaultLogger implements Logger {
         switch (stream) {
           default: {
             throw new Error(
-              `Unknown output stream: ${unreachable(stream) as string}`
+              `Unknown output stream: ${unreachable(stream) as string}`,
             );
           }
           // TODO(aomarks) More advanced handling of output streams so that
@@ -224,26 +224,26 @@ export class DefaultLogger implements Logger {
         switch (detail) {
           default: {
             throw new Error(
-              `Unknown info event detail: ${unreachable(detail) as string}`
+              `Unknown info event detail: ${unreachable(detail) as string}`,
             );
           }
           case 'running': {
             console.log(
               `🏃${prefix} Running command "${
                 event.script.command?.value ?? ''
-              }"`
+              }"`,
             );
             break;
           }
           case 'locked': {
             console.log(
-              `💤${prefix} Waiting for another process which is already running this script.`
+              `💤${prefix} Waiting for another process which is already running this script.`,
             );
             break;
           }
           case 'output-modified': {
             console.log(
-              `ℹ️${prefix} Output files were modified since the previous run.`
+              `ℹ️${prefix} Output files were modified since the previous run.`,
             );
             break;
           }
@@ -306,7 +306,7 @@ export class DefaultLogger implements Logger {
  */
 export function labelForScript(
   rootPackageDir: string,
-  script: ScriptReference | PackageReference
+  script: ScriptReference | PackageReference,
 ) {
   const packageDir = script.packageDir;
   const scriptName = 'name' in script ? script.name : undefined;

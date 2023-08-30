@@ -24,7 +24,7 @@ import type {AbsoluteEntry} from './glob.js';
 export const copyEntries = async (
   entries: AbsoluteEntry[],
   sourceDir: string,
-  destDir: string
+  destDir: string,
 ): Promise<void> => {
   if (entries.length === 0) {
     return;
@@ -49,8 +49,8 @@ export const copyEntries = async (
 
   await Promise.all(
     optimizeMkdirs([...directories]).map((path) =>
-      fs.mkdir(path, {recursive: true})
-    )
+      fs.mkdir(path, {recursive: true}),
+    ),
   );
 
   const copyPromises = [];
@@ -58,16 +58,16 @@ export const copyEntries = async (
     copyPromises.push(
       copyFileGracefully(
         pathlib.join(sourceDir, path),
-        pathlib.join(destDir, path)
-      )
+        pathlib.join(destDir, path),
+      ),
     );
   }
   for (const path of symlinks) {
     copyPromises.push(
       copySymlinkGracefully(
         pathlib.join(sourceDir, path),
-        pathlib.join(destDir, path)
-      )
+        pathlib.join(destDir, path),
+      ),
     );
   }
   await Promise.all(copyPromises);
@@ -95,7 +95,7 @@ const copyFileGracefully = async (src: string, dest: string): Promise<void> => {
  */
 const copySymlinkGracefully = async (
   src: string,
-  dest: string
+  dest: string,
 ): Promise<void> => {
   try {
     const target = await fs.readlink(src, {encoding: 'buffer'});
@@ -127,11 +127,11 @@ const copySymlinkGracefully = async (
  */
 const detectWindowsSymlinkType = async (
   target: Buffer,
-  linkPath: string
+  linkPath: string,
 ): Promise<'file' | 'dir' | undefined> => {
   const resolved = pathlib.resolve(
     pathlib.dirname(linkPath),
-    target.toString()
+    target.toString(),
   );
   try {
     const stats = await fs.stat(resolved);

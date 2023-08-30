@@ -23,7 +23,7 @@ import type {AbsoluteEntry} from '../util/glob.js';
 export class LocalCache implements Cache {
   async get(
     script: ScriptReference,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<CacheHit | undefined> {
     const cacheDir = this._getCacheDir(script, fingerprint);
     try {
@@ -40,7 +40,7 @@ export class LocalCache implements Cache {
   async set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    absoluteFiles: AbsoluteEntry[]
+    absoluteFiles: AbsoluteEntry[],
   ): Promise<boolean> {
     // TODO(aomarks) A script's cache directory currently just grows forever.
     // We'll have the "clean" command to help with manual cleanup, but we'll
@@ -63,12 +63,12 @@ export class LocalCache implements Cache {
 
   private _getCacheDir(
     script: ScriptReference,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',
-      createHash('sha256').update(fingerprint.string).digest('hex')
+      createHash('sha256').update(fingerprint.string).digest('hex'),
     );
   }
 }

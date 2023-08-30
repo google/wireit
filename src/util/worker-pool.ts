@@ -27,7 +27,7 @@ export class WorkerPool {
   constructor(numWorkers: number) {
     if (numWorkers <= 0) {
       throw new Error(
-        `WorkerPool needs a positive number of workers, got ${numWorkers}`
+        `WorkerPool needs a positive number of workers, got ${numWorkers}`,
       );
     }
     this._availableWorkers = numWorkers;
@@ -46,7 +46,7 @@ export class WorkerPool {
       await waiter.promise;
       if (this._availableWorkers <= 0) {
         throw new Error(
-          `Internal error: expected availableWorkers to be positive after task was awoken, but was ${this._availableWorkers}`
+          `Internal error: expected availableWorkers to be positive after task was awoken, but was ${this._availableWorkers}`,
         );
       }
     }
@@ -60,7 +60,7 @@ export class WorkerPool {
         // case.
         // eslint-disable-next-line no-unsafe-finally
         throw new Error(
-          `Internal error: expected availableWorkers to be positive after incrementing, but was ${this._availableWorkers}`
+          `Internal error: expected availableWorkers to be positive after incrementing, but was ${this._availableWorkers}`,
         );
       }
       this._waitingWorkers.pop()?.resolve();

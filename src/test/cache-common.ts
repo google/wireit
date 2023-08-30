@@ -18,7 +18,7 @@ import type {WireitTestRig} from './util/test-rig.js';
  */
 export const registerCommonCacheTests = (
   test: Test<{rig: WireitTestRig}>,
-  cacheMode: 'local' | 'github'
+  cacheMode: 'local' | 'github',
 ) => {
   test(
     'caches single file',
@@ -84,7 +84,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output'), 'v1');
       }
-    })
+    }),
   );
 
   test(
@@ -179,7 +179,7 @@ export const registerCommonCacheTests = (
         assert.equal(await rig.read('output/1/c/d/e'), 'v1');
         assert.equal(await rig.read('output/excluded/foo'), 'excluded');
       }
-    })
+    }),
   );
 
   test(
@@ -274,7 +274,7 @@ export const registerCommonCacheTests = (
         assert.equal(await rig.read('output/subdir/excluded'), 'v0');
         assert.equal(await rig.read('output/subdir/reincluded'), 'v1');
       }
-    })
+    }),
   );
 
   test(
@@ -357,7 +357,7 @@ export const registerCommonCacheTests = (
         assert.not(await rig.exists('output/only-v0'));
         assert.equal(await rig.read('output/only-v1'), 'v1');
       }
-    })
+    }),
   );
 
   test(
@@ -411,7 +411,7 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 3);
       }
-    })
+    }),
   );
 
   test(
@@ -464,7 +464,7 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
       }
-    })
+    }),
   );
 
   test(
@@ -534,7 +534,7 @@ export const registerCommonCacheTests = (
         await rig.write({target: 'bar'});
         assert.equal(await rig.read('symlink'), 'bar');
       }
-    })
+    }),
   );
 
   test(
@@ -613,7 +613,7 @@ export const registerCommonCacheTests = (
         // symlink to the directory.
         assert.equal(await rig.readlink('output/symlink'), `..${sep}target`);
       }
-    })
+    }),
   );
 
   test(
@@ -673,7 +673,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 3);
         assert.equal(await rig.read('output'), 'v0');
       }
-    })
+    }),
   );
 
   test(
@@ -739,7 +739,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 3);
         assert.equal(await rig.read('output'), 'v0');
       }
-    })
+    }),
   );
 
   test(
@@ -814,7 +814,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output'), 'v1');
       }
-    })
+    }),
   );
 
   test(
@@ -893,7 +893,7 @@ export const registerCommonCacheTests = (
         assert.ok(await rig.isDirectory('with-exclusion'));
         assert.not(await rig.exists('with-exclusion/excluded'));
       }
-    })
+    }),
   );
 
   test(
@@ -960,7 +960,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output'), 'v1');
       }
-    })
+    }),
   );
 
   test(
@@ -993,19 +993,19 @@ export const registerCommonCacheTests = (
         res.stderr,
         `
 ❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(
-          pathlib.join(rig.temp, 'outside')
+          pathlib.join(rig.temp, 'outside'),
         )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
           "output": [
                     ~
             "../outside"
     ~~~~~~~~~~~~~~~~~~~~
           ],
-    ~~~~~~~`
+    ~~~~~~~`,
       );
       assert.equal(cmdA.numInvocations, 0);
 
       // The outside file should not have been deleted.
       assert.ok(await rig.exists('outside'));
-    })
+    }),
   );
 };

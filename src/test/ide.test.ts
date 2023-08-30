@@ -40,7 +40,7 @@ test.after.each(async (ctx) => {
 
 async function assertDiagnostics(
   ide: IdeAnalyzer,
-  expected: Record<string, string[]>
+  expected: Record<string, string[]>,
 ) {
   const actual = {} as Record<string, string[]>;
   const byFile = await ide.getDiagnostics();
@@ -68,7 +68,7 @@ test('changing a file gives us new diagnostics', async ({rig}) => {
   await assertDiagnostics(ide, {});
   ide.setOpenFileContents(
     rig.resolve(`package.json`),
-    `{"scripts": {"bad": []}}`
+    `{"scripts": {"bad": []}}`,
   );
   await assertDiagnostics(ide, {
     [rig.resolve(`package.json`)]: ['Expected a string, but was array.'],
@@ -87,7 +87,7 @@ test('the overlay filesystem overrides the regular one', async ({rig}) => {
           dependencies: ['./child:b'],
         },
       },
-    })
+    }),
   );
   await assertDiagnostics(ide, {
     [rig.resolve(`package.json`)]: [
@@ -99,11 +99,11 @@ test('the overlay filesystem overrides the regular one', async ({rig}) => {
     childPath,
     JSON.stringify({
       scripts: {b: 'foo'},
-    })
+    }),
   );
   assert.equal(
     [...ide.openFiles],
-    [rig.resolve('package.json'), rig.resolve('child/package.json')]
+    [rig.resolve('package.json'), rig.resolve('child/package.json')],
   );
   await assertDiagnostics(ide, {});
   // Replace the in-memory buffer with a file on disk.
@@ -125,7 +125,7 @@ test('the overlay filesystem overrides the regular one', async ({rig}) => {
           dependencies: ['./child:c'],
         },
       },
-    })
+    }),
   );
   await assertDiagnostics(ide, {});
 });
@@ -147,7 +147,7 @@ test('we can get cyclic dependency errors', async ({rig}) => {
           dependencies: ['a'],
         },
       },
-    })
+    }),
   );
   await assertDiagnostics(ide, {
     [rig.resolve('package.json')]: [`Cycle detected in dependencies of "a".`],
@@ -166,7 +166,7 @@ async function assertDefinition(
           targetSelection: string;
           originSelection: string;
         };
-  }
+  },
 ) {
   const offset = options.contentsWithPipe.indexOf('|');
   const contents =
@@ -180,14 +180,14 @@ async function assertDefinition(
   const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
   const definitions = await ide.getDefinition(
     options.path,
-    sourceConverter.toIdePosition(offset)
+    sourceConverter.toIdePosition(offset),
   );
   if (definitions === undefined) {
     if (options.expected === undefined) {
       return; // No definition, as expected.
     }
     throw new Error(
-      `Expected to find a definition matching \n${inspect(options.expected)}`
+      `Expected to find a definition matching \n${inspect(options.expected)}`,
     );
   }
   // currently we always expect one definition
@@ -195,11 +195,11 @@ async function assertDefinition(
   const definition = definitions[0];
   if (options.expected === undefined) {
     throw new Error(
-      `Expected no definition, but got one: ${inspect(definition)}`
+      `Expected no definition, but got one: ${inspect(definition)}`,
     );
   }
   const targetFile = await ide.getPackageJsonForTest(
-    url.fileURLToPath(definition.targetUri)
+    url.fileURLToPath(definition.targetUri),
   );
   if (targetFile === undefined) {
     throw new Error(`Could not load target file`);
@@ -210,7 +210,7 @@ async function assertDefinition(
       file: targetFile.jsonFile,
       range: targetConverter.ideRangeToRange(definition.targetRange),
     },
-    0
+    0,
   );
   assertSquiggleEquals(targetSquiggle, options.expected.target);
 
@@ -219,11 +219,11 @@ async function assertDefinition(
       file: targetFile.jsonFile,
       range: targetConverter.ideRangeToRange(definition.targetSelectionRange),
     },
-    0
+    0,
   );
   assertSquiggleEquals(
     targetSelectionSquiggle,
-    options.expected.targetSelection
+    options.expected.targetSelection,
   );
   if (definition.originSelectionRange === undefined) {
     throw new Error(`No iriginSelectionRange returned`);
@@ -233,11 +233,11 @@ async function assertDefinition(
       file: sourceFile.jsonFile,
       range: sourceConverter.ideRangeToRange(definition.originSelectionRange),
     },
-    2
+    2,
   );
   assertSquiggleEquals(
     sourceSelectionSquiggle,
-    options.expected.originSelection
+    options.expected.originSelection,
   );
 }
 
@@ -269,7 +269,7 @@ test('we can get the definition for a same file dependency', async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: {
       target: `
@@ -306,7 +306,7 @@ test(`we jump to the scripts section for a vanilla script`, async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: {
       target: `
@@ -339,7 +339,7 @@ test('jump to definition from object style dependency', async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: {
       target: `
@@ -376,7 +376,7 @@ test(`we don't get definitions for non-dep locations`, async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: undefined,
   });
@@ -399,7 +399,7 @@ test(`we don't get definitions for non-dep locations`, async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: undefined,
   });
@@ -421,7 +421,7 @@ test(`we don't get definitions for non-dep locations`, async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: undefined,
   });
@@ -443,7 +443,7 @@ test(`we don't get definitions for non-dep locations`, async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: undefined,
   });
@@ -466,7 +466,7 @@ test(`we can jump to definitions across files`, async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: {
       target: `
@@ -502,7 +502,7 @@ test('can jump from scripts section to wireit config', async ({rig}) => {
         },
       },
       null,
-      2
+      2,
     ),
     expected: {
       target: `

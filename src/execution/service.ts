@@ -94,7 +94,7 @@ type ServiceState =
 
 function unknownState(state: never) {
   return new Error(
-    `Unknown service state ${String((state as ServiceState).id)}`
+    `Unknown service state ${String((state as ServiceState).id)}`,
   );
 }
 
@@ -253,7 +253,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     logger: Logger,
     entireExecutionAborted: Promise<void>,
     adoptee: ServiceScriptExecution | undefined,
-    isWatchMode: boolean
+    isWatchMode: boolean,
   ) {
     super(config, executor, logger);
     this._isWatchMode = isWatchMode;
@@ -352,8 +352,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         const allConsumersDone = Promise.all(
           this._config.serviceConsumers.map(
             (consumer) =>
-              this._executor.getExecution(consumer).servicesNotNeeded
-          )
+              this._executor.getExecution(consumer).servicesNotNeeded,
+          ),
         );
         const abort = this._config.isPersistent
           ? Promise.all([this._state.entireExecutionAborted, allConsumersDone])
@@ -399,7 +399,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   }
 
   private _onDepsExecuted(
-    depFingerprints: Array<[Dependency, Fingerprint]>
+    depFingerprints: Array<[Dependency, Fingerprint]>,
   ): void {
     switch (this._state.id) {
       case 'executingDeps': {
@@ -411,7 +411,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         void Fingerprint.compute(this._config, depFingerprints).then(
           (result) => {
             this._onFingerprinted(result);
-          }
+          },
         );
         return;
       }
@@ -613,7 +613,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
                     script: this._config,
                     reason: 'aborted',
                   },
-                }
+                },
           );
         });
         return this._state.started.promise;
@@ -671,7 +671,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
                 ? undefined
                 : new LineMonitor(
                     child,
-                    this._config.service.readyWhen.lineMatches
+                    this._config.service.readyWhen.lineMatches,
                   ),
           };
           void this._state.child.started.then(() => {
@@ -1052,7 +1052,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
 
   private _enterStartedBrokenState(
     failure: Failure,
-    {child, fingerprint}: {child: ScriptChildProcess; fingerprint: Fingerprint}
+    {child, fingerprint}: {child: ScriptChildProcess; fingerprint: Fingerprint},
   ) {
     this._startLoggingChildStdio(child);
     void child.completed.then(() => {

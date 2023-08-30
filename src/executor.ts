@@ -58,7 +58,7 @@ let executorConstructorHook: ((executor: Executor) => void) | undefined;
  * constructed.
  */
 export function registerExecutorConstructorHook(
-  fn: typeof executorConstructorHook
+  fn: typeof executorConstructorHook,
 ) {
   executorConstructorHook = fn;
 }
@@ -97,7 +97,7 @@ export class Executor {
     failureMode: FailureMode,
     previousIterationServices: ServiceMap | undefined,
     isWatchMode: boolean,
-    previousWatchIterationFailures?: Map<ScriptReferenceString, Fingerprint>
+    previousWatchIterationFailures?: Map<ScriptReferenceString, Fingerprint>,
   ) {
     executorConstructorHook?.(this);
     this._rootConfig = rootConfig;
@@ -134,7 +134,7 @@ export class Executor {
         default: {
           const never: never = failureMode;
           throw new Error(
-            `Internal error: unexpected failure mode: ${String(never)}`
+            `Internal error: unexpected failure mode: ${String(never)}`,
           );
         }
       }
@@ -187,7 +187,7 @@ export class Executor {
 
     const errors: Failure[] = [];
     const rootExecutionResult = await this.getExecution(
-      this._rootConfig
+      this._rootConfig,
     ).execute();
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
@@ -204,7 +204,7 @@ export class Executor {
     // Wait for all ephemeral services to have terminated (either started and
     // stopped, or never needed to start).
     const ephemeralServiceResults = await Promise.all(
-      this._ephemeralServices.map((service) => service.terminated)
+      this._ephemeralServices.map((service) => service.terminated),
     );
     for (const result of ephemeralServiceResults) {
       if (!result.ok) {
@@ -264,7 +264,7 @@ export class Executor {
           this._logger,
           this._stopServices.promise,
           this._previousIterationServices?.get(key),
-          this._isWatchMode
+          this._isWatchMode,
         );
         if (config.isPersistent) {
           this._persistentServices.set(key, execution);
@@ -277,7 +277,7 @@ export class Executor {
           this,
           this._workerPool,
           this._cache,
-          this._logger
+          this._logger,
         );
       }
       this._executions.set(key, execution);
@@ -294,13 +294,13 @@ export class Executor {
    */
   failedInPreviousWatchIteration(
     script: ScriptReference,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): boolean {
     if (this._previousWatchIterationFailures === undefined) {
       return false;
     }
     const previous = this._previousWatchIterationFailures.get(
-      scriptReferenceToString(script)
+      scriptReferenceToString(script),
     );
     if (previous === undefined) {
       return false;
@@ -315,11 +315,11 @@ export class Executor {
    */
   registerWatchIterationFailure(
     script: ScriptReference,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): void {
     this._previousWatchIterationFailures?.set(
       scriptReferenceToString(script),
-      fingerprint
+      fingerprint,
     );
   }
 }

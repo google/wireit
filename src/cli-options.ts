@@ -235,7 +235,7 @@ export const getOptions = (): Result<Options> => {
  */
 function getArgvOptions(
   script: ScriptReference,
-  agent: Agent
+  agent: Agent,
 ): Pick<Options, 'watch' | 'extraArgs'> {
   // The way command-line arguments are handled in npm, yarn, and pnpm are all
   // different. Our goal here is for `<agent> --watch -- --extra` to behave the
@@ -267,7 +267,7 @@ function getArgvOptions(
       //     but unlike npm 6, it reflects the first script in a chain of scripts, instead
       //     of the last.
       return parseRemainingArgs(
-        findRemainingArgsFromNpmConfigArgv(script, agent)
+        findRemainingArgsFromNpmConfigArgv(script, agent),
       );
     }
     case 'yarnBerry':
@@ -304,7 +304,7 @@ function getNpmUserAgent(): Agent {
   console.error(
     '⚠️ Wireit could not identify the npm user agent, ' +
       'assuming it behaves like npm. ' +
-      'Arguments may not be interpreted correctly.'
+      'Arguments may not be interpreted correctly.',
   );
   return 'npm';
 }
@@ -316,13 +316,13 @@ function getNpmUserAgent(): Agent {
  */
 function findRemainingArgsFromNpmConfigArgv(
   script: ScriptReference,
-  agent: Agent
+  agent: Agent,
 ): string[] {
   const configArgvStr = process.env['npm_config_argv'];
   if (!configArgvStr) {
     console.error(
       '⚠️ The "npm_config_argv" environment variable was not set. ' +
-        'Arguments may not be interpreted correctly.'
+        'Arguments may not be interpreted correctly.',
     );
     return [];
   }
@@ -343,7 +343,7 @@ function findRemainingArgsFromNpmConfigArgv(
     console.error(
       '⚠️ Wireit could not parse the "npm_config_argv" ' +
         'environment variable as JSON. ' +
-        'Arguments may not be interpreted correctly.'
+        'Arguments may not be interpreted correctly.',
     );
     return [];
   }
@@ -375,7 +375,7 @@ function findRemainingArgsFromNpmConfigArgv(
         (agent === 'yarnClassic'
           ? `See https://github.com/yarnpkg/yarn/issues/8905, ` +
             `and please consider upgrading to yarn 3.x or switching to npm.`
-          : '')
+          : ''),
     );
     return process.argv.slice(2);
   }
@@ -389,7 +389,7 @@ function findRemainingArgsFromNpmConfigArgv(
  * as `extraArgs` to be passed down to the script.
  */
 function parseRemainingArgs(
-  args: string[]
+  args: string[],
 ): Pick<Options, 'watch' | 'extraArgs'> {
   let watch = false;
   let extraArgs: string[] = [];
@@ -410,7 +410,7 @@ function parseRemainingArgs(
       `⚠️ Unrecognized Wireit argument(s): ` +
         unrecognized.map((arg) => JSON.stringify(arg)).join(', ') +
         `. To pass arguments to the script, use a double-dash, ` +
-        `e.g. "npm run build -- --extra".`
+        `e.g. "npm run build -- --extra".`,
     );
   }
   return {

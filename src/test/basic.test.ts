@@ -79,7 +79,7 @@ test(
     assert.equal(resA1.code, 42);
     assert.equal(resA2.code, 43);
     assert.equal(resB1.code, 44);
-  })
+  }),
 );
 
 test(
@@ -115,7 +115,7 @@ test(
     checkScriptOutput(res.stderr, 'a stderr\n');
     assert.match(res.stdout, 'a stdout\n');
     assert.match(res.stdout, '✅ Ran 1 script and skipped 0 in');
-  })
+  }),
 );
 
 test(
@@ -157,7 +157,7 @@ test(
     checkScriptOutput(res.stderr, 'a stderr\n');
     assert.match(res.stdout, 'a stdout\n');
     assert.match(res.stdout, '✅ Ran 1 script and skipped 0 in');
-  })
+  }),
 );
 
 test(
@@ -221,7 +221,7 @@ test(
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
     // we only see the output of the root command
     checkScriptOutput(res.stderr, 'a stderr\n');
-  })
+  }),
 );
 
 test(
@@ -283,7 +283,7 @@ test(
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
     // we only see the output of the root command
     checkScriptOutput(res.stderr, 'a stderr\n');
-  })
+  }),
 );
 
 test(
@@ -351,7 +351,7 @@ test(
     assert.equal(cmdC.numInvocations, 1);
     assert.equal(cmdD.numInvocations, 1);
     assert.match(res.stdout, /Ran 4 scripts and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -397,7 +397,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -447,7 +447,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -506,7 +506,7 @@ test(
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -535,7 +535,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmd.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -564,7 +564,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmd.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -603,7 +603,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmd.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -642,7 +642,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmd.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -684,9 +684,9 @@ test(
       res.stderr,
       IS_WINDOWS
         ? "'test-binary' is not recognized"
-        : 'exited with exit code 127'
+        : 'exited with exit code 127',
     );
-  })
+  }),
 );
 
 // Node workspaces are only supported in npm 7+, which shipped with Node v15.
@@ -741,7 +741,7 @@ test(
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -773,13 +773,13 @@ test(
         env: {
           npm_lifecycle_event: 'a',
         },
-      }
+      },
     );
     (await cmdA.nextInvocation()).exit(0);
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -805,7 +805,7 @@ test(
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
     assert.match(res.stdout, /Ran 1 script and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -831,7 +831,7 @@ test(
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
     assert.match(res.stdout, /Ran 1 script and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -893,7 +893,7 @@ test(
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -948,7 +948,7 @@ test(
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -993,7 +993,7 @@ test(
 
     const exec = rig.exec('npm run a', {cwd: 'foo'});
     await exec.waitForLog(
-      /0% \[0 \/ 3\] \[2 running\] (\.\.\/bar:b|\.\.\/baz:c)/
+      /0% \[0 \/ 3\] \[2 running\] (\.\.\/bar:b|\.\.\/baz:c)/,
     );
 
     const invC = await cmdC.nextInvocation();
@@ -1013,7 +1013,7 @@ test(
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
-  })
+  }),
 );
 
 test(
@@ -1044,7 +1044,7 @@ test(
       await wireit.waitForLog(/❌ \[main\] killed/);
       await wireit.waitForLog(/❌ 1 script failed/);
     }
-  })
+  }),
 );
 
 for (const agent of ['npm', 'yarn', 'pnpm']) {
@@ -1103,7 +1103,7 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
         assert.equal((await wireit.exit).code, 0);
         await wireit.waitForLog(/Ran 1 script and skipped 0/s); //
       }
-    })
+    }),
   );
 }
 
@@ -1205,7 +1205,7 @@ test(
       assert.equal(b.numInvocations, 3);
       assert.equal(c.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1257,7 +1257,7 @@ test(
 
     const wireit = rig.exec('npm run 0');
     assert.equal((await wireit.exit).code, 0);
-  })
+  }),
 );
 
 test(
@@ -1302,7 +1302,7 @@ test(
     assert.equal(env.BAZ, 'baz-good');
     inv.exit(0);
     assert.equal((await wireit.exit).code, 0);
-  })
+  }),
 );
 
 test(
@@ -1339,7 +1339,7 @@ test(
     const {code} = await wireit.exit;
     assert.equal(code, 0);
     await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
-  })
+  }),
 );
 
 test.run();

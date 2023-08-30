@@ -66,7 +66,7 @@ export interface NamedAstNode<T extends ValueTypes = ValueTypes>
 export function findNamedNodeAtLocation(
   astNode: JsonAstNode,
   path: jsonParser.JSONPath,
-  file: JsonFile
+  file: JsonFile,
 ): Result<NamedAstNode | undefined> {
   const node = findNodeAtLocation(astNode, path) as NamedAstNode | undefined;
   const parent = node?.parent;
@@ -98,7 +98,7 @@ export function findNamedNodeAtLocation(
 
 export function findNodeAtLocation(
   astNode: JsonAstNode,
-  path: jsonParser.JSONPath
+  path: jsonParser.JSONPath,
 ): JsonAstNode | undefined {
   return jsonParser.findNodeAtLocation(astNode, path) as
     | JsonAstNode
@@ -107,7 +107,7 @@ export function findNodeAtLocation(
 
 export function parseTree(
   filePath: string,
-  json: string
+  json: string,
 ): Result<JsonAstNode, Failure> {
   const errors: ParseError[] = [];
   const result = parseTreeInternal(json, errors);

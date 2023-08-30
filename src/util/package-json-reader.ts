@@ -52,7 +52,7 @@ export class CachingPackageJsonReader {
       }
       const packageJsonFile = new PackageJson(
         {contents, path},
-        astResult.value
+        astResult.value,
       );
       return {ok: true, value: packageJsonFile};
     });

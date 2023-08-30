@@ -40,7 +40,7 @@ test(
   'invoked directly',
   timeout(async ({rig}) => {
     const result = rig.exec(
-      `node ${pathlib.join('..', '..', 'bin', 'wireit.js')}`
+      `node ${pathlib.join('..', '..', 'bin', 'wireit.js')}`,
     );
     const done = await result.exit;
     assert.equal(done.code, 1);
@@ -48,9 +48,9 @@ test(
       done.stderr,
       `
 ❌ wireit must be launched with "npm run" or a compatible command.
-    More info: Wireit could not identify the script to run.`.trim()
+    More info: Wireit could not identify the script to run.`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -70,9 +70,9 @@ test(
       done.stderr,
       `
 ❌ wireit must be launched with "npm run" or a compatible command.
-    More info: ${detail}`.trim()
+    More info: ${detail}`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -94,9 +94,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "-1"`.trim()
+❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "-1"`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -118,9 +118,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "0"`.trim()
+❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "0"`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -144,9 +144,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "aklsdjflajsdkflj"`.trim()
+❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "aklsdjflajsdkflj"`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -170,9 +170,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local", "github", or "none", got "aklsdjflajsdkflj"`.trim()
+❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local", "github", or "none", got "aklsdjflajsdkflj"`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -196,9 +196,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: Expected the WIREIT_FAILURES env variable to be "no-new", "continue", or "kill", got "aklsdjflajsdkflj"`.trim()
+❌ [main] Invalid usage: Expected the WIREIT_FAILURES env variable to be "no-new", "continue", or "kill", got "aklsdjflajsdkflj"`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -226,9 +226,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: The ACTIONS_CACHE_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim()
+❌ [main] Invalid usage: The ACTIONS_CACHE_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -256,9 +256,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: The ACTIONS_CACHE_URL must end in a forward-slash, got "http://example.com".`.trim()
+❌ [main] Invalid usage: The ACTIONS_CACHE_URL must end in a forward-slash, got "http://example.com".`.trim(),
     );
-  })
+  }),
 );
 
 test(
@@ -286,9 +286,9 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim()
+❌ [main] Invalid usage: The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim(),
     );
-  })
+  }),
 );
 
 test.run();

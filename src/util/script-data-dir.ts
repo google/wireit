@@ -22,5 +22,5 @@ export const getScriptDataDir = (script: ScriptReference) =>
     //
     // Reference:
     // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
-    Buffer.from(script.name).toString('hex')
+    Buffer.from(script.name).toString('hex'),
   );

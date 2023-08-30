@@ -15,14 +15,14 @@ test('the extension is installed', () => {
   const ourId = 'google.wireit';
   assert.ok(
     extensionIds.includes(ourId),
-    `Expected ${JSON.stringify(extensionIds)} to include '${ourId}'`
+    `Expected ${JSON.stringify(extensionIds)} to include '${ourId}'`,
   );
 });
 
 // Wait until the something is able to produce diagnostics, then return
 // those.
 async function getDiagnostics(
-  doc: vscode.TextDocument
+  doc: vscode.TextDocument,
 ): Promise<vscode.Diagnostic[]> {
   return await tryUntil(() => {
     const diagnostics = vscode.languages.getDiagnostics(doc.uri);
@@ -34,7 +34,7 @@ async function getDiagnostics(
 
 const TICKS_TO_WAIT = process.env.CI ? 1000 : 40;
 async function tryUntil<T>(
-  f: () => T | null | undefined | Promise<T | null | undefined>
+  f: () => T | null | undefined | Promise<T | null | undefined>,
 ): Promise<T> {
   for (let i = 0; i < TICKS_TO_WAIT; i++) {
     const v = await f();
@@ -53,8 +53,8 @@ async function tryUntil<T>(
 test('warns on a package.json based on the schema', async () => {
   const doc = await vscode.workspace.openTextDocument(
     vscode.Uri.file(
-      pathlib.join(__dirname, '../../src/test/fixtures/incorrect/package.json')
-    )
+      pathlib.join(__dirname, '../../src/test/fixtures/incorrect/package.json'),
+    ),
   );
   await vscode.window.showTextDocument(doc);
   const diagnostic = await tryUntil(() => {
@@ -75,7 +75,7 @@ test('warns on a package.json based on the schema', async () => {
       start: {line: 6, character: 17},
       end: {line: 6, character: 18},
     },
-    JSON.stringify(range)
+    JSON.stringify(range),
   );
 });
 
@@ -84,9 +84,9 @@ test('warns on a package.json based on semantic analysis in the language server'
     vscode.Uri.file(
       pathlib.join(
         __dirname,
-        '../../src/test/fixtures/semantic_errors/package.json'
-      )
-    )
+        '../../src/test/fixtures/semantic_errors/package.json',
+      ),
+    ),
   );
   await vscode.window.showTextDocument(doc);
   const diagnostics = await getDiagnostics(doc);
@@ -96,7 +96,7 @@ test('warns on a package.json based on semantic analysis in the language server'
       'This command should just be "wireit", as this script is configured in the wireit section.',
       'A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.',
     ],
-    JSON.stringify(diagnostics.map((d) => d.message))
+    JSON.stringify(diagnostics.map((d) => d.message)),
   );
   assert.equal(
     diagnostics.map((d) => ({
@@ -111,8 +111,8 @@ test('warns on a package.json based on semantic analysis in the language server'
       diagnostics.map((d) => ({
         start: {line: d.range.start.line, character: d.range.start.character},
         end: {line: d.range.end.line, character: d.range.end.character},
-      }))
-    )
+      })),
+    ),
   );
 });
 

@@ -63,7 +63,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.match(res.stdout, 'a stdout');
     assert.match(res.stderr, 'a stderr');
-  })
+  }),
 );
 
 test(
@@ -99,7 +99,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.match(res.stdout, 'a stdout');
     assert.match(res.stderr, 'a stderr');
-  })
+  }),
 );
 
 test(
@@ -144,7 +144,7 @@ test(
     assert.equal(cmdA.numInvocations, 0);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -195,7 +195,7 @@ test(
     assert.equal(cmdB.numInvocations, 0);
     assert.equal(cmdC.numInvocations, 1);
     assert.equal(cmdD.numInvocations, 1);
-  })
+  }),
 );
 
 for (const envSetting of ['no-new', undefined]) {
@@ -311,7 +311,7 @@ for (const envSetting of ['no-new', undefined]) {
       assert.equal(failParentBlocker.numInvocations, 1);
       assert.equal(cancel.numInvocations, 0);
       assert.equal(cancelBlocker.numInvocations, 1);
-    })
+    }),
   );
 }
 
@@ -376,7 +376,7 @@ test(
       assert.equal(a.numInvocations, 0);
       assert.equal(b.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -448,7 +448,7 @@ test(
     assert.equal(fail.numInvocations, 1);
     assert.equal(continues.numInvocations, 1);
     assert.equal(continuesBlocker.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -501,7 +501,7 @@ test(
 
     // `kill` is killed.
     assert.equal((await wireit.exit).code, 1);
-  })
+  }),
 );
 
 test.run();

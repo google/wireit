@@ -64,7 +64,7 @@ test.after.each(async (ctx) => {
 });
 
 async function retryWithGcUntilCallbackDoesNotThrow(
-  cb: () => void
+  cb: () => void,
 ): Promise<void> {
   for (const wait of [0, 10, 100, 500, 1000]) {
     global.gc();
@@ -100,7 +100,7 @@ test(
     const logger = new DefaultLogger(rig.temp);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'standard'},
-      []
+      [],
     );
     if (!script.config.ok) {
       for (const error of script.config.error) {
@@ -120,7 +120,7 @@ test(
         undefined,
         'no-new',
         undefined,
-        true
+        true,
       );
       const resultPromise = executor.execute();
       assert.ok(numLiveExecutors >= 1);
@@ -142,7 +142,7 @@ test(
       assert.equal(numLiveExecutions, 1);
     });
     assert.equal(standard.numInvocations, numIterations);
-  })
+  }),
 );
 
 test(
@@ -166,7 +166,7 @@ test(
     const logger = new DefaultLogger(rig.temp);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'service'},
-      []
+      [],
     );
     if (!script.config.ok) {
       for (const error of script.config.error) {
@@ -187,7 +187,7 @@ test(
         undefined,
         'no-new',
         previousServices,
-        true
+        true,
       );
       const resultPromise = executor.execute();
       assert.ok(numLiveExecutors >= 1);
@@ -216,7 +216,7 @@ test(
       assert.equal(numLiveExecutions, 1);
     });
     assert.equal(service.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -256,7 +256,7 @@ test(
     const logger = new DefaultLogger(rig.temp);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'entrypoint'},
-      []
+      [],
     );
     if (!script.config.ok) {
       for (const error of script.config.error) {
@@ -277,7 +277,7 @@ test(
         undefined,
         'no-new',
         previousServices,
-        true
+        true,
       );
       const resultPromise = executor.execute();
       assert.ok(numLiveExecutors >= 1);
@@ -310,7 +310,7 @@ test(
     assert.equal(standard.numInvocations, numIterations);
     assert.equal(servicePersistent.numInvocations, 1);
     assert.equal(serviceEphemeral.numInvocations, numIterations);
-  })
+  }),
 );
 
 test.run();

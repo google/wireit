@@ -138,7 +138,7 @@ export class Watcher {
     workerPool: WorkerPool,
     cache: Cache | undefined,
     failureMode: FailureMode,
-    agent: Agent
+    agent: Agent,
   ) {
     this._rootScript = rootScript;
     this._extraArgs = extraArgs;
@@ -249,7 +249,7 @@ export class Watcher {
       this._configFilesWatcher = makeWatcher(
         configFiles,
         '/',
-        this._onConfigFileChanged
+        this._onConfigFileChanged,
       );
       if (oldWatcher !== undefined) {
         void oldWatcher.watcher.close();
@@ -281,7 +281,7 @@ export class Watcher {
       this._failureMode,
       this._previousIterationServices,
       true,
-      this._previousIterationFailures
+      this._previousIterationFailures,
     );
     const result = await this._executor.execute();
     this._previousIterationServices = result.persistentServices;
@@ -384,7 +384,7 @@ export class Watcher {
           const newWatcher = makeWatcher(
             newInputFiles,
             script.packageDir,
-            this._fileChanged
+            this._fileChanged,
           );
           this._inputFileWatchers.set(key, newWatcher);
         }
@@ -453,7 +453,7 @@ export class Watcher {
 
 const watchPathsEqual = (
   a: Array<string> | undefined,
-  b: Array<string> | undefined
+  b: Array<string> | undefined,
 ) => {
   if (a === undefined && b === undefined) {
     return true;
@@ -484,7 +484,7 @@ export const makeWatcher = (
   patterns: string[],
   cwd: string,
   callback: () => void,
-  ignoreInitial = true
+  ignoreInitial = true,
 ): FileWatcher => {
   // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
   // currently various differences in what gets watched vs what actually affects
@@ -496,7 +496,7 @@ export const makeWatcher = (
     {
       cwd,
       ignoreInitial,
-    }
+    },
   );
   watcher.on('all', callback);
   return {

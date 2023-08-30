@@ -79,7 +79,7 @@ test(
       assert.equal(dep2.numInvocations, 1);
       assert.equal(main.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -132,7 +132,7 @@ test(
     assert.equal(dep1.numInvocations, 1);
     assert.equal(dep2.numInvocations, 1);
     assert.equal(main.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -185,7 +185,7 @@ test(
       assert.equal(cmd.numInvocations, 1);
     }
     assert.equal(main.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -223,7 +223,7 @@ test(
     assert.equal(dep1.numInvocations, 1);
     assert.equal(dep2.numInvocations, 1);
     assert.equal(main.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -271,8 +271,8 @@ test(
 
       assert.equal(cmdA.numInvocations, concurrency);
     },
-    IS_WINDOWS ? 60_000 : undefined
-  )
+    IS_WINDOWS ? 60_000 : undefined,
+  ),
 );
 
 test(
@@ -305,7 +305,7 @@ test(
     assert.equal((await exec1.exit).code, 0);
     assert.equal((await exec2.exit).code, 0);
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test.run();

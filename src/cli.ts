@@ -47,8 +47,8 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
           const never: never = cacheResult.error.reason;
           throw new Error(
             `Internal error: unexpected cache result error reason: ${String(
-              never
-            )}`
+              never,
+            )}`,
           );
         }
       }
@@ -61,7 +61,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
     }
     default: {
       throw new Error(
-        `Unhandled cache: ${unreachable(options.cache) as string}`
+        `Unhandled cache: ${unreachable(options.cache) as string}`,
       );
     }
   }
@@ -75,7 +75,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       workerPool,
       cache,
       options.failureMode,
-      options.agent
+      options.agent,
     );
     process.on('SIGINT', () => {
       watcher.abort();
@@ -95,7 +95,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       cache,
       options.failureMode,
       undefined,
-      false
+      false,
     );
     process.on('SIGINT', () => {
       executor.abort();

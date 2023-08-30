@@ -115,7 +115,7 @@ test.before.each(async (ctx) => {
             // We need ignoreInitial=false because we need the initial "add"
             // events to find out what chokidar has found (we usually only care
             // about changes, not initial files).
-            false
+            false,
           );
           watcher.on('add', (path) => {
             actual.push(rig.resolve(path));
@@ -123,7 +123,7 @@ test.before.each(async (ctx) => {
           await new Promise<void>((resolve) =>
             watcher.on('ready', () => {
               resolve();
-            })
+            }),
           );
           await watcher.close();
         }
@@ -175,7 +175,7 @@ for (const mode of ['once', 'watch'] as const) {
       files: ['foo'],
       patterns: ['foo/'],
       expected: ['foo'],
-    })
+    }),
   );
 
   test(`[${mode}] normalizes ../ in pattern`, ({check}) =>
@@ -310,7 +310,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: ['foo'],
         expected: ['foo'],
         includeDirectories: true,
-      })
+      }),
   );
 
   test(`[${mode}] * star excludes directory when includeDirectories=false`, ({
@@ -332,7 +332,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: ['*'],
         expected: ['foo'],
         includeDirectories: true,
-      })
+      }),
   );
 
   skipIfWatch(
@@ -353,7 +353,7 @@ for (const mode of ['once', 'watch'] as const) {
         expected: [],
         includeDirectories: false,
         expandDirectories: false,
-      })
+      }),
   );
 
   skipIfWatch(
@@ -374,7 +374,7 @@ for (const mode of ['once', 'watch'] as const) {
         expected: ['foo'],
         includeDirectories: true,
         expandDirectories: false,
-      })
+      }),
   );
 
   test(`[${mode}] includeDirectories=false + expandDirectories=true`, ({
@@ -415,7 +415,7 @@ for (const mode of ['once', 'watch'] as const) {
         ],
         includeDirectories: true,
         expandDirectories: true,
-      })
+      }),
   );
 
   skipIfWatch(
@@ -442,7 +442,7 @@ for (const mode of ['once', 'watch'] as const) {
         expected: ['foo', 'foo/1', 'foo/2', 'foo/baz'],
         includeDirectories: true,
         expandDirectories: true,
-      })
+      }),
   );
 
   skipIfWatch(
@@ -462,7 +462,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: ['.'],
         expected: ['.'],
         includeDirectories: true,
-      })
+      }),
   );
 
   test(`[${mode}] . matches current directory with expandDirectories=true`, ({
@@ -483,7 +483,7 @@ for (const mode of ['once', 'watch'] as const) {
       patterns: ['{foo,baz}'],
       expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
       expandDirectories: true,
-    })
+    }),
   );
 
   skipIfWatch(`[${mode}] empty pattern throws`, ({check}) =>
@@ -492,7 +492,7 @@ for (const mode of ['once', 'watch'] as const) {
       files: ['foo', 'bar'],
       patterns: [''],
       expected: 'ERROR',
-    })
+    }),
   );
 
   skipIfWatch(
@@ -504,7 +504,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: [''],
         expected: 'ERROR',
         expandDirectories: true,
-      })
+      }),
   );
 
   skipIfWatch(`[${mode}] whitespace pattern throws`, ({check}) =>
@@ -513,7 +513,7 @@ for (const mode of ['once', 'watch'] as const) {
       files: ['foo', 'bar'],
       patterns: [' '],
       expected: 'ERROR',
-    })
+    }),
   );
 
   skipIfWatch(
@@ -525,7 +525,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: [' '],
         expected: 'ERROR',
         expandDirectories: true,
-      })
+      }),
   );
 
   skipIfWatchOnWindows(`[${mode}] re-inclusion of file`, ({check}) =>
@@ -534,7 +534,7 @@ for (const mode of ['once', 'watch'] as const) {
       files: ['foo'],
       patterns: ['!foo', 'foo'],
       expected: ['foo'],
-    })
+    }),
   );
 
   skipIfWatch(`[${mode}] re-inclusion of directory`, ({check}) =>
@@ -544,7 +544,7 @@ for (const mode of ['once', 'watch'] as const) {
       patterns: ['!foo', 'foo'],
       expected: ['foo'],
       includeDirectories: true,
-    })
+    }),
   );
 
   skipIfWatch(`[${mode}] re-inclusion of file into directory`, ({check}) =>
@@ -553,7 +553,7 @@ for (const mode of ['once', 'watch'] as const) {
       files: ['foo/1', 'foo/bar/1', 'foo/bar/baz', 'foo/qux'],
       patterns: ['foo/**', '!foo/bar/**', 'foo/bar/baz', '!foo/qux'],
       expected: ['foo/1', 'foo/bar/baz'],
-    })
+    }),
   );
 
   test(`[${mode}] re-inclusion of file into directory with expandDirectories=true`, ({
@@ -591,7 +591,7 @@ for (const mode of ['once', 'watch'] as const) {
         expected: ['target', 'target/foo', 'symlink', 'symlink/foo'],
         includeDirectories: true,
         followSymlinks: true,
-      })
+      }),
   );
 
   skipIfWatch(
@@ -607,7 +607,7 @@ for (const mode of ['once', 'watch'] as const) {
         expected: ['target', 'target/foo', 'symlink'],
         includeDirectories: true,
         followSymlinks: false,
-      })
+      }),
   );
 
   test(`[${mode}] dirent tags files`, async ({rig}) => {
@@ -778,7 +778,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: ['../foo'],
         expected: 'ERROR',
         throwIfOutsideCwd: true,
-      })
+      }),
   );
 
   skipIfWatch(
@@ -791,7 +791,7 @@ for (const mode of ['once', 'watch'] as const) {
         patterns: ['../foo'],
         expected: ['foo'],
         throwIfOutsideCwd: false,
-      })
+      }),
   );
 
   test(`[${mode}] allows path inside cwd when throwIfOutsideCwd=true`, ({

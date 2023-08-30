@@ -33,7 +33,7 @@ class ScriptState {
   constructor(
     scriptReference: ScriptReference,
     service: boolean,
-    isRootScript: boolean
+    isRootScript: boolean,
   ) {
     this.scriptReference = scriptReference;
     this.service = service;
@@ -170,7 +170,7 @@ export class QuietRunLogger {
   constructor(
     rootPackage: string,
     writeoverLine: WriteoverLine,
-    defaultLogger?: DefaultLogger
+    defaultLogger?: DefaultLogger,
   ) {
     this._rootPackage = rootPackage;
     this._writeoverLine = writeoverLine;
@@ -186,7 +186,7 @@ export class QuietRunLogger {
     const instance = new QuietRunLogger(
       this._rootPackage,
       this._writeoverLine,
-      this._defaultLogger
+      this._defaultLogger,
     );
     // Persistent services stay running between runs, so pass along what we
     // know.
@@ -263,7 +263,7 @@ export class QuietRunLogger {
     if (this._scriptsWithAlreadyReportedErrors.size > 0) {
       const s = this._scriptsWithAlreadyReportedErrors.size === 1 ? '' : 's';
       process.stderr.write(
-        `❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`
+        `❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`,
       );
     } else {
       process.stderr.write(`❌ Failed.\n`);
@@ -277,13 +277,13 @@ export class QuietRunLogger {
     const count = this._ran + this._servicesStarted;
     const s = count === 1 ? '' : 's';
     console.log(
-      `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`
+      `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`,
     );
   }
 
   private _reportOutputForFailingScript(
     script: ScriptReference,
-    cause?: Failure
+    cause?: Failure,
   ) {
     const state = this._running.get(scriptReferenceToString(script));
     if (!state) {
@@ -293,7 +293,7 @@ export class QuietRunLogger {
         } for script without a start event. Events delivered out of order?
     Script with failure: ${scriptReferenceToString(script)}
     Known scripts: ${inspect([...this._running.keys()])}
-`
+`,
       );
     }
     state.replayAndEmptyBuffer();
@@ -325,14 +325,14 @@ export class QuietRunLogger {
   }
 
   private _getExecutionStatusLine(
-    analysisInfo: AnalysisInfo
+    analysisInfo: AnalysisInfo,
   ): StatusLineResult {
     const peekResult = this._running.peek()?.[1];
     let mostRecentScript = '';
     if (peekResult !== undefined) {
       mostRecentScript = labelForScript(
         this._rootPackage,
-        peekResult.scriptReference
+        peekResult.scriptReference,
       );
     }
     const done = this._finishedScriptsWithCommands.size;
@@ -378,8 +378,8 @@ export class QuietRunLogger {
       console.log(
         `info: ${event.detail} ${labelForScript(
           this._rootPackage,
-          event.script
-        )}`
+          event.script,
+        )}`,
       );
     }
     switch (event.detail) {
@@ -390,8 +390,8 @@ export class QuietRunLogger {
           new ScriptState(
             event.script,
             false,
-            this._analysisInfo?.rootScript === key
-          )
+            this._analysisInfo?.rootScript === key,
+          ),
         );
         return this._getStatusLine();
       }
@@ -405,8 +405,8 @@ export class QuietRunLogger {
           new ScriptState(
             event.script,
             true,
-            this._analysisInfo?.rootScript === key
-          )
+            this._analysisInfo?.rootScript === key,
+          ),
         );
         this._markScriptAsFinished(event.script);
         return this._getStatusLine();
@@ -446,7 +446,7 @@ export class QuietRunLogger {
         } else {
           this._statusLineState = 'executing';
           this._analysisInfo = this._countScriptsWithCommands(
-            event.rootScriptConfig
+            event.rootScriptConfig,
           );
           for (const finished of this._finishedScriptsWithCommands) {
             if (!this._analysisInfo.scriptsWithCommands.has(finished)) {
@@ -468,8 +468,8 @@ export class QuietRunLogger {
       console.log(
         `success: ${event.reason} ${labelForScript(
           this._rootPackage,
-          event.script
-        )}`
+          event.script,
+        )}`,
       );
     }
     switch (event.reason) {
@@ -504,8 +504,8 @@ export class QuietRunLogger {
       console.log(
         `failure: ${event.reason} ${labelForScript(
           this._rootPackage,
-          event.script
-        )}`
+          event.script,
+        )}`,
       );
     }
     this._encounteredFailures = true;
@@ -593,8 +593,8 @@ export class QuietRunLogger {
         `Internal error: could not find state for failing script. Events delivered out of order?
         Script with output: ${labelForScript(this._rootPackage, script)}
         ${this._running.size.toLocaleString()} known running scripts: ${inspect(
-          [...this._running.keys()]
-        )}`
+          [...this._running.keys()],
+        )}`,
       );
     }
     return state.hasBufferedOutput;
@@ -608,8 +608,8 @@ export class QuietRunLogger {
         `Internal error: Got output event for unknown script. Events delivered out of order?
         Script with output: ${labelForScript(this._rootPackage, event.script)}
         ${this._running.size.toLocaleString()} known running scripts: ${inspect(
-          [...this._running.keys()]
-        )}`
+          [...this._running.keys()],
+        )}`,
       );
     }
     if (state.service) {

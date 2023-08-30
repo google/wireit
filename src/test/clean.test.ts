@@ -68,7 +68,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -104,7 +104,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -137,7 +137,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -172,7 +172,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -209,7 +209,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -241,7 +241,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -275,7 +275,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -304,20 +304,20 @@ test(
       done.stderr,
       `
 ❌ package.json:8:17 Output files must be within the package: ${JSON.stringify(
-        pathlib.join(rig.temp, 'outside')
+        pathlib.join(rig.temp, 'outside'),
       )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
           "output": [
                     ~
             "../outside"
     ~~~~~~~~~~~~~~~~~~~~
           ]
-    ~~~~~~~`
+    ~~~~~~~`,
     );
     assert.equal(cmdA.numInvocations, 0);
 
     // The outside file should not have been deleted.
     assert.ok(await rig.exists('outside'));
-  })
+  }),
 );
 
 test(
@@ -462,7 +462,7 @@ test(
     }
 
     assert.equal(cmdA.numInvocations, 5);
-  })
+  }),
 );
 
 test(
@@ -527,7 +527,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -562,7 +562,7 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 0);
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test.run();

@@ -156,7 +156,7 @@ test(
         packageDir: rig.temp,
         name: 'build',
       },
-      []
+      [],
     );
     if (!result.config.ok) {
       console.log(result.config.error);
@@ -184,7 +184,7 @@ test(
       '!CVS/',
       '!node_modules/',
     ]);
-  }
+  },
 );
 
 test(
@@ -216,7 +216,7 @@ test(
         packageDir: rig.temp,
         name: 'build',
       },
-      []
+      [],
     );
     if (!result.config.ok) {
       console.log(result.config.error);
@@ -226,7 +226,7 @@ test(
     const build = result.config.value;
     assert.equal(build.files?.values, ['**/*.ts']);
     assert.equal(build.output?.values, ['**/*.js']);
-  }
+  },
 );
 
 test('Default excluded paths are not present when files and output are empty', async ({
@@ -254,7 +254,7 @@ test('Default excluded paths are not present when files and output are empty', a
       packageDir: rig.temp,
       name: 'build',
     },
-    []
+    [],
   );
   if (!result.config.ok) {
     console.log(result.config.error);

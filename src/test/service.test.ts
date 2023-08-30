@@ -69,7 +69,7 @@ test(
 
     const wireit = rig.exec('npm run consumer');
     await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
     );
 
     // The service starts because the consumer depends on it
@@ -95,7 +95,7 @@ test(
     assert.equal(service.numInvocations, 1);
     assert.equal(consumer.numInvocations, 1);
     await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0 in/);
-  })
+  }),
 );
 
 test(
@@ -184,7 +184,7 @@ test(
     assert.equal(serviceDep.numInvocations, 1);
     assert.equal(service.numInvocations, 1);
     assert.equal(consumer.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -218,7 +218,7 @@ test(
 
     const wireit = rig.exec('npm run consumer');
     await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
     );
 
     // Service starts
@@ -238,7 +238,7 @@ test(
     // Wireit exits with an error code
     assert.equal((await wireit.exit).code, 1);
     await wireit.waitForLog(/❌ 2 scripts failed\./);
-  })
+  }),
 );
 
 test(
@@ -298,7 +298,7 @@ test(
       },
     });
     await wireit.waitForLog(
-      /25% \[1 \/ 4\] \[3 running\] \[1 service\] (blocker|consumer1)/
+      /25% \[1 \/ 4\] \[3 running\] \[1 service\] (blocker|consumer1)/,
     );
 
     // Service starts
@@ -325,7 +325,7 @@ test(
     // Consumer 2 can't start becuase the consumer already failed, so wireit
     // exits.
     assert.equal((await wireit.exit).code, 1);
-  })
+  }),
 );
 
 test(
@@ -369,7 +369,7 @@ test(
 
     const wireit = rig.exec('npm run consumer');
     await wireit.waitForLog(
-      /67% \[2 \/ 3\] \[3 running\] \[2 services\] consumer/
+      /67% \[2 \/ 3\] \[3 running\] \[2 services\] consumer/,
     );
 
     // Service2 starts
@@ -398,7 +398,7 @@ test(
     assert.equal(service1.numInvocations, 1);
     assert.equal(service2.numInvocations, 1);
     await wireit.waitForLog(/❌ 2 scripts failed/);
-  })
+  }),
 );
 
 test(
@@ -473,7 +473,7 @@ test(
     await wireit.exit;
     assert.equal(service1.numInvocations, 1);
     assert.equal(service2.numInvocations, 1);
-  })
+  }),
 );
 
 for (const failureMode of ['continue', 'no-new', 'kill']) {
@@ -573,7 +573,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       assert.equal(standard.numInvocations, 1);
       assert.equal(service1.numInvocations, 1);
       assert.equal(service2.numInvocations, 1);
-    })
+    }),
   );
 
   test(
@@ -621,7 +621,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       assert.equal((await wireit.exit).code, 1);
       await wireit.waitForLog(/❌ \[service1\] Service exited unexpectedly/);
       await wireit.waitForLog(/❌ 1 script failed/);
-    })
+    }),
   );
 }
 
@@ -664,7 +664,7 @@ for (const failureMode of ['continue', 'no-new']) {
         env: {WIREIT_FAILURES: failureMode},
       });
       await wireit.waitForLog(
-        /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/
+        /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
       );
       const serviceInv = await service.nextInvocation();
       const standardInv1 = await standard.nextInvocation();
@@ -685,7 +685,7 @@ for (const failureMode of ['continue', 'no-new']) {
       await wireit.exit;
       assert.equal(service.numInvocations, 1);
       assert.equal(standard.numInvocations, 2);
-    })
+    }),
   );
 }
 
@@ -724,7 +724,7 @@ test(
       env: {WIREIT_FAILURES: 'kill'},
     });
     await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
     );
     const serviceInv = await service.nextInvocation();
     const standardInv = await standard.nextInvocation();
@@ -733,7 +733,7 @@ test(
     await serviceInv.closed;
     wireit.kill();
     await wireit.exit;
-  })
+  }),
 );
 
 test(
@@ -769,7 +769,7 @@ test(
     await rig.write('input', '0');
     const wireit = rig.exec('npm run consumer --watch');
     await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
     );
 
     // Iteration 1
@@ -784,7 +784,7 @@ test(
 
     await rig.write('input', '1');
     await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
     );
 
     // Iteration 2
@@ -801,7 +801,7 @@ test(
     await wireit.exit;
     assert.equal(consumer.numInvocations, 2);
     assert.equal(service.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -850,7 +850,7 @@ test(
     await rig.write('input', '0');
     const wireit = rig.exec('npm run entrypoint --watch');
     await wireit.waitForLog(
-      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/
+      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
     );
 
     // Iteration 1
@@ -865,7 +865,7 @@ test(
 
     await rig.write('input', '1');
     await wireit.waitForLog(
-      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/
+      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
     );
 
     // Iteration 2
@@ -880,7 +880,7 @@ test(
     assert.equal(service1.numInvocations, 1);
     assert.equal(service2.numInvocations, 1);
     assert.equal(standard.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -918,7 +918,7 @@ test(
     // Iteration 1. Both scripts start.
     const wireit = rig.exec('npm run entrypoint --watch');
     await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
     );
     const serviceInv = await service.nextInvocation();
     const standardInv1 = await standard.nextInvocation();
@@ -969,7 +969,7 @@ test(
     await wireit.exit;
     assert.equal(service.numInvocations, 1);
     assert.equal(standard.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -1044,7 +1044,7 @@ test(
       assert.equal(consumer.numInvocations, 2);
       assert.equal(service.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1117,7 +1117,7 @@ test(
     await wireit.exit;
     assert.equal(service.numInvocations, 2);
     assert.equal(consumer.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -1202,7 +1202,7 @@ test(
     assert.equal(service.numInvocations, 2);
     assert.equal(hard.numInvocations, 2);
     assert.equal(soft.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -1284,7 +1284,7 @@ test(
     assert.not(childServiceInv1.isRunning);
     assert.equal(parentService.numInvocations, 1);
     assert.equal(childService.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -1338,7 +1338,7 @@ test(
     standardInv.exit(0);
     assert.equal((await wireit.exit).code, 0);
     assert.equal(standard.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -1440,7 +1440,7 @@ test(
     await wireit.exit;
     assert.equal(service.numInvocations, 2);
     assert.equal(standard.numInvocations, 5);
-  })
+  }),
 );
 
 test.run();

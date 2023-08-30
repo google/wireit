@@ -83,7 +83,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -130,7 +130,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -177,7 +177,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -222,7 +222,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -269,7 +269,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -326,7 +326,7 @@ test(
     await exec.exit;
     assert.equal(cmdA1.numInvocations, 1);
     assert.equal(cmdA2.numInvocations, 1);
-  })
+  }),
 );
 
 test(
@@ -406,7 +406,7 @@ test(
     await exec.exit;
     assert.equal(cmdA.numInvocations, 3);
     assert.equal(cmdB.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -492,7 +492,7 @@ test(
     await exec.exit;
     assert.equal(cmdA.numInvocations, 3);
     assert.equal(cmdB.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -541,7 +541,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -645,7 +645,7 @@ test(
 
     wireit.kill();
     await wireit.exit;
-  })
+  }),
 );
 
 test(
@@ -705,7 +705,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -749,7 +749,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -791,7 +791,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -854,7 +854,7 @@ test(
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
     assert.equal(cmdB.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -897,7 +897,7 @@ test(
     exec.kill();
     await exec.exit;
     assert.equal(cmdA.numInvocations, 2);
-  })
+  }),
 );
 
 test(
@@ -965,15 +965,15 @@ test(
     assert.equal(
       [1, 2].includes(count),
       true,
-      `Expected to see one or two "Watching for file changes" but found ${count}`
+      `Expected to see one or two "Watching for file changes" but found ${count}`,
     );
     const failureCount = [...stderr.matchAll(/Failed/gi)].length;
     assert.equal(
       [1, 2].includes(failureCount),
       true,
-      `Expected to see one or two "Failed" lines but found ${failureCount}`
+      `Expected to see one or two "Failed" lines but found ${failureCount}`,
     );
-  })
+  }),
 );
 
 test(
@@ -1010,7 +1010,7 @@ test(
 
     exec.kill();
     assert.equal(cmdA.numInvocations, 1);
-  })
+  }),
 );
 
 test.run();

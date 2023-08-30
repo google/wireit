@@ -24,7 +24,7 @@ export const wait = async (ms: number) =>
  */
 export const timeout = <T>(
   handler: uvu.Callback<T>,
-  ms = DEFAULT_UVU_TIMEOUT
+  ms = DEFAULT_UVU_TIMEOUT,
 ): uvu.Callback<T> => {
   return (...args) => {
     let timerId: ReturnType<typeof setTimeout>;

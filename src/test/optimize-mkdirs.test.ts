@@ -13,7 +13,7 @@ import {windowsifyPathIfOnWindows} from './util/windows.js';
 const check = (input: string[], expected: string[]) =>
   assert.equal(
     optimizeMkdirs(input.map(windowsifyPathIfOnWindows)).sort(),
-    expected.map(windowsifyPathIfOnWindows).sort()
+    expected.map(windowsifyPathIfOnWindows).sort(),
   );
 
 test('empty', () => {

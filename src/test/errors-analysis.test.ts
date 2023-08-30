@@ -59,9 +59,9 @@ test(
                 ~~
 ❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
         "a": "wireit"
-             ~~~~~~~~`
+             ~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -88,9 +88,9 @@ test(
              ~~
 ❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
         "a": "wireit"
-             ~~~~~~~~`
+             ~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -116,9 +116,9 @@ test(
       `
 ❌ package.json:7:23 Expected an array, but was object.
           "dependencies": {}
-                          ~~`
+                          ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -144,9 +144,9 @@ test(
       `
 ❌ package.json:8:9 Expected a string or object, but was array.
             []
-            ~~`
+            ~~`,
     );
-  })
+  }),
 );
 
 test(`dependencies.script is not a string (object form)`, async ({rig}) => {
@@ -172,7 +172,7 @@ test(`dependencies.script is not a string (object form)`, async ({rig}) => {
     `
 ❌ package.json:9:21 Expected a string, but was array.
               "script": []
-                        ~~`
+                        ~~`,
   );
 });
 
@@ -199,9 +199,9 @@ test(
       `
 ❌ package.json:8:9 Expected this field to be nonempty
             " "
-            ~~~`
+            ~~~`,
     );
-  })
+  }),
 );
 
 test(`dependencies.script is empty or blank (object form)`, async ({rig}) => {
@@ -232,7 +232,7 @@ test(`dependencies.script is empty or blank (object form)`, async ({rig}) => {
     `
 ❌ package.json:14:21 Expected this field to be nonempty
               "script": ""
-                        ~~`
+                        ~~`,
   );
 });
 
@@ -260,7 +260,7 @@ test(`dependencies.script is missing (object form)`, async ({rig}) => {
     `
 ❌ package.json:13:9 Dependency object must set a "script" property.
             {}
-            ~~`
+            ~~`,
   );
 });
 
@@ -287,9 +287,9 @@ test(
       `
 ❌ package.json:7:18 Expected a string, but was array.
           "command": []
-                     ~~`
+                     ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -315,9 +315,9 @@ test(
       `
 ❌ package.json:7:18 Expected this field to be nonempty
           "command": ""
-                     ~~`
+                     ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -344,9 +344,9 @@ test(
       `
 ❌ package.json:8:16 Expected an array, but was object.
           "files": {}
-                   ~~`
+                   ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -373,9 +373,9 @@ test(
       `
 ❌ package.json:9:9 Expected a string, but was number.
             0
-            ~`
+            ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -402,9 +402,9 @@ test(
       `
 ❌ package.json:9:9 Expected this field to be nonempty
             ""
-            ~~`
+            ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -431,9 +431,9 @@ test(
       `
 ❌ package.json:8:17 Expected an array, but was object.
           "output": {}
-                    ~~`
+                    ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -460,9 +460,9 @@ test(
       `
 ❌ package.json:9:9 Expected a string, but was number.
             0
-            ~`
+            ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -489,9 +489,9 @@ test(
       `
 ❌ package.json:9:9 Expected this field to be nonempty
             " \\t\\n "
-            ~~~~~~~~`
+            ~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -518,9 +518,9 @@ test(
       `
 ❌ package.json:8:16 The "clean" property must be either true, false, or "if-file-deleted".
           "clean": 0
-                   ~`
+                   ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -547,9 +547,9 @@ test(
       `
 ❌ package.json:8:36 Must be true or false
           "allowUsuallyExcludedPaths": 1
-                                       ~`
+                                       ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -576,9 +576,9 @@ test(
       `
 ❌ package.json:8:23 Expected an array, but was number.
           "packageLocks": 0
-                          ~`
+                          ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -605,9 +605,9 @@ test(
       `
 ❌ package.json:9:9 Expected a string, but was number.
             0
-            ~`
+            ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -634,9 +634,9 @@ test(
       `
 ❌ package.json:9:9 Expected this field to be nonempty
             " "
-            ~~~`
+            ~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -663,9 +663,9 @@ test(
       `
 ❌ package.json:9:9 A package lock must be a filename, not a path
             "../package-lock.json"
-            ~~~~~~~~~~~~~~~~~~~~~~`
+            ~~~~~~~~~~~~~~~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -691,9 +691,9 @@ test(
       `
 ❌ package.json:8:9 Cannot find script named "missing" in package "${rig.temp}"
             "missing"
-            ~~~~~~~~~`
+            ~~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -721,12 +721,12 @@ test(
       done.stderr,
       `
 ❌ package.json:8:18 Cannot find script named "missing" in package "${rig.resolve(
-        'child'
+        'child',
       )}"
             "./child:missing"
-                     ~~~~~~~`
+                     ~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -754,12 +754,12 @@ test(
       done.stderr,
       `
 ❌ package.json:9:30 Cannot find script named "missing" in package "${rig.resolve(
-        'child'
+        'child',
       )}"
               "script": "./child:missing"
-                                 ~~~~~~~`
+                                 ~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -785,9 +785,9 @@ test(
       `
 ❌ package.json:8:9 Cannot find script named "test:missing" in package "${rig.temp}"
             "test:missing"
-            ~~~~~~~~~~~~~~`
+            ~~~~~~~~~~~~~~`,
     );
-  })
+  }),
 );
 test(
   'missing cross package dependency with complicated escaped names',
@@ -818,12 +818,12 @@ test(
       done.stderr,
       String.raw`
 ❌ package.json:8:23 Cannot find script named "mis\t\\ sing" in package "${rig.resolve(
-        'ch\t\\ ild'
+        'ch\t\\ ild',
       )}"
             "./ch\t\\ ild:mis\t\\ sing"
-                          ~~~~~~~~~~~~`
+                          ~~~~~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -848,12 +848,12 @@ test(
       done.stderr,
       String.raw`
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
-        'b\t\\ ar/package.json'
+        'b\t\\ ar/package.json',
       )}"
             "../b\t\\ ar:b"
-             ~~~~~~~~~~~`
+             ~~~~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -884,9 +884,9 @@ test(
 
     package.json:9:9 The dependency was first listed here.
                 "b",
-                ~~~`
+                ~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -921,9 +921,9 @@ test(
     package.json:12:5 The wireit config is here.
             "b": {
             ~~~
-`.trimStart()
+`.trimStart(),
     );
-  })
+  }),
 );
 
 test(
@@ -946,9 +946,9 @@ test(
 ❌ package.json:3:10 This script is configured to run wireit but it has no config in the wireit section of this package.json file
         "a": "wireit"
              ~~~~~~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -972,9 +972,9 @@ test(
       `
 ❌ package.json:6:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
         "a": {}
-        ~~~`
+        ~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1001,9 +1001,9 @@ test(
       `
 ❌ package.json:6:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
         "a": {
-        ~~~`
+        ~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1030,9 +1030,9 @@ test(
 ❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no ":" character in "../foo".
             "../foo"
             ~~~~~~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1059,9 +1059,9 @@ test(
 ❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no script name in "../foo:".
             "../foo:"
             ~~~~~~~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1088,9 +1088,9 @@ test(
 ❌ package.json:8:9 Cross-package dependency ".:b" resolved to the same package.
             ".:b"
             ~~~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1117,9 +1117,9 @@ test(
 ❌ package.json:8:9 Cross-package dependency "../foo:b" resolved to the same package.
             "../foo:b"
             ~~~~~~~~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1144,12 +1144,12 @@ test(
       done.stderr,
       `
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
-        'bar/package.json'
+        'bar/package.json',
       )}"
             "../bar:b"
-             ~~~~~~`
+             ~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1180,9 +1180,9 @@ test(
 ❌ ..${pathlib.sep}bar${pathlib.sep}package.json:1:16 JSON syntax error
     {"scripts": {},}
                    ~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1217,9 +1217,9 @@ test(
     package.json:8:9 "a" points back to "a"
                 "a"
                 ~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1262,9 +1262,9 @@ test(
     package.json:14:9 "b" points back to "a"
                 "a"
                 ~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1315,9 +1315,9 @@ test(
     package.json:20:9 "c" points back to "a"
                 "a"
                 ~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1356,9 +1356,9 @@ test(
     package.json:9:9 "a" points back to "a"
                 "a",
                 ~~~
-    `
+    `,
     );
-  })
+  }),
 );
 
 test(
@@ -1416,9 +1416,9 @@ test(
 
     package.json:28:9 "d" points back to "b"
                 "b"
-                ~~~`
+                ~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1477,9 +1477,9 @@ test(
     package.json:28:9 "d" points back to "b"
                 "b"
                 ~~~
-      `
+      `,
     );
-  })
+  }),
 );
 
 test(
@@ -1540,9 +1540,9 @@ test(
     package.json:28:9 "d" points back to "b"
                 "b"
                 ~~~
-      `
+      `,
     );
-  })
+  }),
 );
 
 test(
@@ -1591,9 +1591,9 @@ test(
     ..${pathlib.sep}bar${pathlib.sep}package.json:8:9 "b" points back to "../foo:a"
                 "../foo:a"
                 ~~~~~~~~~~
-`
+`,
     );
-  })
+  }),
 );
 
 test(
@@ -1627,9 +1627,9 @@ test(
         ~~~
 ❌ package.json:16:5 A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.
         "c": {}
-        ~~~`
+        ~~~`,
     );
-  })
+  }),
 );
 
 test(`we don't produce a duplicate analysis error for the same dependency`, async ({
@@ -1667,7 +1667,7 @@ test(`we don't produce a duplicate analysis error for the same dependency`, asyn
     `
 ❌ package.json:26:18 Expected a string, but was object.
           "command": {}
-                     ~~`
+                     ~~`,
   );
 });
 
@@ -1693,10 +1693,10 @@ test(`we don't produce a duplicate not found error when there's multiple deps in
     done.stderr,
     `
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
-      'child/package.json'
+      'child/package.json',
     )}"
             "./child:error1",
-             ~~~~~~~`
+             ~~~~~~~`,
   );
 });
 
@@ -1728,10 +1728,10 @@ test(`we don't produce a duplicate error when there's multiple deps into the sam
       "scripts": "bad"
                  ~~~~~
 ❌ package.json:8:18 Cannot find script named "error1" in package "${rig.resolve(
-      'child'
+      'child',
     )}"
             "./child:error1",
-                     ~~~~~~`
+                     ~~~~~~`,
   );
 });
 
@@ -1773,7 +1773,7 @@ test(`we don't produce a duplicate error when there's multiple deps on a script 
     done.stderr,
     `
 ❌ [errors] exited with exit code 1.
-❌ 1 script failed.`
+❌ 1 script failed.`,
   );
 });
 
@@ -1805,7 +1805,7 @@ test(`repro an issue with looking for a colon in missing dependency`, async ({
     `
 ❌ package.json:9:9 Cannot find script named "c" in package "${rig.temp}"
             "c"
-            ~~~`
+            ~~~`,
   );
 });
 
@@ -1841,9 +1841,9 @@ test(
             "foo"
     ~~~~~~~~~~~~~
           ]
-    ~~~~~~~`
+    ~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1870,9 +1870,9 @@ test(
       `
 ❌ package.json:8:18 The "service" property must be either true, false, or an object.
           "service": 1
-                     ~`
+                     ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1903,9 +1903,9 @@ test(
       `
 ❌ package.json:8:18 A "service" script must have a "command".
           "service": true,
-                     ~~~~`
+                     ~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1937,9 +1937,9 @@ test(
             "foo"
     ~~~~~~~~~~~~~
           ]
-    ~~~~~~~`
+    ~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -1974,9 +1974,9 @@ test(
       `
 ❌ package.json:11:22 The "cascade" property must be either true or false.
               "cascade": 1
-                         ~`
+                         ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2009,9 +2009,9 @@ test(
             "readyWhen": 1
     ~~~~~~~~~~~~~~~~~~~~~~
           }
-    ~~~~~~~`
+    ~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2042,9 +2042,9 @@ test(
       `
       ❌ package.json:10:26 Expected a string.
               "lineMatches": 1
-                             ~`
+                             ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2075,9 +2075,9 @@ test(
       `
         ❌ package.json:10:26 SyntaxError: Invalid regular expression: /invalid[/: Unterminated character class
               "lineMatches": "invalid["
-                             ~~~~~~~~~~`
+                             ~~~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2104,9 +2104,9 @@ test(
       `
         ❌ package.json:8:14 Expected an object
           "env": []
-                 ~~`
+                 ~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2135,9 +2135,9 @@ test(
       `
         ❌ package.json:9:16 Expected a string or object
             "FOO": 1
-                   ~`
+                   ~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2172,9 +2172,9 @@ test(
               "EXTERNAL": true
     ~~~~~~~~~~~~~~~~~~~~~~~~~~
             }
-    ~~~~~~~~~`
+    ~~~~~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2205,9 +2205,9 @@ test(
       `
       ❌ package.json:10:23 Expected "external" to be true
               "external": false
-                          ~~~~~`
+                          ~~~~~`,
     );
-  })
+  }),
 );
 
 test(
@@ -2240,9 +2240,9 @@ test(
             "FOO": "foo"
     ~~~~~~~~~~~~~~~~~~~~
           }
-    ~~~~~~~`
+    ~~~~~~~`,
     );
-  })
+  }),
 );
 
 test.run();

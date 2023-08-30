@@ -27,7 +27,7 @@ export class QuietLogger implements Logger {
     this._rootPackage = rootPackage;
     this.runTracker = new QuietRunLogger(
       this._rootPackage,
-      this._writeoverLine
+      this._writeoverLine,
     );
   }
 

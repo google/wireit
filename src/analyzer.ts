@@ -171,7 +171,7 @@ export class Analyzer {
           // This starts analysis of each of the scripts in our root files.
           this._getPlaceholder({name: script.name, packageDir});
         }
-      })
+      }),
     );
     await this._waitForAnalysisToComplete();
     // Check for cycles.
@@ -184,7 +184,7 @@ export class Analyzer {
       this._checkForCyclesAndSortDependencies(
         info.placeholder,
         new Set(),
-        true
+        true,
       );
     }
 
@@ -202,7 +202,7 @@ export class Analyzer {
    */
   async analyze(
     root: ScriptReference,
-    extraArgs: string[] | undefined
+    extraArgs: string[] | undefined,
   ): Promise<AnalyzeResult> {
     this._logger?.log({
       type: 'info',
@@ -223,7 +223,7 @@ export class Analyzer {
 
   private async _actuallyAnalyze(
     root: ScriptReference,
-    extraArgs: string[] | undefined
+    extraArgs: string[] | undefined,
   ): Promise<AnalyzeResult> {
     // We do 2 walks through the dependency graph:
     //
@@ -265,13 +265,13 @@ export class Analyzer {
     const rootConfig = rootPlaceholder.placeholder;
     if (rootConfig.state === 'unvalidated') {
       throw new Error(
-        `Internal error: script ${root.name} in ${root.packageDir} is still unvalidated but had no failures`
+        `Internal error: script ${root.name} in ${root.packageDir} is still unvalidated but had no failures`,
       );
     }
     const cycleResult = this._checkForCyclesAndSortDependencies(
       rootConfig,
       new Set(),
-      true
+      true,
     );
     if (!cycleResult.ok) {
       return {
@@ -288,7 +288,7 @@ export class Analyzer {
   }
 
   async analyzeIgnoringErrors(
-    scriptReference: ScriptReference
+    scriptReference: ScriptReference,
   ): Promise<PotentiallyValidScriptConfig> {
     await this.analyze(scriptReference, []);
     return this._getPlaceholder(scriptReference).placeholder;
@@ -374,7 +374,7 @@ export class Analyzer {
    * upgraded; dependencies are upgraded asynchronously.
    */
   private async _upgradePlaceholder(
-    placeholder: UnvalidatedConfig
+    placeholder: UnvalidatedConfig,
   ): Promise<undefined> {
     const packageJsonResult = await this.getPackageJson(placeholder.packageDir);
     if (!packageJsonResult.ok) {
@@ -390,13 +390,13 @@ export class Analyzer {
         placeholder,
         packageJson,
         syntaxInfo,
-        syntaxInfo.wireitConfigNode
+        syntaxInfo.wireitConfigNode,
       );
     } else if (syntaxInfo?.scriptNode !== undefined) {
       this._handlePlainNpmScript(
         placeholder,
         packageJson,
-        syntaxInfo.scriptNode
+        syntaxInfo.scriptNode,
       );
     } else {
       placeholder.failures.push({
@@ -419,7 +419,7 @@ export class Analyzer {
   private _handlePlainNpmScript(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
-    scriptCommand: NamedAstNode<string>
+    scriptCommand: NamedAstNode<string>,
   ): void {
     if (isValidWireitScriptCommand(scriptCommand.value)) {
       placeholder.failures.push({
@@ -466,7 +466,7 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
-    wireitConfig: NamedAstNode<ValueTypes>
+    wireitConfig: NamedAstNode<ValueTypes>,
   ): Promise<void> {
     const scriptCommand = syntaxInfo.scriptNode;
     if (
@@ -529,14 +529,14 @@ export class Analyzer {
     const allowUsuallyExcludedPaths = this._processAllowUsuallyExcludedPaths(
       placeholder,
       packageJson,
-      syntaxInfo
+      syntaxInfo,
     );
 
     const files = this._processFiles(
       placeholder,
       packageJson,
       syntaxInfo,
-      allowUsuallyExcludedPaths
+      allowUsuallyExcludedPaths,
     );
 
     if (
@@ -569,7 +569,7 @@ export class Analyzer {
       packageJson,
       syntaxInfo,
       command,
-      allowUsuallyExcludedPaths
+      allowUsuallyExcludedPaths,
     );
     const clean = this._processClean(placeholder, packageJson, syntaxInfo);
     const service = this._processService(
@@ -577,13 +577,13 @@ export class Analyzer {
       packageJson,
       syntaxInfo,
       command,
-      output
+      output,
     );
     await this._processPackageLocks(
       placeholder,
       packageJson,
       syntaxInfo,
-      files
+      files,
     );
 
     const env = this._processEnv(placeholder, packageJson, syntaxInfo, command);
@@ -614,7 +614,7 @@ export class Analyzer {
   private _processDependencies(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
-    scriptInfo: ScriptSyntaxInfo
+    scriptInfo: ScriptSyntaxInfo,
   ): {
     dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
     encounteredError: boolean;
@@ -649,7 +649,7 @@ export class Analyzer {
       if (maybeUnresolved.type === 'string') {
         specifierResult = failUnlessNonBlankString(
           maybeUnresolved,
-          packageJson.jsonFile
+          packageJson.jsonFile,
         );
         if (!specifierResult.ok) {
           encounteredError = true;
@@ -680,7 +680,7 @@ export class Analyzer {
         }
         specifierResult = failUnlessNonBlankString(
           specifierResult,
-          packageJson.jsonFile
+          packageJson.jsonFile,
         );
         if (!specifierResult.ok) {
           encounteredError = true;
@@ -737,7 +737,7 @@ export class Analyzer {
       const result = this._resolveDependency(
         unresolved,
         placeholder,
-        packageJson.jsonFile
+        packageJson.jsonFile,
       );
       if (!result.ok) {
         encounteredError = true;
@@ -818,7 +818,7 @@ export class Analyzer {
                   diagnostic: {
                     severity: 'error',
                     message: `Cannot find script named ${JSON.stringify(
-                      resolved.name
+                      resolved.name,
                     )} in package "${resolved.packageDir}"`,
                     location: {
                       file: packageJson.jsonFile,
@@ -846,7 +846,7 @@ export class Analyzer {
                     severity: 'error',
                     message: `package.json file missing: "${pathlib.join(
                       resolved.packageDir,
-                      'package.json'
+                      'package.json',
                     )}"`,
                     location: {file: packageJson.jsonFile, range},
                   },
@@ -854,7 +854,7 @@ export class Analyzer {
               }
             }
             return undefined;
-          })()
+          })(),
         );
       }
     }
@@ -864,7 +864,7 @@ export class Analyzer {
   private _processAllowUsuallyExcludedPaths(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
-    syntaxInfo: ScriptSyntaxInfo
+    syntaxInfo: ScriptSyntaxInfo,
   ): boolean {
     const defaultValue = false;
     if (syntaxInfo.wireitConfigNode == null) {
@@ -899,7 +899,7 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
-    allowUsuallyExcludedPaths: boolean
+    allowUsuallyExcludedPaths: boolean,
   ): undefined | ArrayNode<string> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
@@ -937,7 +937,7 @@ export class Analyzer {
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
     command: JsonAstNode<string> | undefined,
-    allowUsuallyExcludedPaths: boolean
+    allowUsuallyExcludedPaths: boolean,
   ): undefined | ArrayNode<string> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
@@ -992,7 +992,7 @@ export class Analyzer {
   private _processClean(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
-    syntaxInfo: ScriptSyntaxInfo
+    syntaxInfo: ScriptSyntaxInfo,
   ): boolean | 'if-file-deleted' {
     const defaultValue = true;
     if (syntaxInfo.wireitConfigNode == null) {
@@ -1030,7 +1030,7 @@ export class Analyzer {
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
     command: JsonAstNode<string> | undefined,
-    output: ArrayNode<string> | undefined
+    output: ArrayNode<string> | undefined,
   ): ServiceConfig | undefined {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return undefined;
@@ -1173,7 +1173,7 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
-    files: undefined | ArrayNode<string>
+    files: undefined | ArrayNode<string>,
   ): Promise<void> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return;
@@ -1193,7 +1193,7 @@ export class Analyzer {
           const maybeFilename = children[i];
           const result = failUnlessNonBlankString(
             maybeFilename,
-            packageJson.jsonFile
+            packageJson.jsonFile,
           );
           if (!result.ok) {
             placeholder.failures.push(result.error);
@@ -1258,7 +1258,7 @@ export class Analyzer {
           } catch {
             return undefined;
           }
-        })
+        }),
       );
       for (const path of existing) {
         if (path !== undefined) {
@@ -1272,7 +1272,7 @@ export class Analyzer {
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
-    command: JsonAstNode<string> | undefined
+    command: JsonAstNode<string> | undefined,
   ): Record<string, string> {
     if (syntaxInfo.wireitConfigNode === undefined) {
       return {};
@@ -1318,13 +1318,13 @@ export class Analyzer {
     for (const propNode of envNode.children) {
       if (propNode.children === undefined || propNode.children.length !== 2) {
         throw new Error(
-          'Internal error: expected object JSON node children to be key/val pairs'
+          'Internal error: expected object JSON node children to be key/val pairs',
         );
       }
       const [key, val] = propNode.children;
       if (key.type !== 'string') {
         throw new Error(
-          'Internal error: expected object JSON node child key to be string'
+          'Internal error: expected object JSON node child key to be string',
         );
       }
       const keyStr = key.value as string;
@@ -1384,7 +1384,7 @@ export class Analyzer {
   private _checkForCyclesAndSortDependencies(
     config: LocallyValidScriptConfig | ScriptConfig | InvalidScriptConfig,
     trail: Set<ScriptReferenceString>,
-    isPersistent: boolean
+    isPersistent: boolean,
   ): Result<ScriptConfig, InvalidScriptConfig> {
     if (config.state === 'valid') {
       // Already validated.
@@ -1411,7 +1411,7 @@ export class Analyzer {
         const placeholderInfo = this._placeholders.get(key);
         if (placeholderInfo === undefined) {
           throw new Error(
-            `Internal error: placeholder not found for ${key} during cycle detection`
+            `Internal error: placeholder not found for ${key} during cycle detection`,
           );
         }
         return placeholderInfo.placeholder;
@@ -1426,7 +1426,7 @@ export class Analyzer {
           continue;
         }
         const nextNode = current.dependencies.find(
-          (dep) => dep.config === next
+          (dep) => dep.config === next,
         );
         // Use the actual value in the array, because this could refer to
         // a script in another package.
@@ -1437,10 +1437,10 @@ export class Analyzer {
         const message =
           next === trailArray[cycleStart]
             ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
-                nextName
+                nextName,
               )}`
             : `${JSON.stringify(current.name)} points to ${JSON.stringify(
-                nextName
+                nextName,
               )}`;
 
         const culpritNode =
@@ -1463,7 +1463,7 @@ export class Analyzer {
       const diagnostic: Diagnostic = {
         severity: 'error',
         message: `Cycle detected in dependencies of ${JSON.stringify(
-          config.name
+          config.name,
         )}.`,
         location: {
           file: config.declaringFile,
@@ -1511,14 +1511,14 @@ export class Analyzer {
             // Walk through no-command scripts and services when determining if
             // something is persistent.
             isPersistent &&
-              (config.command === undefined || config.service !== undefined)
+              (config.command === undefined || config.service !== undefined),
           );
         if (!validDependencyConfigResult.ok) {
           return {
             ok: false,
             error: this._markAsInvalid(
               config,
-              validDependencyConfigResult.error.dependencyFailure
+              validDependencyConfigResult.error.dependencyFailure,
             ),
           };
         }
@@ -1556,7 +1556,7 @@ export class Analyzer {
       // is guaranteed.
       if (config.command === undefined) {
         throw new Error(
-          'Internal error: Supposedly valid service did not have command'
+          'Internal error: Supposedly valid service did not have command',
         );
       }
       validConfig = {
@@ -1606,7 +1606,7 @@ export class Analyzer {
 
   private _markAsInvalid(
     config: LocallyValidScriptConfig,
-    failure: Failure
+    failure: Failure,
   ): InvalidScriptConfig {
     const invalidConfig: InvalidScriptConfig = {
       ...config,
@@ -1628,7 +1628,7 @@ export class Analyzer {
   private _resolveDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
-    referencingFile: JsonFile
+    referencingFile: JsonFile,
   ): Result<Array<ScriptReference>, Failure> {
     // TODO(aomarks) Implement $WORKSPACES syntax.
     if (dependency.value.startsWith('.')) {
@@ -1637,7 +1637,7 @@ export class Analyzer {
       const result = this._resolveCrossPackageDependency(
         dependency,
         context,
-        referencingFile
+        referencingFile,
       );
       if (!result.ok) {
         return result;
@@ -1657,7 +1657,7 @@ export class Analyzer {
   private _resolveCrossPackageDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
-    referencingFile: JsonFile
+    referencingFile: JsonFile,
   ): Result<ScriptReference, Failure> {
     // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
     // path. We should support that edge case with backslash escaping.
@@ -1708,7 +1708,7 @@ export class Analyzer {
     const relativePackageDir = dependency.value.slice(0, firstColonIdx);
     const absolutePackageDir = pathlib.resolve(
       context.packageDir,
-      relativePackageDir
+      relativePackageDir,
     );
     if (absolutePackageDir === context.packageDir) {
       return {
@@ -1743,15 +1743,15 @@ export class Analyzer {
  */
 export function failUnlessNonBlankString(
   astNode: NamedAstNode,
-  file: JsonFile
+  file: JsonFile,
 ): Result<NamedAstNode<string>, Failure>;
 export function failUnlessNonBlankString(
   astNode: JsonAstNode,
-  file: JsonFile
+  file: JsonFile,
 ): Result<JsonAstNode<string>, Failure>;
 export function failUnlessNonBlankString(
   astNode: JsonAstNode,
-  file: JsonFile
+  file: JsonFile,
 ): Result<JsonAstNode<string>, Failure> {
   if (astNode.type !== 'string') {
     return {
@@ -1803,7 +1803,7 @@ export function failUnlessNonBlankString(
  */
 const failUnlessArray = (
   astNode: JsonAstNode,
-  file: JsonFile
+  file: JsonFile,
 ): Result<void, Failure> => {
   if (astNode.type !== 'array') {
     return {
@@ -1834,7 +1834,7 @@ const failUnlessArray = (
  */
 export const failUnlessJsonObject = (
   astNode: JsonAstNode,
-  file: JsonFile
+  file: JsonFile,
 ): Failure | void => {
   if (astNode.type !== 'object') {
     return {

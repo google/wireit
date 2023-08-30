@@ -21,7 +21,7 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
     }
     const fingerprint = await Fingerprint.compute(
       this._config,
-      dependencyFingerprints.value
+      dependencyFingerprints.value,
     );
     this._logger.log({
       script: this._config,

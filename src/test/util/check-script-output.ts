@@ -18,7 +18,7 @@ import {NODE_MAJOR_VERSION} from './node-version.js';
 export function checkScriptOutput(
   actual: string,
   expected: string,
-  message?: string
+  message?: string,
 ) {
   actual = removeOverwrittenLines(removeAnsiColors(actual)).trim();
   expected = expected.trim();
