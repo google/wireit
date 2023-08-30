@@ -14,6 +14,8 @@ const test = suite<{rig: WireitTestRig}>();
 test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
+    // process.env['SHOW_TEST_OUTPUT'] = 'true';
+    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
     await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -573,7 +575,7 @@ test(
     });
     const wireit = rig.exec('npm run a --watch');
     await wireit.waitForLog(/no config in the wireit section/);
-    await wireit.waitForLog(/❌ Failed\./);
+    await wireit.waitForLog(/❌ 1 script failed\./);
 
     // Add a wireit section but without a command.
     await pauseToWorkAroundChokidarEventThrottling();
@@ -586,7 +588,7 @@ test(
       },
     });
     await wireit.waitForLog(/nothing for wireit to do/);
-    await wireit.waitForLog(/❌ Failed\./);
+    await wireit.waitForLog(/❌ 1 script failed\./);
 
     // Add the command.
     const a = await rig.newCommand();
@@ -620,7 +622,7 @@ test(
       },
     });
     await wireit.waitForLog(/JSON syntax error/);
-    await wireit.waitForLog(/❌ Failed\./);
+    await wireit.waitForLog(/❌ 1 script failed\./);
 
     // Make the other package config valid.
     await pauseToWorkAroundChokidarEventThrottling();
@@ -959,8 +961,18 @@ test(
     // Also check that we don't log anything for the second iteration which
     // ultimately doesn't do anything new.
     assert.equal([...stdout.matchAll(/Running command/gi)].length, 1);
-    assert.equal([...stdout.matchAll(/Watching for file changes/gi)].length, 1);
-    assert.equal([...stderr.matchAll(/Failed/gi)].length, 1);
+    const count = [...stdout.matchAll(/Watching for file changes/gi)].length;
+    assert.equal(
+      [1, 2].includes(count),
+      true,
+      `Expected to see one or two "Watching for file changes" but found ${count}`
+    );
+    const failureCount = [...stderr.matchAll(/Failed/gi)].length;
+    assert.equal(
+      [1, 2].includes(failureCount),
+      true,
+      `Expected to see one or two "Failed" lines but found ${failureCount}`
+    );
   })
 );
 

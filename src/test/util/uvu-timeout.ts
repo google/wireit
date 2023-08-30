@@ -32,6 +32,7 @@ export const timeout = <T>(
       handler(...args),
       new Promise<never>((_resolve, reject) => {
         timerId = setTimeout(() => {
+          console.error('Test timed out.');
           reject(new Error(`Test timed out after ${ms} milliseconds.`));
         }, ms);
       }),

@@ -262,6 +262,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       entireExecutionAborted,
       adoptee,
     };
+    this._terminated.promise.then(() => {
+      this._logger.log({
+        script: this._config,
+        type: 'info',
+        detail: 'service-stopped',
+      });
+    });
   }
 
   /**
@@ -919,11 +926,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'stopping': {
         this._enterStoppedState();
-        this._logger.log({
-          script: this._config,
-          type: 'info',
-          detail: 'service-stopped',
-        });
         return;
       }
       case 'readying': {
@@ -949,11 +951,6 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         return;
       }
       case 'failing': {
-        this._logger.log({
-          script: this._config,
-          type: 'info',
-          detail: 'service-stopped',
-        });
         this._enterFailedState(this._state.failure);
         return;
       }

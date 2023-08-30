@@ -15,6 +15,8 @@ const test = suite<{rig: WireitTestRig}>();
 test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
+    // process.env['SHOW_TEST_OUTPUT'] = 'true';
+    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
     await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -617,7 +619,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       await service2Inv.closed;
       assert.equal((await wireit.exit).code, 1);
       await wireit.waitForLog(/❌ \[service1\] Service exited unexpectedly/);
-      await wireit.waitForLog(/❌ Failed/);
+      await wireit.waitForLog(/❌ 1 script failed/);
     })
   );
 }
@@ -880,17 +882,13 @@ test(
   })
 );
 
-test.only(
+test(
   'deleted service shuts down between watch iterations',
   timeout(async ({rig}) => {
     //      entrypoint
     //        /   \
     //       v     v
     // standard   service (gets deleted)
-
-    // This test uses standard logger output to ensure that
-    // certain operations happen in the right order.
-    rig.env['WIREIT_LOGGER'] = 'simple';
 
     const standard = await rig.newCommand();
     const service = await rig.newCommand();
@@ -918,10 +916,13 @@ test.only(
 
     // Iteration 1. Both scripts start.
     const wireit = rig.exec('npm run entrypoint --watch');
+    await wireit.waitForLog(
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/
+    );
     const serviceInv = await service.nextInvocation();
     const standardInv1 = await standard.nextInvocation();
     standardInv1.exit(0);
-    await wireit.waitForLog(/Watching for file changes/);
+    await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
 
     // Iteration 2. We update the config to delete the service. It should get
     // shut down.
@@ -942,6 +943,7 @@ test.only(
         },
       },
     });
+    await wireit.waitForLog(/0% \[0 \/ 1\] \[1 running\] (standard|service)/);
     if (!IS_WINDOWS) {
       // Ensure that we continue to forward stdout/stderr while a stale service
       // is being stopped. This won't be the case if we naively detach from the
@@ -949,15 +951,18 @@ test.only(
       // listeners. Note we don't get graceful shutdown in Windows, so just skip
       // this in Windows.
       await serviceSigint;
-      serviceInv.stdout('Service shutting down');
+      serviceInv.stdout('Service shutting down\n');
       await wireit.waitForLog(/Service shutting down/);
-      serviceInv.stdout('Service shutting down');
+      // Because we intercepted the sigint from wireit, we need to manually
+      // exit now.
       serviceInv.exit(0);
     }
     await serviceInv.closed;
+    await wireit.waitForLog(/0% \[0 \/ 1\] \[1 running\] standard/);
+
     const standardInv2 = await standard.nextInvocation();
     standardInv2.exit(0);
-    await wireit.waitForLog(/Watching for file changes/);
+    await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
 
     wireit.kill();
     await wireit.exit;
@@ -1082,7 +1087,7 @@ test(
       const consumerInv1 = await consumer.nextInvocation();
       consumerInv1.exit(0);
       await serviceInv.closed;
-      await wireit.waitForLog(/Ran 1 script and skipped 0/);
+      await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
       assert.equal(service.numInvocations, 1);
       assert.equal(consumer.numInvocations, 1);
     }
@@ -1094,7 +1099,7 @@ test(
       const consumerInv1 = await consumer.nextInvocation();
       consumerInv1.exit(0);
       await serviceInv.closed;
-      await wireit.waitForLog(/Ran 1 script and skipped 0/);
+      await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
       assert.equal(service.numInvocations, 2);
       assert.equal(consumer.numInvocations, 2);
     }

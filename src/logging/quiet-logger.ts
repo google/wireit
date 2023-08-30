@@ -10,7 +10,7 @@ import {Event, Failure, Info, Output, Success} from '../event.js';
 import {DefaultLogger, labelForScript} from './default-logger.js';
 import {Logger} from './logger.js';
 
-const DEBUG = true;
+const DEBUG = Boolean(process.env['WIREIT_DEBUG_LOGGER']);
 // ??
 {
   type Mutable<T> = {-readonly [P in keyof T]: T[P]};
@@ -104,6 +104,7 @@ class WriteoverLine {
   consturctor() {
     // If the user does a ctrl-c then we stop the spinner.
     process.on('SIGINT', () => {
+      console.log('Got a SIGINT in Writeover line');
       this.clearAndStopSpinner();
     });
   }
@@ -121,6 +122,12 @@ class WriteoverLine {
   }
 
   writeLine(line: string) {
+    if (DEBUG) {
+      if (this._line !== line) {
+        // ensure that every line is written at least once in debug mode
+        process.stderr.write(`  ${line}\n`);
+      }
+    }
     this._line = line;
     if (line === '') {
       // Writeover the previous line and cancel the spinner interval.
@@ -136,7 +143,9 @@ class WriteoverLine {
       return;
     }
     // render now, and then schedule future renders.
-    this._writeLatestLineWithSpinner();
+    if (!DEBUG) {
+      this._writeLatestLineWithSpinner();
+    }
     // a smooth sixty
     let targetFps = 60;
     // Don't flood the CI log system with spinner frames.
@@ -145,6 +154,9 @@ class WriteoverLine {
     }
     // schedule future renders so the spinner stays going
     this._spinnerInterval = setInterval(() => {
+      if (DEBUG) {
+        return;
+      }
       this._writeLatestLineWithSpinner();
     }, 1000 / targetFps);
   }
@@ -220,9 +232,12 @@ class StackMap<K, V> extends Map<K, V> {
  * info.
  */
 interface AnalysisInfo {
-  rootScript: string;
-  services: number;
-  scriptsWithCommands: number;
+  readonly rootScript: string;
+  // The scripts that we need to actually run, including services, scripts
+  // we can skip because of freshness / output restoration, etc.
+  readonly scriptsWithCommands: ReadonlySet<string>;
+  // Whether we might need to run services as part of this run.
+  readonly hasServices: boolean;
 }
 
 type RunState =
@@ -247,7 +262,11 @@ type RunState =
    * to show a status line in this case, because we want to defer all output
    * to the root script.
    */
-  | 'passing through root command output';
+  | 'passing through root command output'
+  /**
+   * We've printed out a summary of the run, so no more output is needed.
+   */
+  | 'done';
 
 /**
  * Tracks the state of a run, and produces a single line of status text.
@@ -271,15 +290,12 @@ class RunTracker {
    * we restored.
    */
   private _skipped = 0;
-  /**
-   * The number of scripts that finished with errors.
-   */
-  private _failed = 0;
   private _encounteredFailures = false;
   private _servicesRunning = 0;
   private _servicesStarted = 0;
   private _servicesPersistedFromPreviousRun = 0;
   private _analysisInfo: AnalysisInfo | undefined = undefined;
+  private _finishedScriptsWithCommands = new Set<string>();
   private _state: RunState = 'initial';
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
@@ -326,6 +342,7 @@ class RunTracker {
         instance._servicesPersistedFromPreviousRun++;
         instance._servicesRunning++;
         instance._running.set(key, state);
+        instance._markScriptAsFinished(state.scriptReference);
       }
     }
     return instance;
@@ -366,6 +383,7 @@ class RunTracker {
    * Should be called once, at the end of a run.
    */
   printSummary() {
+    this._state = 'done';
     let scriptsStillRunning = false;
     for (const state of this._running.values()) {
       if (state.service) {
@@ -390,7 +408,7 @@ class RunTracker {
       process.stderr.write(`\n❌ ${label} did not exit successfully.`);
       this._reportOutputForFailingScript(state.scriptReference);
     }
-    if (this._failed > 0) {
+    if (this._scriptsWithAlreadyReportedErrors.size > 0) {
       const s = this._scriptsWithAlreadyReportedErrors.size === 1 ? '' : 's';
       process.stderr.write(
         `❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`
@@ -415,7 +433,6 @@ class RunTracker {
     script: ScriptReference,
     cause?: Failure
   ) {
-    this._failed++;
     const state = this._running.get(this._getKey(script));
     if (!state) {
       throw new Error(
@@ -465,14 +482,8 @@ class RunTracker {
           // defer all output to it rather than showing a status line.
           return null;
         }
-        const done =
-          this._ran +
-          this._skipped +
-          this._failed +
-          this._servicesStarted +
-          this._servicesPersistedFromPreviousRun;
-        const total =
-          this._analysisInfo.scriptsWithCommands + this._analysisInfo.services;
+        const done = this._finishedScriptsWithCommands.size;
+        const total = this._analysisInfo.scriptsWithCommands.size;
         if (done === total) {
           // We're apparently done, so don't show a status line or a spinner.
           // We can stay in this state for a while and get more events if
@@ -483,13 +494,13 @@ class RunTracker {
           String(Math.round((done / total) * 100)).padStart(3, ' ') + '%';
 
         let servicesInfo = '';
-        if (this._analysisInfo.services > 0) {
+        if (this._analysisInfo.hasServices) {
           const s = this._servicesRunning === 1 ? '' : 's';
           servicesInfo = ` [${this._servicesRunning.toLocaleString()} service${s}]`;
         }
         let failureInfo = '';
-        if (this._failed > 0) {
-          failureInfo = ` [${this._failed.toLocaleString()} failed]`;
+        if (this._scriptsWithAlreadyReportedErrors.size > 0) {
+          failureInfo = ` [${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} failed]`;
         }
         // console.log(this);
         return `${percentDone} [${done.toLocaleString()} / ${total}] [${
@@ -497,7 +508,8 @@ class RunTracker {
         } running]${servicesInfo}${failureInfo} ${mostRecentScript}`;
       }
       case 'analysis failed':
-      case 'passing through root command output': {
+      case 'passing through root command output':
+      case 'done': {
         // No status line in these cases
         return null;
       }
@@ -508,10 +520,23 @@ class RunTracker {
     }
   }
 
+  private _markScriptAsFinished(script: ScriptReference) {
+    const key = this._getKey(script);
+    // Optimistically mark it as finished if we don't have analysis info yet.
+    // We'll remove it later if we find out it's not actually a script we
+    // care about.
+    const isScriptOfInterest =
+      this._analysisInfo === undefined ||
+      this._analysisInfo.scriptsWithCommands.has(key);
+    if (isScriptOfInterest) {
+      this._finishedScriptsWithCommands.add(key);
+    }
+  }
+
   private _handleInfo(event: Info): string | undefined | null {
     if (DEBUG) {
       console.log(
-        `success: ${event.detail} ${labelForScript(
+        `info: ${event.detail} ${labelForScript(
           this._rootPackage,
           event.script
         )}`
@@ -533,6 +558,7 @@ class RunTracker {
           this._getKey(event.script),
           new ScriptState(event.script, true)
         );
+        this._markScriptAsFinished(event.script);
         return this._getStatusLine();
       case 'service-stopped':
         this._servicesRunning--;
@@ -572,6 +598,11 @@ class RunTracker {
           this._analysisInfo = this._countScriptsWithCommands(
             event.rootScriptConfig
           );
+          for (const finished of this._finishedScriptsWithCommands) {
+            if (!this._analysisInfo.scriptsWithCommands.has(finished)) {
+              this._finishedScriptsWithCommands.delete(finished);
+            }
+          }
         }
         return this._getStatusLine();
       }
@@ -593,15 +624,18 @@ class RunTracker {
     }
     switch (event.reason) {
       case 'cached': {
+        this._markScriptAsFinished(event.script);
         this._skipped++;
         return this._getStatusLine();
       }
       case 'fresh': {
+        this._markScriptAsFinished(event.script);
         this._skipped++;
         return this._getStatusLine();
       }
       case 'exit-zero': {
         this._running.delete(this._getKey(event.script));
+        this._markScriptAsFinished(event.script);
         this._ran++;
         return this._getStatusLine();
       }
@@ -656,18 +690,19 @@ class RunTracker {
         const scriptHadOutput = this._scriptHadOutput(failure.script);
         const trailer = scriptHadOutput ? ' Output:\n' : '';
         process.stderr.write(`\n❌ ${label} ${message}.${trailer}\n`);
-        this._failed++;
         if (scriptHadOutput) {
           this._reportOutputForFailingScript(failure.script, failure);
         }
-        break;
+        this._finishedScriptsWithCommands.add(key);
+        this._running.delete(key);
+        return this._getStatusLine();
       }
       case 'start-cancelled':
       case 'aborted': {
         // These events aren't very useful to log, because they are downstream
         // of failures that already get reported elsewhere.
         this._running.delete(this._getKey(failure.script));
-        break;
+        return this._getStatusLine();
       }
       case 'dependency-service-exited-unexpectedly': {
         // Also logged elswhere.
@@ -717,12 +752,12 @@ class RunTracker {
 
   private _handleOutput(event: Output): string | null | undefined {
     if (DEBUG) {
-      console.log(
-        `output: ${event.stream} ${labelForScript(
-          this._rootPackage,
-          event.script
-        )}`
-      );
+      // console.log(
+      //   `output: ${event.stream} ${labelForScript(
+      //     this._rootPackage,
+      //     event.script
+      //   )}`
+      // );
     }
     switch (event.stream) {
       case 'stdout':
@@ -739,10 +774,13 @@ class RunTracker {
           );
         }
         // Immediately pass along output from the script we're trying to run.
-        if (state.service || key === this._analysisInfo?.rootScript) {
+        const isRootScript = key === this._analysisInfo?.rootScript;
+        if (isRootScript) {
+          this._state = 'passing through root command output';
+        }
+        if (state.service || isRootScript) {
           this._rootScriptHasOutput = true;
           this._writeoverLine.clearAndStopSpinner();
-          this._state = 'passing through root command output';
           process.stderr.write(event.data);
           return null;
         }
@@ -761,18 +799,19 @@ class RunTracker {
   }
 
   private _countScriptsWithCommands(rootScript: ScriptConfig): AnalysisInfo {
-    let scriptsWithCommands = 0;
-    let services = 0;
+    const scriptsWithCommands = new Set<string>();
+    let hasServices = false;
     const seen = new Set([this._getKey(rootScript)]);
     const toVisit = [rootScript];
     while (toVisit.length > 0) {
       const script = toVisit.pop()!;
       if (script.service) {
-        services++;
-      } else if (script.command !== undefined) {
+        hasServices = true;
+      }
+      if (script.command !== undefined) {
         // We only want to count scripts that actually run, rather than
         // just holding dependencies.
-        scriptsWithCommands++;
+        scriptsWithCommands.add(this._getKey(script));
       }
       for (const dependency of script.dependencies.values()) {
         const key = this._getKey(dependency.config);
@@ -785,8 +824,8 @@ class RunTracker {
     }
     return {
       rootScript: this._getKey(rootScript),
-      services,
       scriptsWithCommands,
+      hasServices,
     };
   }
 }
