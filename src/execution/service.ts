@@ -852,7 +852,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._logger.log({
           script: this._config,
           type: 'info',
-          detail: 'service-started',
+          detail: 'service-ready',
         });
         this._state = {
           id: 'started',
@@ -893,7 +893,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         this._logger.log({
           script: this._config,
           type: 'info',
-          detail: 'service-started',
+          detail: 'service-ready',
         });
         this._state = {
           id: 'started',

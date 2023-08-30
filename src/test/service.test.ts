@@ -15,6 +15,7 @@ const test = suite<{rig: WireitTestRig}>();
 test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
+    process.env.SHOW_TEST_OUTPUT = 'true';
     await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -68,7 +69,7 @@ test(
 
     // The service starts because the consumer depends on it
     const serviceInv = await service.nextInvocation();
-    await wireit.waitForLog(/Service started/);
+    await wireit.waitForLog(/Service ready/);
 
     // Confirm we show stdout/stderr from services
     serviceInv.stdout('service stdout');
@@ -150,11 +151,11 @@ test(
 
     // The service's own service dep must start first
     const serviceDepInv = await serviceDep.nextInvocation();
-    await wireit.waitForLog(/\[serviceDep\] Service started/);
+    await wireit.waitForLog(/\[serviceDep\] Service ready/);
 
     // Now the main service can start
     const serviceInv = await service.nextInvocation();
-    await wireit.waitForLog(/\[service\] Service started/);
+    await wireit.waitForLog(/\[service\] Service ready/);
 
     // The consumer starts and finishes
     const consumerInv = await consumer.nextInvocation();
@@ -410,9 +411,9 @@ test(
 
     // Services start in bottom-up order.
     const service2Inv = await service2.nextInvocation();
-    await wireit.waitForLog(/\[service2\] Service started/);
+    await wireit.waitForLog(/\[service2\] Service ready/);
     const service1Inv = await service1.nextInvocation();
-    await wireit.waitForLog(/\[service1\] Service started/);
+    await wireit.waitForLog(/\[service1\] Service ready/);
 
     // Wait a moment to ensure they keep running since the user hasn't killed
     // Wireit yet.
@@ -503,9 +504,9 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
 
       // Services start in bottom-up order.
       const service2Inv = await service2.nextInvocation();
-      await wireit.waitForLog(/\[service2\] Service started/);
+      await wireit.waitForLog(/\[service2\] Service ready/);
       const service1Inv = await service1.nextInvocation();
-      await wireit.waitForLog(/\[service1\] Service started/);
+      await wireit.waitForLog(/\[service1\] Service ready/);
 
       // Wait a moment to ensure they keep running because the failure hasn't
       // happened yet.
@@ -828,7 +829,7 @@ test(
 
     // Check that we only print "Service started" when we *actually* start a
     // service, and not when we adopt an existing one into a new iteration.
-    assert.equal([...stdout.matchAll(/Service started/g)].length, 2);
+    assert.equal([...stdout.matchAll(/Service ready/g)].length, 2);
   })
 );
 
@@ -1115,7 +1116,7 @@ test(
     hardInv1.exit(0);
     softInv1.exit(0);
     const serviceInv1 = await service.nextInvocation();
-    await wireit.waitForLog(/Service started/);
+    await wireit.waitForLog(/Service ready/);
     await wireit.waitForLog(/Watching for file changes/);
 
     // Changing input of soft dependency does not restart service
@@ -1132,7 +1133,7 @@ test(
     await serviceInv1.closed;
     await service.nextInvocation();
     await wireit.waitForLog(/Service stopped/);
-    await wireit.waitForLog(/Service started/);
+    await wireit.waitForLog(/Service ready/);
     await wireit.waitForLog(/Watching for file changes/);
 
     wireit.kill();
@@ -1185,9 +1186,9 @@ test(
 
     // Services start in bottom-up order.
     const childServiceInv1 = await childService.nextInvocation();
-    await wireit.waitForLog(/\[childService\] Service started/);
+    await wireit.waitForLog(/\[childService\] Service ready/);
     const parentServiceInv1 = await parentService.nextInvocation();
-    await wireit.waitForLog(/\[parentService\] Service started/);
+    await wireit.waitForLog(/\[parentService\] Service ready/);
     await wireit.waitForLog(/\[parentService\] Watching for file changes/);
 
     // childService restarts.
@@ -1195,7 +1196,7 @@ test(
     await childServiceInv1.closed;
     await wireit.waitForLog(/\[childService\] Service stopped/);
     const childServiceInv2 = await childService.nextInvocation();
-    await wireit.waitForLog(/\[childService\] Service started/);
+    await wireit.waitForLog(/\[childService\] Service ready/);
 
     // Wait a moment to increase confidence.
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1312,7 +1313,7 @@ test(
     (await standard.nextInvocation()).exit(0);
     await wireit.waitForLog(/\[standard\] Executed successfully/);
     await service.nextInvocation();
-    await wireit.waitForLog(/\[service\] Service started/);
+    await wireit.waitForLog(/\[service\] Service ready/);
     await wireit.waitForLog(/\[service\] Watching for file changes/);
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(service.numInvocations, 1);
@@ -1337,7 +1338,7 @@ test(
     await wireit.waitForLog(/\[standard\] Executed successfully/);
     await service.nextInvocation();
     await wireit.waitForLog(/\[service\] Service stopped/);
-    await wireit.waitForLog(/\[service\] Service started/);
+    await wireit.waitForLog(/\[service\] Service ready/);
     await wireit.waitForLog(/\[service\] Watching for file changes/);
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(service.numInvocations, 2);

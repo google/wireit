@@ -210,15 +210,13 @@ export class Analyzer {
       script: root,
     });
     const analyzeResult = await this._actuallyAnalyze(root, extraArgs);
-    let rootScriptConfig = undefined;
-    if (analyzeResult.config.ok) {
-      rootScriptConfig = analyzeResult.config.value;
-    }
     this._logger?.log({
       type: 'info',
       detail: 'analysis-completed',
       script: root,
-      rootScriptConfig,
+      rootScriptConfig: analyzeResult.config.ok
+        ? analyzeResult.config.value
+        : undefined,
     });
     return analyzeResult;
   }

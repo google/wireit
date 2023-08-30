@@ -323,7 +323,7 @@ class ExecResult {
       // processes in the group (without the negative only the leader "sh"
       // process would be killed).
       if (force) {
-        process.kill(-this._child.pid, 9);
+        process.kill(-this._child.pid, 'SIGKILL');
       } else {
         process.kill(-this._child.pid, 'SIGINT');
       }

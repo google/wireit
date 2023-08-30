@@ -265,7 +265,7 @@ export class DefaultLogger implements Logger {
             console.log(`👀${prefix} Watching for file changes`);
             break;
           }
-          case 'generic': {
+          case 'cache-info': {
             console.log(`ℹ️${prefix} ${event.message}`);
             break;
           }
@@ -273,8 +273,8 @@ export class DefaultLogger implements Logger {
             console.log(`⬆️${prefix} Service starting...`);
             break;
           }
-          case 'service-started': {
-            console.log(`⬆️${prefix} Service started`);
+          case 'service-ready': {
+            console.log(`⬆️${prefix} Service ready`);
             break;
           }
           case 'service-stopped': {
