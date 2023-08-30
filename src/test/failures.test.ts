@@ -67,6 +67,42 @@ test(
 );
 
 test(
+  'runs one non-root script that fails',
+  timeout(async ({rig}) => {
+    rig.env['WIREIT_LOGGER'] = 'quiet';
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+          a: 'wireit',
+        },
+        wireit: {
+          main: {
+            dependencies: ['a'],
+          },
+          a: {
+            command: cmdA.command,
+          },
+        },
+      },
+    });
+    const exec = rig.exec('npm run main');
+
+    const invA = await cmdA.nextInvocation();
+    invA.stdout('a stdout');
+    invA.stderr('a stderr');
+    invA.exit(1);
+
+    const res = await exec.exit;
+    assert.equal(res.code, 1);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, 'a stdout');
+    assert.match(res.stderr, 'a stderr');
+  })
+);
+
+test(
   'dependency chain in one package that fails in the middle',
   timeout(async ({rig}) => {
     // a --> b* --> c

@@ -17,11 +17,16 @@ import {DEBUG} from '../logger.js';
 import {WriteoverLine} from './writeover-line.js';
 import {StackMap} from './stack-map.js';
 
+interface SimpleOutput {
+  readonly stream: 'stdout' | 'stderr';
+  readonly data: string | Buffer;
+}
+
 /**
  * State that the run tracker cares about for a currently running script.
  */
 class ScriptState {
-  readonly outputBuffer: Array<string | Buffer> = [];
+  private readonly outputBuffer: Array<SimpleOutput> = [];
   readonly scriptReference: ScriptReference;
   readonly service: boolean;
   readonly isRootScript: boolean;
@@ -33,6 +38,31 @@ class ScriptState {
     this.scriptReference = scriptReference;
     this.service = service;
     this.isRootScript = isRootScript;
+  }
+
+  bufferOutput(output: Output) {
+    if (output.data.length === 0) {
+      return;
+    }
+    this.outputBuffer.push({
+      stream: output.stream,
+      data: output.data,
+    });
+  }
+
+  replayAndEmptyBuffer() {
+    for (const output of this.outputBuffer) {
+      if (output.stream === 'stdout') {
+        process.stdout.write(output.data);
+      } else {
+        process.stderr.write(output.data);
+      }
+    }
+    this.outputBuffer.length = 0;
+  }
+
+  get hasBufferedOutput(): boolean {
+    return this.outputBuffer.length > 0;
   }
 }
 
@@ -266,10 +296,7 @@ export class QuietRunLogger {
 `
       );
     }
-    for (const output of state.outputBuffer) {
-      process.stderr.write(output);
-    }
-    state.outputBuffer.length = 0;
+    state.replayAndEmptyBuffer();
   }
 
   private _getStatusLine(): StatusLineResult {
@@ -570,7 +597,7 @@ export class QuietRunLogger {
         )}`
       );
     }
-    return state.outputBuffer.some((output) => output.length > 0);
+    return state.hasBufferedOutput;
   }
 
   private _handleOutput(event: Output): StatusLineResult {
@@ -612,7 +639,7 @@ export class QuietRunLogger {
     }
     // Buffer everything else so that we can print it
     // (possibly a second time) in case of failure.
-    state.outputBuffer.push(event.data);
+    state.bufferOutput(event);
     return noChange;
   }
 
