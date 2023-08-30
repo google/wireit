@@ -226,7 +226,7 @@ export async function readlink(
   options?:
     | fsTypes.BaseEncodingOptions
     | fsTypes.BufferEncodingOption
-    | string
+    | BufferEncoding
     | null,
 ): Promise<string | Buffer> {
   const reservation = await fileBudget.reserve();
