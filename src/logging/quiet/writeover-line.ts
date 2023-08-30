@@ -23,7 +23,7 @@ export class WriteoverLine {
   private _spinnerInterval: NodeJS.Timeout | undefined;
   private _spinner = new Spinner();
 
-  consturctor() {
+  constructor() {
     // If the user does a ctrl-c then we stop the spinner.
     process.on('SIGINT', () => {
       console.log('Got a SIGINT in Writeover line');
@@ -87,6 +87,26 @@ export class WriteoverLine {
     }, 1000 / targetFps);
   }
 
+  /**
+   * Clears the line and stops the spinner, and returns a Disposable that, once
+   * disposed, will restore the line and restart the spinner (if the spinner
+   * was going when clearUntilDisposed() was called).
+   *
+   * Note that we don't expect writeoverLine.writeLine to be called while the
+   * Disposable is active, so we don't handle that case. We could, it just
+   * hasn't come up yet. We'd need to have an instance variable to count how
+   * many active Disposables there are, and only restore the line and restart
+   * the spinner when the last one is disposed. We'd also need to short circuit
+   * the logic in writeLine, and set aside the latest line to be written.
+   *
+   * Use like:
+   *
+   *     {
+   *       using _pause = writeoverLine.clearUntilDisposed();
+   *       // console.log, write to stdout and stderr, etc
+   *     }
+   *     // once the block ends, the writeoverLine is restored
+   */
   clearUntilDisposed(): Disposable | undefined {
     // already cleared, nothing to do
     if (this._spinnerInterval === undefined) {
@@ -133,13 +153,24 @@ interface Disposable {
   [Symbol.dispose]: () => void;
 }
 
+const spinnerFrames = [
+  '⠋',
+  '⠙',
+  '⠹',
+  '⠸',
+  '⠼',
+  '⠴',
+  '⠦',
+  '⠧',
+  '⠇',
+  '⠏',
+] as const;
 class Spinner {
   private _frame = 0;
-  private _frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
   get nextFrame() {
-    const frame = this._frames[this._frame];
-    this._frame = (this._frame + 1) % this._frames.length;
+    const frame = spinnerFrames[this._frame];
+    this._frame = (this._frame + 1) % spinnerFrames.length;
     return frame;
   }
 }

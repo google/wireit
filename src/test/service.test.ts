@@ -15,6 +15,7 @@ const test = suite<{rig: WireitTestRig}>();
 test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
+    // Uncomment these lines to debug tests:
     // process.env['SHOW_TEST_OUTPUT'] = 'true';
     // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
     await ctx.rig.setup();

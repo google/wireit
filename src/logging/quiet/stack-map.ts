@@ -8,7 +8,7 @@
  * A map that can also efficiently return the most recently added entry.
  */
 export class StackMap<K, V> extends Map<K, V> {
-  private _stack: Array<[K, V]> = [];
+  private readonly _stack: Array<[K, V]> = [];
 
   override set(key: K, value: V) {
     if (!this.has(key)) {

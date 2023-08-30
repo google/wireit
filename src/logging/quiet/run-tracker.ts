@@ -133,20 +133,17 @@ export class QuietRunLogger {
    * even end up with multiple failures for the same reason, like multiple
    * non-zero-exit-code events. This looks to be coming at the NodeJS level
    * or above, and so we just cope.
-   *
-   * Keyed by this._getKey
    */
-
   private readonly _scriptsWithAlreadyReportedErrors =
     new Set<ScriptReferenceString>();
 
   constructor(
     rootPackage: string,
-    _writeoverLine: WriteoverLine,
+    writeoverLine: WriteoverLine,
     defaultLogger?: DefaultLogger
   ) {
     this._rootPackage = rootPackage;
-    this._writeoverLine = _writeoverLine;
+    this._writeoverLine = writeoverLine;
     this._defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
   }
 
