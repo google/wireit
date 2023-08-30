@@ -49,7 +49,7 @@ export class WireitTestRig extends FilesystemTestRig {
       this.temp,
       'node_modules',
       '.bin',
-      'wireit'
+      'wireit',
     );
     if (IS_WINDOWS) {
       // Npm install works differently on Windows, since it won't recognize a
@@ -136,7 +136,7 @@ export class WireitTestRig extends FilesystemTestRig {
    */
   exec(
     command: string,
-    opts?: {cwd?: string; env?: Record<string, string | undefined>}
+    opts?: {cwd?: string; env?: Record<string, string | undefined>},
   ): ExecResult {
     this._assertState('running');
     const cwd = this._resolve(opts?.cwd ?? '.');
@@ -198,13 +198,13 @@ export class WireitTestRig extends FilesystemTestRig {
       ipcPath = pathlib.join(
         '\\\\?\\pipe',
         this.temp,
-        Math.random().toString()
+        Math.random().toString(),
       );
     } else {
       ipcPath = pathlib.resolve(
         this.temp,
         '__sockets',
-        Math.random().toString()
+        Math.random().toString(),
       );
       // The socket file will be created on the net.createServer call, but the
       // parent directory must exist.
@@ -234,7 +234,7 @@ class ExecResult {
   constructor(
     command: string,
     cwd: string,
-    env: Record<string, string | undefined>
+    env: Record<string, string | undefined>,
   ) {
     // Remove any environment variables that start with "npm_", because those
     // will have been set by the "npm test" or similar command that launched
@@ -246,7 +246,7 @@ class ExecResult {
     const unsetNpmVariables = Object.fromEntries(
       Object.keys(process.env)
         .filter((name) => /^npm_/i.test(name))
-        .map((name) => [name, undefined])
+        .map((name) => [name, undefined]),
     );
     this._child = spawn(command, {
       cwd,
@@ -366,7 +366,7 @@ class ExecResult {
         this._logMatchers.delete(matcher);
         stdoutLastIndex = Math.max(
           stdoutLastIndex,
-          stdoutMatch.index + stdoutMatch[0].length
+          stdoutMatch.index + stdoutMatch[0].length,
         );
       } else {
         const stderrMatch = re.exec(this._matcherStderr);
@@ -375,7 +375,7 @@ class ExecResult {
           this._logMatchers.delete(matcher);
           stderrLastIndex = Math.max(
             stderrLastIndex,
-            stderrMatch.index + stderrMatch[0].length
+            stderrMatch.index + stderrMatch[0].length,
           );
         }
       }
