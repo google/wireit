@@ -262,7 +262,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       entireExecutionAborted,
       adoptee,
     };
-    this._terminated.promise.then(() => {
+    void this._terminated.promise.then(() => {
       this._logger.log({
         script: this._config,
         type: 'info',

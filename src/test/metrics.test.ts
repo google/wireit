@@ -112,7 +112,7 @@ test(
   })
 );
 
-test.only(
+test(
   'does not log metrics for non-success events',
   timeout(async ({rig}) => {
     const cmdA = await rig.newCommand();
