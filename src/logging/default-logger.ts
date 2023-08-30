@@ -12,6 +12,7 @@ import type {Logger} from './logger.js';
 import type {PackageReference, ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
+import {WatchLogger} from './watch-logger.js';
 
 const getWireitVersion = (() => {
   let version: string | undefined;
@@ -43,36 +44,9 @@ export class DefaultLogger implements Logger {
     this._diagnosticPrinter = new DiagnosticPrinter(this._rootPackageDir);
   }
 
-  /**
-   * Make a concise label for a script, or for just a package if we don't know
-   * the script name. If the package is different to the root package, it is
-   * disambiguated with a relative path.
-   */
-  private _label(script: PackageReference | ScriptReference) {
-    const packageDir = script.packageDir;
-    const scriptName = 'name' in script ? script.name : undefined;
-    if (packageDir !== this._rootPackageDir) {
-      const relativePackageDir = pathlib
-        .relative(this._rootPackageDir, script.packageDir)
-        // Normalize to posix-style forward-slashes as the path separator, even
-        // on Windows which usually uses back-slashes. This way labels match the
-        // syntax used in the package.json dependency specifiers (which are
-        // already posix style).
-        .replace(pathlib.sep, pathlib.posix.sep);
-      if (scriptName !== undefined) {
-        return `${relativePackageDir}:${scriptName}`;
-      } else {
-        return relativePackageDir;
-      }
-    } else if (scriptName !== undefined) {
-      return scriptName;
-    }
-    return '';
-  }
-
   log(event: Event) {
     const type = event.type;
-    const label = this._label(event.script);
+    const label = labelForScript(this._rootPackageDir, event.script);
     const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
@@ -202,7 +176,8 @@ export class DefaultLogger implements Logger {
           }
           case 'dependency-invalid': {
             console.error(
-              `❌${prefix} Depended, perhaps indirectly, on ${this._label(
+              `❌${prefix} Depended, perhaps indirectly, on ${labelForScript(
+                this._rootPackageDir,
                 event.dependency
               )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`
             );
@@ -294,12 +269,20 @@ export class DefaultLogger implements Logger {
             console.log(`ℹ️${prefix} ${event.message}`);
             break;
           }
+          case 'service-process-started': {
+            console.log(`⬆️${prefix} Service starting...`);
+            break;
+          }
           case 'service-started': {
             console.log(`⬆️${prefix} Service started`);
             break;
           }
           case 'service-stopped': {
             console.log(`⬇️${prefix} Service stopped`);
+            break;
+          }
+          case 'analysis-started':
+          case 'analysis-completed': {
             break;
           }
         }
@@ -310,4 +293,38 @@ export class DefaultLogger implements Logger {
   printMetrics(): void {
     // printMetrics() not used in default-logger.
   }
+
+  getWatchLogger(): Logger {
+    return new WatchLogger(this);
+  }
+}
+
+/**
+ * Make a concise label for a script, or for just a package if we don't know
+ * the script name. If the package is different to the root package, it is
+ * disambiguated with a relative path.
+ */
+export function labelForScript(
+  rootPackageDir: string,
+  script: ScriptReference | PackageReference
+) {
+  const packageDir = script.packageDir;
+  const scriptName = 'name' in script ? script.name : undefined;
+  if (packageDir !== rootPackageDir) {
+    const relativePackageDir = pathlib
+      .relative(rootPackageDir, script.packageDir)
+      // Normalize to posix-style forward-slashes as the path separator, even
+      // on Windows which usually uses back-slashes. This way labels match the
+      // syntax used in the package.json dependency specifiers (which are
+      // already posix style).
+      .replace(pathlib.sep, pathlib.posix.sep);
+    if (scriptName !== undefined) {
+      return `${relativePackageDir}:${scriptName}`;
+    } else {
+      return relativePackageDir;
+    }
+  } else if (scriptName !== undefined) {
+    return scriptName;
+  }
+  return '';
 }

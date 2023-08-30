@@ -12,4 +12,9 @@ import type {Event} from '../event.js';
 export interface Logger {
   log(event: Event): void;
   printMetrics(): void;
+
+  // Some loggers need additional logic when run in watch mode.
+  // If this method is present, we'll call it and use the result when in
+  // watch mode.
+  getWatchLogger?(): Logger;
 }

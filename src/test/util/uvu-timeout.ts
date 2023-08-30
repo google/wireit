@@ -32,6 +32,10 @@ export const timeout = <T>(
       handler(...args),
       new Promise<never>((_resolve, reject) => {
         timerId = setTimeout(() => {
+          // Log that we timed out, helpful to see when looking through logs
+          // when we started shutting down the rig because of a timeout,
+          // because all logs after this point aren't part of the normal test.
+          console.error('Test timed out.');
           reject(new Error(`Test timed out after ${ms} milliseconds.`));
         }, ms);
       }),

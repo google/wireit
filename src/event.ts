@@ -31,7 +31,7 @@ interface EventBase<T extends PackageReference = ScriptReference> {
 // Success events
 // -------------------------------
 
-type Success = ExitZero | NoCommand | Fresh | Cached;
+export type Success = ExitZero | NoCommand | Fresh | Cached;
 
 interface SuccessBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -313,7 +313,7 @@ export interface UnknownErrorThrown extends ErrorBase {
 // Output events
 // -------------------------------
 
-type Output = Stdout | Stderr;
+export type Output = Stdout | Stderr;
 
 interface OutputBase extends EventBase<ScriptConfig> {
   type: 'output';
@@ -338,14 +338,17 @@ export interface Stderr extends OutputBase {
 // Informational events
 // -------------------------------
 
-type Info =
+export type Info =
   | ScriptRunning
   | ScriptLocked
   | OutputModified
   | WatchRunStart
   | WatchRunEnd
+  | ServiceProcessStarted
   | ServiceStarted
   | ServiceStopped
+  | AnalysisStarted
+  | AnalysisCompleted
   | GenericInfo;
 
 interface InfoBase<T extends PackageReference = ScriptReference>
@@ -378,6 +381,23 @@ export interface OutputModified extends InfoBase {
 }
 
 /**
+ * The analysis phase for an execution has begun, where we load package.json
+ * files, analyze their wireit configs, and build the dependency graph.
+ */
+export interface AnalysisStarted extends InfoBase {
+  detail: 'analysis-started';
+}
+
+/**
+ * The analysis phase for an execution has begun, where we load package.json
+ * files, analyze their wireit configs, and build the dependency graph.
+ */
+export interface AnalysisCompleted extends InfoBase {
+  detail: 'analysis-completed';
+  rootScriptConfig: undefined | ScriptConfig;
+}
+
+/**
  * A watch mode iteration started.
  */
 export interface WatchRunStart extends InfoBase {
@@ -392,7 +412,15 @@ export interface WatchRunEnd extends InfoBase {
 }
 
 /**
- * A service started running.
+ * A service process started running.
+ */
+export interface ServiceProcessStarted extends InfoBase {
+  detail: 'service-process-started';
+}
+
+/**
+ * A service started running and if it has a readyWhen condition,
+ * that condition is met.
  */
 export interface ServiceStarted extends InfoBase {
   detail: 'service-started';
