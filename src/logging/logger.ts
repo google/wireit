@@ -18,3 +18,9 @@ export interface Logger {
   // watch mode.
   getWatchLogger?(): Logger;
 }
+
+/**
+ * When true, we're debugging the logger itself, so a logger should log with
+ * more verbosity, and not overwrite previously written lines.
+ */
+export const DEBUG = Boolean(process.env['WIREIT_DEBUG_LOGGER']);

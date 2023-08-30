@@ -8,6 +8,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [Unreleased]
+
+## Added
+
+- The `WIREIT_LOGGER` environment variable can now be used to control the system that writes output the the command line.
+- Added a new `quiet` logger that writes a single continuously updating line summarizing progress, and only passes along stdout and stderr from commands if there's a failure.
+
 ## [0.10.0] - 2023-07-10
 
 ### Added

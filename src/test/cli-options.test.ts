@@ -68,7 +68,8 @@ async function getOptionsResult(
 async function assertOptions(
   rig: WireitTestRig,
   command: string,
-  expected: Partial<Options> & Pick<Options, 'script'>,
+  expected: Omit<Partial<Options>, 'logger'> &
+    Pick<Options, 'script'> & {logger?: string},
   env?: Record<string, string | undefined>,
   extraScripts?: Record<string, string>
 ) {
@@ -81,6 +82,7 @@ async function assertOptions(
       cache: 'local',
       numWorkers: 10,
       failureMode: 'no-new',
+      logger: 'QuietLogger',
       ...expected,
     },
   });
@@ -286,6 +288,42 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
       );
     })
   );
+
+  test(`WIREIT_LOGGER=simple ${command} run main`, async ({rig}) => {
+    await assertOptions(
+      rig,
+      `${command} run main`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
+        },
+        logger: 'DefaultLogger',
+      },
+      {
+        WIREIT_LOGGER: 'simple',
+      }
+    );
+  });
+
+  test(`WIREIT_LOGGER=quiet ${command} run main`, async ({rig}) => {
+    await assertOptions(
+      rig,
+      `${command} run main`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
+        },
+        logger: 'QuietLogger',
+      },
+      {
+        WIREIT_LOGGER: 'quiet',
+      }
+    );
+  });
 
   // Doesn't work with yarn 1.x due to
   // https://github.com/yarnpkg/yarn/issues/8905. Anything before a "--" is not

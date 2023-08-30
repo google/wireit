@@ -7,7 +7,16 @@
 // This file is a binary that is used to directly test command-line option
 // parsing.
 
-import {getOptions} from '../../cli-options.js';
+import {Options, getOptions} from '../../cli-options.js';
 import {writeFileSync} from 'fs';
+import {Result} from '../../error.js';
 
-writeFileSync('options.json', JSON.stringify(getOptions()));
+type SerializableOptions = Omit<Options, 'logger'> & {
+  logger: string;
+};
+
+const options = getOptions() as unknown as Result<SerializableOptions>;
+if (options.ok) {
+  options.value.logger = options.value.logger.constructor.name;
+}
+writeFileSync('options.json', JSON.stringify(options));
