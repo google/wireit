@@ -113,7 +113,11 @@ export class WireitTestRig extends FilesystemTestRig {
   override async cleanup(): Promise<void> {
     await Promise.all(this._commands.map((command) => command.close()));
     for (const child of this._activeChildProcesses) {
-      child.kill();
+      // Force kill child processes, because we're cleaning up the test rig
+      // at the end of the test, and if any are still running then the test
+      // has probably failed from timeout. If the process is hung, we'll
+      // already see that from the timeout.
+      child.kill({force: true});
       await child.exit;
     }
     await super.cleanup();
@@ -299,7 +303,7 @@ class ExecResult {
   /**
    * Kill the child process.
    */
-  kill(): void {
+  kill({force} = {force: false}): void {
     if (!this.running) {
       throw new Error("Can't kill child process because it is not running");
     }
@@ -318,7 +322,11 @@ class ExecResult {
       // own process group. Passing the negative of the child's pid kills all
       // processes in the group (without the negative only the leader "sh"
       // process would be killed).
-      process.kill(-this._child.pid, 'SIGINT');
+      if (force) {
+        process.kill(-this._child.pid, 9);
+      } else {
+        process.kill(-this._child.pid, 'SIGINT');
+      }
     }
   }
 
