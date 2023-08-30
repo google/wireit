@@ -7,7 +7,7 @@
 import {Event} from '../event.js';
 import {Logger} from './logger.js';
 import {WriteoverLine} from './quiet/writeover-line.js';
-import {RunTracker, noChange, nothing} from './quiet/run-tracker.js';
+import {QuietRunLogger, noChange, nothing} from './quiet/run-tracker.js';
 
 /**
  * A {@link Logger} that prints less to the console.
@@ -25,7 +25,10 @@ export class QuietLogger implements Logger {
 
   constructor(rootPackage: string) {
     this._rootPackage = rootPackage;
-    this.runTracker = new RunTracker(this._rootPackage, this._writeoverLine);
+    this.runTracker = new QuietRunLogger(
+      this._rootPackage,
+      this._writeoverLine
+    );
   }
 
   printMetrics() {
@@ -35,7 +38,7 @@ export class QuietLogger implements Logger {
 
   log(event: Event): void {
     if (event.type === 'info' && event.detail === 'watch-run-start') {
-      this.runTracker = this.runTracker.makeInstanceForNewRun();
+      this.runTracker = this.runTracker.makeInstanceForNextWatchRun();
     }
     const line = this.runTracker.getUpdatedMessageAfterEvent(event);
     if (line === noChange) {

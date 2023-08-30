@@ -34,18 +34,6 @@ class ScriptState {
     this.service = service;
     this.isRootScript = isRootScript;
   }
-
-  writeOutput(output: Output) {
-    if (output.stream === 'stdout') {
-      process.stdout.write(output.data);
-    } else {
-      process.stderr.write(output.data);
-    }
-  }
-
-  bufferOutput(output: Output) {
-    this.outputBuffer.push(output.data);
-  }
 }
 
 export const noChange = Symbol('nochange');
@@ -109,7 +97,7 @@ interface AnalysisInfo {
  * A QuietLogger usually just has one of these, but in --watch mode we use
  * one per iteration.
  */
-export class RunTracker {
+export class QuietRunLogger {
   /**
    * Currently running scripts, or failed scripts that we're about to
    * report on. A script is added to this when it starts, and removed
@@ -162,9 +150,13 @@ export class RunTracker {
     this._defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
   }
 
-  makeInstanceForNewRun(): RunTracker {
+  /**
+   * Used to make a new instance, keeping info about persistent services
+   * that continue from the previous run to the next.
+   */
+  makeInstanceForNextWatchRun(): QuietRunLogger {
     // Reuse the default logger, a minor savings.
-    const instance = new RunTracker(
+    const instance = new QuietRunLogger(
       this._rootPackage,
       this._writeoverLine,
       this._defaultLogger
@@ -379,7 +371,7 @@ export class RunTracker {
         );
         return this._getStatusLine();
       }
-      case 'service-process-started':
+      case 'service-process-started': {
         // Services don't end, so we count this as having finished.
         this._servicesRunning++;
         this._servicesStarted++;
@@ -394,6 +386,7 @@ export class RunTracker {
         );
         this._markScriptAsFinished(event.script);
         return this._getStatusLine();
+      }
       case 'service-stopped':
         this._servicesRunning--;
         this._running.delete(scriptReferenceToString(event.script));
@@ -595,21 +588,30 @@ export class RunTracker {
         )}`
       );
     }
-    if (state.isRootScript) {
-      this._statusLineState = 'done';
-      // This is a terminal state, so stop all status lines, from here on out
-      // we're going to be just printing the root script's output.
-      this._writeoverLine.clearAndStopSpinner();
-      state.writeOutput(event);
-      return nothing;
-    }
     if (state.service) {
       // Pause the status line while we print this real quick, but then resume
       // it.
       const pause = this._writeoverLine.clearUntilDisposed();
-      state.writeOutput(event);
+      if (event.stream === 'stdout') {
+        process.stdout.write(event.data);
+      } else {
+        process.stderr.write(event.data);
+      }
       pause?.[Symbol.dispose]();
       return noChange;
+    }
+    if (state.isRootScript) {
+      this._statusLineState = 'done';
+      // Unlike for a service, this is a terminal state, instead of pausing the
+      // status line, we stop it completely, because for the rest of the run
+      // we're just going to be  printing the root script's output.
+      this._writeoverLine.clearAndStopSpinner();
+      if (event.stream === 'stdout') {
+        process.stdout.write(event.data);
+      } else {
+        process.stderr.write(event.data);
+      }
+      return nothing;
     }
     // Buffer everything else so that we can print it
     // (possibly a second time) in case of failure.

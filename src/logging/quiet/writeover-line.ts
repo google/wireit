@@ -101,7 +101,15 @@ export class WriteoverLine {
     };
   }
 
+  private _previouslyWrittenLine: string | undefined = undefined;
   private _writeLatestLineWithSpinner() {
+    if (this._line === this._previouslyWrittenLine) {
+      // just write over the spinner
+      process.stderr.write(this._spinner.nextFrame);
+      process.stderr.write('\r');
+      return;
+    }
+    this._previouslyWrittenLine = this._line;
     this._writeLineAndScrubPrevious(`${this._spinner.nextFrame} ${this._line}`);
   }
 
