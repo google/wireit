@@ -34,7 +34,7 @@ const PATH_ENV_SUFFIX = (() => {
   const entries = path.split(pathlib.delimiter);
   const nodeModulesBinSuffix = pathlib.join('node_modules', '.bin');
   const endOfNodeModuleBins = entries.findIndex(
-    (entry) => !entry.endsWith(nodeModulesBinSuffix)
+    (entry) => !entry.endsWith(nodeModulesBinSuffix),
   );
   return entries.slice(endOfNodeModuleBins).join(pathlib.delimiter);
 })();
@@ -142,7 +142,7 @@ export class ScriptChildProcess {
         case 'stopped': {
           const exception = new Error(
             `Internal error: Expected ScriptChildProcessState ` +
-              `to be "started" or "killing" but was "${this._state}"`
+              `to be "started" or "killing" but was "${this._state}"`,
           );
           this._started.reject(exception);
           this._completed.reject(exception);
@@ -152,8 +152,8 @@ export class ScriptChildProcess {
           const never: never = this._state;
           const exception = new Error(
             `Internal error: unexpected ScriptChildProcessState: ${String(
-              never
-            )}`
+              never,
+            )}`,
           );
           this._started.reject(exception);
           this._completed.reject(exception);
@@ -245,7 +245,9 @@ export class ScriptChildProcess {
       default: {
         const never: never = this._state;
         throw new Error(
-          `Internal error: unexpected ScriptChildProcessState: ${String(never)}`
+          `Internal error: unexpected ScriptChildProcessState: ${String(
+            never,
+          )}`,
         );
       }
     }
@@ -255,7 +257,7 @@ export class ScriptChildProcess {
     if (this._child.pid === undefined) {
       throw new Error(
         `Internal error: Can't kill child process because it has no pid. ` +
-          `Command: ${JSON.stringify(this._script.command)}.`
+          `Command: ${JSON.stringify(this._script.command)}.`,
       );
     }
     if (IS_WINDOWS) {

@@ -62,7 +62,7 @@ class ChildIpcClient extends IpcClient<RigToChildMessage, ChildToRigMessage> {
         console.error(
           `Unhandled message type ${
             (unreachable(message) as RigToChildMessage).type
-          }`
+          }`,
         );
         process.exit(1);
         break;

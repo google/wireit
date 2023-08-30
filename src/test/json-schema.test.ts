@@ -20,10 +20,10 @@ const schema = JSON.parse(
       '..',
       '..',
       '..',
-      'schema.json'
+      'schema.json',
     ),
-    'utf-8'
-  )
+    'utf-8',
+  ),
 ) as jsonSchema.Schema;
 const validator = new jsonSchema.Validator();
 validator.addSchema(schema);
@@ -36,7 +36,7 @@ function expectValidationErrors(packageJson: object, errors: string[]) {
   const validationResult = validator.validate(packageJson, schema);
   assert.equal(
     validationResult.errors.map((e) => e.toString()),
-    errors
+    errors,
   );
 }
 
@@ -128,7 +128,7 @@ test('clean can be either a boolean or the string if-file-deleted', () => {
     },
     [
       'instance.wireit.a.clean is not one of enum values: true,false,if-file-deleted',
-    ]
+    ],
   );
 });
 
@@ -141,7 +141,7 @@ test('command must not be empty', () => {
         },
       },
     },
-    ['instance.wireit.a.command does not meet minimum length of 1']
+    ['instance.wireit.a.command does not meet minimum length of 1'],
   );
 });
 
@@ -160,7 +160,7 @@ test('dependencies[i] must not be empty', () => {
     // ourselves.
     [
       'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
-    ]
+    ],
   );
 });
 
@@ -174,7 +174,7 @@ test('files[i] must not be empty', () => {
         },
       },
     },
-    ['instance.wireit.a.files[0] does not meet minimum length of 1']
+    ['instance.wireit.a.files[0] does not meet minimum length of 1'],
   );
 });
 
@@ -188,7 +188,7 @@ test('output[i] must not be empty', () => {
         },
       },
     },
-    ['instance.wireit.a.output[0] does not meet minimum length of 1']
+    ['instance.wireit.a.output[0] does not meet minimum length of 1'],
   );
 });
 
@@ -202,7 +202,7 @@ test('packageLocks[i] must not be empty', () => {
         },
       },
     },
-    ['instance.wireit.a.packageLocks[0] does not meet minimum length of 1']
+    ['instance.wireit.a.packageLocks[0] does not meet minimum length of 1'],
   );
 });
 
@@ -216,7 +216,7 @@ test('dependencies must be an array of strings', () => {
         },
       },
     },
-    ['instance.wireit.a.dependencies is not of a type(s) array']
+    ['instance.wireit.a.dependencies is not of a type(s) array'],
   );
 
   expectValidationErrors(
@@ -230,7 +230,7 @@ test('dependencies must be an array of strings', () => {
     },
     [
       'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
-    ]
+    ],
   );
 });
 
@@ -246,7 +246,7 @@ test('dependencies[i].script is required', () => {
     },
     [
       'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
-    ]
+    ],
   );
 });
 
@@ -262,7 +262,7 @@ test('dependencies[i].cascade must be boolean', () => {
     },
     [
       'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
-    ]
+    ],
   );
 });
 

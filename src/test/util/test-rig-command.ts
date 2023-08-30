@@ -44,7 +44,7 @@ export class WireitTestRigCommand {
   private _assertState(expected: 'uninitialized' | 'listening' | 'closed') {
     if (this._state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this._state}`
+        `Expected state to be ${expected} but was ${this._state}`,
       );
     }
   }
@@ -156,7 +156,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
         return;
       }
       console.error(
-        `Unhandled IPC socket error ${err.message} in WireitTestRigCommandInvocation`
+        `Unhandled IPC socket error ${err.message} in WireitTestRigCommandInvocation`,
       );
       process.exit(1);
     });
@@ -165,7 +165,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
   private _assertState(expected: 'connected' | 'closing' | 'closed') {
     if (this._state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this._state}`
+        `Expected state to be ${expected} but was ${this._state}`,
       );
     }
   }
@@ -193,7 +193,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
         throw new Error(
           `Unhandled message type ${
             (unreachable(message) as ChildToRigMessage).type
-          }`
+          }`,
         );
       }
     }

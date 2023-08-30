@@ -74,7 +74,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -119,7 +119,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -165,7 +165,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -210,7 +210,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -267,7 +267,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -312,7 +312,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -357,7 +357,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -402,7 +402,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -463,7 +463,7 @@ test(
       assert.equal(cmdA.numInvocations, 1);
       assert.equal(cmdC.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -502,7 +502,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -543,7 +543,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -632,7 +632,7 @@ test(
       assert.equal(cmdA.numInvocations, 3);
       assert.equal(cmdB.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -685,7 +685,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -756,7 +756,7 @@ test(
       assert.equal(cmdB.numInvocations, 2);
       assert.equal(cmdC.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -801,7 +801,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -858,7 +858,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -904,9 +904,9 @@ test(
           '.wireit',
           // Buffer.from(name).toString('hex')
           'f09f94a53c3e3a2f5c7c3f2a',
-          'fingerprint'
-        )
-      )
+          'fingerprint',
+        ),
+      ),
     );
 
     // No input file changed, so script is fresh, and command is not invoked.
@@ -916,7 +916,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -959,7 +959,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1028,7 +1028,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 3);
     }
-  })
+  }),
 );
 
 test(
@@ -1107,7 +1107,7 @@ test(
       assert.equal(cmdA.numInvocations, 3);
       assert.equal(cmdB.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1162,7 +1162,7 @@ test(
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1223,7 +1223,7 @@ test(
       assert.equal(cmdA1.numInvocations, 1);
       assert.equal(cmdA2.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -1280,7 +1280,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1338,7 +1338,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1396,7 +1396,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -1504,7 +1504,7 @@ test(
       assert.equal(cmdE.numInvocations, 1);
       assert.equal(cmdF.numInvocations, 1);
     }
-  })
+  }),
 );
 
 for (const [agent, lockfile] of [
@@ -1580,7 +1580,7 @@ for (const [agent, lockfile] of [
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 3);
       }
-    })
+    }),
   );
 }
 
@@ -1633,7 +1633,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 1);
     }
-  })
+  }),
 );
 
 test(
@@ -1687,7 +1687,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1753,7 +1753,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 3);
     }
-  })
+  }),
 );
 
 test(
@@ -1798,7 +1798,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1849,7 +1849,7 @@ test(
       assert.equal((await exec.exit).code, 0);
       assert.equal(consumer.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -1950,7 +1950,7 @@ test(
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test(
@@ -2004,7 +2004,7 @@ test(
       assert.equal(res.code, 0);
       assert.equal(cmdA.numInvocations, 2);
     }
-  })
+  }),
 );
 
 test.run();

@@ -45,7 +45,7 @@ export const posixifyPathIfOnWindows = (path: string) =>
  * `process.env`.
  */
 export const augmentProcessEnvSafelyIfOnWindows = (
-  augmentations: Record<string, string | undefined>
+  augmentations: Record<string, string | undefined>,
 ): Record<string, string | undefined> => {
   if (ENVIRONMENT_VARIABLE_CASINGS_IF_WINDOWS === undefined) {
     // On Linux and macOS, environment variables are case-sensitive, so there's
@@ -55,7 +55,7 @@ export const augmentProcessEnvSafelyIfOnWindows = (
   const augmented = {...process.env};
   for (const [name, value] of Object.entries(augmentations)) {
     const existingNames = ENVIRONMENT_VARIABLE_CASINGS_IF_WINDOWS.get(
-      name.toLowerCase()
+      name.toLowerCase(),
     );
     if (existingNames === undefined) {
       augmented[name] = value;

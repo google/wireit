@@ -27,7 +27,7 @@ module.exports = function (eleventyConfig) {
     }).use(markdownItAnchor, {
       level: 3,
       permalink: markdownItAnchor.permalink.headerLink(),
-    })
+    }),
   );
 
   /**
@@ -46,7 +46,7 @@ module.exports = function (eleventyConfig) {
    *  but it produces paths that don't depend on the current URL).
    */
   eleventyConfig.addFilter('relativePathToRoot', (url) =>
-    url === '/' ? '.' : pathlib.posix.relative(url, '/')
+    url === '/' ? '.' : pathlib.posix.relative(url, '/'),
   );
 
   return {

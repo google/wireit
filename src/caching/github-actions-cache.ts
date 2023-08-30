@@ -47,7 +47,7 @@ export class GitHubActionsCache implements Cache {
   }
 
   static create(
-    logger: Logger
+    logger: Logger,
   ): Result<GitHubActionsCache, {reason: 'invalid-usage'; message: string}> {
     // The ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN environment variables are
     // automatically provided to GitHub Actions re-usable workflows. However,
@@ -78,7 +78,7 @@ export class GitHubActionsCache implements Cache {
         error: {
           reason: 'invalid-usage',
           message: `The ACTIONS_CACHE_URL must end in a forward-slash, got ${JSON.stringify(
-            baseUrl
+            baseUrl,
           )}.`,
         },
       };
@@ -107,7 +107,7 @@ export class GitHubActionsCache implements Cache {
 
   async get(
     script: ScriptReference,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<CacheHit | undefined> {
     if (this._serviceIsDown) {
       return undefined;
@@ -140,14 +140,14 @@ export class GitHubActionsCache implements Cache {
 
     throw new Error(
       `GitHub Cache check HTTP ${String(response.statusCode)} error: ` +
-        (await readBody(response))
+        (await readBody(response)),
     );
   }
 
   async set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    absFiles: AbsoluteEntry[]
+    absFiles: AbsoluteEntry[],
   ): Promise<boolean> {
     if (this._serviceIsDown) {
       return false;
@@ -157,12 +157,12 @@ export class GitHubActionsCache implements Cache {
     try {
       const tarballPath = await this._makeTarball(
         absFiles.map((file) => file.path),
-        tempDir
+        tempDir,
       );
       return await this._reserveUploadAndCommitTarball(
         script,
         fingerprint,
-        tarballPath
+        tarballPath,
       );
     } finally {
       await fs.rm(tempDir, {recursive: true});
@@ -177,7 +177,7 @@ export class GitHubActionsCache implements Cache {
   private async _reserveUploadAndCommitTarball(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    tarballPath: string
+    tarballPath: string,
   ): Promise<boolean> {
     const tarballStats = await fs.stat(tarballPath);
     const tarballBytes = tarballStats.size;
@@ -201,7 +201,7 @@ export class GitHubActionsCache implements Cache {
       script,
       this._computeCacheKey(script),
       this._computeVersion(fingerprint),
-      tarballBytes
+      tarballBytes,
     );
     // It's likely that we'll occasionally fail to reserve an entry and get
     // undefined here, especially when running multiple GitHub Action jobs in
@@ -228,7 +228,7 @@ export class GitHubActionsCache implements Cache {
     script: ScriptReference,
     id: number,
     tarballPath: string,
-    tarballBytes: number
+    tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(`_apis/artifactcache/caches/${id}`, this._baseUrl);
     // Reference:
@@ -276,10 +276,10 @@ export class GitHubActionsCache implements Cache {
         if (!isOk(response)) {
           throw new Error(
             `GitHub Cache upload HTTP ${String(
-              response.statusCode
+              response.statusCode,
             )} error: ${await readBody(response)}\nopts: ${JSON.stringify(
-              opts
-            )}`
+              opts,
+            )}`,
           );
         }
       }
@@ -297,11 +297,11 @@ export class GitHubActionsCache implements Cache {
   private async _commit(
     script: ScriptReference,
     id: number,
-    tarballBytes: number
+    tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(
       `_apis/artifactcache/caches/${String(id)}`,
-      this._baseUrl
+      this._baseUrl,
     );
     const reqBody = JSON.stringify({
       size: tarballBytes,
@@ -323,8 +323,8 @@ export class GitHubActionsCache implements Cache {
     if (!isOk(response)) {
       throw new Error(
         `GitHub Cache commit HTTP ${String(
-          response.statusCode
-        )} error: ${await readBody(response)}`
+          response.statusCode,
+        )} error: ${await readBody(response)}`,
       );
     }
 
@@ -333,7 +333,7 @@ export class GitHubActionsCache implements Cache {
 
   private _request(
     url: URL,
-    options?: http.RequestOptions
+    options?: http.RequestOptions,
   ): {
     req: http.ClientRequest;
     resPromise: Promise<Result<http.IncomingMessage, Error>>;
@@ -357,7 +357,7 @@ export class GitHubActionsCache implements Cache {
    */
   private _maybeHandleServiceDown(
     res: Result<http.IncomingMessage, Error>,
-    script: ScriptReference
+    script: ScriptReference,
   ): res is {ok: true; value: http.IncomingMessage} {
     if (!res.ok) {
       if (!this._serviceIsDown) {
@@ -433,7 +433,7 @@ export class GitHubActionsCache implements Cache {
     ];
     return createHash('sha256')
       .update(
-        parts.join('\x1E') // ASCII record seperator
+        parts.join('\x1E'), // ASCII record seperator
       )
       .digest('hex');
   }
@@ -445,7 +445,7 @@ export class GitHubActionsCache implements Cache {
    */
   private async _makeTarball(
     paths: string[],
-    tempDir: string
+    tempDir: string,
   ): Promise<string> {
     // Create a manifest file so that we can pass a large number of files to
     // tar.
@@ -486,7 +486,7 @@ export class GitHubActionsCache implements Cache {
           } else {
             resolve();
           }
-        }
+        },
       );
     });
     return tarballPath;
@@ -503,7 +503,7 @@ export class GitHubActionsCache implements Cache {
     script: ScriptReference,
     key: string,
     version: string,
-    cacheSize: number
+    cacheSize: number,
   ): Promise<number | undefined> {
     const url = new URL('_apis/artifactcache/caches', this._baseUrl);
     const reqBody = JSON.stringify({
@@ -538,8 +538,8 @@ export class GitHubActionsCache implements Cache {
 
     throw new Error(
       `GitHub Cache reserve HTTP ${String(
-        response.statusCode
-      )} error: ${await readBody(response)}`
+        response.statusCode,
+      )} error: ${await readBody(response)}`,
     );
   }
 }
@@ -580,7 +580,7 @@ class GitHubActionsCacheHit implements CacheHit {
     const response = result.value;
     if (!isOk(response)) {
       throw new Error(
-        `GitHub Cache download HTTP ${String(response.statusCode)} error`
+        `GitHub Cache download HTTP ${String(response.statusCode)} error`,
       );
     }
     const writeTarballStream = await fs.createWriteStream(tarballPath);
@@ -605,7 +605,7 @@ class GitHubActionsCacheHit implements CacheHit {
           } else {
             resolve();
           }
-        }
+        },
       );
     });
   }
@@ -613,7 +613,7 @@ class GitHubActionsCacheHit implements CacheHit {
 
 function request(
   url: URL | string,
-  options?: http.RequestOptions
+  options?: http.RequestOptions,
 ): {
   req: http.ClientRequest;
   resPromise: Promise<Result<http.IncomingMessage, Error>>;
@@ -645,7 +645,7 @@ function request(
           }
         });
       });
-    }
+    },
   );
   return {req, resPromise};
 }

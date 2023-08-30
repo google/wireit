@@ -81,7 +81,7 @@ export const fileBudget = (() => {
 
 export async function mkdir(
   path: string,
-  options?: fsTypes.MakeDirectoryOptions & {recursive: boolean}
+  options?: fsTypes.MakeDirectoryOptions & {recursive: boolean},
 ): Promise<string | undefined> {
   const reservation = await fileBudget.reserve();
   try {
@@ -103,7 +103,7 @@ export async function mkdtemp(path: string): Promise<string> {
 export async function writeFile(
   path: string,
   contents: string,
-  encoding: 'utf8'
+  encoding: 'utf8',
 ): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
@@ -115,7 +115,7 @@ export async function writeFile(
 
 export async function readFile(
   path: string,
-  encoding: 'utf8'
+  encoding: 'utf8',
 ): Promise<string> {
   const reservation = await fileBudget.reserve();
   try {
@@ -127,7 +127,7 @@ export async function readFile(
 
 export async function rm(
   path: string,
-  options: fsTypes.RmOptions
+  options: fsTypes.RmOptions,
 ): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
@@ -183,7 +183,7 @@ type ReadStreamOptions =
 
 export async function createReadStream(
   path: string,
-  options?: ReadStreamOptions
+  options?: ReadStreamOptions,
 ): Promise<fsTypes.ReadStream> {
   const reservation = await fileBudget.reserve();
   const stream = rawCreateReadStream(path, options);
@@ -192,7 +192,7 @@ export async function createReadStream(
 }
 
 export async function createWriteStream(
-  path: string
+  path: string,
 ): Promise<fsTypes.WriteStream> {
   const reservation = await fileBudget.reserve();
   const stream = rawCreateWriteStream(path);
@@ -203,7 +203,7 @@ export async function createWriteStream(
 export async function copyFile(
   src: fsTypes.PathLike,
   dest: fsTypes.PathLike,
-  flags?: number | undefined
+  flags?: number | undefined,
 ) {
   const reservation = await fileBudget.reserve();
   try {
@@ -215,11 +215,11 @@ export async function copyFile(
 
 export function readlink(
   path: fsTypes.PathLike,
-  options?: fsTypes.BaseEncodingOptions | BufferEncoding | null
+  options?: fsTypes.BaseEncodingOptions | BufferEncoding | null,
 ): Promise<string>;
 export function readlink(
   path: fsTypes.PathLike,
-  options: fsTypes.BufferEncodingOption
+  options: fsTypes.BufferEncodingOption,
 ): Promise<Buffer>;
 export async function readlink(
   path: fsTypes.PathLike,
@@ -227,7 +227,7 @@ export async function readlink(
     | fsTypes.BaseEncodingOptions
     | fsTypes.BufferEncodingOption
     | string
-    | null
+    | null,
 ): Promise<string | Buffer> {
   const reservation = await fileBudget.reserve();
   try {
@@ -240,7 +240,7 @@ export async function readlink(
 export async function symlink(
   target: fsTypes.PathLike,
   path: fsTypes.PathLike,
-  type?: string | null
+  type?: string | null,
 ) {
   const reservation = await fileBudget.reserve();
   try {

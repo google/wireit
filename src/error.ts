@@ -49,7 +49,7 @@ export class DiagnosticPrinter {
   print(diagnostic: Diagnostic) {
     if (diagnostic.location.range.length < 0) {
       throw new Error(
-        `Internal error: got a negative length squiggle for ${diagnostic.message}: ${diagnostic.location.range.length}`
+        `Internal error: got a negative length squiggle for ${diagnostic.message}: ${diagnostic.location.range.length}`,
       );
     }
 
@@ -74,7 +74,7 @@ ${drawSquiggle(diagnostic.location, 4)}`;
     const relPath = pathlib.relative(this._cwd, location.file.path);
     const {line, character} = this._offsetToPosition(
       location.file,
-      location.range.offset
+      location.range.offset,
     );
     return `${CYAN}${relPath}${RESET}:${YELLOW}${line}${RESET}:${YELLOW}${character}${RESET}`;
   }
@@ -205,7 +205,7 @@ export const offsetInsideRange = (offset: number, range: Range): boolean =>
 
 export const offsetInsideNamedNode = (
   offset: number,
-  namedNode: NamedAstNode
+  namedNode: NamedAstNode,
 ): boolean => {
   const valueEnd = namedNode.offset + namedNode.length;
   const totalLength = valueEnd - namedNode.name.offset;
@@ -221,7 +221,7 @@ export const offsetInsideNamedNode = (
  */
 export function convertExceptionToFailure(
   error: unknown,
-  script: ScriptReference
+  script: ScriptReference,
 ): {ok: false; error: [UnknownErrorThrown]} {
   return {
     ok: false,

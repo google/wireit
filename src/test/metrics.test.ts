@@ -109,7 +109,7 @@ test(
         percentCached: 50,
       });
     }
-  })
+  }),
 );
 
 test(
@@ -137,7 +137,7 @@ test(
 
     // There should be no metrics in the output.
     assert.equal([...stdout.matchAll(/🏁/gi)].length, 0);
-  })
+  }),
 );
 
 test(
@@ -206,7 +206,7 @@ test(
       fresh: 1,
       percentFresh: 50,
     });
-  })
+  }),
 );
 
 test(
@@ -247,7 +247,7 @@ test(
     // There should only be one metrics entry in stdout.
     assert.equal([...stdout.matchAll(/\[metrics\]/gi)].length, 1);
     assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
-  })
+  }),
 );
 
 /**
@@ -264,7 +264,7 @@ function assertNthMetric(
     percentFresh?: number;
     cached?: number;
     percentCached?: number;
-  }
+  },
 ): void {
   const metric = findNthMetric(n, stdout);
 

@@ -130,7 +130,7 @@ export class Fingerprint {
    */
   static async compute(
     script: ScriptConfig,
-    dependencyFingerprints: Array<[Dependency, Fingerprint]>
+    dependencyFingerprints: Array<[Dependency, Fingerprint]>,
   ): Promise<Fingerprint> {
     let allDependenciesAreFullyTracked = true;
     const filteredDependencyFingerprints: Array<
@@ -180,7 +180,7 @@ export class Fingerprint {
             hash.update(chunk as Buffer);
           }
           return [file.path, hash.digest('hex') as FileSha256HexDigest];
-        })
+        }),
       );
     } else {
       fileHashes = [];
@@ -213,13 +213,13 @@ export class Fingerprint {
       extraArgs: script.extraArgs ?? [],
       clean: script.clean,
       files: Object.fromEntries(
-        fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile))
+        fileHashes.sort(([aFile], [bFile]) => aFile.localeCompare(bFile)),
       ),
       output: script.output?.values ?? [],
       dependencies: Object.fromEntries(
         filteredDependencyFingerprints.sort(([aRef], [bRef]) =>
-          aRef.localeCompare(bRef)
-        )
+          aRef.localeCompare(bRef),
+        ),
       ),
       service:
         script.service === undefined

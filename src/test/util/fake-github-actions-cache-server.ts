@@ -136,7 +136,7 @@ export class FakeGitHubActionsCacheServer {
     if (address === null || typeof address !== 'object') {
       throw new Error(
         `Expected server address to be ServerInfo object, ` +
-          `got ${JSON.stringify(address)}`
+          `got ${JSON.stringify(address)}`,
       );
     }
     // The real API includes a unique identifier as the base path. It's good to
@@ -174,7 +174,7 @@ export class FakeGitHubActionsCacheServer {
   private _respond(
     response: http.ServerResponse,
     status: number,
-    message?: string
+    message?: string,
   ): void {
     response.statusCode = status;
     if (message !== undefined) {
@@ -185,7 +185,7 @@ export class FakeGitHubActionsCacheServer {
 
   private _maybeServeForcedError(
     response: http.ServerResponse,
-    apiName: ApiName
+    apiName: ApiName,
   ): boolean {
     const code = this._forcedErrors.get(apiName);
     if (code !== undefined) {
@@ -202,7 +202,7 @@ export class FakeGitHubActionsCacheServer {
 
   private _checkAuthorization(
     request: http.IncomingMessage,
-    response: http.ServerResponse
+    response: http.ServerResponse,
   ): boolean {
     if (request.headers.authorization !== `Bearer ${this._authToken}`) {
       this._respond(response, /* Not Authorized */ 401);
@@ -213,7 +213,7 @@ export class FakeGitHubActionsCacheServer {
 
   private _checkUserAgent(
     request: http.IncomingMessage,
-    response: http.ServerResponse
+    response: http.ServerResponse,
   ): boolean {
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L67
     const expected = 'actions/cache';
@@ -225,7 +225,7 @@ export class FakeGitHubActionsCacheServer {
         response,
         /* Bad Request */ 400,
         `Expected user-agent ${JSON.stringify(expected)}. ` +
-          `Got ${JSON.stringify(actual)}.`
+          `Got ${JSON.stringify(actual)}.`,
       );
       return false;
     }
@@ -235,7 +235,7 @@ export class FakeGitHubActionsCacheServer {
   private _checkContentType(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    expected: string | undefined
+    expected: string | undefined,
   ): boolean {
     const actual = request.headers['content-type'];
     if (actual !== expected) {
@@ -245,7 +245,7 @@ export class FakeGitHubActionsCacheServer {
         response,
         /* Bad Request */ 400,
         `Expected content-type ${JSON.stringify(expected)}. ` +
-          `Got ${JSON.stringify(actual)}.`
+          `Got ${JSON.stringify(actual)}.`,
       );
       return false;
     }
@@ -255,7 +255,7 @@ export class FakeGitHubActionsCacheServer {
   private _checkAccept(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    expected: string | undefined
+    expected: string | undefined,
   ): boolean {
     const actual = request.headers['accept'];
     if (actual !== expected) {
@@ -265,7 +265,7 @@ export class FakeGitHubActionsCacheServer {
         response,
         /* Bad Request */ 400,
         `Expected accept ${JSON.stringify(expected)}. ` +
-          `Got ${JSON.stringify(actual)}.`
+          `Got ${JSON.stringify(actual)}.`,
       );
       return false;
     }
@@ -274,7 +274,7 @@ export class FakeGitHubActionsCacheServer {
 
   private _route = (
     request: http.IncomingMessage,
-    response: http.ServerResponse
+    response: http.ServerResponse,
   ): void => {
     if (!request.url) {
       return this._respond(response, 404);
@@ -327,7 +327,7 @@ export class FakeGitHubActionsCacheServer {
   private _check(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL
+    url: URL,
   ): void {
     this.metrics.check++;
     if (this._maybeServeForcedError(response, 'check')) {
@@ -358,7 +358,7 @@ export class FakeGitHubActionsCacheServer {
       return this._respond(
         response,
         /* Not Implemented */ 501,
-        'Fake does not support multiple keys'
+        'Fake does not support multiple keys',
       );
     }
 
@@ -381,7 +381,7 @@ export class FakeGitHubActionsCacheServer {
       JSON.stringify({
         archiveLocation: `${this._url.href}tarballs/${entry.tarballId}`,
         cacheKey: keys,
-      })
+      }),
     );
   }
 
@@ -394,7 +394,7 @@ export class FakeGitHubActionsCacheServer {
    */
   private async _reserve(
     request: http.IncomingMessage,
-    response: http.ServerResponse
+    response: http.ServerResponse,
   ): Promise<void> {
     this.metrics.reserve++;
     if (this._maybeServeForcedError(response, 'reserve')) {
@@ -431,7 +431,7 @@ export class FakeGitHubActionsCacheServer {
     this._respond(
       response,
       /* Created */ 201,
-      JSON.stringify({cacheId: entryId})
+      JSON.stringify({cacheId: entryId}),
     );
   }
 
@@ -444,7 +444,7 @@ export class FakeGitHubActionsCacheServer {
   private async _upload(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    idStr: string
+    idStr: string,
   ): Promise<void> {
     this.metrics.upload++;
     if (this._maybeServeForcedError(response, 'upload')) {
@@ -468,8 +468,8 @@ export class FakeGitHubActionsCacheServer {
         response,
         /* Bad Request */ 400,
         `Expected transfer-encoding ${JSON.stringify(
-          expectedTransferEncoding
-        )}. ` + `Got ${String(actualTransferEncoding)}.`
+          expectedTransferEncoding,
+        )}. ` + `Got ${String(actualTransferEncoding)}.`,
       );
     }
 
@@ -488,7 +488,7 @@ export class FakeGitHubActionsCacheServer {
       return this._respond(
         response,
         400,
-        'Missing or invalid Content-Range header'
+        'Missing or invalid Content-Range header',
       );
     }
     const start = Number(parsedContentRange[1]);
@@ -507,7 +507,7 @@ export class FakeGitHubActionsCacheServer {
       return this._respond(
         response,
         400,
-        'Chunk length did not match Content-Range header'
+        'Chunk length did not match Content-Range header',
       );
     }
     entry.chunks.push({start, end, buffer});
@@ -523,7 +523,7 @@ export class FakeGitHubActionsCacheServer {
   private async _commit(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    idStr: string
+    idStr: string,
   ): Promise<void> {
     this.metrics.commit++;
     if (this._maybeServeForcedError(response, 'commit')) {
@@ -559,7 +559,7 @@ export class FakeGitHubActionsCacheServer {
         return this._respond(
           response,
           400,
-          'Cache entry chunks were not contiguous'
+          'Cache entry chunks were not contiguous',
         );
       }
       expectedNextStart = chunk.end + 1;
@@ -576,7 +576,7 @@ export class FakeGitHubActionsCacheServer {
       return this._respond(
         response,
         400,
-        'Cache entry did not match expected length'
+        'Cache entry did not match expected length',
       );
     }
 
@@ -598,7 +598,7 @@ export class FakeGitHubActionsCacheServer {
   private _download(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    tarballId: string
+    tarballId: string,
   ): void {
     this.metrics.download++;
     if (this._maybeServeForcedError(response, 'download')) {
@@ -626,7 +626,7 @@ export class FakeGitHubActionsCacheServer {
     response.statusCode = 200;
     const contentLength = entry.chunks.reduce(
       (sum, chunk) => sum + chunk.buffer.length,
-      0
+      0,
     );
     response.setHeader('Content-Length', contentLength);
     for (const chunk of entry.chunks) {

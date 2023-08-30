@@ -35,7 +35,7 @@ let executionConstructorHook:
  * constructed.
  */
 export function registerExecutionConstructorHook(
-  fn: typeof executionConstructorHook
+  fn: typeof executionConstructorHook,
 ) {
   executionConstructorHook = fn;
 }
@@ -80,7 +80,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     const dependencyResults = await Promise.all(
       this._config.dependencies.map((dependency) => {
         return this._executor.getExecution(dependency.config).execute();
-      })
+      }),
     );
     const results: Array<[Dependency, Fingerprint]> = [];
     const errors = new Set<Failure>();
@@ -107,7 +107,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
 export abstract class BaseExecutionWithCommand<
   T extends ScriptConfig & {
     command: Exclude<ScriptConfig['command'], undefined>;
-  }
+  },
 > extends BaseExecution<T> {
   protected readonly _servicesNotNeeded = new Deferred<void>();
 
@@ -124,8 +124,8 @@ export abstract class BaseExecutionWithCommand<
    */
   protected readonly _anyServiceTerminated = Promise.race(
     this._config.services.map(
-      (service) => this._executor.getExecution(service).terminated
-    )
+      (service) => this._executor.getExecution(service).terminated,
+    ),
   );
 
   /**
@@ -135,8 +135,8 @@ export abstract class BaseExecutionWithCommand<
     if (this._config.services.length > 0) {
       const results = await Promise.all(
         this._config.services.map((service) =>
-          this._executor.getExecution(service).start()
-        )
+          this._executor.getExecution(service).start(),
+        ),
       );
       const errors: Failure[] = [];
       for (const result of results) {

@@ -40,7 +40,7 @@ test.before.each(async (ctx) => {
           isDirectory: () => false,
           isSymbolicLink: () => false,
         },
-      } as AbsoluteEntry);
+      }) as AbsoluteEntry;
 
     ctx.dir = (path) =>
       ({
@@ -50,7 +50,7 @@ test.before.each(async (ctx) => {
           isDirectory: () => true,
           isSymbolicLink: () => false,
         },
-      } as AbsoluteEntry);
+      }) as AbsoluteEntry;
 
     ctx.symlink = (path) =>
       ({
@@ -60,7 +60,7 @@ test.before.each(async (ctx) => {
           isDirectory: () => false,
           isSymbolicLink: () => true,
         },
-      } as AbsoluteEntry);
+      }) as AbsoluteEntry;
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
     // see https://github.com/lukeed/uvu/issues/191.
@@ -224,7 +224,7 @@ test('stress test', async ({rig, file, dir}) => {
   shuffle(entries);
   await deleteEntries(entries);
   await Promise.all(
-    entries.map(async (entry) => assert.not(await rig.exists(entry.path)))
+    entries.map(async (entry) => assert.not(await rig.exists(entry.path))),
   );
 });
 

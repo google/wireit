@@ -42,14 +42,14 @@ const TEST_BINARY_COMMAND = `node ${pathlib.join(
   'lib',
   'test',
   'util',
-  'cli-options-test-binary.js'
+  'cli-options-test-binary.js',
 )}`;
 
 async function getOptionsResult(
   rig: WireitTestRig,
   command: string,
   env?: Record<string, string | undefined>,
-  extraScripts?: Record<string, string>
+  extraScripts?: Record<string, string>,
 ): Promise<Result<Options>> {
   await rig.write({
     'package.json': {
@@ -71,7 +71,7 @@ async function assertOptions(
   expected: Omit<Partial<Options>, 'logger'> &
     Pick<Options, 'script'> & {logger?: string},
   env?: Record<string, string | undefined>,
-  extraScripts?: Record<string, string>
+  extraScripts?: Record<string, string>,
 ) {
   const result = await getOptionsResult(rig, command, env, extraScripts);
   assert.equal(result, {
@@ -105,7 +105,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
           name: 'main',
         },
       });
-    })
+    }),
   );
 
   test(
@@ -118,7 +118,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
           name: 'test',
         },
       });
-    })
+    }),
   );
 
   test(
@@ -131,7 +131,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
           name: 'start',
         },
       });
-    })
+    }),
   );
 
   test(
@@ -145,7 +145,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         },
         extraArgs: ['--extra'],
       });
-    })
+    }),
   );
 
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
@@ -160,7 +160,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         },
         extraArgs: ['--extra'],
       });
-    })
+    }),
   );
 
   test(
@@ -174,7 +174,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         },
         extraArgs: ['--extra'],
       });
-    })
+    }),
   );
 
   test(
@@ -188,7 +188,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         },
         watch: true,
       });
-    })
+    }),
   );
 
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
@@ -203,7 +203,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         },
         watch: true,
       });
-    })
+    }),
   );
 
   test(
@@ -217,7 +217,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         },
         watch: true,
       });
-    })
+    }),
   );
 
   test(
@@ -232,7 +232,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         extraArgs: ['--extra'],
         watch: true,
       });
-    })
+    }),
   );
 
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
@@ -248,7 +248,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         extraArgs: ['--extra'],
         watch: true,
       });
-    })
+    }),
   );
 
   test(
@@ -263,7 +263,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         extraArgs: ['--extra'],
         watch: true,
       });
-    })
+    }),
   );
 
   test(
@@ -284,9 +284,9 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         undefined,
         {
           recurse: `${command} run start --watch`,
-        }
+        },
       );
-    })
+    }),
   );
 
   test(`WIREIT_LOGGER=simple ${command} run main`, async ({rig}) => {
@@ -303,7 +303,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
       },
       {
         WIREIT_LOGGER: 'simple',
-      }
+      },
     );
   });
 
@@ -321,7 +321,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
       },
       {
         WIREIT_LOGGER: 'quiet',
-      }
+      },
     );
   });
 
@@ -348,9 +348,9 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
         undefined,
         {
           recurse: `${command} run start --watch -- --extra`,
-        }
+        },
       );
-    })
+    }),
   );
 }
 

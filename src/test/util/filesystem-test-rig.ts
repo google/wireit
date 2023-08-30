@@ -25,7 +25,7 @@ export class FilesystemTestRig {
   protected _assertState(expected: 'uninitialized' | 'running' | 'done') {
     if (this._state !== expected) {
       throw new Error(
-        `Expected state to be ${expected} but was ${this._state}`
+        `Expected state to be ${expected} but was ${this._state}`,
       );
     }
   }
@@ -65,7 +65,7 @@ export class FilesystemTestRig {
   async write(files: {[filename: string]: unknown}): Promise<void>;
   async write(
     fileOrFiles: string | {[filename: string]: unknown},
-    data?: string
+    data?: string,
   ): Promise<void> {
     this._assertState('running');
     if (typeof fileOrFiles === 'string') {
@@ -77,8 +77,8 @@ export class FilesystemTestRig {
     } else {
       await Promise.all(
         Object.entries(fileOrFiles).map(async ([relative, data]) =>
-          this.write(relative, data)
-        )
+          this.write(relative, data),
+        ),
       );
     }
   }
@@ -91,7 +91,7 @@ export class FilesystemTestRig {
   async writeAtomic(files: {[filename: string]: unknown}): Promise<void>;
   async writeAtomic(
     fileOrFiles: string | {[filename: string]: unknown},
-    data?: string
+    data?: string,
   ): Promise<void> {
     this._assertState('running');
     if (typeof fileOrFiles === 'string') {
@@ -102,8 +102,8 @@ export class FilesystemTestRig {
     } else {
       await Promise.all(
         Object.entries(fileOrFiles).map(async ([relative, data]) =>
-          this.writeAtomic(relative, data)
-        )
+          this.writeAtomic(relative, data),
+        ),
       );
     }
   }
@@ -204,7 +204,7 @@ export class FilesystemTestRig {
   async delete(filename: string): Promise<void> {
     this._assertState('running');
     return gracefulFs(() =>
-      fs.rm(this.resolve(filename), {force: true, recursive: true})
+      fs.rm(this.resolve(filename), {force: true, recursive: true}),
     );
   }
 
@@ -214,7 +214,7 @@ export class FilesystemTestRig {
   async symlink(
     target: string,
     filename: string,
-    windowsType: 'file' | 'dir' | 'junction'
+    windowsType: 'file' | 'dir' | 'junction',
   ): Promise<void> {
     this._assertState('running');
     const absolute = this.resolve(filename);

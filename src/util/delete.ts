@@ -20,7 +20,7 @@ import type {AbsoluteEntry} from './glob.js';
  * left in-place.
  */
 export const deleteEntries = async (
-  entries: AbsoluteEntry[]
+  entries: AbsoluteEntry[],
 ): Promise<void> => {
   if (entries.length === 0) {
     return;
@@ -85,12 +85,12 @@ interface Directory {
  * scheduled for deletion as long as they are empty.
  */
 const deleteDirectoriesDepthFirst = async (
-  directory: Directory
+  directory: Directory,
 ): Promise<boolean> => {
   const childrenDeleted = await Promise.all(
     Object.values(directory.children).map((child) =>
-      deleteDirectoriesDepthFirst(child)
-    )
+      deleteDirectoriesDepthFirst(child),
+    ),
   );
   if (directory.pathIfShouldDelete === undefined) {
     // This directory wasn't scheduled for deletion.

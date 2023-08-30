@@ -62,7 +62,7 @@ async function getCodeActions(options: {
     OffsetToPositionConverter.createUncachedForTest(contents).toIdeRange({
       offset,
       length: 0,
-    })
+    }),
   );
   return {contents, actions};
 }
@@ -96,7 +96,9 @@ async function assertCodeAction(options: {
   assert.equal(
     actions.map((a) => a.title),
     [options.expectedTitle],
-    `Error getting code actions for ${JSON.stringify(options.contentsWithPipe)}`
+    `Error getting code actions for ${JSON.stringify(
+      options.contentsWithPipe,
+    )}`,
   );
   const [action] = actions;
   const newContents = applyEdit(options.rig, contents, action);
@@ -115,14 +117,14 @@ async function assertNoCodeActions(options: {
   assert.equal(
     actions.map((a) => a.title),
     [],
-    `Expected no code action in: ${JSON.stringify(options.contentsWithPipe)}\n`
+    `Expected no code action in: ${JSON.stringify(options.contentsWithPipe)}\n`,
   );
 }
 
 function applyEdit(
   rig: WireitTestRig,
   before: string,
-  action: CodeAction
+  action: CodeAction,
 ): string {
   if (action.edit === undefined) {
     throw new Error(`Action ${action.title} had no edit`);
@@ -143,7 +145,7 @@ function applyEdit(
         content: e.newText,
         ...converter.ideRangeToRange(e.range),
       };
-    })
+    }),
   );
 }
 

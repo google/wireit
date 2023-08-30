@@ -25,7 +25,7 @@ export interface Cache {
    */
   get(
     script: ScriptReference,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<CacheHit | undefined>;
 
   /**
@@ -43,7 +43,7 @@ export interface Cache {
   set(
     script: ScriptReference,
     fingerprint: Fingerprint,
-    absoluteFiles: AbsoluteEntry[]
+    absoluteFiles: AbsoluteEntry[],
   ): Promise<boolean>;
 }
 

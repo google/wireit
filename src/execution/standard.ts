@@ -46,7 +46,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     executor: Executor,
     workerPool: WorkerPool,
     cache: Cache | undefined,
-    logger: Logger
+    logger: Logger,
   ) {
     super(config, executor, logger);
     this._workerPool = workerPool;
@@ -81,12 +81,12 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         // this script, which would affect the key.
         const fingerprint = await Fingerprint.compute(
           this._config,
-          dependencyFingerprints.value
+          dependencyFingerprints.value,
         );
         if (
           this._executor.failedInPreviousWatchIteration(
             this._config,
-            fingerprint
+            fingerprint,
           )
         ) {
           return {
@@ -160,7 +160,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * has any output files that require it.
    */
   private async _acquireSystemLockIfNeeded<T>(
-    workFn: () => Promise<T>
+    workFn: () => Promise<T>,
   ): Promise<T | {ok: false; error: [StartCancelled]}> {
     if (this._config.output?.values.length === 0) {
       return workFn();
@@ -232,7 +232,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * `.wireit` directory.
    */
   private async _fingerprintIsFresh(
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<boolean> {
     if (!fingerprint.data.fullyTracked) {
       return false;
@@ -258,7 +258,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    */
   private async _handleCacheHit(
     cacheHit: CacheHit,
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<ExecutionResult> {
     // Optimization: early signal that services are not needed while we're still
     // restoring from cache.
@@ -289,7 +289,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     }
     if (outputFilesAfterRunning.value !== undefined) {
       await this._writeOutputManifest(
-        await this._computeOutputManifest(outputFilesAfterRunning.value)
+        await this._computeOutputManifest(outputFilesAfterRunning.value),
       );
     }
     await writeFingerprintPromise;
@@ -307,7 +307,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Handle the outcome where the script was stale and we need to run it.
    */
   private async _handleNeedsRun(
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<ExecutionResult> {
     // Check if we should clean before we delete the fingerprint file, because
     // we sometimes need to read the previous fingerprint file to determine
@@ -367,7 +367,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       const child = new ScriptChildProcess(
         // Unfortunately TypeScript doesn't automatically narrow this type
         // based on the undefined-command check we did just above.
-        this._config
+        this._config,
       );
 
       void this._executor.shouldKillRunningScripts.then(() => {
@@ -444,7 +444,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     }
     if (outputFilesAfterRunning.value !== undefined) {
       await this._writeOutputManifest(
-        await this._computeOutputManifest(outputFilesAfterRunning.value)
+        await this._computeOutputManifest(outputFilesAfterRunning.value),
       );
     }
     await writeFingerprintPromise;
@@ -478,12 +478,12 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         }
         return this._anyInputFilesDeletedSinceLastRun(
           fingerprint,
-          prevFingerprint
+          prevFingerprint,
         );
       }
       default: {
         throw new Error(
-          `Unhandled clean setting: ${unreachable(cleanValue) as string}`
+          `Unhandled clean setting: ${unreachable(cleanValue) as string}`,
         );
       }
     }
@@ -495,7 +495,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    */
   private _anyInputFilesDeletedSinceLastRun(
     curFingerprint: Fingerprint,
-    prevFingerprint: Fingerprint
+    prevFingerprint: Fingerprint,
   ): boolean {
     const curFiles = Object.keys(curFingerprint.data.files);
     const prevFiles = Object.keys(prevFingerprint.data.files);
@@ -515,7 +515,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Save the current output files to the configured cache if possible.
    */
   private async _saveToCacheIfPossible(
-    fingerprint: Fingerprint
+    fingerprint: Fingerprint,
   ): Promise<Result<void>> {
     if (this._cache === undefined) {
       return {ok: true, value: undefined};
@@ -634,8 +634,8 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           return Fingerprint.fromString(
             (await fs.readFile(
               this._fingerprintFilePath,
-              'utf8'
-            )) as FingerprintString
+              'utf8',
+            )) as FingerprintString,
           );
         } catch (error) {
           if ((error as {code?: string}).code === 'ENOENT') {
@@ -689,11 +689,11 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * enough for checking that a file hasn't changed: ctime, mtime, and bytes.
    */
   private async _computeOutputManifest(
-    outputEntries: AbsoluteEntry[]
+    outputEntries: AbsoluteEntry[],
   ): Promise<FileManifestString> {
     outputEntries.sort((a, b) => a.path.localeCompare(b.path));
     const stats = await Promise.all(
-      outputEntries.map((entry) => fs.lstat(entry.path))
+      outputEntries.map((entry) => fs.lstat(entry.path)),
     );
     const manifest: Record<string, FileManifestEntry> = {};
     for (let i = 0; i < outputEntries.length; i++) {
@@ -716,7 +716,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: true, value: false};
     }
     const newManifest = await this._computeOutputManifest(
-      outputFilesBeforeRunning.value
+      outputFilesBeforeRunning.value,
     );
     const oldManifest = await oldManifestPromise;
     if (oldManifest === undefined) {
@@ -743,7 +743,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     try {
       return (await fs.readFile(
         this._outputManifestFilePath,
-        'utf8'
+        'utf8',
       )) as FileManifestString;
     } catch (error) {
       if ((error as {code?: string}).code === 'ENOENT') {
@@ -757,7 +757,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Write this script's output manifest file.
    */
   private async _writeOutputManifest(
-    outputManifest: FileManifestString
+    outputManifest: FileManifestString,
   ): Promise<void> {
     await fs.mkdir(this._dataDir, {recursive: true});
     await fs.writeFile(this._outputManifestFilePath, outputManifest, 'utf8');

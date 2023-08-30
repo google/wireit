@@ -79,7 +79,7 @@ interface GlobGroup {
  */
 export async function glob(
   patterns: string[],
-  opts: GlobOptions
+  opts: GlobOptions,
 ): Promise<AbsoluteEntry[]> {
   if (patterns.length === 0) {
     return [];
@@ -106,7 +106,7 @@ export async function glob(
             // not recursing into them at all, so there is no need to also
             // generate a recursive version when excluding.
             expandedPatterns.push(
-              expanded + (expanded.endsWith('/') ? '**' : '/**')
+              expanded + (expanded.endsWith('/') ? '**' : '/**'),
             );
           }
         }
@@ -175,7 +175,7 @@ export async function glob(
       currentGroup.exclude.push(
         // Trim trailing slashes because fast-glob does not understand trailing
         // slashes in "ignore" list entries (they have no effect!).
-        pattern.replace(/\/+$/, '')
+        pattern.replace(/\/+$/, ''),
       );
     } else if (pattern.match(/^\s*$/)) {
       // fast-glob already throws on empty strings, but we also throw on
@@ -185,7 +185,7 @@ export async function glob(
       // on exclusive patterns, because by definition they start with a "!" so
       // can't have been empty/blank.
       throw new Error(
-        `glob encountered empty or blank pattern: ${JSON.stringify(pattern)}`
+        `glob encountered empty or blank pattern: ${JSON.stringify(pattern)}`,
       );
     } else {
       currentGroup.include.push(pattern);
@@ -250,7 +250,7 @@ export async function glob(
         }
         combinedMap.set(match.path, match);
       }
-    })
+    }),
   );
 
   return [...combinedMap.values()] as AbsoluteEntry[];

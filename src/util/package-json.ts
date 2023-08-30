@@ -102,12 +102,12 @@ export class PackageJson {
    * add them to this._scripts.
    */
   private _analyzeScriptsSection(
-    failures: Failure[]
+    failures: Failure[],
   ): undefined | NamedAstNode {
     const scriptsSectionResult = findNamedNodeAtLocation(
       this._fileAstNode,
       ['scripts'],
-      this.jsonFile
+      this.jsonFile,
     );
     if (!scriptsSectionResult.ok) {
       failures.push(scriptsSectionResult.error);
@@ -162,7 +162,7 @@ export class PackageJson {
     const wireitSectionResult = findNamedNodeAtLocation(
       this._fileAstNode,
       ['wireit'],
-      this.jsonFile
+      this.jsonFile,
     );
     if (!wireitSectionResult.ok) {
       failures.push(wireitSectionResult.error);
