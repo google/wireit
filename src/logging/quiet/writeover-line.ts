@@ -148,11 +148,6 @@ export class WriteoverLine {
   }
 }
 
-// TODO: remove this once we can add esnext.disposable to tsconfig.json
-interface Disposable {
-  [Symbol.dispose]: () => void;
-}
-
 const spinnerFrames = [
   '⠋',
   '⠙',

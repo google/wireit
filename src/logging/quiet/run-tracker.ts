@@ -510,10 +510,9 @@ export class QuietRunLogger {
     }
     this._encounteredFailures = true;
     {
-      // TODO: switch to the 'using' syntax, once prettier and eslint support it
-      const pause = this._writeoverLine.clearUntilDisposed();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      using _pause = this._writeoverLine.clearUntilDisposed();
       this._reportFailure(event);
-      pause?.[Symbol.dispose]();
     }
     return noChange;
   }
@@ -615,13 +614,13 @@ export class QuietRunLogger {
     if (state.service) {
       // Pause the status line while we print this real quick, but then resume
       // it.
-      const pause = this._writeoverLine.clearUntilDisposed();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      using _pause = this._writeoverLine.clearUntilDisposed();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);
       } else {
         process.stderr.write(event.data);
       }
-      pause?.[Symbol.dispose]();
       return noChange;
     }
     if (state.isRootScript) {
