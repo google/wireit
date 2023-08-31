@@ -6,7 +6,11 @@
 
 import {Event} from '../event.js';
 import {Logger} from './logger.js';
-import {WriteoverLine} from './quiet/writeover-line.js';
+import {
+  CiWriter,
+  StatusLineWriter,
+  WriteoverLine,
+} from './quiet/writeover-line.js';
 import {QuietRunLogger, noChange, nothing} from './quiet/run-tracker.js';
 
 /**
@@ -21,18 +25,19 @@ import {QuietRunLogger, noChange, nothing} from './quiet/run-tracker.js';
 export class QuietLogger implements Logger {
   private runTracker;
   private readonly _rootPackage: string;
-  private readonly _writeoverLine = new WriteoverLine();
+  private readonly _statusLineWriter: StatusLineWriter;
 
-  constructor(rootPackage: string) {
+  constructor(rootPackage: string, statusLineWriter?: StatusLineWriter) {
     this._rootPackage = rootPackage;
+    this._statusLineWriter = statusLineWriter ?? new WriteoverLine();
     this.runTracker = new QuietRunLogger(
       this._rootPackage,
-      this._writeoverLine,
+      this._statusLineWriter,
     );
   }
 
   printMetrics() {
-    this._writeoverLine.clearAndStopSpinner();
+    this._statusLineWriter.clearAndStopRendering();
     this.runTracker.printSummary();
   }
 
@@ -44,9 +49,9 @@ export class QuietLogger implements Logger {
     if (line === noChange) {
       // nothing to do
     } else if (line === nothing) {
-      this._writeoverLine.clearAndStopSpinner();
+      this._statusLineWriter.clearAndStopRendering();
     } else {
-      this._writeoverLine.writeLine(line);
+      this._statusLineWriter.updateStatusLine(line);
     }
     if (event.type === 'info' && event.detail === 'watch-run-end') {
       this.printMetrics();
@@ -58,5 +63,18 @@ export class QuietLogger implements Logger {
     // logger, since in successful cases it only prints one line of output,
     // and in failure cases it can be nice to keep the old output around.
     return this;
+  }
+}
+
+/**
+ * A QuietLogger that is intended to be used in CI environments and other
+ * non-interactive environments.
+ *
+ * Doesn't use a spinner, updates less often, and doesn't use '/r' to writeover
+ * the previous line.
+ */
+export class QuietCiLogger extends QuietLogger {
+  constructor(rootPackage: string) {
+    super(rootPackage, new CiWriter());
   }
 }

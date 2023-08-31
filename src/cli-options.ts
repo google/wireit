@@ -13,7 +13,7 @@ import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
 import {unreachable} from './util/unreachable.js';
 import {Logger} from './logging/logger.js';
-import {QuietLogger} from './logging/quiet-logger.js';
+import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
@@ -193,6 +193,9 @@ export const getOptions = (): Result<Options> => {
     }
     if (str === 'quiet') {
       return {ok: true, value: new QuietLogger(packageRoot)};
+    }
+    if (str === 'quiet-ci') {
+      return {ok: true, value: new QuietCiLogger(packageRoot)};
     }
     if (str === 'simple') {
       return {ok: true, value: new DefaultLogger(packageRoot)};

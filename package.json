@@ -53,6 +53,7 @@
     "test:metrics": "wireit",
     "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
+    "test:quiet": "wireit",
     "test:service": "wireit",
     "test:watch": "wireit"
   },
@@ -105,6 +106,7 @@
         "test:metrics",
         "test:optimize-mkdirs",
         "test:parallelism",
+        "test:quiet",
         "test:service",
         "test:watch"
       ]
@@ -348,6 +350,17 @@
     },
     "test:parallelism": {
       "command": "uvu lib/test \"^parallelism\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:quiet": {
+      "command": "uvu lib/test \"^quiet-logger\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
