@@ -89,47 +89,41 @@ const DEBOUNCE_MS = 0;
  */
 export class Watcher {
   /** See {@link WatcherState} */
-  private _state: WatcherState = 'initial';
+  #state: WatcherState = 'initial';
 
-  private readonly _rootScript: ScriptReference;
-  private readonly _extraArgs: string[] | undefined;
-  private readonly _logger: Logger;
-  private readonly _workerPool: WorkerPool;
-  private readonly _cache?: Cache;
-  private readonly _failureMode: FailureMode;
-  private readonly _agent: Agent;
-  private _executor?: Executor;
-  private _debounceTimeoutId?: NodeJS.Timeout = undefined;
-  private _previousIterationServices?: ServiceMap = undefined;
-  private _previousIterationFailures = new Map<
-    ScriptReferenceString,
-    Fingerprint
-  >();
+  readonly #rootScript: ScriptReference;
+  readonly #extraArgs: string[] | undefined;
+  readonly #logger: Logger;
+  readonly #workerPool: WorkerPool;
+  readonly #cache?: Cache;
+  readonly #failureMode: FailureMode;
+  readonly #agent: Agent;
+  #executor?: Executor;
+  #debounceTimeoutId?: NodeJS.Timeout = undefined;
+  #previousIterationServices?: ServiceMap = undefined;
+  #previousIterationFailures = new Map<ScriptReferenceString, Fingerprint>();
 
   /**
    * The most recent analysis of the root script. As soon as we detect it might
    * be stale because a package.json file was modified, this becomes undefined
    * again.
    */
-  private _latestRootScriptConfig?: ScriptConfig;
+  #latestRootScriptConfig?: ScriptConfig;
 
   /**
    * The file watcher for all package.json files relevant to this build graph.
    */
-  private _configFilesWatcher?: FileWatcher;
+  #configFilesWatcher?: FileWatcher;
 
   /**
    * File watchers for the input files of all scripts in this build graph.
    */
-  private readonly _inputFileWatchers = new Map<
-    ScriptReferenceString,
-    FileWatcher
-  >();
+  readonly #inputFileWatchers = new Map<ScriptReferenceString, FileWatcher>();
 
   /**
    * Resolves when this watcher has been aborted and the last run finished.
    */
-  private readonly _finished = new Deferred<void>();
+  readonly #finished = new Deferred<void>();
 
   constructor(
     rootScript: ScriptReference,
@@ -140,39 +134,39 @@ export class Watcher {
     failureMode: FailureMode,
     agent: Agent,
   ) {
-    this._rootScript = rootScript;
-    this._extraArgs = extraArgs;
-    this._logger = logger.getWatchLogger?.() ?? logger;
-    this._workerPool = workerPool;
-    this._failureMode = failureMode;
-    this._cache = cache;
-    this._agent = agent;
+    this.#rootScript = rootScript;
+    this.#extraArgs = extraArgs;
+    this.#logger = logger.getWatchLogger?.() ?? logger;
+    this.#workerPool = workerPool;
+    this.#failureMode = failureMode;
+    this.#cache = cache;
+    this.#agent = agent;
   }
 
   watch(): Promise<void> {
-    void this._startRun();
-    return this._finished.promise;
+    void this.#startRun();
+    return this.#finished.promise;
   }
 
-  private _startDebounce(): void {
-    if (this._debounceTimeoutId !== undefined) {
+  #startDebounce(): void {
+    if (this.#debounceTimeoutId !== undefined) {
       throw new Error('Expected #debounceTimeoutId to be undefined');
     }
-    this._debounceTimeoutId = setTimeout(() => {
-      this._onDebounced();
+    this.#debounceTimeoutId = setTimeout(() => {
+      this.#onDebounced();
     }, DEBOUNCE_MS);
   }
 
-  private _cancelDebounce(): void {
-    clearTimeout(this._debounceTimeoutId);
-    this._debounceTimeoutId = undefined;
+  #cancelDebounce(): void {
+    clearTimeout(this.#debounceTimeoutId);
+    this.#debounceTimeoutId = undefined;
   }
 
-  private _onDebounced(): void {
-    switch (this._state) {
+  #onDebounced(): void {
+    switch (this.#state) {
       case 'debouncing': {
-        this._debounceTimeoutId = undefined;
-        this._startRun();
+        this.#debounceTimeoutId = undefined;
+        this.#startRun();
         return;
       }
       case 'initial':
@@ -180,37 +174,37 @@ export class Watcher {
       case 'queued':
       case 'running':
       case 'aborted': {
-        throw unexpectedState(this._state);
+        throw unexpectedState(this.#state);
       }
       default: {
-        throw unknownState(this._state);
+        throw unknownState(this.#state);
       }
     }
   }
 
-  private _startRun(): void {
-    switch (this._state) {
+  #startRun(): void {
+    switch (this.#state) {
       case 'initial':
       case 'debouncing': {
-        this._state = 'running';
-        this._logger.log({
-          script: this._rootScript,
+        this.#state = 'running';
+        this.#logger.log({
+          script: this.#rootScript,
           type: 'info',
           detail: 'watch-run-start',
         });
-        if (this._latestRootScriptConfig === undefined) {
-          void this._analyze();
+        if (this.#latestRootScriptConfig === undefined) {
+          void this.#analyze();
         } else {
           // We already have a valid config, so we can skip the analysis step.
           // but if the logger needs to know about the analysis, this lets
           // it know.
-          this._logger.log({
+          this.#logger.log({
             type: 'info',
             detail: 'analysis-completed',
-            script: this._rootScript,
-            rootScriptConfig: this._latestRootScriptConfig,
+            script: this.#rootScript,
+            rootScriptConfig: this.#latestRootScriptConfig,
           });
-          void this._execute(this._latestRootScriptConfig);
+          void this.#execute(this.#latestRootScriptConfig);
         }
         return;
       }
@@ -218,22 +212,22 @@ export class Watcher {
       case 'queued':
       case 'running':
       case 'aborted': {
-        throw unexpectedState(this._state);
+        throw unexpectedState(this.#state);
       }
       default: {
-        throw unknownState(this._state);
+        throw unknownState(this.#state);
       }
     }
   }
 
-  private async _analyze(): Promise<void> {
-    if (this._state !== 'running') {
-      throw unexpectedState(this._state);
+  async #analyze(): Promise<void> {
+    if (this.#state !== 'running') {
+      throw unexpectedState(this.#state);
     }
 
-    const analyzer = new Analyzer(this._agent, this._logger);
-    const result = await analyzer.analyze(this._rootScript, this._extraArgs);
-    if ((this._state as WatcherState) === 'aborted') {
+    const analyzer = new Analyzer(this.#agent, this.#logger);
+    const result = await analyzer.analyze(this.#rootScript, this.#extraArgs);
+    if ((this.#state as WatcherState) === 'aborted') {
       return;
     }
 
@@ -244,12 +238,12 @@ export class Watcher {
     // but we're going to compare arrays exactly so the order should be
     // deterministic.
     configFiles.sort();
-    const oldWatcher = this._configFilesWatcher;
+    const oldWatcher = this.#configFilesWatcher;
     if (!watchPathsEqual(configFiles, oldWatcher?.patterns)) {
-      this._configFilesWatcher = makeWatcher(
+      this.#configFilesWatcher = makeWatcher(
         configFiles,
         '/',
-        this._onConfigFileChanged,
+        this.#onConfigFileChanged,
       );
       if (oldWatcher !== undefined) {
         void oldWatcher.watcher.close();
@@ -258,50 +252,50 @@ export class Watcher {
 
     if (!result.config.ok) {
       for (const error of result.config.error) {
-        this._logger.log(error);
+        this.#logger.log(error);
       }
-      this._onRunDone();
+      this.#onRunDone();
       return;
     }
 
-    this._latestRootScriptConfig = result.config.value;
-    this._synchronizeInputFileWatchers(this._latestRootScriptConfig);
-    void this._execute(this._latestRootScriptConfig);
+    this.#latestRootScriptConfig = result.config.value;
+    this.#synchronizeInputFileWatchers(this.#latestRootScriptConfig);
+    void this.#execute(this.#latestRootScriptConfig);
   }
 
-  private async _execute(script: ScriptConfig): Promise<void> {
-    if (this._state !== 'running') {
-      throw unexpectedState(this._state);
+  async #execute(script: ScriptConfig): Promise<void> {
+    if (this.#state !== 'running') {
+      throw unexpectedState(this.#state);
     }
-    this._executor = new Executor(
+    this.#executor = new Executor(
       script,
-      this._logger,
-      this._workerPool,
-      this._cache,
-      this._failureMode,
-      this._previousIterationServices,
+      this.#logger,
+      this.#workerPool,
+      this.#cache,
+      this.#failureMode,
+      this.#previousIterationServices,
       true,
-      this._previousIterationFailures,
+      this.#previousIterationFailures,
     );
-    const result = await this._executor.execute();
-    this._previousIterationServices = result.persistentServices;
+    const result = await this.#executor.execute();
+    this.#previousIterationServices = result.persistentServices;
     if (result.errors.length > 0) {
       for (const error of result.errors) {
-        this._logger.log(error);
+        this.#logger.log(error);
       }
     } else {
-      this._previousIterationFailures = new Map();
+      this.#previousIterationFailures = new Map();
     }
-    this._onRunDone();
+    this.#onRunDone();
   }
 
-  private _onRunDone(): void {
-    this._logger.log({
-      script: this._rootScript,
+  #onRunDone(): void {
+    this.#logger.log({
+      script: this.#rootScript,
       type: 'info',
       detail: 'watch-run-end',
     });
-    switch (this._state) {
+    switch (this.#state) {
       case 'queued': {
         // Note that the debounce time could actually have already elapsed since
         // the last file change while we were running, but we don't start the
@@ -309,48 +303,48 @@ export class Watcher {
         // interval is also the minimum time between successive runs. This seems
         // fine and probably good, and is simpler than maintaining a separate
         // "queued-debouncing" state.
-        this._state = 'debouncing';
-        void this._startDebounce();
+        this.#state = 'debouncing';
+        void this.#startDebounce();
         return;
       }
       case 'running': {
-        this._state = 'watching';
+        this.#state = 'watching';
         return;
       }
       case 'aborted': {
-        this._finished.resolve();
+        this.#finished.resolve();
         return;
       }
       case 'initial':
       case 'watching':
       case 'debouncing': {
-        throw unexpectedState(this._state);
+        throw unexpectedState(this.#state);
       }
       default: {
-        throw unknownState(this._state);
+        throw unknownState(this.#state);
       }
     }
   }
 
-  private _onConfigFileChanged = (): void => {
-    this._latestRootScriptConfig = undefined;
-    this._fileChanged();
+  #onConfigFileChanged = (): void => {
+    this.#latestRootScriptConfig = undefined;
+    this.#fileChanged();
   };
 
-  private _fileChanged = (): void => {
-    switch (this._state) {
+  #fileChanged = (): void => {
+    switch (this.#state) {
       case 'watching': {
-        this._state = 'debouncing';
-        void this._startDebounce();
+        this.#state = 'debouncing';
+        void this.#startDebounce();
         return;
       }
       case 'debouncing': {
-        void this._cancelDebounce();
-        void this._startDebounce();
+        void this.#cancelDebounce();
+        void this.#startDebounce();
         return;
       }
       case 'running': {
-        this._state = 'queued';
+        this.#state = 'queued';
         return;
       }
       case 'queued':
@@ -358,15 +352,15 @@ export class Watcher {
         return;
       }
       case 'initial': {
-        throw unexpectedState(this._state);
+        throw unexpectedState(this.#state);
       }
       default: {
-        throw unknownState(this._state);
+        throw unknownState(this.#state);
       }
     }
   };
 
-  private _synchronizeInputFileWatchers(root: ScriptConfig): void {
+  #synchronizeInputFileWatchers(root: ScriptConfig): void {
     const visited = new Set<ScriptReferenceString>();
     const visit = (script: ScriptConfig) => {
       const key = scriptReferenceToString(script);
@@ -376,17 +370,17 @@ export class Watcher {
       visited.add(key);
 
       const newInputFiles = script.files?.values;
-      const oldWatcher = this._inputFileWatchers.get(key);
+      const oldWatcher = this.#inputFileWatchers.get(key);
       if (!watchPathsEqual(newInputFiles, oldWatcher?.patterns)) {
         if (newInputFiles === undefined || newInputFiles.length === 0) {
-          this._inputFileWatchers.delete(key);
+          this.#inputFileWatchers.delete(key);
         } else {
           const newWatcher = makeWatcher(
             newInputFiles,
             script.packageDir,
-            this._fileChanged,
+            this.#fileChanged,
           );
-          this._inputFileWatchers.set(key, newWatcher);
+          this.#inputFileWatchers.set(key, newWatcher);
         }
         if (oldWatcher !== undefined) {
           void oldWatcher.watcher.close();
@@ -399,34 +393,34 @@ export class Watcher {
     visit(root);
 
     // There also could be some scripts that have been removed entirely.
-    for (const [oldKey, oldWatcher] of this._inputFileWatchers) {
+    for (const [oldKey, oldWatcher] of this.#inputFileWatchers) {
       if (!visited.has(oldKey)) {
         void oldWatcher.watcher.close();
-        this._inputFileWatchers.delete(oldKey);
+        this.#inputFileWatchers.delete(oldKey);
       }
     }
   }
 
   abort(): void {
-    if (this._executor !== undefined) {
-      this._executor.abort();
-      this._executor = undefined;
+    if (this.#executor !== undefined) {
+      this.#executor.abort();
+      this.#executor = undefined;
     }
-    switch (this._state) {
+    switch (this.#state) {
       case 'debouncing':
       case 'watching': {
-        if (this._state === 'debouncing') {
-          this._cancelDebounce();
+        if (this.#state === 'debouncing') {
+          this.#cancelDebounce();
         }
-        this._state = 'aborted';
-        this._closeAllFileWatchers();
-        this._finished.resolve();
+        this.#state = 'aborted';
+        this.#closeAllFileWatchers();
+        this.#finished.resolve();
         return;
       }
       case 'running':
       case 'queued': {
-        this._state = 'aborted';
-        this._closeAllFileWatchers();
+        this.#state = 'aborted';
+        this.#closeAllFileWatchers();
         // Don't resolve #finished immediately so that we will wait for #analyze
         // or #execute to finish.
         return;
@@ -435,17 +429,17 @@ export class Watcher {
         return;
       }
       case 'initial': {
-        throw unexpectedState(this._state);
+        throw unexpectedState(this.#state);
       }
       default: {
-        throw unknownState(this._state);
+        throw unknownState(this.#state);
       }
     }
   }
 
-  private _closeAllFileWatchers() {
-    void this._configFilesWatcher?.watcher.close();
-    for (const value of this._inputFileWatchers.values()) {
+  #closeAllFileWatchers() {
+    void this.#configFilesWatcher?.watcher.close();
+    for (const value of this.#inputFileWatchers.values()) {
       void value.watcher.close();
     }
   }

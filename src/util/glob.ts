@@ -145,7 +145,7 @@ export async function glob(
   // We want each group to include all subsequent negated patterns. The simplest
   // way to do that is to build the groups backwards.
   for (let i = expandedPatterns.length - 1; i >= 0; i--) {
-    let pattern = expandedPatterns[i];
+    let pattern = expandedPatterns[i]!;
     const isExclusive = pattern[0] === '!';
     if (isExclusive) {
       pattern = pattern.slice(1); // Remove the "!"

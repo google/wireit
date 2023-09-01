@@ -192,7 +192,7 @@ async function assertDefinition(
   }
   // currently we always expect one definition
   assert.equal(definitions.length, 1);
-  const definition = definitions[0];
+  const definition = definitions[0]!;
   if (options.expected === undefined) {
     throw new Error(
       `Expected no definition, but got one: ${inspect(definition)}`,

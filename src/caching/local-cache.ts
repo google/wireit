@@ -25,7 +25,7 @@ export class LocalCache implements Cache {
     script: ScriptReference,
     fingerprint: Fingerprint,
   ): Promise<CacheHit | undefined> {
-    const cacheDir = this._getCacheDir(script, fingerprint);
+    const cacheDir = this.#getCacheDir(script, fingerprint);
     try {
       await fs.access(cacheDir);
     } catch (error) {
@@ -47,7 +47,7 @@ export class LocalCache implements Cache {
     // almost certainly want an automated way to limit the size of the cache
     // directory (e.g. LRU capped to some number of entries).
     // https://github.com/google/wireit/issues/71
-    const absCacheDir = this._getCacheDir(script, fingerprint);
+    const absCacheDir = this.#getCacheDir(script, fingerprint);
     // Note fs.mkdir returns the first created directory, or undefined if no
     // directory was created.
     const existed =
@@ -61,10 +61,7 @@ export class LocalCache implements Cache {
     return true;
   }
 
-  private _getCacheDir(
-    script: ScriptReference,
-    fingerprint: Fingerprint,
-  ): string {
+  #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',
@@ -77,28 +74,28 @@ class LocalCacheHit implements CacheHit {
   /**
    * The folder where the cached output is stored. Assumed to exist.
    */
-  private readonly _source: string;
+  readonly #source: string;
 
   /**
    * The folder where the cached output should be written when {@link apply} is
    * called.
    */
-  private readonly _destination: string;
+  readonly #destination: string;
 
   constructor(source: string, destination: string) {
-    this._source = source;
-    this._destination = destination;
+    this.#source = source;
+    this.#destination = destination;
   }
 
   async apply(): Promise<void> {
     const entries = await glob(['**'], {
-      cwd: this._source,
+      cwd: this.#source,
       followSymlinks: false,
       includeDirectories: true,
       expandDirectories: true,
       // Shouldn't ever happen, but would be really weird.
       throwIfOutsideCwd: true,
     });
-    await copyEntries(entries, this._source, this._destination);
+    await copyEntries(entries, this.#source, this.#destination);
   }
 }

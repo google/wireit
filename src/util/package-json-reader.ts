@@ -21,18 +21,18 @@ export interface FileSystem {
  * Reads package.json files and caches them.
  */
 export class CachingPackageJsonReader {
-  private readonly _cache = new AsyncCache<string, Result<PackageJson>>();
-  private readonly _fs;
+  readonly #cache = new AsyncCache<string, Result<PackageJson>>();
+  readonly #fs;
   constructor(filesystem: FileSystem = fs) {
-    this._fs = filesystem;
+    this.#fs = filesystem;
   }
 
   async read(packageDir: string): Promise<Result<PackageJson>> {
-    return this._cache.getOrCompute(packageDir, async () => {
+    return this.#cache.getOrCompute(packageDir, async () => {
       const path = pathlib.resolve(packageDir, 'package.json');
       let contents;
       try {
-        contents = await this._fs.readFile(path, 'utf8');
+        contents = await this.#fs.readFile(path, 'utf8');
       } catch (error) {
         if ((error as {code?: string}).code === 'ENOENT') {
           return {
@@ -59,7 +59,7 @@ export class CachingPackageJsonReader {
   }
 
   async *getFailures() {
-    const values = await Promise.all([...this._cache.values]);
+    const values = await Promise.all([...this.#cache.values]);
     for (const result of values) {
       if (!result.ok) {
         yield result.error;

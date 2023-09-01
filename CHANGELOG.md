@@ -8,7 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+- **[BREAKING]** Node 14 and Node 16 are no longer supported. Node 14 is past its end of life and Node 16 will be shortly. See the Node Release Schedule here:https://github.com/nodejs/Release#release-schedule. Node 18 will be supported until April 2025.
 
 ## [0.12.0] - 2023-09-01
 

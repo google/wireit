@@ -67,27 +67,27 @@ export function registerExecutorConstructorHook(
  * Executes a script that has been analyzed and validated by the Analyzer.
  */
 export class Executor {
-  private readonly _rootConfig: ScriptConfig;
-  private readonly _executions = new Map<ScriptReferenceString, Execution>();
-  private readonly _persistentServices: ServiceMap = new Map();
-  private readonly _ephemeralServices: ServiceScriptExecution[] = [];
-  private _previousIterationServices: ServiceMap | undefined;
-  private readonly _logger: Logger;
-  private readonly _workerPool: WorkerPool;
-  private readonly _cache?: Cache;
-  private readonly _isWatchMode: boolean;
-  private readonly _previousWatchIterationFailures:
+  readonly #rootConfig: ScriptConfig;
+  readonly #executions = new Map<ScriptReferenceString, Execution>();
+  readonly #persistentServices: ServiceMap = new Map();
+  readonly #ephemeralServices: ServiceScriptExecution[] = [];
+  #previousIterationServices: ServiceMap | undefined;
+  readonly #logger: Logger;
+  readonly #workerPool: WorkerPool;
+  readonly #cache?: Cache;
+  readonly #isWatchMode: boolean;
+  readonly #previousWatchIterationFailures:
     | Map<ScriptReferenceString, Fingerprint>
     | undefined;
 
   /** Resolves when the first failure occurs in any script. */
-  private readonly _failureOccured = new Deferred<void>();
+  readonly #failureOccured = new Deferred<void>();
   /** Resolves when we decide that new scripts should not be started. */
-  private readonly _stopStartingNewScripts = new Deferred<void>();
+  readonly #stopStartingNewScripts = new Deferred<void>();
   /** Resolves when we decide that running scripts should be killed. */
-  private readonly _killRunningScripts = new Deferred<void>();
+  readonly #killRunningScripts = new Deferred<void>();
   /** Resolves when we decide that services should be stopped. */
-  private readonly _stopServices = new Deferred<void>();
+  readonly #stopServices = new Deferred<void>();
 
   constructor(
     rootConfig: ScriptConfig,
@@ -100,35 +100,35 @@ export class Executor {
     previousWatchIterationFailures?: Map<ScriptReferenceString, Fingerprint>,
   ) {
     executorConstructorHook?.(this);
-    this._rootConfig = rootConfig;
-    this._logger = logger;
-    this._workerPool = workerPool;
-    this._cache = cache;
-    this._previousIterationServices = previousIterationServices;
-    this._isWatchMode = isWatchMode;
-    this._previousWatchIterationFailures = previousWatchIterationFailures;
+    this.#rootConfig = rootConfig;
+    this.#logger = logger;
+    this.#workerPool = workerPool;
+    this.#cache = cache;
+    this.#previousIterationServices = previousIterationServices;
+    this.#isWatchMode = isWatchMode;
+    this.#previousWatchIterationFailures = previousWatchIterationFailures;
 
     // If a failure occurs, then whether we stop starting new scripts or kill
     // running ones depends on the failure mode setting.
-    void this._failureOccured.promise.then(() => {
+    void this.#failureOccured.promise.then(() => {
       switch (failureMode) {
         case 'continue': {
-          if (!this._isWatchMode) {
-            this._stopServices.resolve();
+          if (!this.#isWatchMode) {
+            this.#stopServices.resolve();
           }
           break;
         }
         case 'no-new': {
-          this._stopStartingNewScripts.resolve();
-          if (!this._isWatchMode) {
-            this._stopServices.resolve();
+          this.#stopStartingNewScripts.resolve();
+          if (!this.#isWatchMode) {
+            this.#stopServices.resolve();
           }
           break;
         }
         case 'kill': {
-          this._stopStartingNewScripts.resolve();
-          this._killRunningScripts.resolve();
-          this._stopServices.resolve();
+          this.#stopStartingNewScripts.resolve();
+          this.#killRunningScripts.resolve();
+          this.#stopServices.resolve();
           break;
         }
         default: {
@@ -146,11 +146,11 @@ export class Executor {
    * the Wireit process, then dont start new scripts, and kill running ones.
    */
   abort() {
-    this._stopStartingNewScripts.resolve();
-    this._killRunningScripts.resolve();
-    this._stopServices.resolve();
-    if (this._previousIterationServices !== undefined) {
-      for (const service of this._previousIterationServices.values()) {
+    this.#stopStartingNewScripts.resolve();
+    this.#killRunningScripts.resolve();
+    this.#stopServices.resolve();
+    if (this.#previousIterationServices !== undefined) {
+      for (const service of this.#previousIterationServices.values()) {
         void service.abort();
       }
     }
@@ -164,22 +164,22 @@ export class Executor {
     errors: Failure[];
   }> {
     if (
-      this._previousIterationServices !== undefined &&
-      this._previousIterationServices.size > 0
+      this.#previousIterationServices !== undefined &&
+      this.#previousIterationServices.size > 0
     ) {
       // If any services were removed from the graph entirely, or used to be
       // persistent but are no longer, then stop them now.
       const currentPersistentServices = new Set<ScriptReferenceString>();
-      for (const script of findAllScripts(this._rootConfig)) {
+      for (const script of findAllScripts(this.#rootConfig)) {
         if (script.service && script.isPersistent) {
           currentPersistentServices.add(scriptReferenceToString(script));
         }
       }
       const abortPromises = [];
-      for (const [key, service] of this._previousIterationServices) {
+      for (const [key, service] of this.#previousIterationServices) {
         if (!currentPersistentServices.has(key)) {
           abortPromises.push(service.abort());
-          this._previousIterationServices.delete(key);
+          this.#previousIterationServices.delete(key);
         }
       }
       await Promise.all(abortPromises);
@@ -187,13 +187,13 @@ export class Executor {
 
     const errors: Failure[] = [];
     const rootExecutionResult = await this.getExecution(
-      this._rootConfig,
+      this.#rootConfig,
     ).execute();
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
     }
     // Wait for all persistent services to start.
-    for (const service of this._persistentServices.values()) {
+    for (const service of this.#persistentServices.values()) {
       // Persistent services start automatically, so calling start() here should
       // be a no-op, but it lets us get the started promise.
       const result = await service.start();
@@ -204,7 +204,7 @@ export class Executor {
     // Wait for all ephemeral services to have terminated (either started and
     // stopped, or never needed to start).
     const ephemeralServiceResults = await Promise.all(
-      this._ephemeralServices.map((service) => service.terminated),
+      this.#ephemeralServices.map((service) => service.terminated),
     );
     for (const result of ephemeralServiceResults) {
       if (!result.ok) {
@@ -215,9 +215,9 @@ export class Executor {
     // reference to this map to allow for garbage collection, otherwise in watch
     // mode we'll have a chain of references all the way back through every
     // iteration.
-    this._previousIterationServices = undefined;
+    this.#previousIterationServices = undefined;
     return {
-      persistentServices: this._persistentServices,
+      persistentServices: this.#persistentServices,
       errors,
     };
   }
@@ -230,21 +230,21 @@ export class Executor {
    * but scripts can also call it directly to synchronously signal a failure.
    */
   notifyFailure(): void {
-    this._failureOccured.resolve();
+    this.#failureOccured.resolve();
   }
 
   /**
    * Synchronously check if new scripts should stop being started.
    */
   get shouldStopStartingNewScripts(): boolean {
-    return this._stopStartingNewScripts.settled;
+    return this.#stopStartingNewScripts.settled;
   }
 
   /**
    * A promise which resolves if we should kill running scripts.
    */
   get shouldKillRunningScripts(): Promise<void> {
-    return this._killRunningScripts.promise;
+    return this.#killRunningScripts.promise;
   }
 
   /**
@@ -253,34 +253,34 @@ export class Executor {
    */
   getExecution<T extends ScriptConfig>(config: T): ConfigToExecution<T> {
     const key = scriptReferenceToString(config);
-    let execution = this._executions.get(key);
+    let execution = this.#executions.get(key);
     if (execution === undefined) {
       if (config.command === undefined) {
-        execution = new NoCommandScriptExecution(config, this, this._logger);
+        execution = new NoCommandScriptExecution(config, this, this.#logger);
       } else if (config.service !== undefined) {
         execution = new ServiceScriptExecution(
           config,
           this,
-          this._logger,
-          this._stopServices.promise,
-          this._previousIterationServices?.get(key),
-          this._isWatchMode,
+          this.#logger,
+          this.#stopServices.promise,
+          this.#previousIterationServices?.get(key),
+          this.#isWatchMode,
         );
         if (config.isPersistent) {
-          this._persistentServices.set(key, execution);
+          this.#persistentServices.set(key, execution);
         } else {
-          this._ephemeralServices.push(execution);
+          this.#ephemeralServices.push(execution);
         }
       } else {
         execution = new StandardScriptExecution(
           config,
           this,
-          this._workerPool,
-          this._cache,
-          this._logger,
+          this.#workerPool,
+          this.#cache,
+          this.#logger,
         );
       }
-      this._executions.set(key, execution);
+      this.#executions.set(key, execution);
     }
     // Cast needed because our Map type doesn't know about the config ->
     // execution type guarantees. We could make a smarter Map type, but not
@@ -296,10 +296,10 @@ export class Executor {
     script: ScriptReference,
     fingerprint: Fingerprint,
   ): boolean {
-    if (this._previousWatchIterationFailures === undefined) {
+    if (this.#previousWatchIterationFailures === undefined) {
       return false;
     }
-    const previous = this._previousWatchIterationFailures.get(
+    const previous = this.#previousWatchIterationFailures.get(
       scriptReferenceToString(script),
     );
     if (previous === undefined) {
@@ -317,7 +317,7 @@ export class Executor {
     script: ScriptReference,
     fingerprint: Fingerprint,
   ): void {
-    this._previousWatchIterationFailures?.set(
+    this.#previousWatchIterationFailures?.set(
       scriptReferenceToString(script),
       fingerprint,
     );

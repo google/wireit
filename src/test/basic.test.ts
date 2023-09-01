@@ -1250,7 +1250,7 @@ test(
       // fingerprint size to grow much faster than only including the next
       // script.
       for (let d = s + 1; d < numScripts; d++) {
-        packageJson.wireit[s].dependencies.push(`${d}`);
+        packageJson.wireit[s]!.dependencies.push(`${d}`);
       }
     }
     await rig.write(files);

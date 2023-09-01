@@ -47,7 +47,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
   protected readonly _config: T;
   protected readonly _executor: Executor;
   protected readonly _logger: Logger;
-  private _fingerprint?: Promise<ExecutionResult>;
+  #fingerprint?: Promise<ExecutionResult>;
 
   constructor(config: T, executor: Executor, logger: Logger) {
     executionConstructorHook?.(this);
@@ -61,7 +61,7 @@ export abstract class BaseExecution<T extends ScriptConfig> {
    * multiple times.
    */
   execute(): Promise<ExecutionResult> {
-    return (this._fingerprint ??= this._execute());
+    return (this.#fingerprint ??= this._execute());
   }
 
   protected abstract _execute(): Promise<ExecutionResult>;
@@ -85,13 +85,13 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     const results: Array<[Dependency, Fingerprint]> = [];
     const errors = new Set<Failure>();
     for (let i = 0; i < dependencyResults.length; i++) {
-      const result = dependencyResults[i];
+      const result = dependencyResults[i]!;
       if (!result.ok) {
         for (const error of result.error) {
           errors.add(error);
         }
       } else {
-        results.push([this._config.dependencies[i], result.value]);
+        results.push([this._config.dependencies[i]!, result.value]);
       }
     }
     if (errors.size > 0) {

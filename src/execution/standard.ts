@@ -37,9 +37,9 @@ type StandardScriptExecutionState =
  * Execution for a {@link StandardScriptConfig}.
  */
 export class StandardScriptExecution extends BaseExecutionWithCommand<StandardScriptConfig> {
-  private _state: StandardScriptExecutionState = 'before-running';
-  private readonly _cache?: Cache;
-  private readonly _workerPool: WorkerPool;
+  #state: StandardScriptExecutionState = 'before-running';
+  readonly #cache?: Cache;
+  readonly #workerPool: WorkerPool;
 
   constructor(
     config: StandardScriptConfig,
@@ -49,33 +49,33 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     logger: Logger,
   ) {
     super(config, executor, logger);
-    this._workerPool = workerPool;
-    this._cache = cache;
+    this.#workerPool = workerPool;
+    this.#cache = cache;
   }
 
-  private _ensureState(state: StandardScriptExecutionState): void {
-    if (this._state !== state) {
-      throw new Error(`Expected state ${state} but was ${this._state}`);
+  #ensureState(state: StandardScriptExecutionState): void {
+    if (this.#state !== state) {
+      throw new Error(`Expected state ${state} but was ${this.#state}`);
     }
   }
 
   protected async _execute(): Promise<ExecutionResult> {
     try {
-      this._ensureState('before-running');
+      this.#ensureState('before-running');
 
       const dependencyFingerprints = await this._executeDependencies();
       if (!dependencyFingerprints.ok) {
-        dependencyFingerprints.error.push(this._startCancelledEvent);
+        dependencyFingerprints.error.push(this.#startCancelledEvent);
         return dependencyFingerprints;
       }
 
       // Significant time could have elapsed since we last checked because our
       // dependencies had to finish.
-      if (this._shouldNotStart) {
-        return {ok: false, error: [this._startCancelledEvent]};
+      if (this.#shouldNotStart) {
+        return {ok: false, error: [this.#startCancelledEvent]};
       }
 
-      return await this._acquireSystemLockIfNeeded(async () => {
+      return await this.#acquireSystemLockIfNeeded(async () => {
         // Note we must wait for dependencies to finish before generating the
         // cache key, because a dependency could create or modify an input file to
         // this script, which would affect the key.
@@ -100,34 +100,34 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
             ],
           };
         }
-        if (await this._fingerprintIsFresh(fingerprint)) {
-          const manifestFresh = await this._outputManifestIsFresh();
+        if (await this.#fingerprintIsFresh(fingerprint)) {
+          const manifestFresh = await this.#outputManifestIsFresh();
           if (!manifestFresh.ok) {
             return {ok: false, error: [manifestFresh.error]};
           }
           if (manifestFresh.value) {
-            return this._handleFresh(fingerprint);
+            return this.#handleFresh(fingerprint);
           }
         }
 
         // Computing the fingerprint can take some time, and the next operation is
         // destructive. Another good opportunity to check if we should still
         // start.
-        if (this._shouldNotStart) {
-          return {ok: false, error: [this._startCancelledEvent]};
+        if (this.#shouldNotStart) {
+          return {ok: false, error: [this.#startCancelledEvent]};
         }
 
         const cacheHit = fingerprint.data.fullyTracked
-          ? await this._cache?.get(this._config, fingerprint)
+          ? await this.#cache?.get(this._config, fingerprint)
           : undefined;
-        if (this._shouldNotStart) {
-          return {ok: false, error: [this._startCancelledEvent]};
+        if (this.#shouldNotStart) {
+          return {ok: false, error: [this.#startCancelledEvent]};
         }
         if (cacheHit !== undefined) {
-          return this._handleCacheHit(cacheHit, fingerprint);
+          return this.#handleCacheHit(cacheHit, fingerprint);
         }
 
-        return this._handleNeedsRun(fingerprint);
+        return this.#handleNeedsRun(fingerprint);
       });
     } finally {
       this._servicesNotNeeded.resolve();
@@ -140,14 +140,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * We should check this as the first thing we do, and then after any
    * significant amount of time might have elapsed.
    */
-  private get _shouldNotStart(): boolean {
+  get #shouldNotStart(): boolean {
     return this._executor.shouldStopStartingNewScripts;
   }
 
   /**
    * Convenience to generate a cancellation failure event for this script.
    */
-  private get _startCancelledEvent(): StartCancelled {
+  get #startCancelledEvent(): StartCancelled {
     return {
       script: this._config,
       type: 'failure',
@@ -159,7 +159,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Acquire a system-wide lock on the execution of this script, if the script
    * has any output files that require it.
    */
-  private async _acquireSystemLockIfNeeded<T>(
+  async #acquireSystemLockIfNeeded<T>(
     workFn: () => Promise<T>,
   ): Promise<T | {ok: false; error: [StartCancelled]}> {
     if (this._config.output?.values.length === 0) {
@@ -181,7 +181,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // TODO(aomarks) We could make our own implementation that directly takes a
     // directory to mkdir and doesn't care about the file. There are some nice
     // details proper-lockfile handles.
-    const lockFile = pathlib.join(this._dataDir, 'lock');
+    const lockFile = pathlib.join(this.#dataDir, 'lock');
     await fs.mkdir(pathlib.dirname(lockFile), {recursive: true});
     await fs.writeFile(lockFile, '', 'utf8');
     let loggedLocked = false;
@@ -217,8 +217,8 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           }
           // Wait a moment before attempting to acquire the lock again.
           await new Promise((resolve) => setTimeout(resolve, 200));
-          if (this._shouldNotStart) {
-            return {ok: false, error: [this._startCancelledEvent]};
+          if (this.#shouldNotStart) {
+            return {ok: false, error: [this.#startCancelledEvent]};
           }
         } else {
           throw error;
@@ -231,20 +231,18 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Check whether the given fingerprint matches the current one from the
    * `.wireit` directory.
    */
-  private async _fingerprintIsFresh(
-    fingerprint: Fingerprint,
-  ): Promise<boolean> {
+  async #fingerprintIsFresh(fingerprint: Fingerprint): Promise<boolean> {
     if (!fingerprint.data.fullyTracked) {
       return false;
     }
-    const prevFingerprint = await this._readPreviousFingerprint();
+    const prevFingerprint = await this.#readPreviousFingerprint();
     return prevFingerprint !== undefined && fingerprint.equal(prevFingerprint);
   }
 
   /**
    * Handle the outcome where the script is already fresh.
    */
-  private _handleFresh(fingerprint: Fingerprint): ExecutionResult {
+  #handleFresh(fingerprint: Fingerprint): ExecutionResult {
     this._logger.log({
       script: this._config,
       type: 'success',
@@ -256,7 +254,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script was stale and we got a cache hit.
    */
-  private async _handleCacheHit(
+  async #handleCacheHit(
     cacheHit: CacheHit,
     fingerprint: Fingerprint,
   ): Promise<ExecutionResult> {
@@ -267,7 +265,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // Delete the fingerprint and other files. It's important we do this before
     // restoring from cache, because we don't want to think that the previous
     // fingerprint is still valid when it no longer is.
-    await this._prepareDataDir();
+    await this.#prepareDataDir();
 
     // If we are restoring from cache, we should always delete existing output.
     // The purpose of "clean:false" and "clean:if-file-deleted" is to allow
@@ -277,19 +275,19 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // incremental change to the input files. When we restore from cache, we are
     // directly replacing the output files, and not invoking the tool at all, so
     // there is no way for the tool to do any cleanup.
-    await this._cleanOutput();
+    await this.#cleanOutput();
 
     await cacheHit.apply();
-    this._state = 'after-running';
+    this.#state = 'after-running';
 
-    const writeFingerprintPromise = this._writeFingerprintFile(fingerprint);
-    const outputFilesAfterRunning = await this._globOutputFilesAfterRunning();
+    const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
+    const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
     if (!outputFilesAfterRunning.ok) {
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this._writeOutputManifest(
-        await this._computeOutputManifest(outputFilesAfterRunning.value),
+      await this.#writeOutputManifest(
+        await this.#computeOutputManifest(outputFilesAfterRunning.value),
       );
     }
     await writeFingerprintPromise;
@@ -306,31 +304,29 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script was stale and we need to run it.
    */
-  private async _handleNeedsRun(
-    fingerprint: Fingerprint,
-  ): Promise<ExecutionResult> {
+  async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
     // Check if we should clean before we delete the fingerprint file, because
     // we sometimes need to read the previous fingerprint file to determine
     // this.
-    const shouldClean = await this._shouldClean(fingerprint);
+    const shouldClean = await this.#shouldClean(fingerprint);
 
     // Delete the fingerprint and other files. It's important we do this before
     // starting the command, because we don't want to think that the previous
     // fingerprint is still valid when it no longer is.
-    await this._prepareDataDir();
+    await this.#prepareDataDir();
 
     if (shouldClean) {
-      const result = await this._cleanOutput();
+      const result = await this.#cleanOutput();
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
     }
 
-    const childResult = await this._workerPool.run(async () => {
+    const childResult = await this.#workerPool.run(async () => {
       // Significant time could have elapsed since we last checked because of
       // parallelism limits.
-      if (this._shouldNotStart) {
-        return {ok: false, error: this._startCancelledEvent};
+      if (this.#shouldNotStart) {
+        return {ok: false, error: this.#startCancelledEvent};
       }
 
       let earlyServiceTermination: Failure | undefined;
@@ -341,7 +337,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         }
 
         void this._anyServiceTerminated.then(() => {
-          if (this._state === 'after-running') {
+          if (this.#state === 'after-running') {
             // This is expected after we're done.
             return;
           }
@@ -357,7 +353,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         });
       }
 
-      this._state = 'running';
+      this.#state = 'running';
       this._logger.log({
         script: this._config,
         type: 'info',
@@ -421,7 +417,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return result;
     });
 
-    this._state = 'after-running';
+    this.#state = 'after-running';
 
     if (!childResult.ok) {
       this._executor.registerWatchIterationFailure(this._config, fingerprint);
@@ -437,20 +433,20 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // still writing the fingerprint file etc.
     this._servicesNotNeeded.resolve();
 
-    const writeFingerprintPromise = this._writeFingerprintFile(fingerprint);
-    const outputFilesAfterRunning = await this._globOutputFilesAfterRunning();
+    const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
+    const outputFilesAfterRunning = await this.#globOutputFilesAfterRunning();
     if (!outputFilesAfterRunning.ok) {
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this._writeOutputManifest(
-        await this._computeOutputManifest(outputFilesAfterRunning.value),
+      await this.#writeOutputManifest(
+        await this.#computeOutputManifest(outputFilesAfterRunning.value),
       );
     }
     await writeFingerprintPromise;
 
     if (fingerprint.data.fullyTracked) {
-      const result = await this._saveToCacheIfPossible(fingerprint);
+      const result = await this.#saveToCacheIfPossible(fingerprint);
       if (!result.ok) {
         return {ok: false, error: [result.error]};
       }
@@ -459,7 +455,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     return {ok: true, value: fingerprint};
   }
 
-  private async _shouldClean(fingerprint: Fingerprint) {
+  async #shouldClean(fingerprint: Fingerprint) {
     const cleanValue = this._config.clean;
     switch (cleanValue) {
       case true: {
@@ -469,14 +465,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         return false;
       }
       case 'if-file-deleted': {
-        const prevFingerprint = await this._readPreviousFingerprint();
+        const prevFingerprint = await this.#readPreviousFingerprint();
         if (prevFingerprint === undefined) {
           // If we don't know the previous fingerprint, then we can't know
           // whether any input files were removed. It's safer to err on the
           // side of cleaning.
           return true;
         }
-        return this._anyInputFilesDeletedSinceLastRun(
+        return this.#anyInputFilesDeletedSinceLastRun(
           fingerprint,
           prevFingerprint,
         );
@@ -493,7 +489,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Compares the current set of input file names to the previous set of input
    * file names, and returns whether any files have been removed.
    */
-  private _anyInputFilesDeletedSinceLastRun(
+  #anyInputFilesDeletedSinceLastRun(
     curFingerprint: Fingerprint,
     prevFingerprint: Fingerprint,
   ): boolean {
@@ -514,20 +510,20 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Save the current output files to the configured cache if possible.
    */
-  private async _saveToCacheIfPossible(
+  async #saveToCacheIfPossible(
     fingerprint: Fingerprint,
   ): Promise<Result<void>> {
-    if (this._cache === undefined) {
+    if (this.#cache === undefined) {
       return {ok: true, value: undefined};
     }
-    const paths = await this._globOutputFilesAfterRunning();
+    const paths = await this.#globOutputFilesAfterRunning();
     if (!paths.ok) {
       return paths;
     }
     if (paths.value === undefined) {
       return {ok: true, value: undefined};
     }
-    await this._cache.set(this._config, fingerprint, paths.value);
+    await this.#cache.set(this._config, fingerprint, paths.value);
     return {ok: true, value: undefined};
   }
 
@@ -535,13 +531,13 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Glob the output files for this script and cache them, but throw unless the
    * script has not yet started running or been restored from cache.
    */
-  private _globOutputFilesBeforeRunning(): Promise<
+  #globOutputFilesBeforeRunning(): Promise<
     Result<AbsoluteEntry[] | undefined>
   > {
-    this._ensureState('before-running');
-    return (this._cachedOutputFilesBeforeRunning ??= this._globOutputFiles());
+    this.#ensureState('before-running');
+    return (this.#cachedOutputFilesBeforeRunning ??= this.#globOutputFiles());
   }
-  private _cachedOutputFilesBeforeRunning?: Promise<
+  #cachedOutputFilesBeforeRunning?: Promise<
     Result<AbsoluteEntry[] | undefined>
   >;
 
@@ -549,23 +545,17 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Glob the output files for this script and cache them, but throw unless the
    * script has finished running or been restored from cache.
    */
-  private _globOutputFilesAfterRunning(): Promise<
-    Result<AbsoluteEntry[] | undefined>
-  > {
-    this._ensureState('after-running');
-    return (this._cachedOutputFilesAfterRunning ??= this._globOutputFiles());
+  #globOutputFilesAfterRunning(): Promise<Result<AbsoluteEntry[] | undefined>> {
+    this.#ensureState('after-running');
+    return (this.#cachedOutputFilesAfterRunning ??= this.#globOutputFiles());
   }
-  private _cachedOutputFilesAfterRunning?: Promise<
-    Result<AbsoluteEntry[] | undefined>
-  >;
+  #cachedOutputFilesAfterRunning?: Promise<Result<AbsoluteEntry[] | undefined>>;
 
   /**
    * Glob the output files for this script, or return undefined if output files
    * are not defined.
    */
-  private async _globOutputFiles(): Promise<
-    Result<AbsoluteEntry[] | undefined>
-  > {
+  async #globOutputFiles(): Promise<Result<AbsoluteEntry[] | undefined>> {
     if (this._config.output === undefined) {
       return {ok: true, value: undefined};
     }
@@ -612,28 +602,28 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Get the directory name where Wireit data can be saved for this script.
    */
-  private get _dataDir(): string {
+  get #dataDir(): string {
     return getScriptDataDir(this._config);
   }
 
   /**
    * Get the path where the current fingerprint is saved for this script.
    */
-  private get _fingerprintFilePath(): string {
-    return pathlib.join(this._dataDir, 'fingerprint');
+  get #fingerprintFilePath(): string {
+    return pathlib.join(this.#dataDir, 'fingerprint');
   }
 
   /**
    * Read this script's previous fingerprint from `fingerprint` file in the
    * `.wireit` directory. Cached after first call.
    */
-  private async _readPreviousFingerprint(): Promise<Fingerprint | undefined> {
-    if (this._cachedPreviousFingerprint === undefined) {
-      this._cachedPreviousFingerprint = (async () => {
+  async #readPreviousFingerprint(): Promise<Fingerprint | undefined> {
+    if (this.#cachedPreviousFingerprint === undefined) {
+      this.#cachedPreviousFingerprint = (async () => {
         try {
           return Fingerprint.fromString(
             (await fs.readFile(
-              this._fingerprintFilePath,
+              this.#fingerprintFilePath,
               'utf8',
             )) as FingerprintString,
           );
@@ -645,34 +635,34 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         }
       })();
     }
-    return this._cachedPreviousFingerprint;
+    return this.#cachedPreviousFingerprint;
   }
-  private _cachedPreviousFingerprint?: Promise<Fingerprint | undefined>;
+  #cachedPreviousFingerprint?: Promise<Fingerprint | undefined>;
 
   /**
    * Write this script's fingerprint file.
    */
-  private async _writeFingerprintFile(fingerprint: Fingerprint): Promise<void> {
-    await fs.mkdir(this._dataDir, {recursive: true});
-    await fs.writeFile(this._fingerprintFilePath, fingerprint.string, 'utf8');
+  async #writeFingerprintFile(fingerprint: Fingerprint): Promise<void> {
+    await fs.mkdir(this.#dataDir, {recursive: true});
+    await fs.writeFile(this.#fingerprintFilePath, fingerprint.string, 'utf8');
   }
 
   /**
    * Delete the fingerprint and other files for this script from the previous
    * run, and ensure the data directory exists.
    */
-  private async _prepareDataDir(): Promise<void> {
+  async #prepareDataDir(): Promise<void> {
     await Promise.all([
-      fs.rm(this._fingerprintFilePath, {force: true}),
-      fs.mkdir(this._dataDir, {recursive: true}),
+      fs.rm(this.#fingerprintFilePath, {force: true}),
+      fs.mkdir(this.#dataDir, {recursive: true}),
     ]);
   }
 
   /**
    * Delete all files matched by this script's "output" glob patterns.
    */
-  private async _cleanOutput(): Promise<Result<void>> {
-    const files = await this._globOutputFilesBeforeRunning();
+  async #cleanOutput(): Promise<Result<void>> {
+    const files = await this.#globOutputFilesBeforeRunning();
     if (!files.ok) {
       return files;
     }
@@ -688,7 +678,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * all output filenames, along with filesystem metadata that we assume is good
    * enough for checking that a file hasn't changed: ctime, mtime, and bytes.
    */
-  private async _computeOutputManifest(
+  async #computeOutputManifest(
     outputEntries: AbsoluteEntry[],
   ): Promise<FileManifestString> {
     outputEntries.sort((a, b) => a.path.localeCompare(b.path));
@@ -697,7 +687,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     );
     const manifest: Record<string, FileManifestEntry> = {};
     for (let i = 0; i < outputEntries.length; i++) {
-      manifest[outputEntries[i].path] = computeManifestEntry(stats[i]);
+      manifest[outputEntries[i]!.path] = computeManifestEntry(stats[i]!);
     }
     return JSON.stringify(manifest) as FileManifestString;
   }
@@ -706,16 +696,16 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Check whether the current manifest of output files matches the one from the
    * `.wireit` directory.
    */
-  private async _outputManifestIsFresh(): Promise<Result<boolean>> {
-    const oldManifestPromise = this._readPreviousOutputManifest();
-    const outputFilesBeforeRunning = await this._globOutputFilesBeforeRunning();
+  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+    const oldManifestPromise = this.#readPreviousOutputManifest();
+    const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
     if (!outputFilesBeforeRunning.ok) {
       return outputFilesBeforeRunning;
     }
     if (outputFilesBeforeRunning.value === undefined) {
       return {ok: true, value: false};
     }
-    const newManifest = await this._computeOutputManifest(
+    const newManifest = await this.#computeOutputManifest(
       outputFilesBeforeRunning.value,
     );
     const oldManifest = await oldManifestPromise;
@@ -737,12 +727,10 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Read this script's previous output manifest file from the `manifest` file
    * in the `.wireit` directory. Not cached.
    */
-  private async _readPreviousOutputManifest(): Promise<
-    FileManifestString | undefined
-  > {
+  async #readPreviousOutputManifest(): Promise<FileManifestString | undefined> {
     try {
       return (await fs.readFile(
-        this._outputManifestFilePath,
+        this.#outputManifestFilePath,
         'utf8',
       )) as FileManifestString;
     } catch (error) {
@@ -756,17 +744,17 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Write this script's output manifest file.
    */
-  private async _writeOutputManifest(
+  async #writeOutputManifest(
     outputManifest: FileManifestString,
   ): Promise<void> {
-    await fs.mkdir(this._dataDir, {recursive: true});
-    await fs.writeFile(this._outputManifestFilePath, outputManifest, 'utf8');
+    await fs.mkdir(this.#dataDir, {recursive: true});
+    await fs.writeFile(this.#outputManifestFilePath, outputManifest, 'utf8');
   }
 
   /**
    * Get the path where the current output manifest is saved for this script.
    */
-  private get _outputManifestFilePath(): string {
-    return pathlib.join(this._dataDir, 'manifest');
+  get #outputManifestFilePath(): string {
+    return pathlib.join(this.#dataDir, 'manifest');
   }
 }

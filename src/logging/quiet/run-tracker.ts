@@ -26,7 +26,7 @@ interface SimpleOutput {
  * State that the run tracker cares about for a currently running script.
  */
 class ScriptState {
-  private readonly outputBuffer: Array<SimpleOutput> = [];
+  readonly #outputBuffer: Array<SimpleOutput> = [];
   readonly scriptReference: ScriptReference;
   readonly service: boolean;
   readonly isRootScript: boolean;
@@ -44,25 +44,25 @@ class ScriptState {
     if (output.data.length === 0) {
       return;
     }
-    this.outputBuffer.push({
+    this.#outputBuffer.push({
       stream: output.stream,
       data: output.data,
     });
   }
 
   replayAndEmptyBuffer() {
-    for (const output of this.outputBuffer) {
+    for (const output of this.#outputBuffer) {
       if (output.stream === 'stdout') {
         process.stdout.write(output.data);
       } else {
         process.stderr.write(output.data);
       }
     }
-    this.outputBuffer.length = 0;
+    this.#outputBuffer.length = 0;
   }
 
   get hasBufferedOutput(): boolean {
-    return this.outputBuffer.length > 0;
+    return this.#outputBuffer.length > 0;
   }
 }
 
@@ -135,28 +135,25 @@ export class QuietRunLogger {
    *
    * Keyed by this._getKey
    */
-  private readonly _running = new StackMap<
-    ScriptReferenceString,
-    ScriptState
-  >();
+  readonly #running = new StackMap<ScriptReferenceString, ScriptState>();
   /** The number of commands we've started. */
-  private _ran = 0;
+  #ran = 0;
   /**
    * The number of scripts with commands that were either fresh or whose output
    * we restored.
    */
-  private _skipped = 0;
-  private _encounteredFailures = false;
-  private _servicesRunning = 0;
-  private _servicesStarted = 0;
-  private _servicesPersistedFromPreviousRun = 0;
-  private _analysisInfo: AnalysisInfo | undefined = undefined;
-  private _finishedScriptsWithCommands = new Set<ScriptReferenceString>();
-  private _statusLineState: StatusLineState = 'initial';
-  private readonly _startTime = Date.now();
-  private readonly _rootPackage: string;
-  private readonly _defaultLogger: DefaultLogger;
-  private readonly _statusLineWriter;
+  #skipped = 0;
+  #encounteredFailures = false;
+  #servicesRunning = 0;
+  #servicesStarted = 0;
+  #servicesPersistedFromPreviousRun = 0;
+  #analysisInfo: AnalysisInfo | undefined = undefined;
+  #finishedScriptsWithCommands = new Set<ScriptReferenceString>();
+  #statusLineState: StatusLineState = 'initial';
+  readonly #startTime = Date.now();
+  readonly #rootPackage: string;
+  readonly #defaultLogger: DefaultLogger;
+  readonly #statusLineWriter;
   /**
    * Sometimes a script will fail multiple times, but we only want to report
    * about the first failure for it that we find. Sometimes a script will
@@ -164,17 +161,16 @@ export class QuietRunLogger {
    * non-zero-exit-code events. This looks to be coming at the NodeJS level
    * or above, and so we just cope.
    */
-  private readonly _scriptsWithAlreadyReportedErrors =
-    new Set<ScriptReferenceString>();
+  readonly #scriptsWithAlreadyReportedError = new Set<ScriptReferenceString>();
 
   constructor(
     rootPackage: string,
     statusLineWriter: StatusLineWriter,
     defaultLogger?: DefaultLogger,
   ) {
-    this._rootPackage = rootPackage;
-    this._statusLineWriter = statusLineWriter;
-    this._defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
+    this.#rootPackage = rootPackage;
+    this.#statusLineWriter = statusLineWriter;
+    this.#defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
   }
 
   /**
@@ -184,18 +180,18 @@ export class QuietRunLogger {
   makeInstanceForNextWatchRun(): QuietRunLogger {
     // Reuse the default logger, a minor savings.
     const instance = new QuietRunLogger(
-      this._rootPackage,
-      this._statusLineWriter,
-      this._defaultLogger,
+      this.#rootPackage,
+      this.#statusLineWriter,
+      this.#defaultLogger,
     );
     // Persistent services stay running between runs, so pass along what we
     // know.
-    for (const [key, state] of this._running) {
+    for (const [key, state] of this.#running) {
       if (state.service) {
-        instance._servicesPersistedFromPreviousRun++;
-        instance._servicesRunning++;
-        instance._running.set(key, state);
-        instance._markScriptAsFinished(state.scriptReference);
+        instance.#servicesPersistedFromPreviousRun++;
+        instance.#servicesRunning++;
+        instance.#running.set(key, state);
+        instance.#markScriptAsFinished(state.scriptReference);
       }
     }
     return instance;
@@ -210,16 +206,16 @@ export class QuietRunLogger {
   getUpdatedMessageAfterEvent(event: Event): StatusLineResult {
     switch (event.type) {
       case 'success': {
-        return this._handleSuccess(event);
+        return this.#handleSuccess(event);
       }
       case 'failure': {
-        return this._handleFailure(event);
+        return this.#handleFailure(event);
       }
       case 'info': {
-        return this._handleInfo(event);
+        return this.#handleInfo(event);
       }
       case 'output': {
-        return this._handleOutput(event);
+        return this.#handleOutput(event);
       }
       default: {
         const never: never = event;
@@ -232,75 +228,72 @@ export class QuietRunLogger {
    * Should be called once, at the end of a run.
    */
   printSummary() {
-    this._statusLineState = 'done';
+    this.#statusLineState = 'done';
     let scriptsStillRunning = false;
-    for (const state of this._running.values()) {
+    for (const state of this.#running.values()) {
       if (state.service) {
         continue;
       }
       scriptsStillRunning = true;
     }
-    if (this._encounteredFailures || scriptsStillRunning) {
-      this._printFailureSummary();
+    if (this.#encounteredFailures || scriptsStillRunning) {
+      this.#printFailureSummary();
       return;
     }
-    this._printSuccessSummary();
+    this.#printSuccessSummary();
   }
 
-  private _printFailureSummary() {
-    for (const [, state] of this._running) {
-      const label = labelForScript(this._rootPackage, state.scriptReference);
+  #printFailureSummary() {
+    for (const [, state] of this.#running) {
+      const label = labelForScript(this.#rootPackage, state.scriptReference);
       const key = scriptReferenceToString(state.scriptReference);
-      if (this._scriptsWithAlreadyReportedErrors.has(key) || state.service) {
+      if (this.#scriptsWithAlreadyReportedError.has(key) || state.service) {
         continue;
       }
       // We expected this to finish running, but it didn't. We haven't seen
       // this in our testing, so it's as much of a test of our own code as
       // anything else.
       process.stderr.write(`\n❌ [${label}] did not exit successfully.`);
-      this._reportOutputForFailingScript(state.scriptReference);
+      this.#reportOutputForFailingScript(state.scriptReference);
     }
-    if (this._scriptsWithAlreadyReportedErrors.size > 0) {
-      const s = this._scriptsWithAlreadyReportedErrors.size === 1 ? '' : 's';
+    if (this.#scriptsWithAlreadyReportedError.size > 0) {
+      const s = this.#scriptsWithAlreadyReportedError.size === 1 ? '' : 's';
       process.stderr.write(
-        `❌ ${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} script${s} failed.\n`,
+        `❌ ${this.#scriptsWithAlreadyReportedError.size.toLocaleString()} script${s} failed.\n`,
       );
     } else {
       process.stderr.write(`❌ Failed.\n`);
     }
   }
 
-  private _printSuccessSummary() {
-    const elapsed = Math.round((Date.now() - this._startTime) / 100) / 10;
+  #printSuccessSummary() {
+    const elapsed = Math.round((Date.now() - this.#startTime) / 100) / 10;
     // In watch mode, we want to count services that we started as part of this
     // run.
-    const count = this._ran + this._servicesStarted;
+    const count = this.#ran + this.#servicesStarted;
     const s = count === 1 ? '' : 's';
     console.log(
-      `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this._skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`,
+      `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this.#skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`,
     );
   }
 
-  private _reportOutputForFailingScript(
-    script: ScriptReference,
-    cause?: Failure,
-  ) {
-    const state = this._running.get(scriptReferenceToString(script));
+  #reportOutputForFailingScript(script: ScriptReference, cause?: Failure) {
+    const state = this.#running.get(scriptReferenceToString(script));
     if (!state) {
       throw new Error(
         `Internal error: Got ${
           cause?.reason ? `${cause.reason} event` : 'leftover script'
         } for script without a start event. Events delivered out of order?
     Script with failure: ${scriptReferenceToString(script)}
-    Known scripts: ${inspect([...this._running.keys()])}
+    Known scripts: ${inspect([...this.#running.keys()])}
 `,
       );
     }
     state.replayAndEmptyBuffer();
   }
 
-  private _getStatusLine(): StatusLineResult {
-    switch (this._statusLineState) {
+  #getStatusLine(): StatusLineResult {
+    switch (this.#statusLineState) {
       case 'initial': {
         return 'Starting';
       }
@@ -308,51 +301,49 @@ export class QuietRunLogger {
         return 'Analyzing';
       }
       case 'executing': {
-        if (this._analysisInfo === undefined) {
+        if (this.#analysisInfo === undefined) {
           return `??? Internal error: Analysis info missing ???`;
         }
-        return this._getExecutionStatusLine(this._analysisInfo);
+        return this.#getExecutionStatusLine(this.#analysisInfo);
       }
       case 'done': {
         // No status line now.
         return nothing;
       }
       default: {
-        const never: never = this._statusLineState;
+        const never: never = this.#statusLineState;
         throw new Error(`Unknown status line state: ${JSON.stringify(never)}`);
       }
     }
   }
 
-  private _getExecutionStatusLine(
-    analysisInfo: AnalysisInfo,
-  ): StatusLineResult {
-    const peekResult = this._running.peek()?.[1];
+  #getExecutionStatusLine(analysisInfo: AnalysisInfo): StatusLineResult {
+    const peekResult = this.#running.peek()?.[1];
     let mostRecentScript = '';
     if (peekResult !== undefined) {
       mostRecentScript =
-        ' ' + labelForScript(this._rootPackage, peekResult.scriptReference);
+        ' ' + labelForScript(this.#rootPackage, peekResult.scriptReference);
     }
-    const done = this._finishedScriptsWithCommands.size;
+    const done = this.#finishedScriptsWithCommands.size;
     const total = analysisInfo.scriptsWithCommands.size;
     const percentDone =
       String(Math.round((done / total) * 100)).padStart(3, ' ') + '%';
 
     let servicesInfo = '';
     if (analysisInfo.hasServices) {
-      const s = this._servicesRunning === 1 ? '' : 's';
-      servicesInfo = ` [${this._servicesRunning.toLocaleString()} service${s}]`;
+      const s = this.#servicesRunning === 1 ? '' : 's';
+      servicesInfo = ` [${this.#servicesRunning.toLocaleString()} service${s}]`;
     }
     let failureInfo = '';
-    if (this._scriptsWithAlreadyReportedErrors.size > 0) {
-      failureInfo = ` [${this._scriptsWithAlreadyReportedErrors.size.toLocaleString()} failed]`;
+    if (this.#scriptsWithAlreadyReportedError.size > 0) {
+      failureInfo = ` [${this.#scriptsWithAlreadyReportedError.size.toLocaleString()} failed]`;
     }
     return `${percentDone} [${done.toLocaleString()} / ${total}] [${
-      this._running.size
+      this.#running.size
     } running]${servicesInfo}${failureInfo}${mostRecentScript}`;
   }
 
-  private _markScriptAsFinished(script: ScriptReference) {
+  #markScriptAsFinished(script: ScriptReference) {
     const key = scriptReferenceToString(script);
     // Almost always, a script that's finished will be one that we intended
     // to execute as part of this run. However there's one exception:
@@ -364,18 +355,18 @@ export class QuietRunLogger {
       // Optimistically mark it as finished if we don't have analysis info yet.
       // We'll remove it later if we find out it's not actually a script we
       // care about.
-      this._analysisInfo === undefined ||
-      this._analysisInfo.scriptsWithCommands.has(key);
+      this.#analysisInfo === undefined ||
+      this.#analysisInfo.scriptsWithCommands.has(key);
     if (isScriptOfInterest) {
-      this._finishedScriptsWithCommands.add(key);
+      this.#finishedScriptsWithCommands.add(key);
     }
   }
 
-  private _handleInfo(event: Info): StatusLineResult {
+  #handleInfo(event: Info): StatusLineResult {
     if (DEBUG) {
       console.log(
         `info: ${event.detail} ${labelForScript(
-          this._rootPackage,
+          this.#rootPackage,
           event.script,
         )}`,
       );
@@ -383,36 +374,36 @@ export class QuietRunLogger {
     switch (event.detail) {
       case 'running': {
         const key = scriptReferenceToString(event.script);
-        this._running.set(
+        this.#running.set(
           key,
           new ScriptState(
             event.script,
             false,
-            this._analysisInfo?.rootScript === key,
+            this.#analysisInfo?.rootScript === key,
           ),
         );
-        return this._getStatusLine();
+        return this.#getStatusLine();
       }
       case 'service-process-started': {
         // Services don't end, so we count this as having finished.
-        this._servicesRunning++;
-        this._servicesStarted++;
+        this.#servicesRunning++;
+        this.#servicesStarted++;
         const key = scriptReferenceToString(event.script);
-        this._running.set(
+        this.#running.set(
           key,
           new ScriptState(
             event.script,
             true,
-            this._analysisInfo?.rootScript === key,
+            this.#analysisInfo?.rootScript === key,
           ),
         );
-        this._markScriptAsFinished(event.script);
-        return this._getStatusLine();
+        this.#markScriptAsFinished(event.script);
+        return this.#getStatusLine();
       }
       case 'service-stopped':
-        this._servicesRunning--;
-        this._running.delete(scriptReferenceToString(event.script));
-        return this._getStatusLine();
+        this.#servicesRunning--;
+        this.#running.delete(scriptReferenceToString(event.script));
+        return this.#getStatusLine();
       case 'service-ready':
       case 'watch-run-start':
       case 'watch-run-end':
@@ -433,26 +424,26 @@ export class QuietRunLogger {
         return noChange;
       }
       case 'analysis-started': {
-        this._statusLineState = 'analyzing';
-        return this._getStatusLine();
+        this.#statusLineState = 'analyzing';
+        return this.#getStatusLine();
       }
       case 'analysis-completed': {
         if (!event.rootScriptConfig) {
           // will report the error in printSummary
-          this._statusLineState = 'done';
+          this.#statusLineState = 'done';
           return nothing;
         } else {
-          this._statusLineState = 'executing';
-          this._analysisInfo = this._countScriptsWithCommands(
+          this.#statusLineState = 'executing';
+          this.#analysisInfo = this.#countScriptsWithCommands(
             event.rootScriptConfig,
           );
-          for (const finished of this._finishedScriptsWithCommands) {
-            if (!this._analysisInfo.scriptsWithCommands.has(finished)) {
-              this._finishedScriptsWithCommands.delete(finished);
+          for (const finished of this.#finishedScriptsWithCommands) {
+            if (!this.#analysisInfo.scriptsWithCommands.has(finished)) {
+              this.#finishedScriptsWithCommands.delete(finished);
             }
           }
         }
-        return this._getStatusLine();
+        return this.#getStatusLine();
       }
       default: {
         const never: never = event;
@@ -461,31 +452,31 @@ export class QuietRunLogger {
     }
   }
 
-  private _handleSuccess(event: Success) {
+  #handleSuccess(event: Success) {
     if (DEBUG) {
       console.log(
         `success: ${event.reason} ${labelForScript(
-          this._rootPackage,
+          this.#rootPackage,
           event.script,
         )}`,
       );
     }
     switch (event.reason) {
       case 'cached': {
-        this._markScriptAsFinished(event.script);
-        this._skipped++;
-        return this._getStatusLine();
+        this.#markScriptAsFinished(event.script);
+        this.#skipped++;
+        return this.#getStatusLine();
       }
       case 'fresh': {
-        this._markScriptAsFinished(event.script);
-        this._skipped++;
-        return this._getStatusLine();
+        this.#markScriptAsFinished(event.script);
+        this.#skipped++;
+        return this.#getStatusLine();
       }
       case 'exit-zero': {
-        this._running.delete(scriptReferenceToString(event.script));
-        this._markScriptAsFinished(event.script);
-        this._ran++;
-        return this._getStatusLine();
+        this.#running.delete(scriptReferenceToString(event.script));
+        this.#markScriptAsFinished(event.script);
+        this.#ran++;
+        return this.#getStatusLine();
       }
       case 'no-command': {
         return noChange;
@@ -497,31 +488,31 @@ export class QuietRunLogger {
     }
   }
 
-  private _handleFailure(event: Failure): typeof noChange {
+  #handleFailure(event: Failure): typeof noChange {
     if (DEBUG) {
       console.log(
         `failure: ${event.reason} ${labelForScript(
-          this._rootPackage,
+          this.#rootPackage,
           event.script,
         )}`,
       );
     }
-    this._encounteredFailures = true;
+    this.#encounteredFailures = true;
     {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      using _pause = this._statusLineWriter.clearUntilDisposed();
-      this._reportFailure(event);
+      using _pause = this.#statusLineWriter.clearUntilDisposed();
+      this.#reportFailure(event);
     }
     return noChange;
   }
 
-  private _reportFailure(failure: Failure) {
+  #reportFailure(failure: Failure) {
     const key = scriptReferenceToString(failure.script as ScriptReference);
-    if (this._scriptsWithAlreadyReportedErrors.has(key)) {
+    if (this.#scriptsWithAlreadyReportedError.has(key)) {
       return;
     }
-    this._scriptsWithAlreadyReportedErrors.add(key);
-    const label = labelForScript(this._rootPackage, failure.script);
+    this.#scriptsWithAlreadyReportedError.add(key);
+    const label = labelForScript(this.#rootPackage, failure.script);
     switch (failure.reason) {
       case 'exit-non-zero':
       case 'signal':
@@ -534,22 +525,22 @@ export class QuietRunLogger {
         } else {
           message = `killed`;
         }
-        const scriptHadOutput = this._scriptHadOutput(failure.script);
+        const scriptHadOutput = this.#scriptHadOutput(failure.script);
         const trailer = scriptHadOutput ? ' Output:\n' : '';
         process.stderr.write(`\n❌ [${label}] ${message}.${trailer}\n`);
         if (scriptHadOutput) {
-          this._reportOutputForFailingScript(failure.script, failure);
+          this.#reportOutputForFailingScript(failure.script, failure);
         }
-        this._finishedScriptsWithCommands.add(key);
-        this._running.delete(key);
-        return this._getStatusLine();
+        this.#finishedScriptsWithCommands.add(key);
+        this.#running.delete(key);
+        return this.#getStatusLine();
       }
       case 'start-cancelled':
       case 'aborted': {
         // These events aren't very useful to log, because they are downstream
         // of failures that already get reported elsewhere.
-        this._running.delete(scriptReferenceToString(failure.script));
-        return this._getStatusLine();
+        this.#running.delete(scriptReferenceToString(failure.script));
+        return this.#getStatusLine();
       }
       case 'dependency-service-exited-unexpectedly': {
         // Also logged elswhere.
@@ -574,7 +565,7 @@ export class QuietRunLogger {
       case 'unknown-error-thrown':
       case 'wireit-config-but-no-script':
         // The default log for these is good.
-        this._defaultLogger.log(failure);
+        this.#defaultLogger.log(failure);
         break;
       default: {
         const never: never = failure;
@@ -583,29 +574,29 @@ export class QuietRunLogger {
     }
   }
 
-  private _scriptHadOutput(script: ScriptReference): boolean {
-    const state = this._running.get(scriptReferenceToString(script));
+  #scriptHadOutput(script: ScriptReference): boolean {
+    const state = this.#running.get(scriptReferenceToString(script));
     if (!state) {
       throw new Error(
         `Internal error: could not find state for failing script. Events delivered out of order?
-        Script with output: ${labelForScript(this._rootPackage, script)}
-        ${this._running.size.toLocaleString()} known running scripts: ${inspect(
-          [...this._running.keys()],
+        Script with output: ${labelForScript(this.#rootPackage, script)}
+        ${this.#running.size.toLocaleString()} known running scripts: ${inspect(
+          [...this.#running.keys()],
         )}`,
       );
     }
     return state.hasBufferedOutput;
   }
 
-  private _handleOutput(event: Output): StatusLineResult {
+  #handleOutput(event: Output): StatusLineResult {
     const key = scriptReferenceToString(event.script);
-    const state = this._running.get(key);
+    const state = this.#running.get(key);
     if (!state) {
       throw new Error(
         `Internal error: Got output event for unknown script. Events delivered out of order?
-        Script with output: ${labelForScript(this._rootPackage, event.script)}
-        ${this._running.size.toLocaleString()} known running scripts: ${inspect(
-          [...this._running.keys()],
+        Script with output: ${labelForScript(this.#rootPackage, event.script)}
+        ${this.#running.size.toLocaleString()} known running scripts: ${inspect(
+          [...this.#running.keys()],
         )}`,
       );
     }
@@ -613,7 +604,7 @@ export class QuietRunLogger {
       // Pause the status line while we print this real quick, but then resume
       // it.
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      using _pause = this._statusLineWriter.clearUntilDisposed();
+      using _pause = this.#statusLineWriter.clearUntilDisposed();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);
       } else {
@@ -622,11 +613,11 @@ export class QuietRunLogger {
       return noChange;
     }
     if (state.isRootScript) {
-      this._statusLineState = 'done';
+      this.#statusLineState = 'done';
       // Unlike for a service, this is a terminal state, instead of pausing the
       // status line, we stop it completely, because for the rest of the run
       // we're just going to be  printing the root script's output.
-      this._statusLineWriter.clearAndStopRendering();
+      this.#statusLineWriter.clearAndStopRendering();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);
       } else {
@@ -640,7 +631,7 @@ export class QuietRunLogger {
     return noChange;
   }
 
-  private _countScriptsWithCommands(rootScript: ScriptConfig): AnalysisInfo {
+  #countScriptsWithCommands(rootScript: ScriptConfig): AnalysisInfo {
     const scriptsWithCommands = new Set<ScriptReferenceString>();
     let hasServices = false;
     const seen = new Set([scriptReferenceToString(rootScript)]);

@@ -620,10 +620,10 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: false,
     });
     assert.equal(actual.length, 1);
-    assert.equal(actual[0].path, rig.resolve('foo'));
-    assert.ok(actual[0].dirent.isFile());
-    assert.not(actual[0].dirent.isDirectory());
-    assert.not(actual[0].dirent.isSymbolicLink());
+    assert.equal(actual[0]!.path, rig.resolve('foo'));
+    assert.ok(actual[0]!.dirent.isFile());
+    assert.not(actual[0]!.dirent.isDirectory());
+    assert.not(actual[0]!.dirent.isSymbolicLink());
   });
 
   test(`[${mode}] dirent tags directories`, async ({rig}) => {
@@ -636,10 +636,10 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: false,
     });
     assert.equal(actual.length, 1);
-    assert.equal(actual[0].path, rig.resolve('foo'));
-    assert.not(actual[0].dirent.isFile());
-    assert.ok(actual[0].dirent.isDirectory());
-    assert.not(actual[0].dirent.isSymbolicLink());
+    assert.equal(actual[0]!.path, rig.resolve('foo'));
+    assert.not(actual[0]!.dirent.isFile());
+    assert.ok(actual[0]!.dirent.isDirectory());
+    assert.not(actual[0]!.dirent.isSymbolicLink());
   });
 
   test(`[${mode}] dirent tags symlinks when followSymlinks=false`, async ({
@@ -654,10 +654,10 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: false,
     });
     assert.equal(actual.length, 1);
-    assert.equal(actual[0].path, rig.resolve('foo'));
-    assert.not(actual[0].dirent.isFile());
-    assert.not(actual[0].dirent.isDirectory());
-    assert.ok(actual[0].dirent.isSymbolicLink());
+    assert.equal(actual[0]!.path, rig.resolve('foo'));
+    assert.not(actual[0]!.dirent.isFile());
+    assert.not(actual[0]!.dirent.isDirectory());
+    assert.ok(actual[0]!.dirent.isSymbolicLink());
   });
 
   test(`[${mode}] dirent tags symlinks to files as files when followSymlinks=true`, async ({
@@ -673,10 +673,10 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: false,
     });
     assert.equal(actual.length, 1);
-    assert.equal(actual[0].path, rig.resolve('foo'));
-    assert.ok(actual[0].dirent.isFile());
-    assert.not(actual[0].dirent.isDirectory());
-    assert.not(actual[0].dirent.isSymbolicLink());
+    assert.equal(actual[0]!.path, rig.resolve('foo'));
+    assert.ok(actual[0]!.dirent.isFile());
+    assert.not(actual[0]!.dirent.isDirectory());
+    assert.not(actual[0]!.dirent.isSymbolicLink());
   });
 
   test(`[${mode}] dirent tags symlinks to directories as directories when followSymlinks=true`, async ({
@@ -692,10 +692,10 @@ for (const mode of ['once', 'watch'] as const) {
       throwIfOutsideCwd: false,
     });
     assert.equal(actual.length, 1);
-    assert.equal(actual[0].path, rig.resolve('foo'));
-    assert.not(actual[0].dirent.isFile());
-    assert.ok(actual[0].dirent.isDirectory());
-    assert.not(actual[0].dirent.isSymbolicLink());
+    assert.equal(actual[0]!.path, rig.resolve('foo'));
+    assert.not(actual[0]!.dirent.isFile());
+    assert.ok(actual[0]!.dirent.isDirectory());
+    assert.not(actual[0]!.dirent.isSymbolicLink());
   });
 
   test(`[${mode}] re-roots to cwd`, ({check}) =>

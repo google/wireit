@@ -51,7 +51,7 @@ export const deleteEntries = async (
     // So either [1] this directory is empty and we should delete it, or [2] it
     // has a child directory that was not explicitly listed so we should leave
     // it in-place.
-    await rmdirGracefully(directories[0]);
+    await rmdirGracefully(directories[0]!);
     return;
   }
 

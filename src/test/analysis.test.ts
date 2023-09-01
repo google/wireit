@@ -92,17 +92,17 @@ test('analyzes services', async ({rig}) => {
   assert.equal(a.dependencies.length, 3);
 
   // b
-  const b = a.dependencies[0].config;
+  const b = a.dependencies[0]!.config;
   assert.equal(b.name, 'b');
   if (!b.service) {
     throw new Error('Expected service');
   }
   assert.equal(b.serviceConsumers.length, 1);
-  assert.equal(b.serviceConsumers[0].name, 'd');
+  assert.equal(b.serviceConsumers[0]!.name, 'd');
   assert.equal(b.isPersistent, true);
 
   // c
-  const c = a.dependencies[1].config;
+  const c = a.dependencies[1]!.config;
   assert.equal(c.name, 'c');
   if (!c.service) {
     throw new Error('Expected service');
@@ -112,14 +112,14 @@ test('analyzes services', async ({rig}) => {
   assert.equal(c.services.length, 0);
 
   // d
-  const d = a.dependencies[2].config;
+  const d = a.dependencies[2]!.config;
   assert.equal(d.name, 'd');
   assert.equal(d.services.length, 2);
-  assert.equal(d.services[0].name, 'b');
-  assert.equal(d.services[1].name, 'e');
+  assert.equal(d.services[0]!.name, 'b');
+  assert.equal(d.services[1]!.name, 'e');
 
   // e
-  const e = d.services[1];
+  const e = d.services[1]!;
   assert.equal(e.name, 'e');
   if (!e.service) {
     throw new Error('Expected service');

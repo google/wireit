@@ -284,7 +284,7 @@ function findNthMetric(n: number, stdout: string): string | undefined {
 
   let count = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('🏁 [metrics]')) {
+    if (lines[i]!.startsWith('🏁 [metrics]')) {
       count++;
 
       if (count === n) {
@@ -318,7 +318,7 @@ function replaceTimeWithWildcard(metric: string): string {
   const words = metric.split(' ');
 
   for (let i = 0; i < words.length; i++) {
-    if (words[i].startsWith('seconds')) {
+    if (words[i]!.startsWith('seconds')) {
       words[i - 1] = '*';
       break;
     }

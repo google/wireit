@@ -1572,7 +1572,7 @@ for (const [agent, lockfile] of [
       // Create a lock file in the parent. Expect another run, since we also
       // check all parent directories.
       {
-        await rig.write(lockfile, 'v0');
+        await rig.write(lockfile!, 'v0');
         const exec = rig.exec(`${agent} run a`, {cwd: 'foo'});
         const inv = await cmdA.nextInvocation();
         inv.exit(0);

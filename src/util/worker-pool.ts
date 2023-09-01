@@ -21,8 +21,8 @@ import {Deferred} from './deferred.js';
  * dependencies between tasks.
  */
 export class WorkerPool {
-  private _availableWorkers: number;
-  private readonly _waitingWorkers: Deferred<void>[] = [];
+  #availableWorkers: number;
+  readonly #waitingWorkers: Deferred<void>[] = [];
 
   constructor(numWorkers: number) {
     if (numWorkers <= 0) {
@@ -30,7 +30,7 @@ export class WorkerPool {
         `WorkerPool needs a positive number of workers, got ${numWorkers}`,
       );
     }
-    this._availableWorkers = numWorkers;
+    this.#availableWorkers = numWorkers;
   }
 
   /**
@@ -40,30 +40,34 @@ export class WorkerPool {
    * be running at any given time, to prevent overloading the machine.
    */
   async run<T>(workFn: () => Promise<T>): Promise<T> {
-    if (this._availableWorkers <= 0) {
+    if (this.#availableWorkers <= 0) {
       const waiter = new Deferred<void>();
-      this._waitingWorkers.push(waiter);
+      this.#waitingWorkers.push(waiter);
       await waiter.promise;
-      if (this._availableWorkers <= 0) {
+      if (this.#availableWorkers <= 0) {
         throw new Error(
-          `Internal error: expected availableWorkers to be positive after task was awoken, but was ${this._availableWorkers}`,
+          `Internal error: expected availableWorkers to be positive after task was awoken, but was ${
+            this.#availableWorkers
+          }`,
         );
       }
     }
-    this._availableWorkers--;
+    this.#availableWorkers--;
     try {
       return await workFn();
     } finally {
-      this._availableWorkers++;
-      if (this._availableWorkers <= 0) {
+      this.#availableWorkers++;
+      if (this.#availableWorkers <= 0) {
         // We intend to override any return or throw with this error in this
         // case.
         // eslint-disable-next-line no-unsafe-finally
         throw new Error(
-          `Internal error: expected availableWorkers to be positive after incrementing, but was ${this._availableWorkers}`,
+          `Internal error: expected availableWorkers to be positive after incrementing, but was ${
+            this.#availableWorkers
+          }`,
         );
       }
-      this._waitingWorkers.pop()?.resolve();
+      this.#waitingWorkers.pop()?.resolve();
     }
   }
 }

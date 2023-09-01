@@ -8,11 +8,11 @@
  * A map that can also efficiently return the most recently added entry.
  */
 export class StackMap<K, V> extends Map<K, V> {
-  private readonly _stack: Array<[K, V]> = [];
+  readonly #stack: Array<[K, V]> = [];
 
   override set(key: K, value: V) {
     if (!this.has(key)) {
-      this._stack.push([key, value]);
+      this.#stack.push([key, value]);
     }
     return super.set(key, value);
   }
@@ -26,14 +26,14 @@ export class StackMap<K, V> extends Map<K, V> {
    */
   peek(): [K, V] | undefined {
     while (true) {
-      const last = this._stack[this._stack.length - 1];
+      const last = this.#stack[this.#stack.length - 1];
       if (!last) {
         return;
       }
       if (this.has(last[0])) {
         return last;
       }
-      this._stack.pop();
+      this.#stack.pop();
     }
   }
 }

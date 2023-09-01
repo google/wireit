@@ -37,13 +37,13 @@ export interface Diagnostic {
 }
 
 export class DiagnosticPrinter {
-  private _cwd: string;
+  #cwd: string;
 
   /**
    * @param workingDir Paths are printed relative to this directory.
    */
   constructor(workingDir: string) {
-    this._cwd = workingDir;
+    this.#cwd = workingDir;
   }
 
   print(diagnostic: Diagnostic) {
@@ -53,33 +53,33 @@ export class DiagnosticPrinter {
       );
     }
 
-    const path = this._formatPath(diagnostic.location);
+    const path = this.#formatPath(diagnostic.location);
     let result = `❌ ${path} ${diagnostic.message}
 ${drawSquiggle(diagnostic.location, 4)}`;
     if (diagnostic.supplementalLocations) {
       for (const supplementalLocation of diagnostic.supplementalLocations) {
-        result += '\n\n' + this._printSupplemental(supplementalLocation);
+        result += '\n\n' + this.#printSupplemental(supplementalLocation);
       }
     }
     return result;
   }
 
-  private _printSupplemental(supplemental: MessageLocation) {
+  #printSupplemental(supplemental: MessageLocation) {
     const squiggle = drawSquiggle(supplemental.location, 8);
-    const path = this._formatPath(supplemental.location);
+    const path = this.#formatPath(supplemental.location);
     return `    ${path} ${supplemental.message}\n${squiggle}`;
   }
 
-  private _formatPath(location: Location) {
-    const relPath = pathlib.relative(this._cwd, location.file.path);
-    const {line, character} = this._offsetToPosition(
+  #formatPath(location: Location) {
+    const relPath = pathlib.relative(this.#cwd, location.file.path);
+    const {line, character} = this.#offsetToPosition(
       location.file,
       location.range.offset,
     );
     return `${CYAN}${relPath}${RESET}:${YELLOW}${line}${RESET}:${YELLOW}${character}${RESET}`;
   }
 
-  private _offsetToPosition(file: JsonFile, offset: number): Position {
+  #offsetToPosition(file: JsonFile, offset: number): Position {
     return OffsetToPositionConverter.get(file).toPosition(offset);
   }
 }
@@ -97,13 +97,13 @@ export interface Position {
 
 export class OffsetToPositionConverter {
   readonly newlineIndexes: readonly number[];
-  private static _cache = new WeakMap<JsonFile, OffsetToPositionConverter>();
+  static #cache = new WeakMap<JsonFile, OffsetToPositionConverter>();
 
   static get(file: JsonFile): OffsetToPositionConverter {
-    let converter = OffsetToPositionConverter._cache.get(file);
+    let converter = OffsetToPositionConverter.#cache.get(file);
     if (converter === undefined) {
       converter = new OffsetToPositionConverter(file.contents);
-      OffsetToPositionConverter._cache.set(file, converter);
+      OffsetToPositionConverter.#cache.set(file, converter);
     }
     return converter;
   }
@@ -133,10 +133,14 @@ export class OffsetToPositionConverter {
     if (line === -1) {
       return {
         line: this.newlineIndexes.length + 1,
-        character: offset - this.newlineIndexes[this.newlineIndexes.length - 1],
+        character:
+          offset - (this.newlineIndexes[this.newlineIndexes.length - 1] ?? 0),
       };
     }
-    return {line: line + 1, character: offset - this.newlineIndexes[line - 1]};
+    return {
+      line: line + 1,
+      character: offset - (this.newlineIndexes[line - 1] ?? 0),
+    };
   }
 
   toIdePosition(offset: number): Position {

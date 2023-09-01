@@ -120,7 +120,7 @@ type FingerprintSha256HexDigest = string & {
 export class Fingerprint {
   static fromString(string: FingerprintString): Fingerprint {
     const fingerprint = new Fingerprint();
-    fingerprint._str = string;
+    fingerprint.#str = string;
     return fingerprint;
   }
 
@@ -231,37 +231,37 @@ export class Fingerprint {
             },
       env: script.env,
     };
-    fingerprint._data = data as FingerprintData;
+    fingerprint.#data = data as FingerprintData;
     return fingerprint;
   }
 
-  private _str?: FingerprintString;
-  private _data?: FingerprintData;
-  private _hash?: FingerprintSha256HexDigest;
+  #str?: FingerprintString;
+  #data?: FingerprintData;
+  #hash?: FingerprintSha256HexDigest;
 
   get string(): FingerprintString {
-    if (this._str === undefined) {
+    if (this.#str === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this._str = JSON.stringify(this._data!) as FingerprintString;
+      this.#str = JSON.stringify(this.#data!) as FingerprintString;
     }
-    return this._str;
+    return this.#str;
   }
 
   get data(): FingerprintData {
-    if (this._data === undefined) {
+    if (this.#data === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this._data = JSON.parse(this._str!) as FingerprintData;
+      this.#data = JSON.parse(this.#str!) as FingerprintData;
     }
-    return this._data;
+    return this.#data;
   }
 
   get hash(): FingerprintSha256HexDigest {
-    if (this._hash === undefined) {
-      this._hash = createHash('sha256')
+    if (this.#hash === undefined) {
+      this.#hash = createHash('sha256')
         .update(this.string)
         .digest('hex') as FingerprintSha256HexDigest;
     }
-    return this._hash;
+    return this.#hash;
   }
 
   equal(other: Fingerprint): boolean {
