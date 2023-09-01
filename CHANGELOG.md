@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [Unreleased]
+
+## Added
+
+- Added a `quiet-ci` logger with output optimized for non-interactive environemnts, like a continuous integration builder (e.g. GitHub Actions). Writes less often, doesn't show a spinner, doesn't use \r to try to writeover previous output, and only prints a new status line if there's been a change.
+
 ## [0.11.0] - 2023-08-30
 
 ## Added
