@@ -55,8 +55,12 @@ jobs:
       # See https://code.visualstudio.com/api/working-with-extensions/continuous-integration#github-actions for why we need xvfb-run
       - run: npm test
         if: runner.os != 'Linux'
+        env:
+          WIREIT_LOGGER: 'quiet-ci'
       - run: xvfb-run -a npm test
         if: runner.os == 'Linux'
+        env:
+          WIREIT_LOGGER: 'quiet-ci'
 
   lint-and-format:
     timeout-minutes: 5
