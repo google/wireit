@@ -61,10 +61,7 @@ export class LocalCache implements Cache {
     return true;
   }
 
-  #getCacheDir(
-    script: ScriptReference,
-    fingerprint: Fingerprint,
-  ): string {
+  #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
     return pathlib.join(
       getScriptDataDir(script),
       'cache',

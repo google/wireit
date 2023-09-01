@@ -133,8 +133,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
   RigToChildMessage
 > {
   readonly command: WireitTestRigCommand;
-  #state: 'connected' | 'closing' | 'closed' | 'earlyexit' =
-    'connected';
+  #state: 'connected' | 'closing' | 'closed' | 'earlyexit' = 'connected';
   #environmentResponse?: Deferred<EnvironmentResponseMessage>;
   #sigintReceived?: Deferred<void>;
 

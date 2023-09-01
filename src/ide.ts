@@ -358,10 +358,7 @@ export class IdeAnalyzer {
     return packageJsonResult.value;
   }
 
-  async #getInfoAboutLocation(
-    packageJson: PackageJson,
-    offset: number,
-  ) {
+  async #getInfoAboutLocation(packageJson: PackageJson, offset: number) {
     const locationInfo = packageJson.getInfoAboutLocation(offset);
     if (locationInfo === undefined) {
       return;

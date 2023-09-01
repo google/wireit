@@ -231,9 +231,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Check whether the given fingerprint matches the current one from the
    * `.wireit` directory.
    */
-  async #fingerprintIsFresh(
-    fingerprint: Fingerprint,
-  ): Promise<boolean> {
+  async #fingerprintIsFresh(fingerprint: Fingerprint): Promise<boolean> {
     if (!fingerprint.data.fullyTracked) {
       return false;
     }
@@ -306,9 +304,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script was stale and we need to run it.
    */
-  async #handleNeedsRun(
-    fingerprint: Fingerprint,
-  ): Promise<ExecutionResult> {
+  async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
     // Check if we should clean before we delete the fingerprint file, because
     // we sometimes need to read the previous fingerprint file to determine
     // this.
@@ -549,23 +545,17 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Glob the output files for this script and cache them, but throw unless the
    * script has finished running or been restored from cache.
    */
-  #globOutputFilesAfterRunning(): Promise<
-    Result<AbsoluteEntry[] | undefined>
-  > {
+  #globOutputFilesAfterRunning(): Promise<Result<AbsoluteEntry[] | undefined>> {
     this.#ensureState('after-running');
     return (this.#cachedOutputFilesAfterRunning ??= this.#globOutputFiles());
   }
-  #cachedOutputFilesAfterRunning?: Promise<
-    Result<AbsoluteEntry[] | undefined>
-  >;
+  #cachedOutputFilesAfterRunning?: Promise<Result<AbsoluteEntry[] | undefined>>;
 
   /**
    * Glob the output files for this script, or return undefined if output files
    * are not defined.
    */
-  async #globOutputFiles(): Promise<
-    Result<AbsoluteEntry[] | undefined>
-  > {
+  async #globOutputFiles(): Promise<Result<AbsoluteEntry[] | undefined>> {
     if (this._config.output === undefined) {
       return {ok: true, value: undefined};
     }
@@ -737,9 +727,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Read this script's previous output manifest file from the `manifest` file
    * in the `.wireit` directory. Not cached.
    */
-  async #readPreviousOutputManifest(): Promise<
-    FileManifestString | undefined
-  > {
+  async #readPreviousOutputManifest(): Promise<FileManifestString | undefined> {
     try {
       return (await fs.readFile(
         this.#outputManifestFilePath,

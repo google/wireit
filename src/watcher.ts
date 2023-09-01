@@ -101,10 +101,7 @@ export class Watcher {
   #executor?: Executor;
   #debounceTimeoutId?: NodeJS.Timeout = undefined;
   #previousIterationServices?: ServiceMap = undefined;
-  #previousIterationFailures = new Map<
-    ScriptReferenceString,
-    Fingerprint
-  >();
+  #previousIterationFailures = new Map<ScriptReferenceString, Fingerprint>();
 
   /**
    * The most recent analysis of the root script. As soon as we detect it might
@@ -121,10 +118,7 @@ export class Watcher {
   /**
    * File watchers for the input files of all scripts in this build graph.
    */
-  readonly #inputFileWatchers = new Map<
-    ScriptReferenceString,
-    FileWatcher
-  >();
+  readonly #inputFileWatchers = new Map<ScriptReferenceString, FileWatcher>();
 
   /**
    * Resolves when this watcher has been aborted and the last run finished.

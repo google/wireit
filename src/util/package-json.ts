@@ -105,9 +105,7 @@ export class PackageJson {
    * package.json file. Create placeholders for each of the declared scripts and
    * add them to this._scripts.
    */
-  #analyzeScriptsSection(
-    failures: Failure[],
-  ): undefined | NamedAstNode {
+  #analyzeScriptsSection(failures: Failure[]): undefined | NamedAstNode {
     const scriptsSectionResult = findNamedNodeAtLocation(
       this.#fileAstNode,
       ['scripts'],
@@ -171,7 +169,7 @@ export class PackageJson {
    * Does not do any validation of any wireit configs themselves, that's done
    * on demand when executing, or all at once when finding all diagnostics.
    */
-   #analyzeWireitSection(failures: Failure[]): undefined | NamedAstNode {
+  #analyzeWireitSection(failures: Failure[]): undefined | NamedAstNode {
     const wireitSectionResult = findNamedNodeAtLocation(
       this.#fileAstNode,
       ['wireit'],
