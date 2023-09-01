@@ -35,7 +35,6 @@ jobs:
           - node: 20
             os: windows-2022
 
-
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
       # failures depending on the OS.
