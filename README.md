@@ -919,8 +919,8 @@ Wireit is supported on Node Current (20), LTS (18), and Maintenance (16).
 See [Node releases](https://nodejs.org/en/about/releases/) for the schedule.
 
 > **Warning**
-> Wireit will no longer work with Node 16 when it reaches end-of-life on
-> 2023-09-11. We recommend upgrading to Node 20 as soon as possible.
+> Wireit will drop support for Node 16 soon after it reaches end-of-life on
+> 2023-09-11. We recommend upgrading to Node 20.
 
 Wireit is supported on the npm versions that ship with the latest versions of
 the above supported Node versions (6 and 8), Yarn Classic (1), Yarn Berry (3),

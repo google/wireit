@@ -8,7 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+
+### Changed
+
+- **[BREAKING]** Node 14 is no longer supported. [It is past its end of life](https://github.com/nodejs/Release#release-schedule).
 
 ## [0.12.0] - 2023-09-01
 
@@ -28,10 +32,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added a new `quiet` logger that writes a single continuously updating line summarizing progress, and only passes along stdout and stderr from commands if there's a failure.
 
 ## [0.10.0] - 2023-07-10
-
-### Changed
-
-- **[BREAKING]** Node 14 is no longer supported. [It is past its end of life](https://github.com/nodejs/Release#release-schedule).
 
 ### Added
 
