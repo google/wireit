@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [Unreleased]
+
+### Changed
+
+- The default logger has switched from 'simple'. It's 'quiet-ci' if the environment variable `CI` is set, otherwise it's 'quiet'. To switch back, set the environment variable WIREIT_LOGGER to 'simple'.
+
 ## [0.13.0] - 2023-09-01
 
 ### Changed
