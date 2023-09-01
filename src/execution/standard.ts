@@ -697,7 +697,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     );
     const manifest: Record<string, FileManifestEntry> = {};
     for (let i = 0; i < outputEntries.length; i++) {
-      manifest[outputEntries[i].path] = computeManifestEntry(stats[i]);
+      manifest[outputEntries[i]!.path] = computeManifestEntry(stats[i]!);
     }
     return JSON.stringify(manifest) as FileManifestString;
   }

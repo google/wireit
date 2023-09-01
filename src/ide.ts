@@ -219,7 +219,7 @@ export class IdeAnalyzer {
       if (key?.value !== 'command') {
         continue;
       }
-      if (typeof value.value !== 'string') {
+      if (typeof value?.value !== 'string') {
         return codeActions; // This is invalid, so we don't offer anything.
       }
       wireitCommand = value.value;

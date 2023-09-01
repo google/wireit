@@ -443,7 +443,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this._state.id) {
       case 'executingDeps': {
         this._state.deferredFingerprint.resolve(result);
-        const failure = result.error[0];
+        const failure = result.error[0]!;
         const detached = this._state.adoptee?.detach();
         if (detached !== undefined) {
           this._enterStartedBrokenState(failure, detached);
@@ -739,7 +739,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         // TODO(aomarks) The inconsistency between using single vs multiple
         // failure result types is inconvenient. It's ok to just use the first
         // one here, but would make more sense to return all of them.
-        const failure = result.error[0];
+        const failure = result.error[0]!;
         const detached = this._state.adoptee?.detach();
         if (detached !== undefined) {
           this._enterStartedBrokenState(failure, detached);

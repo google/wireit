@@ -58,7 +58,7 @@ export class LineMonitor {
     const lines = buffer.split(/\n/g);
     let end = 0;
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      const line = lines[i]!;
       if (i !== lines.length - 1) {
         // Don't move beyond the final line, since it might be incomplete, and
         // we want to match the entire line the next time _check is called.

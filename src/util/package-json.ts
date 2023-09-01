@@ -6,7 +6,11 @@
 import {findNamedNodeAtLocation, JsonFile} from './ast.js';
 import {JsonAstNode, NamedAstNode} from './ast.js';
 import {Failure} from '../event.js';
-import {failUnlessJsonObject, failUnlessNonBlankString} from '../analyzer.js';
+import {
+  failUnlessJsonObject,
+  failUnlessKeyValue,
+  failUnlessNonBlankString,
+} from '../analyzer.js';
 import {offsetInsideNamedNode, offsetInsideRange} from '../error.js';
 
 export interface ScriptSyntaxInfo {
@@ -129,7 +133,16 @@ export class PackageJson {
       if (child.children === undefined) {
         continue;
       }
-      const [rawName, rawValue] = child.children;
+      const nameAndValueResult = failUnlessKeyValue(
+        child,
+        child.children,
+        this.jsonFile,
+      );
+      if (!nameAndValueResult.ok) {
+        failures.push(nameAndValueResult.error);
+        continue;
+      }
+      const [rawName, rawValue] = nameAndValueResult.value;
       const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
       if (!nameResult.ok) {
         failures.push(nameResult.error);
@@ -184,7 +197,16 @@ export class PackageJson {
       if (child.children === undefined) {
         continue;
       }
-      const [rawName, rawValue] = child.children ?? [];
+      const nameAndValueResult = failUnlessKeyValue(
+        child,
+        child.children,
+        this.jsonFile,
+      );
+      if (!nameAndValueResult.ok) {
+        failures.push(nameAndValueResult.error);
+        continue;
+      }
+      const [rawName, rawValue] = nameAndValueResult.value;
       const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
       if (!nameResult.ok) {
         failures.push(nameResult.error);

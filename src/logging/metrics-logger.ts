@@ -19,7 +19,7 @@ interface Metric {
  */
 export class MetricsLogger extends DefaultLogger {
   private _startTime: [number, number] = hrtime();
-  private readonly _metrics: Metric[] = [
+  private readonly _metrics: [Metric, Metric, Metric, Metric] = [
     {
       name: 'Success',
       // 'no-command' is technically a success, but we don't want to count it as
@@ -69,7 +69,7 @@ export class MetricsLogger extends DefaultLogger {
    * Log the current metrics and reset the state of each metric.
    */
   override printMetrics(): void {
-    const successes = this._metrics[0].count;
+    const successes = this._metrics[0].count ?? 0;
 
     if (!successes) {
       this._resetMetrics();

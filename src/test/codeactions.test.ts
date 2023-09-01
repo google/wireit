@@ -101,7 +101,7 @@ async function assertCodeAction(options: {
     )}`,
   );
   const [action] = actions;
-  const newContents = applyEdit(options.rig, contents, action);
+  const newContents = applyEdit(options.rig, contents, action!);
   if (typeof options.expectedOutput === 'string') {
     assert.equal(newContents, options.expectedOutput);
   } else {

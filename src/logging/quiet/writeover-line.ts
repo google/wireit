@@ -201,7 +201,7 @@ class Spinner {
   private _frame = 0;
 
   get nextFrame() {
-    const frame = spinnerFrames[this._frame];
+    const frame = spinnerFrames[this._frame]!;
     this._frame = (this._frame + 1) % spinnerFrames.length;
     return frame;
   }

@@ -640,10 +640,9 @@ export class Analyzer {
     // meant a different dependency).
     const uniqueDependencies = new Map<string, JsonAstNode>();
     const children = dependenciesAst.children ?? [];
-    for (let i = 0; i < children.length; i++) {
+    for (const maybeUnresolved of children) {
       // A dependency can be either a plain string, or an object with a "script"
       // property plus optional extra annotations.
-      const maybeUnresolved = children[i];
       let specifierResult;
       let cascade = true; // Default;
       if (maybeUnresolved.type === 'string') {
@@ -917,8 +916,7 @@ export class Analyzer {
       return;
     }
     const children = filesNode.children ?? [];
-    for (let i = 0; i < children.length; i++) {
-      const file = children[i];
+    for (const file of children) {
       const result = failUnlessNonBlankString(file, packageJson.jsonFile);
       if (!result.ok) {
         placeholder.failures.push(result.error);
@@ -974,8 +972,7 @@ export class Analyzer {
       return;
     }
     const children = outputNode.children ?? [];
-    for (let i = 0; i < children.length; i++) {
-      const anOutput = children[i];
+    for (const anOutput of children) {
       const result = failUnlessNonBlankString(anOutput, packageJson.jsonFile);
       if (!result.ok) {
         placeholder.failures.push(result.error);
@@ -1189,8 +1186,7 @@ export class Analyzer {
       } else {
         packageLocks = {node: packageLocksNode, values: []};
         const children = packageLocksNode.children ?? [];
-        for (let i = 0; i < children.length; i++) {
-          const maybeFilename = children[i];
+        for (const maybeFilename of children) {
           const result = failUnlessNonBlankString(
             maybeFilename,
             packageJson.jsonFile,
@@ -1321,7 +1317,16 @@ export class Analyzer {
           'Internal error: expected object JSON node children to be key/val pairs',
         );
       }
-      const [key, val] = propNode.children;
+      const keyValueResult = failUnlessKeyValue(
+        propNode,
+        propNode.children,
+        packageJson.jsonFile,
+      );
+      if (!keyValueResult.ok) {
+        placeholder.failures.push(keyValueResult.error);
+        continue;
+      }
+      const [key, val] = keyValueResult.value;
       if (key.type !== 'string') {
         throw new Error(
           'Internal error: expected object JSON node child key to be string',
@@ -1419,7 +1424,7 @@ export class Analyzer {
       trailArray.push(config);
       const cycleEnd = trailArray.length - 1;
       for (let i = cycleStart; i < cycleEnd; i++) {
-        const current = trailArray[i];
+        const current = trailArray[i]!;
         const next = trailArray[i + 1];
         if (current.state === 'unvalidated') {
           dependencyStillUnvalidated = current;
@@ -1433,7 +1438,7 @@ export class Analyzer {
         const nextName =
           nextNode?.specifier?.value ??
           next?.name ??
-          trailArray[cycleStart].name;
+          trailArray[cycleStart]?.name;
         const message =
           next === trailArray[cycleStart]
             ? `${JSON.stringify(current.name)} points back to ${JSON.stringify(
@@ -1854,4 +1859,38 @@ export const failUnlessJsonObject = (
       },
     };
   }
+};
+
+export const failUnlessKeyValue = (
+  node: JsonAstNode,
+  children: Array<JsonAstNode>,
+  file: JsonFile,
+): Result<[JsonAstNode, JsonAstNode]> => {
+  const [rawName, rawValue] = children;
+  if (
+    children.length !== 2 ||
+    rawName === undefined ||
+    rawValue === undefined
+  ) {
+    return {
+      ok: false,
+      error: {
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: {packageDir: pathlib.dirname(file.path)},
+        diagnostic: {
+          severity: 'error',
+          message: `Expected "key": "value"`,
+          location: {
+            file,
+            range: {
+              offset: node.offset,
+              length: node.length,
+            },
+          },
+        },
+      },
+    };
+  }
+  return {ok: true, value: [rawName, rawValue]};
 };

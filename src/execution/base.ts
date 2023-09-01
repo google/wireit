@@ -85,13 +85,13 @@ export abstract class BaseExecution<T extends ScriptConfig> {
     const results: Array<[Dependency, Fingerprint]> = [];
     const errors = new Set<Failure>();
     for (let i = 0; i < dependencyResults.length; i++) {
-      const result = dependencyResults[i];
+      const result = dependencyResults[i]!;
       if (!result.ok) {
         for (const error of result.error) {
           errors.add(error);
         }
       } else {
-        results.push([this._config.dependencies[i], result.value]);
+        results.push([this._config.dependencies[i]!, result.value]);
       }
     }
     if (errors.size > 0) {

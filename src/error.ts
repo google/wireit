@@ -133,10 +133,14 @@ export class OffsetToPositionConverter {
     if (line === -1) {
       return {
         line: this.newlineIndexes.length + 1,
-        character: offset - this.newlineIndexes[this.newlineIndexes.length - 1],
+        character:
+          offset - (this.newlineIndexes[this.newlineIndexes.length - 1] ?? 0),
       };
     }
-    return {line: line + 1, character: offset - this.newlineIndexes[line - 1]};
+    return {
+      line: line + 1,
+      character: offset - (this.newlineIndexes[line - 1] ?? 0),
+    };
   }
 
   toIdePosition(offset: number): Position {
