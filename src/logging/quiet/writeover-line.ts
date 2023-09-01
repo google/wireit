@@ -24,7 +24,7 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
   protected _line = '';
   protected _targetFps = 60;
   /**
-   * If true, we write over the previous line with a \r carraige return,
+   * If true, we write over the previous line with a \r carriage return,
    * otherwise we write a new line.
    */
   protected _writeOver = !DEBUG;
