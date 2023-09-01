@@ -38,7 +38,6 @@ export function checkScriptOutput(
       }
     }
   }
-  console.log(actual);
   const assertOutputEqualish =
     NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
   assertOutputEqualish(actual, expected, message);
