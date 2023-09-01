@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
+## [Unreleased]
+
+## Fixed
+
+- Don't write to Symbol.dispose if it's already present, as that throws an error if there's a native implementation.
+
 ## [0.11.0] - 2023-08-30
 
 ## Added
