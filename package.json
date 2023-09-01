@@ -53,6 +53,7 @@
     "test:metrics": "wireit",
     "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
+    "test:quiet": "wireit",
     "test:service": "wireit",
     "test:watch": "wireit"
   },
@@ -105,6 +106,7 @@
         "test:metrics",
         "test:optimize-mkdirs",
         "test:parallelism",
+        "test:quiet",
         "test:service",
         "test:watch"
       ]
@@ -357,6 +359,17 @@
       "files": [],
       "output": []
     },
+    "test:quiet": {
+      "command": "uvu lib/test \"^quiet-logger\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
     "test:service": {
       "command": "uvu lib/test \"^service\\.test\\.js$\"",
       "env": {
@@ -403,7 +416,7 @@
     "@vscode/test-electron": "^2.1.3",
     "@vscode/vsce": "^2.21.0",
     "cmd-shim": "^6.0.0",
-    "esbuild": "^0.18.16",
+    "esbuild": "^0.19.2",
     "eslint": "^8.48.0",
     "eslint-plugin-no-only-tests": "^3.1.0",
     "jsonc-parser": "^3.0.0",

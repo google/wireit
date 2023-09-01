@@ -14,7 +14,7 @@ import {
 import {Failure, Info, Success, Output, Event} from '../../event.js';
 import {DefaultLogger, labelForScript} from '../default-logger.js';
 import {DEBUG} from '../logger.js';
-import {WriteoverLine} from './writeover-line.js';
+import {StatusLineWriter} from './writeover-line.js';
 import {StackMap} from './stack-map.js';
 
 interface SimpleOutput {
@@ -156,7 +156,7 @@ export class QuietRunLogger {
   private readonly _startTime = Date.now();
   private readonly _rootPackage: string;
   private readonly _defaultLogger: DefaultLogger;
-  private readonly _writeoverLine;
+  private readonly _statusLineWriter;
   /**
    * Sometimes a script will fail multiple times, but we only want to report
    * about the first failure for it that we find. Sometimes a script will
@@ -169,11 +169,11 @@ export class QuietRunLogger {
 
   constructor(
     rootPackage: string,
-    writeoverLine: WriteoverLine,
+    statusLineWriter: StatusLineWriter,
     defaultLogger?: DefaultLogger,
   ) {
     this._rootPackage = rootPackage;
-    this._writeoverLine = writeoverLine;
+    this._statusLineWriter = statusLineWriter;
     this._defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
   }
 
@@ -185,7 +185,7 @@ export class QuietRunLogger {
     // Reuse the default logger, a minor savings.
     const instance = new QuietRunLogger(
       this._rootPackage,
-      this._writeoverLine,
+      this._statusLineWriter,
       this._defaultLogger,
     );
     // Persistent services stay running between runs, so pass along what we
@@ -330,10 +330,8 @@ export class QuietRunLogger {
     const peekResult = this._running.peek()?.[1];
     let mostRecentScript = '';
     if (peekResult !== undefined) {
-      mostRecentScript = labelForScript(
-        this._rootPackage,
-        peekResult.scriptReference,
-      );
+      mostRecentScript =
+        ' ' + labelForScript(this._rootPackage, peekResult.scriptReference);
     }
     const done = this._finishedScriptsWithCommands.size;
     const total = analysisInfo.scriptsWithCommands.size;
@@ -351,7 +349,7 @@ export class QuietRunLogger {
     }
     return `${percentDone} [${done.toLocaleString()} / ${total}] [${
       this._running.size
-    } running]${servicesInfo}${failureInfo} ${mostRecentScript}`;
+    } running]${servicesInfo}${failureInfo}${mostRecentScript}`;
   }
 
   private _markScriptAsFinished(script: ScriptReference) {
@@ -511,7 +509,7 @@ export class QuietRunLogger {
     this._encounteredFailures = true;
     {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      using _pause = this._writeoverLine.clearUntilDisposed();
+      using _pause = this._statusLineWriter.clearUntilDisposed();
       this._reportFailure(event);
     }
     return noChange;
@@ -615,7 +613,7 @@ export class QuietRunLogger {
       // Pause the status line while we print this real quick, but then resume
       // it.
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      using _pause = this._writeoverLine.clearUntilDisposed();
+      using _pause = this._statusLineWriter.clearUntilDisposed();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);
       } else {
@@ -628,7 +626,7 @@ export class QuietRunLogger {
       // Unlike for a service, this is a terminal state, instead of pausing the
       // status line, we stop it completely, because for the rest of the run
       // we're just going to be  printing the root script's output.
-      this._writeoverLine.clearAndStopSpinner();
+      this._statusLineWriter.clearAndStopRendering();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);
       } else {

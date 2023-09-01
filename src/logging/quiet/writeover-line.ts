@@ -14,78 +14,63 @@ if (!Symbol.dispose) {
   ) as typeof Symbol.dispose;
 }
 
-/**
- * Handles displaying a single line of status text, overwriting the previously
- * written line, and displaying a spinner to indicate liveness.
- */
-export class WriteoverLine {
-  private _previousLineLength = 0;
-  private _line = '';
-  private _spinnerInterval: NodeJS.Timeout | undefined;
-  private _spinner = new Spinner();
+export interface StatusLineWriter {
+  clearAndStopRendering(): void;
+  updateStatusLine(line: string): void;
+  clearUntilDisposed(): Disposable | undefined;
+}
 
+abstract class BaseWriteoverLine implements StatusLineWriter {
+  private _updateInterval: NodeJS.Timeout | undefined;
+  protected _line = '';
+  protected _targetFps = 60;
+  /**
+   * If true, we write over the previous line with a \r carriage return,
+   * otherwise we write a new line.
+   */
+  protected _writeOver = !DEBUG;
   constructor() {
     // If the user does a ctrl-c then we stop the spinner.
     process.on('SIGINT', () => {
       console.log('Got a SIGINT in Writeover line');
-      this.clearAndStopSpinner();
+      this.clearAndStopRendering();
     });
   }
 
-  clearAndStopSpinner() {
+  /**
+   * Called periodically, so that the status line can be updated if needed.
+   */
+  protected abstract _update(): void;
+
+  clearAndStopRendering() {
     // Writeover the previous line and cancel the spinner interval.
-    if (this._spinnerInterval !== undefined) {
-      clearInterval(this._spinnerInterval);
-      this._spinnerInterval = undefined;
+    if (this._updateInterval !== undefined) {
+      clearInterval(this._updateInterval);
+      this._updateInterval = undefined;
     }
     if (this._line !== '') {
       this._line = '';
-      this._writeLineAndScrubPrevious('');
+      this._writeLine('');
     }
   }
 
-  writeLine(line: string) {
-    if (DEBUG) {
-      if (this._line !== line) {
-        // Ensure that every line is written immediately in debug mode
-        process.stderr.write(`  ${line}\n`);
-      }
-    }
-    this._line = line;
-    if (line === '') {
-      // Writeover the previous line and cancel the spinner interval.
-      if (this._spinnerInterval !== undefined) {
-        clearInterval(this._spinnerInterval);
-        this._spinnerInterval = undefined;
-      }
-      this._writeLineAndScrubPrevious('');
-      return;
-    }
-    if (this._spinnerInterval !== undefined) {
-      // will render on next frame
-      return;
-    }
-    // render now, and then schedule future renders.
-    if (!DEBUG) {
-      this._writeLatestLineWithSpinner();
-    }
-    // a smooth sixty
-    let targetFps = 60;
-    // Don't flood the CI log system with spinner frames.
-    if (process.env.CI) {
-      targetFps = 1 / 5;
-    }
-    // schedule future renders so the spinner stays going
-    this._spinnerInterval = setInterval(() => {
-      if (DEBUG) {
-        // We want to schedule an interval even in debug mode, so that tests
-        // will still fail if we don't clean it up properly, but we don't want
-        // to actually render anything here, since we render any new line
-        // the moment it comes in.
+  private _previousLineLength = 0;
+  protected _writeLine(line: string) {
+    if (!this._writeOver) {
+      if (line === '') {
         return;
       }
-      this._writeLatestLineWithSpinner();
-    }, 1000 / targetFps);
+      process.stderr.write(line);
+      process.stderr.write('\n');
+      return;
+    }
+    process.stderr.write(line);
+    const overflow = this._previousLineLength - line.length;
+    if (overflow > 0) {
+      process.stderr.write(' '.repeat(overflow));
+    }
+    process.stderr.write('\r');
+    this._previousLineLength = line.length;
   }
 
   /**
@@ -110,20 +95,66 @@ export class WriteoverLine {
    */
   clearUntilDisposed(): Disposable | undefined {
     // already cleared, nothing to do
-    if (this._spinnerInterval === undefined) {
+    if (this._updateInterval === undefined) {
       return undefined;
     }
     const line = this._line;
-    this.clearAndStopSpinner();
+    this.clearAndStopRendering();
     return {
       [Symbol.dispose]: () => {
-        this.writeLine(line);
+        this.updateStatusLine(line);
       },
     };
   }
 
+  updateStatusLine(line: string) {
+    if (DEBUG) {
+      if (this._line !== line) {
+        // Ensure that every line is written immediately in debug mode
+        process.stderr.write(`  ${line}\n`);
+      }
+    }
+    this._line = line;
+    if (line === '') {
+      // Writeover the previous line and cancel the spinner interval.
+      if (this._updateInterval !== undefined) {
+        clearInterval(this._updateInterval);
+        this._updateInterval = undefined;
+      }
+      this._writeLine('');
+      return;
+    }
+    if (this._updateInterval !== undefined) {
+      // will render on next frame
+      return;
+    }
+    // render now, and then schedule future renders.
+    if (!DEBUG) {
+      this._update();
+    }
+    // schedule future renders so the spinner stays going
+    this._updateInterval = setInterval(() => {
+      if (DEBUG) {
+        // We want to schedule an interval even in debug mode, so that tests
+        // will still fail if we don't clean it up properly, but we don't want
+        // to actually render anything here, since we render any new line
+        // the moment it comes in.
+        return;
+      }
+      this._update();
+    }, 1000 / this._targetFps);
+  }
+}
+
+/**
+ * Handles displaying a single line of status text, overwriting the previously
+ * written line, and displaying a spinner to indicate liveness.
+ */
+export class WriteoverLine extends BaseWriteoverLine {
+  private _spinner = new Spinner();
+
   private _previouslyWrittenLine: string | undefined = undefined;
-  private _writeLatestLineWithSpinner() {
+  protected override _update() {
     if (this._line === this._previouslyWrittenLine) {
       // just write over the spinner
       process.stderr.write(this._spinner.nextFrame);
@@ -131,21 +162,33 @@ export class WriteoverLine {
       return;
     }
     this._previouslyWrittenLine = this._line;
-    this._writeLineAndScrubPrevious(`${this._spinner.nextFrame} ${this._line}`);
+    this._writeLine(`${this._spinner.nextFrame} ${this._line}`);
+  }
+}
+
+/**
+ * Like WriteoverLine, but it updates much less frequently, just prints lines
+ * rather doing fancy writeover, doesn't draw a spinner, and stays silent
+ * if the status line line hasn't changed.
+ */
+export class CiWriter extends BaseWriteoverLine {
+  constructor() {
+    super();
+    // Don't write too much, no need to flood the CI logs.
+    this._targetFps = 1;
+    // GitHub seems to handle \r carraige returns the same as \n, but
+    // we don't want to rely on that. Just print status lines on new lines.
+    this._writeOver = false;
   }
 
-  private _writeLineAndScrubPrevious(line: string) {
-    process.stderr.write(line);
-    const overflow = this._previousLineLength - line.length;
-    if (overflow > 0) {
-      process.stderr.write(' '.repeat(overflow));
+  protected previousLine = '';
+  protected override _update() {
+    if (this._line === this.previousLine) {
+      // nothing new to log
+      return;
     }
-    if (DEBUG) {
-      process.stderr.write('\n');
-    } else {
-      process.stderr.write('\r');
-    }
-    this._previousLineLength = line.length;
+    this.previousLine = this._line;
+    this._writeLine(this._line);
   }
 }
 
