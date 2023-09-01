@@ -14,6 +14,7 @@ import {
   createWriteStream as rawCreateWriteStream,
 } from 'fs';
 import {Deferred} from './deferred.js';
+import './dispose.js';
 export {constants} from 'fs';
 
 declare global {
@@ -21,16 +22,6 @@ declare global {
     readonly dispose: unique symbol;
   }
 }
-
-// The interface for https://github.com/tc39/proposal-explicit-resource-management
-// Once we're on TS 5.2 we can write a lot of this with `using` syntax.
-interface Disposable {
-  [Symbol.dispose](): void;
-}
-
-// Polyfill Symbol.dispose.
-// eslint-disable-next-line
-(Symbol as any).dispose ??= Symbol('Symbol.dispose');
 
 export class Semaphore {
   #remaining: number;

@@ -28,6 +28,12 @@ jobs:
             os: macos-12
           - node: 19
             os: windows-2022
+          - node: 20
+            os: ubuntu-22.04
+          - node: 20
+            os: macos-12
+          - node: 20
+            os: windows-2022
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of

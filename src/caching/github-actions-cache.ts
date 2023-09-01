@@ -11,6 +11,8 @@ import * as https from 'https';
 import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
+import '../util/dispose.js';
+import {fileBudget} from '../util/fs.js';
 import {execFile} from 'child_process';
 
 import type * as http from 'http';
@@ -20,7 +22,6 @@ import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
-import {fileBudget} from '../util/fs.js';
 
 /**
  * Caches script output to the GitHub Actions caching service.
@@ -119,7 +120,8 @@ export class GitHubActionsCache implements Cache {
     url.searchParams.set('keys', key);
     url.searchParams.set('version', version);
 
-    const {req, resPromise} = this._request(url);
+    using requestResult = this._request(url);
+    const {req, resPromise} = requestResult;
     req.end();
     const result = await resPromise;
     if (!this._maybeHandleServiceDown(result, script)) {
@@ -261,7 +263,8 @@ export class GitHubActionsCache implements Cache {
             'content-range': `bytes ${start}-${end}/*`,
           },
         };
-        const {req, resPromise} = this._request(url, opts);
+        using requestResult = this._request(url, opts);
+        const {req, resPromise} = requestResult;
         tarballChunkStream.pipe(req);
         tarballChunkStream.on('close', () => {
           req.end();
@@ -306,12 +309,13 @@ export class GitHubActionsCache implements Cache {
     const reqBody = JSON.stringify({
       size: tarballBytes,
     });
-    const {req, resPromise} = this._request(url, {
+    using requestResult = this._request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
       },
     });
+    const {req, resPromise} = requestResult;
     req.end(reqBody);
 
     const result = await resPromise;
@@ -337,7 +341,7 @@ export class GitHubActionsCache implements Cache {
   ): {
     req: http.ClientRequest;
     resPromise: Promise<Result<http.IncomingMessage, Error>>;
-  } {
+  } & Disposable {
     return request(url, {
       ...options,
       headers: {
@@ -511,12 +515,13 @@ export class GitHubActionsCache implements Cache {
       version,
       cacheSize,
     });
-    const {req, resPromise} = this._request(url, {
+    using requestResult = this._request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
       },
     });
+    const {req, resPromise} = requestResult;
     req.end(reqBody);
 
     const result = await resPromise;
@@ -571,7 +576,8 @@ class GitHubActionsCacheHit implements CacheHit {
   }
 
   private async _download(tarballPath: string): Promise<void> {
-    const {req, resPromise} = request(this._url);
+    using requestResult = request(this._url);
+    const {req, resPromise} = requestResult;
     req.end();
     const result = await resPromise;
     if (!result.ok) {
@@ -617,7 +623,7 @@ function request(
 ): {
   req: http.ClientRequest;
   resPromise: Promise<Result<http.IncomingMessage, Error>>;
-} {
+} & Disposable {
   const opts = {
     ...options,
     headers: {
@@ -647,7 +653,14 @@ function request(
       });
     },
   );
-  return {req, resPromise};
+  return {
+    req,
+    resPromise,
+    [Symbol.dispose]() {
+      req.destroy();
+      req.socket?.destroy();
+    },
+  };
 }
 
 function isOk(res: http.IncomingMessage): boolean {
