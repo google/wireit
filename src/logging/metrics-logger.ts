@@ -18,8 +18,8 @@ interface Metric {
  * A {@link Logger} that keeps track of metrics.
  */
 export class MetricsLogger extends DefaultLogger {
-  private _startTime: [number, number] = hrtime();
-  private readonly _metrics: [Metric, Metric, Metric, Metric] = [
+  #startTime: [number, number] = hrtime();
+  readonly #metrics: [Metric, Metric, Metric, Metric] = [
     {
       name: 'Success',
       // 'no-command' is technically a success, but we don't want to count it as
@@ -58,10 +58,10 @@ export class MetricsLogger extends DefaultLogger {
   override log(event: Event): void {
     // When in watch mode, metrics should reset at the start of each run.
     if (event.type === 'info' && event.detail === 'watch-run-start') {
-      this._resetMetrics();
+      this.#resetMetrics();
     }
 
-    this._updateMetrics(event);
+    this.#updateMetrics(event);
     super.log(event);
   }
 
@@ -69,56 +69,56 @@ export class MetricsLogger extends DefaultLogger {
    * Log the current metrics and reset the state of each metric.
    */
   override printMetrics(): void {
-    const successes = this._metrics[0].count ?? 0;
+    const successes = this.#metrics[0].count ?? 0;
 
     if (!successes) {
-      this._resetMetrics();
+      this.#resetMetrics();
       return;
     }
 
-    const elapsed = this._getElapsedTime();
+    const elapsed = this.#getElapsedTime();
     const nameOffset = 20;
 
     const out: string[] = [
       `🏁 [metrics] Executed ${successes} script(s) in ${elapsed} seconds`,
     ];
 
-    for (const metric of this._metrics.slice(1)) {
+    for (const metric of this.#metrics.slice(1)) {
       const name = metric.name.padEnd(nameOffset);
       const count = metric.count;
-      const percent = this._calculatePercentage(count, successes);
+      const percent = this.#calculatePercentage(count, successes);
 
       out.push(`\t${name}: ${count} (${percent}%)`);
     }
 
     console.log(out.join('\n'));
 
-    this._resetMetrics();
+    this.#resetMetrics();
   }
 
-  private _updateMetrics(event: Event): void {
-    for (const metric of this._metrics) {
+  #updateMetrics(event: Event): void {
+    for (const metric of this.#metrics) {
       if (metric.matches(event)) {
         metric.count++;
       }
     }
   }
 
-  private _resetMetrics(): void {
-    this._startTime = hrtime();
+  #resetMetrics(): void {
+    this.#startTime = hrtime();
 
-    for (const metric of this._metrics) {
+    for (const metric of this.#metrics) {
       metric.count = 0;
     }
   }
 
-  private _getElapsedTime(): string {
-    const [seconds, nanoseconds] = hrtime(this._startTime);
+  #getElapsedTime(): string {
+    const [seconds, nanoseconds] = hrtime(this.#startTime);
     const time = seconds + nanoseconds / 1e9;
     return time.toFixed(2);
   }
 
-  private _calculatePercentage(numerator: number, denominator: number): number {
+  #calculatePercentage(numerator: number, denominator: number): number {
     if (denominator === 0) {
       return 0;
     }

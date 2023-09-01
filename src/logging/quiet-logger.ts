@@ -23,35 +23,35 @@ import {QuietRunLogger, noChange, nothing} from './quiet/run-tracker.js';
  * When the run is complete, it prints a one line summary of the results.
  */
 export class QuietLogger implements Logger {
-  private runTracker;
-  private readonly _rootPackage: string;
-  private readonly _statusLineWriter: StatusLineWriter;
+  #runTracker;
+  readonly #rootPackage: string;
+  readonly #statusLineWriter: StatusLineWriter;
 
   constructor(rootPackage: string, statusLineWriter?: StatusLineWriter) {
-    this._rootPackage = rootPackage;
-    this._statusLineWriter = statusLineWriter ?? new WriteoverLine();
-    this.runTracker = new QuietRunLogger(
-      this._rootPackage,
-      this._statusLineWriter,
+    this.#rootPackage = rootPackage;
+    this.#statusLineWriter = statusLineWriter ?? new WriteoverLine();
+    this.#runTracker = new QuietRunLogger(
+      this.#rootPackage,
+      this.#statusLineWriter,
     );
   }
 
   printMetrics() {
-    this._statusLineWriter.clearAndStopRendering();
-    this.runTracker.printSummary();
+    this.#statusLineWriter.clearAndStopRendering();
+    this.#runTracker.printSummary();
   }
 
   log(event: Event): void {
     if (event.type === 'info' && event.detail === 'watch-run-start') {
-      this.runTracker = this.runTracker.makeInstanceForNextWatchRun();
+      this.#runTracker = this.#runTracker.makeInstanceForNextWatchRun();
     }
-    const line = this.runTracker.getUpdatedMessageAfterEvent(event);
+    const line = this.#runTracker.getUpdatedMessageAfterEvent(event);
     if (line === noChange) {
       // nothing to do
     } else if (line === nothing) {
-      this._statusLineWriter.clearAndStopRendering();
+      this.#statusLineWriter.clearAndStopRendering();
     } else {
-      this._statusLineWriter.updateStatusLine(line);
+      this.#statusLineWriter.updateStatusLine(line);
     }
     if (event.type === 'info' && event.detail === 'watch-run-end') {
       this.printMetrics();

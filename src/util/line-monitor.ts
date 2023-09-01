@@ -17,44 +17,44 @@ import type {Result} from '../error.js';
  * completed yet.
  */
 export class LineMonitor {
-  private readonly _child: ScriptChildProcess;
-  private readonly _pattern: RegExp;
-  private readonly _matched = new Deferred<Result<void, void>>();
-  private _stdout = '';
-  private _stderr = '';
+  readonly #child: ScriptChildProcess;
+  readonly #pattern: RegExp;
+  readonly #matched = new Deferred<Result<void, void>>();
+  #stdout = '';
+  #stderr = '';
 
   /**
    * Resolves to `{"ok": true}` when a match was found or `{"ok": false}` when
    * this monitor was aborted.
    */
-  readonly matched = this._matched.promise;
+  readonly matched = this.#matched.promise;
 
   constructor(child: ScriptChildProcess, pattern: RegExp) {
-    this._child = child;
-    this._pattern = pattern;
-    child.stdout.on('data', this._onStdout);
-    child.stderr.on('data', this._onStderr);
+    this.#child = child;
+    this.#pattern = pattern;
+    child.stdout.on('data', this.#onStdout);
+    child.stderr.on('data', this.#onStderr);
   }
 
   abort() {
-    this._removeEventListeners();
-    this._matched.resolve({ok: false, error: undefined});
+    this.#removeEventListeners();
+    this.#matched.resolve({ok: false, error: undefined});
   }
 
-  private _removeEventListeners() {
-    this._child.stdout.removeListener('data', this._onStdout);
-    this._child.stderr.removeListener('data', this._onStderr);
+  #removeEventListeners() {
+    this.#child.stdout.removeListener('data', this.#onStdout);
+    this.#child.stderr.removeListener('data', this.#onStderr);
   }
 
-  private _onStdout = (data: string | Buffer) => {
-    this._stdout = this._check(this._stdout + String(data));
+  #onStdout = (data: string | Buffer) => {
+    this.#stdout = this.#check(this.#stdout + String(data));
   };
 
-  private _onStderr = (data: string | Buffer) => {
-    this._stderr = this._check(this._stderr + String(data));
+  #onStderr = (data: string | Buffer) => {
+    this.#stderr = this.#check(this.#stderr + String(data));
   };
 
-  private _check(buffer: string): string {
+  #check(buffer: string): string {
     const lines = buffer.split(/\n/g);
     let end = 0;
     for (let i = 0; i < lines.length; i++) {
@@ -64,9 +64,9 @@ export class LineMonitor {
         // we want to match the entire line the next time _check is called.
         end += line.length + 1;
       }
-      if (this._pattern.test(line)) {
-        this._removeEventListeners();
-        this._matched.resolve({ok: true, value: undefined});
+      if (this.#pattern.test(line)) {
+        this.#removeEventListeners();
+        this.#matched.resolve({ok: true, value: undefined});
         break;
       }
     }

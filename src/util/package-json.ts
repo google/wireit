@@ -44,26 +44,26 @@ export class PackageJson {
   readonly jsonFile: JsonFile;
   // We keep the file level AST node private to represent the invariant that
   // we only walk the file once, in this class, and nowhere else.
-  private readonly _fileAstNode: JsonAstNode;
-  private readonly _scripts: Map<string, ScriptSyntaxInfo> = new Map();
+  readonly #fileAstNode: JsonAstNode;
+  readonly #scripts: Map<string, ScriptSyntaxInfo> = new Map();
   readonly failures: readonly Failure[];
   readonly scriptsSection: NamedAstNode | undefined = undefined;
   readonly wireitSection: NamedAstNode | undefined = undefined;
   constructor(jsonFile: JsonFile, fileAstNode: JsonAstNode) {
     this.jsonFile = jsonFile;
-    this._fileAstNode = fileAstNode;
+    this.#fileAstNode = fileAstNode;
     const failures: Failure[] = [];
-    this.scriptsSection = this._analyzeScriptsSection(failures);
-    this.wireitSection = this._analyzeWireitSection(failures);
+    this.scriptsSection = this.#analyzeScriptsSection(failures);
+    this.wireitSection = this.#analyzeWireitSection(failures);
     this.failures = failures;
   }
 
   getScriptInfo(name: string): ScriptSyntaxInfo | undefined {
-    return this._scripts.get(name);
+    return this.#scripts.get(name);
   }
 
   get scripts() {
-    return this._scripts.values();
+    return this.#scripts.values();
   }
 
   getInfoAboutLocation(offset: number): LocationSyntaxInfo | undefined {
@@ -92,10 +92,10 @@ export class PackageJson {
   }
 
   _getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
-    let info = this._scripts.get(name);
+    let info = this.#scripts.get(name);
     if (info === undefined) {
       info = {name};
-      this._scripts.set(name, info);
+      this.#scripts.set(name, info);
     }
     return info;
   }
@@ -105,11 +105,11 @@ export class PackageJson {
    * package.json file. Create placeholders for each of the declared scripts and
    * add them to this._scripts.
    */
-  private _analyzeScriptsSection(
+  #analyzeScriptsSection(
     failures: Failure[],
   ): undefined | NamedAstNode {
     const scriptsSectionResult = findNamedNodeAtLocation(
-      this._fileAstNode,
+      this.#fileAstNode,
       ['scripts'],
       this.jsonFile,
     );
@@ -171,9 +171,9 @@ export class PackageJson {
    * Does not do any validation of any wireit configs themselves, that's done
    * on demand when executing, or all at once when finding all diagnostics.
    */
-  private _analyzeWireitSection(failures: Failure[]): undefined | NamedAstNode {
+   #analyzeWireitSection(failures: Failure[]): undefined | NamedAstNode {
     const wireitSectionResult = findNamedNodeAtLocation(
-      this._fileAstNode,
+      this.#fileAstNode,
       ['wireit'],
       this.jsonFile,
     );

@@ -32,21 +32,21 @@ const getWireitVersion = (() => {
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
-  private readonly _rootPackageDir: string;
-  private readonly _diagnosticPrinter: DiagnosticPrinter;
+  readonly #rootPackageDir: string;
+  readonly #diagnosticPrinter: DiagnosticPrinter;
 
   /**
    * @param rootPackage The npm package directory that the root script being
    * executed belongs to.
    */
   constructor(rootPackage: string) {
-    this._rootPackageDir = rootPackage;
-    this._diagnosticPrinter = new DiagnosticPrinter(this._rootPackageDir);
+    this.#rootPackageDir = rootPackage;
+    this.#diagnosticPrinter = new DiagnosticPrinter(this.#rootPackageDir);
   }
 
   log(event: Event) {
     const type = event.type;
-    const label = labelForScript(this._rootPackageDir, event.script);
+    const label = labelForScript(this.#rootPackageDir, event.script);
     const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
@@ -108,7 +108,7 @@ export class DefaultLogger implements Logger {
           }
           case 'invalid-json-syntax': {
             for (const diagnostic of event.diagnostics) {
-              console.error(this._diagnosticPrinter.print(diagnostic));
+              console.error(this.#diagnosticPrinter.print(diagnostic));
             }
             break;
           }
@@ -127,7 +127,7 @@ export class DefaultLogger implements Logger {
           case 'cycle':
           case 'dependency-on-missing-package-json':
           case 'dependency-on-missing-script': {
-            console.error(this._diagnosticPrinter.print(event.diagnostic));
+            console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
           case 'invalid-usage': {
@@ -177,7 +177,7 @@ export class DefaultLogger implements Logger {
           case 'dependency-invalid': {
             console.error(
               `❌${prefix} Depended, perhaps indirectly, on ${labelForScript(
-                this._rootPackageDir,
+                this.#rootPackageDir,
                 event.dependency,
               )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`,
             );

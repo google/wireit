@@ -91,16 +91,16 @@ export const MESSAGE_END_MARKER = '\x1e';
  * Sends and receives messages over an IPC data stream.
  */
 export abstract class IpcClient<Incoming, Outgoing> {
-  private readonly _socket: net.Socket;
+  readonly #socket: net.Socket;
   protected readonly _closed = new Deferred<void>();
-  private _incomingDataBuffer = '';
+  #incomingDataBuffer = '';
 
   constructor(socket: net.Socket) {
-    this._socket = socket;
-    socket.on('data', this._onData);
+    this.#socket = socket;
+    socket.on('data', this.#onData);
     socket.once('close', () => {
       this._closed.resolve();
-      socket.removeListener('data', this._onData);
+      socket.removeListener('data', this.#onData);
     });
   }
 
@@ -108,8 +108,8 @@ export abstract class IpcClient<Incoming, Outgoing> {
     if (this._closed.settled) {
       throw new Error('Connection is closed');
     }
-    this._socket.write(JSON.stringify(message));
-    this._socket.write(MESSAGE_END_MARKER);
+    this.#socket.write(JSON.stringify(message));
+    this.#socket.write(MESSAGE_END_MARKER);
   }
 
   protected abstract _onMessage(message: Incoming): void;
@@ -121,17 +121,17 @@ export abstract class IpcClient<Incoming, Outgoing> {
    * messages. The special MESSAGE_END_MARKER character is used to detect the end
    * of each complete JSON message in the stream.
    */
-  private _onData = (data: Buffer) => {
+  #onData = (data: Buffer) => {
     if (this._closed.settled) {
       throw new Error('Connection is closed');
     }
     for (const char of data.toString()) {
       if (char === MESSAGE_END_MARKER) {
-        const message = JSON.parse(this._incomingDataBuffer) as Incoming;
-        this._incomingDataBuffer = '';
+        const message = JSON.parse(this.#incomingDataBuffer) as Incoming;
+        this.#incomingDataBuffer = '';
         this._onMessage(message);
       } else {
-        this._incomingDataBuffer += char;
+        this.#incomingDataBuffer += char;
       }
     }
   };

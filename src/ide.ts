@@ -54,11 +54,11 @@ class OverlayFilesystem implements FileSystem {
  * most features like diagnostics.
  */
 export class IdeAnalyzer {
-  private readonly _overlayFs;
-  private _analyzer;
+  readonly #overlayFs;
+  #analyzer;
   constructor() {
-    this._overlayFs = new OverlayFilesystem();
-    this._analyzer = new Analyzer('npm', undefined, this._overlayFs);
+    this.#overlayFs = new OverlayFilesystem();
+    this.#analyzer = new Analyzer('npm', undefined, this.#overlayFs);
   }
 
   /**
@@ -72,20 +72,20 @@ export class IdeAnalyzer {
    * for editing, as well as once for each edit the user makes.
    */
   setOpenFileContents(path: string, contents: string): void {
-    this._overlayFs.overlay.set(path, contents);
-    this._analyzer = new Analyzer('npm', undefined, this._overlayFs);
+    this.#overlayFs.overlay.set(path, contents);
+    this.#analyzer = new Analyzer('npm', undefined, this.#overlayFs);
   }
 
   /**
    * Removes a file from the set of open files.
    */
   closeFile(path: string): void {
-    this._overlayFs.overlay.delete(path);
-    this._analyzer = new Analyzer('npm', undefined, this._overlayFs);
+    this.#overlayFs.overlay.delete(path);
+    this.#analyzer = new Analyzer('npm', undefined, this.#overlayFs);
   }
 
   get openFiles(): Iterable<string> {
-    return this._overlayFs.overlay.keys();
+    return this.#overlayFs.overlay.keys();
   }
 
   /**
@@ -109,7 +109,7 @@ export class IdeAnalyzer {
     }
 
     const openFiles = new Set(this.openFiles);
-    for (const failure of await this._analyzer.analyzeFiles([...openFiles])) {
+    for (const failure of await this.#analyzer.analyzeFiles([...openFiles])) {
       if (failure.diagnostic !== undefined) {
         addDiagnostic(failure.diagnostic);
       }
@@ -128,13 +128,13 @@ export class IdeAnalyzer {
   ): Promise<CodeAction[]> {
     const codeActions: CodeAction[] = [];
     // file isn't open
-    if (!this._overlayFs.overlay.has(path)) {
+    if (!this.#overlayFs.overlay.has(path)) {
       return codeActions;
     }
     const packageDir = pathlib.dirname(path);
     // If there are any syntax-level errors for the file, we don't want to
     // offer any code actions.
-    const packageJsonResult = await this._analyzer.getPackageJson(packageDir);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
     if (!packageJsonResult.ok || packageJsonResult.value.failures.length > 0) {
       return codeActions;
     }
@@ -142,7 +142,7 @@ export class IdeAnalyzer {
     const ourRange = OffsetToPositionConverter.get(
       packageJson.jsonFile,
     ).ideRangeToRange(range);
-    const scriptInfo = await this._getInfoAboutLocation(
+    const scriptInfo = await this.#getInfoAboutLocation(
       packageJson,
       ourRange.offset,
     );
@@ -281,7 +281,7 @@ export class IdeAnalyzer {
     position: Position,
   ): Promise<DefinitionLink[] | undefined> {
     const packageDir = pathlib.dirname(path);
-    const packageJsonResult = await this._analyzer.getPackageJson(packageDir);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
     if (!packageJsonResult.ok) {
       return undefined;
     }
@@ -289,7 +289,7 @@ export class IdeAnalyzer {
     const ourPosition = OffsetToPositionConverter.get(
       packageJson.jsonFile,
     ).idePositionToOffset(position);
-    const scriptInfo = await this._getInfoAboutLocation(
+    const scriptInfo = await this.#getInfoAboutLocation(
       packageJson,
       ourPosition,
     );
@@ -351,14 +351,14 @@ export class IdeAnalyzer {
     filename: string,
   ): Promise<PackageJson | undefined> {
     const packageDir = pathlib.dirname(filename);
-    const packageJsonResult = await this._analyzer.getPackageJson(packageDir);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
     if (!packageJsonResult.ok) {
       return undefined;
     }
     return packageJsonResult.value;
   }
 
-  private async _getInfoAboutLocation(
+  async #getInfoAboutLocation(
     packageJson: PackageJson,
     offset: number,
   ) {
@@ -366,7 +366,7 @@ export class IdeAnalyzer {
     if (locationInfo === undefined) {
       return;
     }
-    const script = await this._analyzer.analyzeIgnoringErrors({
+    const script = await this.#analyzer.analyzeIgnoringErrors({
       name: locationInfo.scriptSyntaxInfo.name,
       packageDir: pathlib.dirname(packageJson.jsonFile.path),
     });

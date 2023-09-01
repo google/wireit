@@ -16,14 +16,14 @@ import {
 } from './test-rig-command-interface.js';
 
 class ChildIpcClient extends IpcClient<RigToChildMessage, ChildToRigMessage> {
-  private _sigintIntercepted = false;
+  #sigintIntercepted = false;
 
   constructor(socket: net.Socket) {
     super(socket);
     process.on('SIGINT', () => {
       // Don't exit if the rig is going to call exit manually.
-      if (!this._sigintIntercepted) {
-        this._closeSocketAndExit(0);
+      if (!this.#sigintIntercepted) {
+        this.#closeSocketAndExit(0);
       }
     });
   }
@@ -31,7 +31,7 @@ class ChildIpcClient extends IpcClient<RigToChildMessage, ChildToRigMessage> {
   protected override _onMessage(message: RigToChildMessage): void {
     switch (message.type) {
       case 'exit': {
-        this._closeSocketAndExit(message.code);
+        this.#closeSocketAndExit(message.code);
         break;
       }
       case 'stdout': {
@@ -52,7 +52,7 @@ class ChildIpcClient extends IpcClient<RigToChildMessage, ChildToRigMessage> {
         break;
       }
       case 'interceptSigint': {
-        this._sigintIntercepted = true;
+        this.#sigintIntercepted = true;
         process.on('SIGINT', () => {
           this._send({type: 'sigintReceived'});
         });
@@ -74,7 +74,7 @@ class ChildIpcClient extends IpcClient<RigToChildMessage, ChildToRigMessage> {
    * Gracefully close the socket before and exit. This helps avoid occasional
    * ECONNRESET errors on the other side.
    */
-  private _closeSocketAndExit(code: number) {
+  #closeSocketAndExit(code: number) {
     socket.end(() => {
       process.exit(code);
     });

@@ -14,7 +14,7 @@ export interface StatusLineWriter {
 }
 
 abstract class BaseWriteoverLine implements StatusLineWriter {
-  private _updateInterval: NodeJS.Timeout | undefined;
+  #updateInterval: NodeJS.Timeout | undefined;
   protected _line = '';
   protected _targetFps = 60;
   /**
@@ -37,9 +37,9 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
 
   clearAndStopRendering() {
     // Writeover the previous line and cancel the spinner interval.
-    if (this._updateInterval !== undefined) {
-      clearInterval(this._updateInterval);
-      this._updateInterval = undefined;
+    if (this.#updateInterval !== undefined) {
+      clearInterval(this.#updateInterval);
+      this.#updateInterval = undefined;
     }
     if (this._line !== '') {
       this._line = '';
@@ -47,7 +47,7 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
     }
   }
 
-  private _previousLineLength = 0;
+  #previousLineLength = 0;
   protected _writeLine(line: string) {
     if (!this._writeOver) {
       if (line === '') {
@@ -58,12 +58,12 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
       return;
     }
     process.stderr.write(line);
-    const overflow = this._previousLineLength - line.length;
+    const overflow = this.#previousLineLength - line.length;
     if (overflow > 0) {
       process.stderr.write(' '.repeat(overflow));
     }
     process.stderr.write('\r');
-    this._previousLineLength = line.length;
+    this.#previousLineLength = line.length;
   }
 
   /**
@@ -88,7 +88,7 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
    */
   clearUntilDisposed(): Disposable | undefined {
     // already cleared, nothing to do
-    if (this._updateInterval === undefined) {
+    if (this.#updateInterval === undefined) {
       return undefined;
     }
     const line = this._line;
@@ -110,14 +110,14 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
     this._line = line;
     if (line === '') {
       // Writeover the previous line and cancel the spinner interval.
-      if (this._updateInterval !== undefined) {
-        clearInterval(this._updateInterval);
-        this._updateInterval = undefined;
+      if (this.#updateInterval !== undefined) {
+        clearInterval(this.#updateInterval);
+        this.#updateInterval = undefined;
       }
       this._writeLine('');
       return;
     }
-    if (this._updateInterval !== undefined) {
+    if (this.#updateInterval !== undefined) {
       // will render on next frame
       return;
     }
@@ -126,7 +126,7 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
       this._update();
     }
     // schedule future renders so the spinner stays going
-    this._updateInterval = setInterval(() => {
+    this.#updateInterval = setInterval(() => {
       if (DEBUG) {
         // We want to schedule an interval even in debug mode, so that tests
         // will still fail if we don't clean it up properly, but we don't want
@@ -144,18 +144,18 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
  * written line, and displaying a spinner to indicate liveness.
  */
 export class WriteoverLine extends BaseWriteoverLine {
-  private _spinner = new Spinner();
+  #spinner = new Spinner();
 
-  private _previouslyWrittenLine: string | undefined = undefined;
+  #previouslyWrittenLine: string | undefined = undefined;
   protected override _update() {
-    if (this._line === this._previouslyWrittenLine) {
+    if (this._line === this.#previouslyWrittenLine) {
       // just write over the spinner
-      process.stderr.write(this._spinner.nextFrame);
+      process.stderr.write(this.#spinner.nextFrame);
       process.stderr.write('\r');
       return;
     }
-    this._previouslyWrittenLine = this._line;
-    this._writeLine(`${this._spinner.nextFrame} ${this._line}`);
+    this.#previouslyWrittenLine = this._line;
+    this._writeLine(`${this.#spinner.nextFrame} ${this._line}`);
   }
 }
 
@@ -198,11 +198,11 @@ const spinnerFrames = [
   '⠏',
 ] as const;
 class Spinner {
-  private _frame = 0;
+  #frame = 0;
 
   get nextFrame() {
-    const frame = spinnerFrames[this._frame]!;
-    this._frame = (this._frame + 1) % spinnerFrames.length;
+    const frame = spinnerFrames[this.#frame]!;
+    this.#frame = (this.#frame + 1) % spinnerFrames.length;
     return frame;
   }
 }

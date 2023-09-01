@@ -10,28 +10,31 @@
  */
 export class Deferred<T> {
   readonly promise: Promise<T>;
-  private _resolve!: (value: T) => void;
-  private _reject!: (reason: Error) => void;
-  private _settled = false;
+  readonly #resolve!: (value: T) => void;
+  readonly #reject!: (reason: Error) => void;
+  #settled = false;
 
   constructor() {
+    let res, rej;
     this.promise = new Promise<T>((resolve, reject) => {
-      this._resolve = resolve;
-      this._reject = reject;
+      res = resolve;
+      rej = reject;
     });
+    this.#resolve = res!;
+    this.#reject = rej!;
   }
 
   get settled() {
-    return this._settled;
+    return this.#settled;
   }
 
   resolve(value: T): void {
-    this._settled = true;
-    this._resolve(value);
+    this.#settled = true;
+    this.#resolve(value);
   }
 
   reject(reason: Error): void {
-    this._settled = true;
-    this._reject(reason);
+    this.#settled = true;
+    this.#reject(reason);
   }
 }
