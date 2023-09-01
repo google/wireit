@@ -12,19 +12,11 @@ jobs:
       # on macOS/Windows.
       matrix:
         include:
-          - node: 16
-            os: ubuntu-22.04
-          - node: 16
-            os: macos-12
-          - node: 16
-            os: windows-2022
           - node: 18
             os: ubuntu-22.04
-          - node: 20
-            os: ubuntu-22.04
-          - node: 20
+          - node: 18
             os: macos-12
-          - node: 20
+          - node: 18
             os: windows-2022
           - node: 20
             os: ubuntu-22.04
