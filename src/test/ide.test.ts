@@ -565,4 +565,43 @@ test('can jump from colon in scripts section to wireit config', async ({
   });
 });
 
+test('can handle a script with  from colon in scripts section to wireit config', async ({
+  rig,
+}) => {
+  const ide = new IdeAnalyzer();
+  await assertDefinition(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: `
+    {
+      "scripts": {
+        "a":| "wireit",
+        "b": "wireit"
+      },
+      "wireit": {
+        "a": {
+          "dependencies": ["b"]
+        },
+        "b": {
+          "command": "echo"
+        }
+      }
+    }`,
+    expected: {
+      target: `
+        "a": {
+        ~~~~~~
+          "dependencies": ["b"]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        },
+~~~~~~~~~`,
+      targetSelection: `
+        "a": {
+        ~~~`,
+      originSelection: `
+          "a": "wireit",
+          ~~~~~~~~~~~~~`,
+    },
+  });
+});
+
 test.run();

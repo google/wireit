@@ -23,6 +23,13 @@ const test = suite<{rig: WireitTestRig}>();
 let numLiveExecutors = 0;
 let numLiveExecutions = 0;
 
+const collectGarbage = (() => {
+  if (global.gc == null) {
+    throw new Error('gc.test must be invoked with --expose-gc');
+  }
+  return global.gc;
+})();
+
 test.before.each(async (ctx) => {
   try {
     const executorFinalizationRegistry = new FinalizationRegistry(() => {
@@ -67,7 +74,7 @@ async function retryWithGcUntilCallbackDoesNotThrow(
   cb: () => void,
 ): Promise<void> {
   for (const wait of [0, 10, 100, 500, 1000]) {
-    global.gc();
+    collectGarbage();
     try {
       cb();
       return;

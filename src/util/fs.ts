@@ -206,23 +206,19 @@ export async function copyFile(
 
 export function readlink(
   path: fsTypes.PathLike,
-  options?: fsTypes.BaseEncodingOptions | BufferEncoding | null,
+  options?: BufferEncoding | null,
 ): Promise<string>;
 export function readlink(
   path: fsTypes.PathLike,
-  options: fsTypes.BufferEncodingOption,
+  options?: {encoding: 'buffer'},
 ): Promise<Buffer>;
 export async function readlink(
   path: fsTypes.PathLike,
-  options?:
-    | fsTypes.BaseEncodingOptions
-    | fsTypes.BufferEncodingOption
-    | BufferEncoding
-    | null,
+  options?: {encoding: 'buffer'} | BufferEncoding | null,
 ): Promise<string | Buffer> {
   const reservation = await fileBudget.reserve();
   try {
-    return await fs.readlink(path, options as fsTypes.BaseEncodingOptions);
+    return await fs.readlink(path, options as BufferEncoding);
   } finally {
     reservation[Symbol.dispose]();
   }
