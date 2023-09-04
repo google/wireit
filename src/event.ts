@@ -354,6 +354,8 @@ export type Info =
   | OutputModified
   | WatchRunStart
   | WatchRunEnd
+  | WatchAborted
+  | WatchedFileTriggeredRun
   | ServiceProcessStarted
   | ServiceReady
   | ServiceStopped
@@ -413,7 +415,12 @@ export interface AnalysisCompleted extends InfoBase {
  */
 export interface WatchRunStart extends InfoBase {
   detail: 'watch-run-start';
+  reason: WatchRunStartReason;
 }
+
+export type WatchRunStartReason =
+  | {name: 'initial'}
+  | {name: 'file-changed'; path: string; operation: FileOperation};
 
 /**
  * A watch mode iteration ended.
@@ -421,6 +428,32 @@ export interface WatchRunStart extends InfoBase {
 export interface WatchRunEnd extends InfoBase {
   detail: 'watch-run-end';
 }
+
+/**
+ * We're exiting from watch mode.
+ */
+export interface WatchAborted extends InfoBase {
+  detail: 'watch-aborted';
+  reason: WatchAbortedReason;
+}
+
+export type WatchAbortedReason = /** We received a CTRL-C signal. */ 'SIGINT';
+
+/**
+ * A file changed that we're watching, and that triggered the next
+ * watch-run-start.
+ */
+export interface WatchedFileTriggeredRun extends InfoBase {
+  detail: 'watched-file-triggered-run';
+  path: string;
+  operation: FileOperation;
+  /**
+   * true if we noticed the file was changed while a run was active.
+   */
+  runActive: boolean;
+}
+
+export type FileOperation = 'changed' | 'created' | 'deleted' | 'altered in an unknown way';
 
 /**
  * A service process started running.

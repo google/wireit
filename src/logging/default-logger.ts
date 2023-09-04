@@ -265,6 +265,30 @@ export class DefaultLogger implements Logger {
             console.log(`👀${prefix} Watching for file changes`);
             break;
           }
+          case 'watch-aborted': {
+            switch (event.reason) {
+              case 'SIGINT': {
+                console.log(`🛑${prefix} ctrl-c received, ending watch mode`);
+                break;
+              }
+              default: {
+                const never: never = event;
+                console.log(
+                  `🛑${prefix} Watch aborted for unknown reason: `,
+                  never,
+                );
+              }
+            }
+            break;
+          }
+          case 'watched-file-triggered-run': {
+            if (event.runActive) {
+              console.log(`🔁${prefix} File ${JSON.stringify(event.path)} was ${event.operation}, queuing up a new run once this one is finished.`);
+            } else {
+              console.log(`🔁${prefix} File ${JSON.stringify(event.path)} was ${event.operation}, triggering a new run.`);
+            }
+            break;
+          }
           case 'cache-info': {
             console.log(`ℹ️${prefix} ${event.message}`);
             break;

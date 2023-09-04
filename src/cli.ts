@@ -78,7 +78,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       options.agent,
     );
     process.on('SIGINT', () => {
-      watcher.abort();
+      watcher.abort('SIGINT');
     });
     await watcher.watch();
     return {ok: true, value: undefined};
