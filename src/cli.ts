@@ -14,7 +14,7 @@ import {packageDir, getOptions, Options} from './cli-options.js';
 import {DefaultLogger} from './logging/default-logger.js';
 
 const run = async (options: Options): Promise<Result<void, Failure[]>> => {
-  const logger = options.logger;
+  using logger = options.logger;
   const workerPool = new WorkerPool(options.numWorkers);
 
   let cache;

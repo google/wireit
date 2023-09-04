@@ -7,7 +7,7 @@
 import {DEBUG} from '../logger.js';
 import '../../util/dispose.js';
 
-export interface StatusLineWriter {
+export interface StatusLineWriter extends Disposable {
   clearAndStopRendering(): void;
   updateStatusLine(line: string): void;
   clearUntilDisposed(): Disposable | undefined;
@@ -22,13 +22,7 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
    * otherwise we write a new line.
    */
   protected _writeOver = !DEBUG;
-  constructor() {
-    // If the user does a ctrl-c then we stop the spinner.
-    process.on('SIGINT', () => {
-      console.log('Got a SIGINT in Writeover line');
-      this.clearAndStopRendering();
-    });
-  }
+  #disposed = false;
 
   /**
    * Called periodically, so that the status line can be updated if needed.
@@ -101,6 +95,9 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
   }
 
   updateStatusLine(line: string) {
+    if (this.#disposed) {
+      return;
+    }
     if (DEBUG) {
       if (this._line !== line) {
         // Ensure that every line is written immediately in debug mode
@@ -136,6 +133,11 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
       }
       this._update();
     }, 1000 / this._targetFps);
+  }
+
+  [Symbol.dispose]() {
+    this.#disposed = true;
+    this.clearAndStopRendering();
   }
 }
 

@@ -127,7 +127,7 @@ interface AnalysisInfo {
  * A QuietLogger usually just has one of these, but in --watch mode we use
  * one per iteration.
  */
-export class QuietRunLogger {
+export class QuietRunLogger implements Disposable {
   /**
    * Currently running scripts, or failed scripts that we're about to
    * report on. A script is added to this when it starts, and removed
@@ -660,5 +660,9 @@ export class QuietRunLogger {
       scriptsWithCommands,
       hasServices,
     };
+  }
+
+  [Symbol.dispose]() {
+    this.#defaultLogger[Symbol.dispose]();
   }
 }
