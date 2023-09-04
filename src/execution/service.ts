@@ -5,7 +5,7 @@
  */
 
 import {BaseExecutionWithCommand} from './base.js';
-import {Fingerprint} from '../fingerprint.js';
+import {ComputeFingerprintResult, Fingerprint} from '../fingerprint.js';
 import {Deferred} from '../util/deferred.js';
 import {ScriptChildProcess} from '../script-child-process.js';
 import {LineMonitor} from '../util/line-monitor.js';
@@ -484,13 +484,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
-  #onFingerprinted(fingerprint: Fingerprint) {
+  #onFingerprinted(computeResult: ComputeFingerprintResult) {
+    const fingerprint = computeResult.fingerprint;
     switch (this.#state.id) {
       case 'fingerprinting': {
         const adoptee = this.#state.adoptee;
         if (
-          adoptee?.fingerprint !== undefined &&
-          !adoptee.fingerprint.equal(fingerprint)
+          adoptee !== undefined &&
+          fingerprint.requiresRebuild(adoptee.fingerprint)
         ) {
           // There is a previous running version of this service, but the
           // fingerprint changed, so we need to restart it.
@@ -499,9 +500,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             fingerprint,
             deferredFingerprint: this.#state.deferredFingerprint,
           };
-          void adoptee.abort('its fingerprint changed, so it needs to restart').then(() => {
-            this.#onAdopteeStopped();
-          });
+          // deleted the `void` as a deliberate lint warning so I come back and
+          // include info on
+          // what changed in the fingerprint
+          adoptee
+            .abort('its fingerprint changed, so it needs to restart')
+            .then(() => {
+              this.#onAdopteeStopped();
+            });
           return;
         }
         this.#state.deferredFingerprint.resolve({

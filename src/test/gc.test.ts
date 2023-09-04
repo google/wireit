@@ -213,7 +213,7 @@ test(
     }
 
     for (const service of previousServices!.values()) {
-      await service.abort();
+      await service.abort('the run was aborted');
     }
 
     await retryWithGcUntilCallbackDoesNotThrow(() => {
@@ -305,7 +305,7 @@ test(
     }
 
     for (const service of previousServices!.values()) {
-      await service.abort();
+      await service.abort('the run was aborted');
     }
 
     await retryWithGcUntilCallbackDoesNotThrow(() => {

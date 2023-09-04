@@ -21,7 +21,12 @@ import type {Result} from '../error.js';
 import type {ExecutionResult} from './base.js';
 import type {Executor} from '../executor.js';
 import type {StandardScriptConfig} from '../config.js';
-import type {FingerprintString} from '../fingerprint.js';
+import type {
+  ComputeFingerprintResult,
+  Difference,
+  FingerprintString,
+  NotFullyTrackedReason,
+} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Cache, CacheHit} from '../caching/cache.js';
 import type {Failure, StartCancelled} from '../event.js';
@@ -79,10 +84,11 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         // Note we must wait for dependencies to finish before generating the
         // cache key, because a dependency could create or modify an input file to
         // this script, which would affect the key.
-        const fingerprint = await Fingerprint.compute(
+        const computeResult = await Fingerprint.compute(
           this._config,
           dependencyFingerprints.value,
         );
+        const fingerprint = computeResult.fingerprint;
         if (
           this._executor.failedInPreviousWatchIteration(
             this._config,
@@ -100,7 +106,8 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
             ],
           };
         }
-        if (await this.#fingerprintIsFresh(fingerprint)) {
+        const differenceReason = await this.#needsToRun(computeResult);
+        if (differenceReason === undefined) {
           const manifestFresh = await this.#outputManifestIsFresh();
           if (!manifestFresh.ok) {
             return {ok: false, error: [manifestFresh.error]};
@@ -110,8 +117,8 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           }
         }
 
-        // Computing the fingerprint can take some time, and the next operation is
-        // destructive. Another good opportunity to check if we should still
+        // Computing the fingerprint can take some time, and the next operation
+        // is destructive. Another good opportunity to check if we should still
         // start.
         if (this.#shouldNotStart) {
           return {ok: false, error: [this.#startCancelledEvent]};
@@ -231,12 +238,28 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Check whether the given fingerprint matches the current one from the
    * `.wireit` directory.
    */
-  async #fingerprintIsFresh(fingerprint: Fingerprint): Promise<boolean> {
-    if (!fingerprint.data.fullyTracked) {
-      return false;
+  async #needsToRun(
+    computeResult: ComputeFingerprintResult,
+  ): Promise<undefined | NeedsToRunReason> {
+    if (computeResult.notFullyTrackedReason !== undefined) {
+      return {
+        name: 'not-fully-tracked',
+        reason: computeResult.notFullyTrackedReason,
+      };
     }
+    const fingerprint = computeResult.fingerprint;
     const prevFingerprint = await this.#readPreviousFingerprint();
-    return prevFingerprint !== undefined && fingerprint.equal(prevFingerprint);
+    if (prevFingerprint === undefined) {
+      return {name: 'no-previous-fingerprint'};
+    }
+    const difference = fingerprint.difference(prevFingerprint);
+    if (difference === undefined) {
+      return undefined;
+    }
+    return {
+      name: 'fingerprints-differed',
+      difference,
+    };
   }
 
   /**
@@ -758,3 +781,11 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     return pathlib.join(this.#dataDir, 'manifest');
   }
 }
+
+type NeedsToRunReason =
+  | {
+      name: 'not-fully-tracked';
+      reason: NotFullyTrackedReason;
+    }
+  | {name: 'no-previous-fingerprint'}
+  | {name: 'fingerprints-differed'; difference: Difference};

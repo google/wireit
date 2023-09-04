@@ -113,6 +113,11 @@ type FingerprintSha256HexDigest = string & {
   __FingerprintSha256HexDigestBrand__: never;
 };
 
+export type ComputeFingerprintResult = {
+  fingerprint: Fingerprint;
+  notFullyTrackedReason: NotFullyTrackedReason | undefined;
+};
+
 /**
  * The fingerprint of a script. Converts lazily between string and data object
  * forms.
@@ -131,8 +136,8 @@ export class Fingerprint {
   static async compute(
     script: ScriptConfig,
     dependencyFingerprints: Array<[Dependency, Fingerprint]>,
-  ): Promise<Fingerprint> {
-    let allDependenciesAreFullyTracked = true;
+  ): Promise<ComputeFingerprintResult> {
+    let notFullyTrackedDep: ScriptReferenceString | undefined = undefined;
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintSha256HexDigest]
     > = [];
@@ -143,7 +148,9 @@ export class Fingerprint {
         continue;
       }
       if (!depFingerprint.data.fullyTracked) {
-        allDependenciesAreFullyTracked = false;
+        if (notFullyTrackedDep === undefined) {
+          notFullyTrackedDep = scriptReferenceToString(dep.config);
+        }
       }
       filteredDependencyFingerprints.push([
         scriptReferenceToString(dep.config),
@@ -186,19 +193,36 @@ export class Fingerprint {
       fileHashes = [];
     }
 
-    const fullyTracked =
+    const notFullyTrackedReason: NotFullyTrackedReason | undefined = (() => {
       // If any any dependency is not fully tracked, then we can't be either,
       // because we can't know if there was an undeclared input that this script
       // depends on.
-      allDependenciesAreFullyTracked &&
+      if (notFullyTrackedDep !== undefined) {
+        return {
+          name: 'dependency not fully tracked',
+          dependency: notFullyTrackedDep,
+        };
+      }
       // A no-command script. Doesn't ever do anything itsef, so always fully
       // tracked.
-      (script.command === undefined ||
-        // A service. Fully tracked if we know its inputs. Can't produce output.
-        (script.service !== undefined && script.files !== undefined) ||
-        // A standard script. Fully tracked if we know both its inputs and
-        // outputs.
-        (script.files !== undefined && script.output !== undefined));
+      if (script.command === undefined) {
+        return undefined;
+      }
+      if (script.files === undefined) {
+        return {name: 'no input'};
+      }
+      // A service. Fully tracked if we know its inputs. Can't produce output.
+      if (script.service !== undefined) {
+        return undefined;
+      }
+      // A standard script. Fully tracked if we know both its inputs and
+      // outputs.
+      if (script.output === undefined) {
+        return {name: 'no output'};
+      }
+      return undefined;
+    })();
+    const fullyTracked = notFullyTrackedReason === undefined;
 
     const fingerprint = new Fingerprint();
 
@@ -232,7 +256,7 @@ export class Fingerprint {
       env: script.env,
     };
     fingerprint.#data = data as FingerprintData;
-    return fingerprint;
+    return {fingerprint, notFullyTrackedReason};
   }
 
   #str?: FingerprintString;
@@ -267,4 +291,181 @@ export class Fingerprint {
   equal(other: Fingerprint): boolean {
     return this.string === other.string;
   }
+
+  requiresRebuild(previous: Fingerprint | undefined): boolean {
+    // If we're not fully tracked, we always need to rebuild.
+    if (!this.data.fullyTracked) {
+      return true;
+    }
+    // If we don't have a previous fingerprint, we need to rebuild.
+    if (previous === undefined) {
+      return true;
+    }
+    // Otherwise, we need to rebuild if the fingerprint changed.
+    return !this.equal(previous);
+  }
+
+  difference(previous: Fingerprint): Difference | undefined {
+    // Do a string comparison first, because it's much faster than
+    // checking field by field;
+    if (this.equal(previous)) {
+      return undefined;
+    }
+    if (this.data.platform !== previous.data.platform) {
+      return {
+        name: 'environment',
+        field: 'platform',
+        previous: this.data.platform,
+        current: previous.data.platform,
+      };
+    }
+    if (this.data.arch !== previous.data.arch) {
+      return {
+        name: 'environment',
+        field: 'arch',
+        previous: this.data.arch,
+        current: previous.data.arch,
+      };
+    }
+    if (this.data.nodeVersion !== previous.data.nodeVersion) {
+      return {
+        name: 'environment',
+        field: 'nodeVersion',
+        previous: this.data.nodeVersion,
+        current: previous.data.nodeVersion,
+      };
+    }
+    if (this.data.command !== previous.data.command) {
+      return {
+        name: 'config',
+        field: 'command',
+        previous: this.data.command,
+        current: previous.data.command,
+      };
+    }
+    if (this.data.extraArgs.join(' ') !== previous.data.extraArgs.join(' ')) {
+      return {
+        name: 'config',
+        field: 'extraArgs',
+        previous: this.data.extraArgs,
+        current: previous.data.extraArgs,
+      };
+    }
+    if (this.data.clean !== previous.data.clean) {
+      return {
+        name: 'config',
+        field: 'clean',
+        previous: this.data.clean,
+        current: previous.data.clean,
+      };
+    }
+    if (this.data.output.join(' ') !== previous.data.output.join(' ')) {
+      return {
+        name: 'config',
+        field: 'output',
+        previous: this.data.output,
+        current: previous.data.output,
+      };
+    }
+    if (
+      this.data.service?.readyWhen.lineMatches !==
+      previous.data.service?.readyWhen.lineMatches
+    ) {
+      return {
+        name: 'config',
+        field: 'service',
+        previous: this.data.service,
+        current: previous.data.service,
+      };
+    }
+    if (JSON.stringify(this.data.env) !== JSON.stringify(previous.data.env)) {
+      return {
+        name: 'config',
+        field: 'env',
+        previous: this.data.env,
+        current: previous.data.env,
+      };
+    }
+    const thisFiles = new Set(Object.keys(this.data.files));
+    const previousFiles = new Set(Object.keys(previous.data.files));
+    for (const path of thisFiles) {
+      if (!previousFiles.has(path)) {
+        return {name: 'file added', path};
+      }
+    }
+    for (const path of previousFiles) {
+      if (!thisFiles.has(path)) {
+        return {name: 'file removed', path};
+      }
+    }
+    for (const path of thisFiles) {
+      if (this.data.files[path] !== previous.data.files[path]) {
+        return {name: 'file changed', path};
+      }
+    }
+    const thisDependencies = new Set(
+      Object.keys(this.data.dependencies) as ScriptReferenceString[],
+    );
+    const previousDependencies = new Set(
+      Object.keys(previous.data.dependencies) as ScriptReferenceString[],
+    );
+    for (const dependency of thisDependencies) {
+      if (!previousDependencies.has(dependency)) {
+        return {
+          name: 'dependency changed',
+          script: dependency,
+        };
+      }
+    }
+    for (const dependency of previousDependencies) {
+      if (!thisDependencies.has(dependency)) {
+        return {
+          name: 'dependency removed',
+          script: dependency,
+        };
+      }
+    }
+    for (const dependency of thisDependencies) {
+      if (
+        this.data.dependencies[dependency] !==
+        previous.data.dependencies[dependency]
+      ) {
+        return {
+          name: 'dependency changed',
+          script: dependency,
+        };
+      }
+    }
+    throw new Error(
+      `Internal error: fingerprints different but no difference was found.\n    current: ${this.string}\n    previous: ${previous.string}`,
+    );
+  }
 }
+
+export type NotFullyTrackedReason =
+  | {name: 'no input'}
+  | {name: 'no output'}
+  | {
+      name: 'dependency not fully tracked';
+      dependency: ScriptReferenceString;
+    };
+
+export type Difference =
+  | {
+      name: 'environment';
+      field: 'platform' | 'arch' | 'nodeVersion';
+      previous: string;
+      current: string;
+    }
+  | {
+      name: 'config';
+      field: 'command' | 'extraArgs' | 'clean' | 'output' | 'service' | 'env';
+      previous: unknown;
+      current: unknown;
+    }
+  | {name: 'file added'; path: string}
+  | {name: 'file removed'; path: string}
+  | {name: 'file changed'; path: string}
+  | {name: 'dependency removed'; script: ScriptReferenceString}
+  | {name: 'dependency added'; script: ScriptReferenceString}
+  | {name: 'dependency changed'; script: ScriptReferenceString};

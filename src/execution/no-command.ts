@@ -19,7 +19,7 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
     if (!dependencyFingerprints.ok) {
       return dependencyFingerprints;
     }
-    const fingerprint = await Fingerprint.compute(
+    const result = await Fingerprint.compute(
       this._config,
       dependencyFingerprints.value,
     );
@@ -28,6 +28,6 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
       type: 'success',
       reason: 'no-command',
     });
-    return {ok: true, value: fingerprint};
+    return {ok: true, value: result.fingerprint};
   }
 }
