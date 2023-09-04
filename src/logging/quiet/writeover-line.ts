@@ -25,7 +25,6 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
   constructor() {
     // If the user does a ctrl-c then we stop the spinner.
     process.on('SIGINT', () => {
-      console.log('Got a SIGINT in Writeover line');
       this.clearAndStopRendering();
     });
   }
