@@ -585,6 +585,12 @@ export class Analyzer {
 
     const env = this.#processEnv(placeholder, packageJson, syntaxInfo, command);
 
+    if (placeholder.failures.length > 0) {
+      // A script with locally-determined errors doesn't get upgraded to
+      // locally-valid.
+      return;
+    }
+
     // It's important to in-place update the placeholder object, instead of
     // creating a new object, because other configs may be referencing this
     // exact object in their dependencies.

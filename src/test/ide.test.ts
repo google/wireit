@@ -154,6 +154,37 @@ test('we can get cyclic dependency errors', async ({rig}) => {
   });
 });
 
+test('warns for a service without a command', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  ide.setOpenFileContents(
+    rig.resolve('package.json'),
+    JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            service: true,
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'echo',
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await assertDiagnostics(ide, {
+    [rig.resolve('package.json')]: [
+      `A "service" script must have a "command".`,
+    ],
+  });
+});
+
 async function assertDefinition(
   ide: IdeAnalyzer,
   options: {
