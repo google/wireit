@@ -36,10 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      # TODO(aomarks) It's a little difficult to read the test results, because
-      # stdio streams of all parallel processes are interleaved. Remove this
-      # after implementing stdio locking.
-      WIREIT_PARALLEL: 1
+      WIREIT_LOGGER: 'quiet-ci'
 
     steps:
       - uses: actions/checkout@v3
@@ -55,12 +52,8 @@ jobs:
       # See https://code.visualstudio.com/api/working-with-extensions/continuous-integration#github-actions for why we need xvfb-run
       - run: npm test
         if: runner.os != 'Linux'
-        env:
-          WIREIT_LOGGER: 'quiet-ci'
       - run: xvfb-run -a npm test
         if: runner.os == 'Linux'
-        env:
-          WIREIT_LOGGER: 'quiet-ci'
 
   lint-and-format:
     timeout-minutes: 5
