@@ -78,7 +78,6 @@ export class WatchLogger implements Logger {
   }
 
   [Symbol.dispose](): void {
-    
     this.#actualLogger[Symbol.dispose]();
   }
 }
