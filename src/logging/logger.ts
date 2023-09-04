@@ -5,11 +5,12 @@
  */
 
 import type {Event} from '../event.js';
+import '../util/dispose.js';
 
 /**
  * Logs Wireit events in some way.
  */
-export interface Logger {
+export interface Logger extends Disposable {
   log(event: Event): void;
   printMetrics(): void;
 

@@ -76,4 +76,9 @@ export class WatchLogger implements Logger {
   #isWatchRunEnd(event: Event): boolean {
     return event.type === 'info' && event.detail === 'watch-run-end';
   }
+
+  [Symbol.dispose](): void {
+    
+    this.#actualLogger[Symbol.dispose]();
+  }
 }

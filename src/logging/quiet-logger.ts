@@ -64,6 +64,11 @@ export class QuietLogger implements Logger {
     // and in failure cases it can be nice to keep the old output around.
     return this;
   }
+
+  [Symbol.dispose](): void {
+    this.#statusLineWriter[Symbol.dispose]();
+    this.#runTracker[Symbol.dispose]();
+  }
 }
 
 /**

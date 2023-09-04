@@ -297,6 +297,10 @@ export class DefaultLogger implements Logger {
   getWatchLogger(): Logger {
     return new WatchLogger(this);
   }
+
+  [Symbol.dispose](): void {
+    // nothing to clean up
+  }
 }
 
 /**
