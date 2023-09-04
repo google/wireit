@@ -14,6 +14,7 @@ import {getScriptDataDir} from '../util/script-data-dir.js';
 import '../util/dispose.js';
 import {fileBudget} from '../util/fs.js';
 import {execFile} from 'child_process';
+import '../util/dispose.js';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
@@ -137,7 +138,7 @@ export class GitHubActionsCache implements Cache {
       const {archiveLocation} = JSON.parse(await readBody(response)) as {
         archiveLocation: string;
       };
-      return new GitHubActionsCacheHit(script, archiveLocation);
+      return new GitHubActionsCacheHit(script, archiveLocation, this.#logger);
     }
 
     throw new Error(
@@ -155,20 +156,16 @@ export class GitHubActionsCache implements Cache {
       return false;
     }
 
-    const tempDir = await makeTempDir(script);
-    try {
-      const tarballPath = await this.#makeTarball(
-        absFiles.map((file) => file.path),
-        tempDir,
-      );
-      return await this.#reserveUploadAndCommitTarball(
-        script,
-        fingerprint,
-        tarballPath,
-      );
-    } finally {
-      await fs.rm(tempDir, {recursive: true});
-    }
+    await using tempDir = await makeTempDir(script);
+    const tarballPath = await this.#makeTarball(
+      absFiles.map((file) => file.path),
+      tempDir.path,
+    );
+    return await this.#reserveUploadAndCommitTarball(
+      script,
+      fingerprint,
+      tarballPath,
+    );
   }
 
   /**
@@ -547,13 +544,15 @@ export class GitHubActionsCache implements Cache {
 }
 
 class GitHubActionsCacheHit implements CacheHit {
-  #script: ScriptReference;
-  #url: string;
+  readonly #script: ScriptReference;
+  readonly #url: string;
+  readonly #logger: Logger;
   #applied = false;
 
-  constructor(script: ScriptReference, location: string) {
+  constructor(script: ScriptReference, location: string, logger: Logger) {
     this.#script = script;
     this.#url = location;
+    this.#logger = logger;
   }
 
   async apply(): Promise<void> {
@@ -561,15 +560,24 @@ class GitHubActionsCacheHit implements CacheHit {
       throw new Error('GitHubActionsCacheHit.apply was called more than once');
     }
     this.#applied = true;
-    const tempDir = await makeTempDir(this.#script);
-    const tarballPath = pathlib.join(tempDir, 'cache.tgz');
+    await using tempDir = await makeTempDir(this.#script);
+    const tarballPath = pathlib.join(tempDir.path, 'cache.tgz');
     try {
-      // TODO(aomarks) Recover from rate limits and other HTTP errors.
       await this.#download(tarballPath);
-      await this.#extract(tarballPath);
-    } finally {
-      await fs.rm(tempDir, {recursive: true});
+    } catch (e: unknown) {
+      this.#logger.log({
+        type: 'info',
+        detail: 'cache-info',
+        script: this.#script,
+        message: `Failed to download GitHub Actions cache tarball: ${
+          (e as Partial<Error>)?.message ?? e
+        }`,
+      });
+      // This is fine, it's as though there was nothing to restore from
+      // the cache.
+      return;
     }
+    await this.#extract(tarballPath);
   }
 
   async #download(tarballPath: string): Promise<void> {
@@ -691,6 +699,14 @@ function readBody(res: http.IncomingMessage): Promise<string> {
   });
 }
 
-function makeTempDir(script: ScriptReference): Promise<string> {
-  return fs.mkdtemp(pathlib.join(getScriptDataDir(script), 'temp'));
+async function makeTempDir(
+  script: ScriptReference,
+): Promise<{path: string} & AsyncDisposable> {
+  const path = await fs.mkdtemp(pathlib.join(getScriptDataDir(script), 'temp'));
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await fs.rm(path, {recursive: true});
+    },
+  };
 }
