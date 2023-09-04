@@ -283,9 +283,17 @@ export class DefaultLogger implements Logger {
           }
           case 'watched-file-triggered-run': {
             if (event.runActive) {
-              console.log(`🔁${prefix} File ${JSON.stringify(event.path)} was ${event.operation}, queuing up a new run once this one is finished.`);
+              console.log(
+                `🔁${prefix} File ${JSON.stringify(event.path)} was ${
+                  event.operation
+                }, queuing up a new run once this one is finished.`,
+              );
             } else {
-              console.log(`🔁${prefix} File ${JSON.stringify(event.path)} was ${event.operation}, triggering a new run.`);
+              console.log(
+                `🔁${prefix} File ${JSON.stringify(event.path)} was ${
+                  event.operation
+                }, triggering a new run.`,
+              );
             }
             break;
           }
@@ -302,7 +310,14 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'service-stopped': {
-            console.log(`⬇️${prefix} Service stopped`);
+            console.log(`⬇️${prefix} Service stopped because ${event.reason}`);
+            if (event.failure !== undefined) {
+              // Use console.group to indent
+              console.group();
+              console.log(`Related failure:`);
+              this.log(event.failure);
+              console.groupEnd();
+            }
             break;
           }
           case 'analysis-started':

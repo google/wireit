@@ -151,7 +151,7 @@ export class Executor {
     this.#stopServices.resolve();
     if (this.#previousIterationServices !== undefined) {
       for (const service of this.#previousIterationServices.values()) {
-        void service.abort();
+        void service.abort('the run was aborted');
       }
     }
   }
@@ -178,7 +178,9 @@ export class Executor {
       const abortPromises = [];
       for (const [key, service] of this.#previousIterationServices) {
         if (!currentPersistentServices.has(key)) {
-          abortPromises.push(service.abort());
+          abortPromises.push(
+            service.abort('the depgraph changed, service is no longer needed'),
+          );
           this.#previousIterationServices.delete(key);
         }
       }

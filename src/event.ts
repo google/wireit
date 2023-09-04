@@ -453,7 +453,11 @@ export interface WatchedFileTriggeredRun extends InfoBase {
   runActive: boolean;
 }
 
-export type FileOperation = 'changed' | 'created' | 'deleted' | 'altered in an unknown way';
+export type FileOperation =
+  | 'changed'
+  | 'created'
+  | 'deleted'
+  | 'altered in an unknown way';
 
 /**
  * A service process started running.
@@ -475,7 +479,16 @@ export interface ServiceReady extends InfoBase {
  */
 export interface ServiceStopped extends InfoBase {
   detail: 'service-stopped';
+  reason: ServiceStoppedReason;
+  failure: Failure|undefined;
 }
+
+export type ServiceStoppedReason =
+  | 'the depgraph changed, service is no longer needed'
+  | 'the run was aborted'
+  | 'all consumers of the service are done'
+  | 'its fingerprint changed, so it needs to restart'
+  | 'unknown';
 
 /**
  * An advisory event about caching.
