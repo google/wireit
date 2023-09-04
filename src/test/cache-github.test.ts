@@ -222,7 +222,7 @@ test(
   }),
 );
 
-async function assertSuccess(exitResult: ExitResult) {
+function assertSuccess(exitResult: ExitResult) {
   if (exitResult.code !== 0) {
     console.error(exitResult.stdout);
     console.error(exitResult.stderr);

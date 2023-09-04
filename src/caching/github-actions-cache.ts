@@ -570,7 +570,7 @@ class GitHubActionsCacheHit implements CacheHit {
         detail: 'cache-info',
         script: this.#script,
         message: `Failed to download GitHub Actions cache tarball: ${
-          (e as Partial<Error>)?.message ?? e
+          (e as Partial<Error>)?.message ?? String(e)
         }`,
       });
       // This is fine, it's as though there was nothing to restore from
