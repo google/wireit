@@ -37,7 +37,7 @@ const getWireitVersion = (() => {
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
-  readonly #rootPackageDir: string;
+  protected readonly rootPackageDir: string;
   readonly #diagnosticPrinter: DiagnosticPrinter;
 
   /**
@@ -45,13 +45,13 @@ export class DefaultLogger implements Logger {
    * executed belongs to.
    */
   constructor(rootPackage: string) {
-    this.#rootPackageDir = rootPackage;
-    this.#diagnosticPrinter = new DiagnosticPrinter(this.#rootPackageDir);
+    this.rootPackageDir = rootPackage;
+    this.#diagnosticPrinter = new DiagnosticPrinter(this.rootPackageDir);
   }
 
   log(event: Event) {
     const type = event.type;
-    const label = labelForScript(this.#rootPackageDir, event.script);
+    const label = labelForScript(this.rootPackageDir, event.script);
     const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
@@ -182,7 +182,7 @@ export class DefaultLogger implements Logger {
           case 'dependency-invalid': {
             console.error(
               `❌${prefix} Depended, perhaps indirectly, on ${labelForScript(
-                this.#rootPackageDir,
+                this.rootPackageDir,
                 event.dependency,
               )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`,
             );
@@ -349,7 +349,7 @@ export class DefaultLogger implements Logger {
                       }
                       case 'dependency not fully tracked': {
                         reason = `the service depends on ${labelForScript(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           stringToScriptReference(
                             notFullyTrackedReason.dependency,
                           ),
@@ -401,42 +401,42 @@ export class DefaultLogger implements Logger {
                       }
                       case 'dependency added': {
                         reason = `a dependency was added: [${labelForScript(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           stringToScriptReference(difference.script),
                         )}]`;
                         break;
                       }
                       case 'dependency removed': {
                         reason = `a dependency was removed: [${labelForScript(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           stringToScriptReference(difference.script),
                         )}]`;
                         break;
                       }
                       case 'dependency changed': {
                         reason = `a dependency changed: [${labelForScript(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           stringToScriptReference(difference.script),
                         )}]`;
                         break;
                       }
                       case 'file added': {
                         reason = `a file was added: ${pathlib.relative(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           difference.path,
                         )}`;
                         break;
                       }
                       case 'file removed': {
                         reason = `a file was removed: ${pathlib.relative(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           difference.path,
                         )}`;
                         break;
                       }
                       case 'file changed': {
                         reason = `a file was changed: ${pathlib.relative(
-                          this.#rootPackageDir,
+                          this.rootPackageDir,
                           difference.path,
                         )}`;
                         break;

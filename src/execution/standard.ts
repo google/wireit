@@ -29,7 +29,12 @@ import type {
 } from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Cache, CacheHit} from '../caching/cache.js';
-import type {Failure, StartCancelled} from '../event.js';
+import type {
+  Failure,
+  NotFreshReason,
+  OutputManifestOutdatedReason,
+  StartCancelled,
+} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
 
@@ -106,15 +111,27 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
             ],
           };
         }
-        const differenceReason = await this.#needsToRun(computeResult);
-        if (differenceReason === undefined) {
-          const manifestFresh = await this.#outputManifestIsFresh();
-          if (!manifestFresh.ok) {
-            return {ok: false, error: [manifestFresh.error]};
+
+        let notFreshReason: NotFreshReason;
+        const needsToRunReason = await this.#needsToRun(computeResult);
+        let outputManifestOutdatedReason:
+          | OutputManifestOutdatedReason
+          | undefined;
+        if (needsToRunReason !== undefined) {
+          notFreshReason = needsToRunReason;
+        } else {
+          const manifestResult = await this.#outputManifestOutdatedReason();
+          if (!manifestResult.ok) {
+            return {ok: false, error: [manifestResult.error]};
           }
-          if (manifestFresh.value) {
+          outputManifestOutdatedReason = manifestResult.value;
+          if (outputManifestOutdatedReason === undefined) {
             return this.#handleFresh(fingerprint);
           }
+          notFreshReason = {
+            name: 'output manifest outdated',
+            reason: outputManifestOutdatedReason,
+          };
         }
 
         // Computing the fingerprint can take some time, and the next operation
@@ -134,7 +151,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           return this.#handleCacheHit(cacheHit, fingerprint);
         }
 
-        return this.#handleNeedsRun(fingerprint);
+        return this.#handleNeedsRun(fingerprint, notFreshReason);
       });
     } finally {
       this._servicesNotNeeded.resolve();
@@ -327,7 +344,10 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script was stale and we need to run it.
    */
-  async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
+  async #handleNeedsRun(
+    fingerprint: Fingerprint,
+    notFreshReason: NotFreshReason,
+  ): Promise<ExecutionResult> {
     // Check if we should clean before we delete the fingerprint file, because
     // we sometimes need to read the previous fingerprint file to determine
     // this.
@@ -381,6 +401,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         script: this._config,
         type: 'info',
         detail: 'running',
+        notFreshReason,
       });
 
       const child = new ScriptChildProcess(
@@ -554,11 +575,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Glob the output files for this script and cache them, but throw unless the
    * script has not yet started running or been restored from cache.
    */
-  #globOutputFilesBeforeRunning(): Promise<
+  async #globOutputFilesBeforeRunning(): Promise<
     Result<AbsoluteEntry[] | undefined>
   > {
     this.#ensureState('before-running');
-    return (this.#cachedOutputFilesBeforeRunning ??= this.#globOutputFiles());
+    const result = await (this.#cachedOutputFilesBeforeRunning ??=
+      this.#globOutputFiles());
+    this.#ensureState('before-running');
+    return result;
   }
   #cachedOutputFilesBeforeRunning?: Promise<
     Result<AbsoluteEntry[] | undefined>
@@ -719,21 +743,23 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    * Check whether the current manifest of output files matches the one from the
    * `.wireit` directory.
    */
-  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+  async #outputManifestOutdatedReason(): Promise<
+    Result<OutputManifestOutdatedReason | undefined>
+  > {
     const oldManifestPromise = this.#readPreviousOutputManifest();
     const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
     if (!outputFilesBeforeRunning.ok) {
       return outputFilesBeforeRunning;
     }
     if (outputFilesBeforeRunning.value === undefined) {
-      return {ok: true, value: false};
+      return {ok: true, value: `can't glob output files`};
     }
     const newManifest = await this.#computeOutputManifest(
       outputFilesBeforeRunning.value,
     );
     const oldManifest = await oldManifestPromise;
     if (oldManifest === undefined) {
-      return {ok: true, value: false};
+      return {ok: true, value: 'no previous manifest'};
     }
     const equal = newManifest === oldManifest;
     if (!equal) {
@@ -742,8 +768,9 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         type: 'info',
         detail: 'output-modified',
       });
+      return {ok: true, value: 'output modified'};
     }
-    return {ok: true, value: equal};
+    return {ok: true, value: undefined};
   }
 
   /**

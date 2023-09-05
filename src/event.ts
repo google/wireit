@@ -374,7 +374,20 @@ interface InfoBase<T extends PackageReference = ScriptReference>
  */
 export interface ScriptRunning extends InfoBase<ScriptReferenceWithCommand> {
   detail: 'running';
+  notFreshReason: NotFreshReason;
 }
+
+export type NotFreshReason =
+  | {
+      name: 'output manifest outdated';
+      reason: OutputManifestOutdatedReason;
+    }
+  | NeedsToRunReason;
+
+export type OutputManifestOutdatedReason =
+  | 'no previous manifest'
+  | 'output modified'
+  | `can't glob output files`;
 
 /**
  * A script can't run right now because a system-wide lock is being held by
@@ -485,11 +498,11 @@ export interface ServiceStopped extends InfoBase {
 }
 
 export type ServiceStoppedReason =
-  | { name: 'the depgraph changed, service is no longer needed' }
-  | { name: 'the run was aborted' }
-  | { name: 'all consumers of the service are done' }
-  | { name: 'restart'; reason: NeedsToRunReason }
-  | { name: 'unknown' };
+  | {name: 'the depgraph changed, service is no longer needed'}
+  | {name: 'the run was aborted'}
+  | {name: 'all consumers of the service are done'}
+  | {name: 'restart'; reason: NeedsToRunReason}
+  | {name: 'unknown'};
 
 /**
  * An advisory event about caching.
