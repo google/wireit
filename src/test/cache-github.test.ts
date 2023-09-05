@@ -11,7 +11,7 @@ import * as crypto from 'crypto';
 import * as selfsigned from 'selfsigned';
 import {suite} from 'uvu';
 import {fileURLToPath} from 'url';
-import {WireitTestRig} from './util/test-rig.js';
+import {ExitResult, WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
 import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
 import {timeout, DEFAULT_UVU_TIMEOUT} from './util/uvu-timeout.js';
@@ -222,6 +222,14 @@ test(
   }),
 );
 
+function assertSuccess(exitResult: ExitResult) {
+  if (exitResult.code !== 0) {
+    console.error(exitResult.stdout);
+    console.error(exitResult.stderr);
+    throw new Error(`Expected exit code 0, got ${exitResult.code}`);
+  }
+}
+
 for (const code of [429, 503, 'ECONNRESET'] as const) {
   test(
     `recovers from ${code} error`,
@@ -248,11 +256,22 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
         },
       });
 
+      // Do a successful run to populate the cache.
+      await rig.write('input', 'cached');
+      assertSuccess(await rig.exec('npm run a').exit);
+      assert.equal(server.metrics, {
+        check: 2,
+        reserve: 2,
+        upload: 2,
+        commit: 2,
+        download: 0,
+      });
+
       // Check API
       server.forceErrorOnNextRequest('check', code);
       server.resetMetrics();
       await rig.write('input', '0');
-      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
         // Note that because we turn off GitHub Actions Caching after the first
         // rate limit error, "b" fails and then "a" skips, so this count is 1
@@ -268,7 +287,7 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
       server.forceErrorOnNextRequest('reserve', code);
       server.resetMetrics();
       await rig.write('input', '1');
-      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
         check: 1,
         reserve: 1,
@@ -281,7 +300,7 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
       server.forceErrorOnNextRequest('upload', code);
       server.resetMetrics();
       await rig.write('input', '2');
-      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
         check: 1,
         reserve: 1,
@@ -294,7 +313,7 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
       server.forceErrorOnNextRequest('commit', code);
       server.resetMetrics();
       await rig.write('input', '3');
-      assert.equal((await rig.exec('npm run a').exit).code, 0);
+      assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
         check: 1,
         reserve: 1,
@@ -304,12 +323,17 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
       });
 
       // Download API
-      //
-      // TODO(aomarks) The GitHub Actions caching library doesn't surface HTTP
-      // errors during download. Instead it seems to create invalid tarballs. This
-      // might not really be a problem in reality, because tarballs come from a
-      // different CDN server, so probably have a separate rate limit from the
-      // rest of the caching APIs.
+      server.forceErrorOnNextRequest('download', code);
+      server.resetMetrics();
+      await rig.write('input', 'cached');
+      assertSuccess(await rig.exec('npm run a').exit);
+      assert.equal(server.metrics, {
+        check: 2,
+        reserve: 0,
+        upload: 0,
+        commit: 0,
+        download: 2,
+      });
     }),
   );
 }
