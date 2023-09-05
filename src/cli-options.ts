@@ -15,6 +15,7 @@ import {unreachable} from './util/unreachable.js';
 import {Logger} from './logging/logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
+import {ExplainLogger} from './logging/explain-logger.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
   // Recent versions of npm set this environment variable that tells us the
@@ -197,6 +198,9 @@ export const getOptions = (): Result<Options> => {
     if (str === 'quiet-ci') {
       return {ok: true, value: new QuietCiLogger(packageRoot)};
     }
+    if (str === 'explain') {
+      return {ok: true, value: new ExplainLogger(packageRoot)};
+    }
     if (str === 'simple') {
       return {ok: true, value: new DefaultLogger(packageRoot)};
     }
@@ -209,7 +213,9 @@ export const getOptions = (): Result<Options> => {
         reason: 'invalid-usage',
         message:
           `Expected the WIREIT_LOGGER env variable to be ` +
-          `"quiet", "simple", or "metrics", got ${JSON.stringify(str)}`,
+          `"quiet", "quiet-ci", "explain", "simple", or "metrics", got ${JSON.stringify(
+            str,
+          )}`,
         script,
         type: 'failure',
       },

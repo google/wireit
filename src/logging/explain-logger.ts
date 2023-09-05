@@ -10,6 +10,11 @@ import {Logger} from './logger.js';
 
 export class ExplainLogger extends DefaultLogger {
   override log(event: Event): void {
+    if (event.type === 'output') {
+      // When explaining, we care about what wireit is doing, not what
+      // the scripts are doing, so don't log output.
+      return;
+    }
     super.log(event);
   }
 

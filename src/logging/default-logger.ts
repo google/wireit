@@ -9,10 +9,15 @@ import {unreachable} from '../util/unreachable.js';
 
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
-import type {PackageReference, ScriptReference} from '../config.js';
+import {
+  stringToScriptReference,
+  type PackageReference,
+  type ScriptReference,
+} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
 import {WatchLogger} from './watch-logger.js';
+import {inspect} from 'node:util';
 
 const getWireitVersion = (() => {
   let version: string | undefined;
@@ -310,7 +315,139 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'service-stopped': {
-            console.log(`⬇️${prefix} Service stopped because ${event.reason}`);
+            let reason: string;
+            switch (event.reason.name) {
+              default: {
+                const never: never = event.reason;
+                throw new Error(
+                  `Unknown service stop reason: ${inspect(never)}`,
+                );
+              }
+              case 'all consumers of the service are done':
+              case 'the depgraph changed, service is no longer needed':
+              case 'the run was aborted':
+              case 'unknown':
+                reason = event.reason.name;
+                break;
+              case 'restart': {
+                const restartReason = event.reason;
+                switch (restartReason.reason.name) {
+                  default: {
+                    const never: never = restartReason.reason;
+                    throw new Error(
+                      `Unknown restart reason: ${inspect(never)}`,
+                    );
+                  }
+                  case 'not-fully-tracked': {
+                    const notFullyTrackedReason = restartReason.reason.reason;
+                    switch (notFullyTrackedReason.name) {
+                      default: {
+                        const never: never = notFullyTrackedReason;
+                        throw new Error(
+                          `Unknown not-fully-tracked reason: ${inspect(never)}`,
+                        );
+                      }
+                      case 'dependency not fully tracked': {
+                        reason = `the service depends on ${labelForScript(
+                          this.#rootPackageDir,
+                          stringToScriptReference(
+                            notFullyTrackedReason.dependency,
+                          ),
+                        )}`;
+                        break;
+                      }
+                      case 'no files field': {
+                        throw new Error(
+                          'Internal error: a service is tracked even without a files field',
+                        );
+                      }
+                      case 'no output field': {
+                        throw new Error(
+                          'Internal error: a service never has output',
+                        );
+                      }
+                    }
+                    break;
+                  }
+                  case 'no-previous-fingerprint': {
+                    throw new Error(
+                      'Internal error: could not find a previous fingerprint, so we restarted the server?',
+                    );
+                  }
+                  case 'fingerprints-differed': {
+                    const difference = restartReason.reason.difference;
+                    switch (difference.name) {
+                      default: {
+                        const never: never = difference;
+                        throw new Error(
+                          `Unknown not-fully-tracked reason: ${inspect(never)}`,
+                        );
+                      }
+                      case 'config': {
+                        reason = `config field ${
+                          difference.field
+                        } changed from ${inspect(
+                          difference.previous,
+                        )} to ${inspect(difference.current)}`;
+                        break;
+                      }
+                      case 'environment': {
+                        reason = `the ${
+                          difference.field
+                        } of the environment changed from ${inspect(
+                          difference.previous,
+                        )} to ${inspect(difference.current)}`;
+                        break;
+                      }
+                      case 'dependency added': {
+                        reason = `a dependency was added: [${labelForScript(
+                          this.#rootPackageDir,
+                          stringToScriptReference(difference.script),
+                        )}]`;
+                        break;
+                      }
+                      case 'dependency removed': {
+                        reason = `a dependency was removed: [${labelForScript(
+                          this.#rootPackageDir,
+                          stringToScriptReference(difference.script),
+                        )}]`;
+                        break;
+                      }
+                      case 'dependency changed': {
+                        reason = `a dependency changed: [${labelForScript(
+                          this.#rootPackageDir,
+                          stringToScriptReference(difference.script),
+                        )}]`;
+                        break;
+                      }
+                      case 'file added': {
+                        reason = `a file was added: ${pathlib.relative(
+                          this.#rootPackageDir,
+                          difference.path,
+                        )}`;
+                        break;
+                      }
+                      case 'file removed': {
+                        reason = `a file was removed: ${pathlib.relative(
+                          this.#rootPackageDir,
+                          difference.path,
+                        )}`;
+                        break;
+                      }
+                      case 'file changed': {
+                        reason = `a file was changed: ${pathlib.relative(
+                          this.#rootPackageDir,
+                          difference.path,
+                        )}`;
+                        break;
+                      }
+                    }
+                  }
+                }
+                break;
+              }
+            }
+            console.log(`⬇️${prefix} Service stopped because ${reason}`);
             if (event.failure !== undefined) {
               // Use console.group to indent
               console.group();

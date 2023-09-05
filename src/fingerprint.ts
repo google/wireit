@@ -208,17 +208,19 @@ export class Fingerprint {
       if (script.command === undefined) {
         return undefined;
       }
-      if (script.files === undefined) {
-        return {name: 'no input'};
-      }
-      // A service. Fully tracked if we know its inputs. Can't produce output.
+      // A service. Always fully tracked. No 'files' means that we
+      // assume that it writes no files. Can't produce output.
       if (script.service !== undefined) {
         return undefined;
+      }
+
+      if (script.files === undefined) {
+        return {name: 'no files field'};
       }
       // A standard script. Fully tracked if we know both its inputs and
       // outputs.
       if (script.output === undefined) {
-        return {name: 'no output'};
+        return {name: 'no output field'};
       }
       return undefined;
     })();
@@ -443,8 +445,8 @@ export class Fingerprint {
 }
 
 export type NotFullyTrackedReason =
-  | {name: 'no input'}
-  | {name: 'no output'}
+  | {name: 'no files field'}
+  | {name: 'no output field'}
   | {
       name: 'dependency not fully tracked';
       dependency: ScriptReferenceString;

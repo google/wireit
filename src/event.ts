@@ -12,6 +12,7 @@ import type {
   ScriptReferenceWithCommand,
   PackageReference,
 } from './config.js';
+import {NeedsToRunReason} from './execution/standard.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -480,15 +481,15 @@ export interface ServiceReady extends InfoBase {
 export interface ServiceStopped extends InfoBase {
   detail: 'service-stopped';
   reason: ServiceStoppedReason;
-  failure: Failure|undefined;
+  failure: Failure | undefined;
 }
 
 export type ServiceStoppedReason =
-  | 'the depgraph changed, service is no longer needed'
-  | 'the run was aborted'
-  | 'all consumers of the service are done'
-  | 'its fingerprint changed, so it needs to restart'
-  | 'unknown';
+  | { name: 'the depgraph changed, service is no longer needed' }
+  | { name: 'the run was aborted' }
+  | { name: 'all consumers of the service are done' }
+  | { name: 'restart'; reason: NeedsToRunReason }
+  | { name: 'unknown' };
 
 /**
  * An advisory event about caching.

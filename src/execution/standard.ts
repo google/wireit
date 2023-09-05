@@ -782,7 +782,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   }
 }
 
-type NeedsToRunReason =
+export type NeedsToRunReason =
   | {
       name: 'not-fully-tracked';
       reason: NotFullyTrackedReason;

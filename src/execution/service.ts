@@ -16,6 +16,7 @@ import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
 import type {Failure, ServiceStoppedReason} from '../event.js';
 import type {Result} from '../error.js';
+import {NeedsToRunReason} from './standard.js';
 
 type ServiceState =
   | {
@@ -247,7 +248,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * its own service dependencies exited unexpectedly.
    */
   readonly terminated = this.#terminated.promise;
-  #stopReason: ServiceStoppedReason = 'unknown';
+  #stopReason: ServiceStoppedReason = {name: 'unknown'};
 
   constructor(
     config: ServiceScriptConfig,
@@ -367,8 +368,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         void abort.then(() => {
           void this.abort(
             this._config.isPersistent
-              ? 'the run was aborted'
-              : 'all consumers of the service are done',
+              ? {name: 'the run was aborted'}
+              : {name: 'all consumers of the service are done'},
           );
         });
 
@@ -484,15 +485,41 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
+  #needsToBeRestarted(
+    computeResult: ComputeFingerprintResult,
+    adoptee: ServiceScriptExecution | undefined,
+  ): undefined | NeedsToRunReason {
+    if (computeResult.notFullyTrackedReason !== undefined) {
+      return {
+        name: 'not-fully-tracked',
+        reason: computeResult.notFullyTrackedReason,
+      };
+    }
+    const fingerprint = computeResult.fingerprint;
+    const prevFingerprint = adoptee?.fingerprint;
+    if (prevFingerprint === undefined) {
+      return {name: 'no-previous-fingerprint'};
+    }
+    const difference = fingerprint.difference(prevFingerprint);
+    if (difference === undefined) {
+      return undefined;
+    }
+    return {
+      name: 'fingerprints-differed',
+      difference,
+    };
+  }
+
   #onFingerprinted(computeResult: ComputeFingerprintResult) {
     const fingerprint = computeResult.fingerprint;
     switch (this.#state.id) {
       case 'fingerprinting': {
         const adoptee = this.#state.adoptee;
-        if (
-          adoptee !== undefined &&
-          fingerprint.requiresRebuild(adoptee.fingerprint)
-        ) {
+        const needsToRestartReason = this.#needsToBeRestarted(
+          computeResult,
+          adoptee,
+        );
+        if (adoptee !== undefined && needsToRestartReason !== undefined) {
           // There is a previous running version of this service, but the
           // fingerprint changed, so we need to restart it.
           this.#state = {
@@ -504,7 +531,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           // include info on
           // what changed in the fingerprint
           adoptee
-            .abort('its fingerprint changed, so it needs to restart')
+            ?.abort({name: 'restart', reason: needsToRestartReason})
             .then(() => {
               this.#onAdopteeStopped();
             });
