@@ -14,6 +14,7 @@ import type {
   ScriptReferenceString,
   Dependency,
 } from './config.js';
+import {FingerprintDifference, NotFullyTrackedReason} from './event.js';
 
 /**
  * All meaningful inputs of a script. Used for determining if a script is fresh,
@@ -307,7 +308,7 @@ export class Fingerprint {
     return !this.equal(previous);
   }
 
-  difference(previous: Fingerprint): Difference | undefined {
+  difference(previous: Fingerprint): FingerprintDifference | undefined {
     // Do a string comparison first, because it's much faster than
     // checking field by field;
     if (this.equal(previous)) {
@@ -443,31 +444,3 @@ export class Fingerprint {
     );
   }
 }
-
-export type NotFullyTrackedReason =
-  | {name: 'no files field'}
-  | {name: 'no output field'}
-  | {
-      name: 'dependency not fully tracked';
-      dependency: ScriptReferenceString;
-    };
-
-export type Difference =
-  | {
-      name: 'environment';
-      field: 'platform' | 'arch' | 'nodeVersion';
-      previous: string;
-      current: string;
-    }
-  | {
-      name: 'config';
-      field: 'command' | 'extraArgs' | 'clean' | 'output' | 'service' | 'env';
-      previous: unknown;
-      current: unknown;
-    }
-  | {name: 'file added'; path: string}
-  | {name: 'file removed'; path: string}
-  | {name: 'file changed'; path: string}
-  | {name: 'dependency removed'; script: ScriptReferenceString}
-  | {name: 'dependency added'; script: ScriptReferenceString}
-  | {name: 'dependency changed'; script: ScriptReferenceString};

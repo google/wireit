@@ -23,7 +23,7 @@ import type {
   ServiceScriptConfig,
   StandardScriptConfig,
 } from './config.js';
-import type {Failure} from './event.js';
+import type {ExecutionRequestedReason, Failure} from './event.js';
 import type {Fingerprint} from './fingerprint.js';
 
 type Execution =
@@ -151,7 +151,7 @@ export class Executor {
     this.#stopServices.resolve();
     if (this.#previousIterationServices !== undefined) {
       for (const service of this.#previousIterationServices.values()) {
-        void service.abort({ name: 'the run was aborted' });
+        void service.abort({name: 'the run was aborted'});
       }
     }
   }
@@ -179,7 +179,9 @@ export class Executor {
       for (const [key, service] of this.#previousIterationServices) {
         if (!currentPersistentServices.has(key)) {
           abortPromises.push(
-            service.abort({ name: 'the depgraph changed, service is no longer needed'}),
+            service.abort({
+              name: 'the depgraph changed, service is no longer needed',
+            }),
           );
           this.#previousIterationServices.delete(key);
         }
@@ -188,9 +190,9 @@ export class Executor {
     }
 
     const errors: Failure[] = [];
-    const rootExecutionResult = await this.getExecution(
-      this.#rootConfig,
-    ).execute();
+    const rootExecutionResult = await this.getExecution(this.#rootConfig, {
+      path: [],
+    }).execute();
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
     }
@@ -253,12 +255,20 @@ export class Executor {
    * Get the execution instance for a script config, creating one if it doesn't
    * already exist.
    */
-  getExecution<T extends ScriptConfig>(config: T): ConfigToExecution<T> {
+  getExecution<T extends ScriptConfig>(
+    config: T,
+    executionRequestedReason: ExecutionRequestedReason,
+  ): ConfigToExecution<T> {
     const key = scriptReferenceToString(config);
     let execution = this.#executions.get(key);
     if (execution === undefined) {
       if (config.command === undefined) {
-        execution = new NoCommandScriptExecution(config, this, this.#logger);
+        execution = new NoCommandScriptExecution(
+          config,
+          this,
+          this.#logger,
+          executionRequestedReason,
+        );
       } else if (config.service !== undefined) {
         execution = new ServiceScriptExecution(
           config,
@@ -267,6 +277,7 @@ export class Executor {
           this.#stopServices.promise,
           this.#previousIterationServices?.get(key),
           this.#isWatchMode,
+          executionRequestedReason,
         );
         if (config.isPersistent) {
           this.#persistentServices.set(key, execution);
@@ -280,6 +291,7 @@ export class Executor {
           this.#workerPool,
           this.#cache,
           this.#logger,
+          executionRequestedReason,
         );
       }
       this.#executions.set(key, execution);

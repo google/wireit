@@ -11,8 +11,8 @@ import type {
   ScriptReference,
   ScriptReferenceWithCommand,
   PackageReference,
+  ScriptReferenceString,
 } from './config.js';
-import {NeedsToRunReason} from './execution/standard.js';
 
 /**
  * Something that happened during Wireit execution. Includes successes,
@@ -375,8 +375,12 @@ interface InfoBase<T extends PackageReference = ScriptReference>
 export interface ScriptRunning extends InfoBase<ScriptReferenceWithCommand> {
   detail: 'running';
   notFreshReason: NotFreshReason;
+  executionRequestedReason: ExecutionRequestedReason;
 }
 
+/**
+ * Answers the question "Why is this script not fresh?"
+ */
 export type NotFreshReason =
   | {
       name: 'output manifest outdated';
@@ -384,10 +388,67 @@ export type NotFreshReason =
     }
   | NeedsToRunReason;
 
+/**
+ * Answers the question "Why does this script need to run?"
+ */
+export type NeedsToRunReason =
+  | {
+      name: 'not-fully-tracked';
+      reason: NotFullyTrackedReason;
+    }
+  | {name: 'no-previous-fingerprint'}
+  | {name: 'fingerprints-differed'; difference: FingerprintDifference};
+
+/**
+ * Answers the question "Why is this script's fingerprint not fully tracked?"
+ */
+export type NotFullyTrackedReason =
+  | {name: 'no files field'}
+  | {name: 'no output field'}
+  | {
+      name: 'dependency not fully tracked';
+      dependency: ScriptReferenceString;
+    };
+
+/**
+ * Answers the question "Why is this script's fingerprint different from the
+ * previous one?"
+ */
+export type FingerprintDifference =
+  | {
+      name: 'environment';
+      field: 'platform' | 'arch' | 'nodeVersion';
+      previous: string;
+      current: string;
+    }
+  | {
+      name: 'config';
+      field: 'command' | 'extraArgs' | 'clean' | 'output' | 'service' | 'env';
+      previous: unknown;
+      current: unknown;
+    }
+  | {name: 'file added'; path: string}
+  | {name: 'file removed'; path: string}
+  | {name: 'file changed'; path: string}
+  | {name: 'dependency removed'; script: ScriptReferenceString}
+  | {name: 'dependency added'; script: ScriptReferenceString}
+  | {name: 'dependency changed'; script: ScriptReferenceString};
+
+/**
+ * One reason why a script might not be fresh is that we can't be sure that
+ * its output files are up to date. This can happen if the output manifest
+ * can't be found, or its output was modified since its last run, or if for
+ * some reason we can't glob its output files.
+ */
 export type OutputManifestOutdatedReason =
   | 'no previous manifest'
   | 'output modified'
   | `can't glob output files`;
+
+/**
+ * Answers the question "what requested this script to run?"
+ */
+export type ExecutionRequestedReason = {path: readonly ScriptReferenceString[]};
 
 /**
  * A script can't run right now because a system-wide lock is being held by

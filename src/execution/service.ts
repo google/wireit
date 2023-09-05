@@ -14,9 +14,13 @@ import type {ExecutionResult} from './base.js';
 import type {Dependency, ServiceScriptConfig} from '../config.js';
 import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
-import type {Failure, ServiceStoppedReason} from '../event.js';
+import type {
+  ExecutionRequestedReason,
+  Failure,
+  NeedsToRunReason,
+  ServiceStoppedReason,
+} from '../event.js';
 import type {Result} from '../error.js';
-import {NeedsToRunReason} from './standard.js';
 
 type ServiceState =
   | {
@@ -257,8 +261,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     entireExecutionAborted: Promise<void>,
     adoptee: ServiceScriptExecution | undefined,
     isWatchMode: boolean,
+    executionRequestedReason: ExecutionRequestedReason,
   ) {
-    super(config, executor, logger);
+    super(config, executor, logger, executionRequestedReason);
     this.config = config;
     this.#isWatchMode = isWatchMode;
     this.#state = {
@@ -359,7 +364,10 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         const allConsumersDone = Promise.all(
           this._config.serviceConsumers.map(
             (consumer) =>
-              this._executor.getExecution(consumer).servicesNotNeeded,
+              this._executor.getExecution(
+                consumer,
+                this.getReasonForChildExecution(),
+              ).servicesNotNeeded,
           ),
         );
         const abort = this._config.isPersistent

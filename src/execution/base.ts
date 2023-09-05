@@ -10,9 +10,13 @@ import {Deferred} from '../util/deferred.js';
 
 import type {Result} from '../error.js';
 import type {Executor} from '../executor.js';
-import type {Dependency, ScriptConfig} from '../config.js';
+import {
+  scriptReferenceToString,
+  type Dependency,
+  type ScriptConfig,
+} from '../config.js';
 import type {Logger} from '../logging/logger.js';
-import type {Failure} from '../event.js';
+import type {ExecutionRequestedReason, Failure} from '../event.js';
 
 export type ExecutionResult = Result<Fingerprint, Failure[]>;
 
@@ -47,13 +51,22 @@ export abstract class BaseExecution<T extends ScriptConfig> {
   protected readonly _config: T;
   protected readonly _executor: Executor;
   protected readonly _logger: Logger;
+  readonly #executionRequestedReason: ExecutionRequestedReason;
+  #reasonForChildExecution: ExecutionRequestedReason | undefined = undefined;
+
   #fingerprint?: Promise<ExecutionResult>;
 
-  constructor(config: T, executor: Executor, logger: Logger) {
+  constructor(
+    config: T,
+    executor: Executor,
+    logger: Logger,
+    executionRequestedReason: ExecutionRequestedReason,
+  ) {
     executionConstructorHook?.(this);
     this._config = config;
     this._executor = executor;
     this._logger = logger;
+    this.#executionRequestedReason = executionRequestedReason;
   }
 
   /**
@@ -62,6 +75,18 @@ export abstract class BaseExecution<T extends ScriptConfig> {
    */
   execute(): Promise<ExecutionResult> {
     return (this.#fingerprint ??= this._execute());
+  }
+
+  getReasonForChildExecution(): ExecutionRequestedReason {
+    if (this.#reasonForChildExecution === undefined) {
+      this.#reasonForChildExecution = {
+        path: [
+          ...this.#executionRequestedReason.path,
+          scriptReferenceToString(this._config),
+        ],
+      };
+    }
+    return this.#reasonForChildExecution;
   }
 
   protected abstract _execute(): Promise<ExecutionResult>;
@@ -79,7 +104,9 @@ export abstract class BaseExecution<T extends ScriptConfig> {
 
     const dependencyResults = await Promise.all(
       this._config.dependencies.map((dependency) => {
-        return this._executor.getExecution(dependency.config).execute();
+        return this._executor
+          .getExecution(dependency.config, this.getReasonForChildExecution())
+          .execute();
       }),
     );
     const results: Array<[Dependency, Fingerprint]> = [];
@@ -124,7 +151,9 @@ export abstract class BaseExecutionWithCommand<
    */
   protected readonly _anyServiceTerminated = Promise.race(
     this._config.services.map(
-      (service) => this._executor.getExecution(service).terminated,
+      (service) =>
+        this._executor.getExecution(service, this.getReasonForChildExecution())
+          .terminated,
     ),
   );
 
@@ -135,7 +164,9 @@ export abstract class BaseExecutionWithCommand<
     if (this._config.services.length > 0) {
       const results = await Promise.all(
         this._config.services.map((service) =>
-          this._executor.getExecution(service).start(),
+          this._executor
+            .getExecution(service, this.getReasonForChildExecution())
+            .start(),
         ),
       );
       const errors: Failure[] = [];

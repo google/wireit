@@ -23,9 +23,7 @@ import type {Executor} from '../executor.js';
 import type {StandardScriptConfig} from '../config.js';
 import type {
   ComputeFingerprintResult,
-  Difference,
   FingerprintString,
-  NotFullyTrackedReason,
 } from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {Cache, CacheHit} from '../caching/cache.js';
@@ -33,7 +31,9 @@ import type {
   Failure,
   NotFreshReason,
   OutputManifestOutdatedReason,
+  ExecutionRequestedReason,
   StartCancelled,
+  NeedsToRunReason,
 } from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
@@ -50,6 +50,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   #state: StandardScriptExecutionState = 'before-running';
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
+  readonly #executionRequestedReason: ExecutionRequestedReason;
 
   constructor(
     config: StandardScriptConfig,
@@ -57,10 +58,12 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     workerPool: WorkerPool,
     cache: Cache | undefined,
     logger: Logger,
+    executionRequestedReason: ExecutionRequestedReason,
   ) {
-    super(config, executor, logger);
+    super(config, executor, logger, executionRequestedReason);
     this.#workerPool = workerPool;
     this.#cache = cache;
+    this.#executionRequestedReason = executionRequestedReason;
   }
 
   #ensureState(state: StandardScriptExecutionState): void {
@@ -151,7 +154,11 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           return this.#handleCacheHit(cacheHit, fingerprint);
         }
 
-        return this.#handleNeedsRun(fingerprint, notFreshReason);
+        return this.#handleNeedsRun(
+          fingerprint,
+          notFreshReason,
+          this.#executionRequestedReason,
+        );
       });
     } finally {
       this._servicesNotNeeded.resolve();
@@ -347,6 +354,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   async #handleNeedsRun(
     fingerprint: Fingerprint,
     notFreshReason: NotFreshReason,
+    executionRequestedReason: ExecutionRequestedReason,
   ): Promise<ExecutionResult> {
     // Check if we should clean before we delete the fingerprint file, because
     // we sometimes need to read the previous fingerprint file to determine
@@ -402,6 +410,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         type: 'info',
         detail: 'running',
         notFreshReason,
+        executionRequestedReason: executionRequestedReason,
       });
 
       const child = new ScriptChildProcess(
@@ -808,11 +817,3 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     return pathlib.join(this.#dataDir, 'manifest');
   }
 }
-
-export type NeedsToRunReason =
-  | {
-      name: 'not-fully-tracked';
-      reason: NotFullyTrackedReason;
-    }
-  | {name: 'no-previous-fingerprint'}
-  | {name: 'fingerprints-differed'; difference: Difference};

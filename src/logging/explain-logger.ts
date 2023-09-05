@@ -6,15 +6,17 @@
 
 import {inspect} from 'node:util';
 import {
+  FingerprintDifference,
   Event,
+  ExecutionRequestedReason,
   NotFreshReason,
+  NotFullyTrackedReason,
   OutputManifestOutdatedReason,
   ScriptRunning,
 } from '../event.js';
 import {DefaultLogger, labelForScript} from './default-logger.js';
 import {Logger} from './logger.js';
 import {stringToScriptReference} from '../config.js';
-import {Difference, NotFullyTrackedReason} from '../fingerprint.js';
 import * as pathlib from 'node:path';
 
 export class ExplainLogger extends DefaultLogger {
@@ -30,11 +32,43 @@ export class ExplainLogger extends DefaultLogger {
     }
   }
   #logRunning(event: ScriptRunning) {
-    // const pipeRightTreeChar = '\u251c';
+    const pipeRightTreeChar = '\u251c';
     const downRightTreeChar = '\u2514';
-    const notFreshExplanation = this.#explainNotFreshReason(event.notFreshReason);
-    // console.log(`${pipeRightTreeChar}  You asked it to run because ${dependencyExplanation}.`);
-    console.log(`${downRightTreeChar}  It can't be skipped because ${notFreshExplanation}.`);
+    const notFreshExplanation = this.#explainNotFreshReason(
+      event.notFreshReason,
+    );
+    const executionExplanation = this.#explainExecutionRequestedReason(
+      event.executionRequestedReason,
+    );
+    console.log(
+      `${pipeRightTreeChar}  You asked it to run because ${executionExplanation}.`,
+    );
+    console.log(
+      `${downRightTreeChar}  It can't be skipped because ${notFreshExplanation}.`,
+    );
+    // ?
+  }
+
+  #explainExecutionRequestedReason(reason: ExecutionRequestedReason): string {
+    if (reason.path.length === 0) {
+      return 'it was the root script you asked for';
+    }
+    if (reason.path.length === 1) {
+      return `it was a direct dependency of the root script [${labelForScript(
+        this.rootPackageDir,
+        stringToScriptReference(reason.path[0]!),
+      )}] you asked for`;
+    }
+    const path = reason.path
+      .map(
+        (p) =>
+          `[${labelForScript(
+            this.rootPackageDir,
+            stringToScriptReference(p),
+          )}]`,
+      )
+      .join(' -> ');
+    return `it was a dependency along this path: ${path}`;
   }
 
   #explainNotFreshReason(reason: NotFreshReason): string {
@@ -56,16 +90,19 @@ export class ExplainLogger extends DefaultLogger {
         return this.#explainOutputManifestOutdatedReason(reason.reason);
       }
     }
+    //
   }
 
-  #explainFingerprintsDifferedReason(difference: Difference): string {
+  #explainFingerprintsDifferedReason(
+    difference: FingerprintDifference,
+  ): string {
     switch (difference.name) {
       default: {
         const never: never = difference;
         throw new Error(`Unknown not-fully-tracked reason: ${inspect(never)}`);
       }
       case 'config': {
-        return `the ${
+        return `its ${
           difference.field
         } field in the package.json file changed from ${inspect(
           difference.current,
@@ -79,37 +116,37 @@ export class ExplainLogger extends DefaultLogger {
         )} to ${inspect(difference.previous)}`;
       }
       case 'file added': {
-        return `the input file ${pathlib.relative(
+        return `its input file ${pathlib.relative(
           this.rootPackageDir,
           difference.path,
         )} was created`;
       }
       case 'file removed': {
-        return `the input file ${pathlib.relative(
+        return `its input file ${pathlib.relative(
           this.rootPackageDir,
           difference.path,
         )} was deleted`;
       }
       case 'file changed': {
-        return `the input file ${pathlib.relative(
+        return `its input file ${pathlib.relative(
           this.rootPackageDir,
           difference.path,
         )} was modified`;
       }
       case 'dependency added': {
-        return `a dependency on [${labelForScript(
+        return `its dependency on [${labelForScript(
           this.rootPackageDir,
           stringToScriptReference(difference.script),
         )}] was added`;
       }
       case 'dependency removed': {
-        return `a dependency on [${labelForScript(
+        return `its dependency on [${labelForScript(
           this.rootPackageDir,
           stringToScriptReference(difference.script),
         )}] was removed`;
       }
       case 'dependency changed': {
-        return `out dependency [${labelForScript(
+        return `its dependency [${labelForScript(
           this.rootPackageDir,
           stringToScriptReference(difference.script),
         )}] was re-run, so we needed to as well`;
