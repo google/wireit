@@ -535,11 +535,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             fingerprint,
             deferredFingerprint: this.#state.deferredFingerprint,
           };
-          // deleted the `void` as a deliberate lint warning so I come back and
-          // include info on
-          // what changed in the fingerprint
-          adoptee
-            ?.abort({name: 'restart', reason: needsToRestartReason})
+          void adoptee
+            .abort({name: 'restart', reason: needsToRestartReason})
             .then(() => {
               this.#onAdopteeStopped();
             });

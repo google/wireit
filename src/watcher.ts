@@ -60,7 +60,7 @@ function unknownState(state: never) {
 }
 
 function unexpectedState(state: WatcherState) {
-  return new Error(`Unexpected watcher state ${state}`);
+  return new Error(`Unexpected watcher state ${state.name}`);
 }
 
 /**
@@ -544,8 +544,7 @@ export const makeWatcher = (
         break;
       }
       default: {
-        const expectNever = (_v: never) => {};
-        expectNever(kind);
+        kind satisfies never;
         operation = 'altered in an unknown way';
       }
     }
