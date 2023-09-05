@@ -15,7 +15,6 @@ import {unreachable} from './util/unreachable.js';
 import {Logger} from './logging/logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
-import {ExplainLogger} from './logging/explain-logger.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
   // Recent versions of npm set this environment variable that tells us the
@@ -59,7 +58,7 @@ export interface Options {
   logger: Logger;
 }
 
-export const getOptions = (): Result<Options> => {
+export const getOptions = async (): Promise<Result<Options>> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
   const scriptName = process.env.npm_lifecycle_event;
@@ -186,7 +185,7 @@ export const getOptions = (): Result<Options> => {
 
   const agent = getNpmUserAgent();
 
-  const loggerResult = ((): Result<Logger> => {
+  const loggerResult = await (async (): Promise<Result<Logger>> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
@@ -199,6 +198,7 @@ export const getOptions = (): Result<Options> => {
       return {ok: true, value: new QuietCiLogger(packageRoot)};
     }
     if (str === 'explain') {
+      const {ExplainLogger} = await import('./logging/explain-logger.js');
       return {ok: true, value: new ExplainLogger(packageRoot)};
     }
     if (str === 'simple') {

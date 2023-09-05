@@ -15,7 +15,7 @@ type SerializableOptions = Omit<Options, 'logger'> & {
   logger: string;
 };
 
-const options = getOptions() as unknown as Result<SerializableOptions>;
+const options = await getOptions() as unknown as Result<SerializableOptions>;
 if (options.ok) {
   options.value.logger = options.value.logger.constructor.name;
 }

@@ -32,21 +32,14 @@ export class ExplainLogger extends DefaultLogger {
     }
   }
   #logRunning(event: ScriptRunning) {
-    const pipeRightTreeChar = '\u251c';
-    const downRightTreeChar = '\u2514';
     const notFreshExplanation = this.#explainNotFreshReason(
       event.notFreshReason,
     );
     const executionExplanation = this.#explainExecutionRequestedReason(
       event.executionRequestedReason,
     );
-    console.log(
-      `${pipeRightTreeChar}  You asked it to run because ${executionExplanation}.`,
-    );
-    console.log(
-      `${downRightTreeChar}  It can't be skipped because ${notFreshExplanation}.`,
-    );
-    // ?
+    console.log(`├  You asked it to run because ${executionExplanation}.`);
+    console.log(`└  It can't be skipped because ${notFreshExplanation}.`);
   }
 
   #explainExecutionRequestedReason(reason: ExecutionRequestedReason): string {

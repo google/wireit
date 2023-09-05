@@ -14,6 +14,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Added a new logger for debugging your Wireit configs. Set `WIREIT_LOGGER=explain` to see detailed information about why each script is run, as well as the normal `simple` logs, without any stdout or stderr of scripts.
 
+- Added more "why" information to the `simple` and `metrics` loggers as well, including why a service was restarted, and what file change triggered a new run in watch mode.
+
 ### Fixed
 
 - More reliably handle and report diagnostics for scripts with invalid configurations. Specifically fixed https://github.com/google/wireit/issues/803.

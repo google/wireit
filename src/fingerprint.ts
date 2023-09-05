@@ -214,12 +214,11 @@ export class Fingerprint {
       if (script.service !== undefined) {
         return undefined;
       }
-
+      // A standard script. Fully tracked if we know both its inputs and
+      // outputs.
       if (script.files === undefined) {
         return {name: 'no files field'};
       }
-      // A standard script. Fully tracked if we know both its inputs and
-      // outputs.
       if (script.output === undefined) {
         return {name: 'no output field'};
       }
@@ -308,14 +307,19 @@ export class Fingerprint {
     type FingerprintFields = Exclude<
       keyof FingerprintData,
       '__FingerprintDataBrand__'
-    >;
+      >;
+    // TODO: we might be able to better explain fingerprint changes if we
+    //     grouped information together. For example, one return value with
+    //     all of the environment fields that changed; one with all config
+    //     fields; one that explains all added, removed, and changed
+    //     dependencies; one with all added, removed, and changed files.
     type FieldsExcludingPlatform = Exclude<FingerprintFields, 'platform'>;
     if (this.data.platform !== previous.data.platform) {
       return {
         name: 'environment',
         field: 'platform',
-        previous: this.data.platform,
-        current: previous.data.platform,
+        current: this.data.platform,
+        previous: previous.data.platform,
       };
     }
     type FieldsExcludingArch = Exclude<FieldsExcludingPlatform, 'arch'>;
@@ -323,8 +327,8 @@ export class Fingerprint {
       return {
         name: 'environment',
         field: 'arch',
-        previous: this.data.arch,
-        current: previous.data.arch,
+        current: this.data.arch,
+        previous: previous.data.arch,
       };
     }
     type FieldsExcludingNodeVersion = Exclude<
@@ -335,8 +339,8 @@ export class Fingerprint {
       return {
         name: 'environment',
         field: 'nodeVersion',
-        previous: this.data.nodeVersion,
-        current: previous.data.nodeVersion,
+        current: this.data.nodeVersion,
+        previous: previous.data.nodeVersion,
       };
     }
     type FieldsExcludingCommand = Exclude<
@@ -347,8 +351,8 @@ export class Fingerprint {
       return {
         name: 'config',
         field: 'command',
-        previous: this.data.command,
-        current: previous.data.command,
+        current: this.data.command,
+        previous: previous.data.command,
       };
     }
     type FieldsExcludingExtraArgs = Exclude<
@@ -359,8 +363,8 @@ export class Fingerprint {
       return {
         name: 'config',
         field: 'extraArgs',
-        previous: this.data.extraArgs,
-        current: previous.data.extraArgs,
+        current: this.data.extraArgs,
+        previous: previous.data.extraArgs,
       };
     }
     type FieldsExcludingClean = Exclude<FieldsExcludingExtraArgs, 'clean'>;
@@ -368,8 +372,8 @@ export class Fingerprint {
       return {
         name: 'config',
         field: 'clean',
-        previous: this.data.clean,
-        current: previous.data.clean,
+        current: this.data.clean,
+        previous: previous.data.clean,
       };
     }
     type FieldsExcludingOutput = Exclude<FieldsExcludingClean, 'output'>;
@@ -377,8 +381,8 @@ export class Fingerprint {
       return {
         name: 'config',
         field: 'output',
-        previous: this.data.output,
-        current: previous.data.output,
+        current: this.data.output,
+        previous: previous.data.output,
       };
     }
     type FieldsExcludingService = Exclude<FieldsExcludingOutput, 'service'>;
@@ -389,8 +393,8 @@ export class Fingerprint {
       return {
         name: 'config',
         field: 'service',
-        previous: this.data.service,
-        current: previous.data.service,
+        current: this.data.service,
+        previous: previous.data.service,
       };
     }
     type FieldsExcludingEnv = Exclude<FieldsExcludingService, 'env'>;
@@ -398,8 +402,8 @@ export class Fingerprint {
       return {
         name: 'config',
         field: 'env',
-        previous: this.data.env,
-        current: previous.data.env,
+        current: this.data.env,
+        previous: previous.data.env,
       };
     }
     type FieldsExcludingFiles = Exclude<FieldsExcludingEnv, 'files'>;
