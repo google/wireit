@@ -347,7 +347,9 @@ export class DefaultLogger implements Logger {
         throw new Error(`Unknown service stop reason: ${inspect(never)}`);
       }
       case 'all consumers of the service are done':
+        return 'all its consumers are done';
       case 'the depgraph changed, service is no longer needed':
+        return 'the depgraph changed, and it is no longer needed';
       case 'the run was aborted':
       case 'unknown':
         return reason.name;
