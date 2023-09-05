@@ -307,7 +307,7 @@ export class Fingerprint {
     type FingerprintFields = Exclude<
       keyof FingerprintData,
       '__FingerprintDataBrand__'
-      >;
+    >;
     // TODO: we might be able to better explain fingerprint changes if we
     //     grouped information together. For example, one return value with
     //     all of the environment fields that changed; one with all config
