@@ -90,7 +90,6 @@ export class ExplainLogger extends DefaultLogger {
         return this.#explainOutputManifestOutdatedReason(reason.reason);
       }
     }
-    //
   }
 
   #explainFingerprintsDifferedReason(
