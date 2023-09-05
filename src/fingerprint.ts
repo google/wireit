@@ -314,6 +314,15 @@ export class Fingerprint {
     if (this.equal(previous)) {
       return undefined;
     }
+
+    // To be sure that we don't miss any differences, as we check each field
+    // we remove its type from this union. If we get to the end and there are
+    // still fields left, then we missed something.
+    type FingerprintFields = Exclude<
+      keyof FingerprintData,
+      '__FingerprintDataBrand__'
+    >;
+    type FieldsExcludingPlatform = Exclude<FingerprintFields, 'platform'>;
     if (this.data.platform !== previous.data.platform) {
       return {
         name: 'environment',
@@ -322,6 +331,7 @@ export class Fingerprint {
         current: previous.data.platform,
       };
     }
+    type FieldsExcludingArch = Exclude<FieldsExcludingPlatform, 'arch'>;
     if (this.data.arch !== previous.data.arch) {
       return {
         name: 'environment',
@@ -330,6 +340,10 @@ export class Fingerprint {
         current: previous.data.arch,
       };
     }
+    type FieldsExcludingNodeVersion = Exclude<
+      FieldsExcludingArch,
+      'nodeVersion'
+    >;
     if (this.data.nodeVersion !== previous.data.nodeVersion) {
       return {
         name: 'environment',
@@ -338,6 +352,10 @@ export class Fingerprint {
         current: previous.data.nodeVersion,
       };
     }
+    type FieldsExcludingCommand = Exclude<
+      FieldsExcludingNodeVersion,
+      'command'
+    >;
     if (this.data.command !== previous.data.command) {
       return {
         name: 'config',
@@ -346,6 +364,10 @@ export class Fingerprint {
         current: previous.data.command,
       };
     }
+    type FieldsExcludingExtraArgs = Exclude<
+      FieldsExcludingCommand,
+      'extraArgs'
+    >;
     if (this.data.extraArgs.join(' ') !== previous.data.extraArgs.join(' ')) {
       return {
         name: 'config',
@@ -354,6 +376,7 @@ export class Fingerprint {
         current: previous.data.extraArgs,
       };
     }
+    type FieldsExcludingClean = Exclude<FieldsExcludingExtraArgs, 'clean'>;
     if (this.data.clean !== previous.data.clean) {
       return {
         name: 'config',
@@ -362,6 +385,7 @@ export class Fingerprint {
         current: previous.data.clean,
       };
     }
+    type FieldsExcludingOutput = Exclude<FieldsExcludingClean, 'output'>;
     if (this.data.output.join(' ') !== previous.data.output.join(' ')) {
       return {
         name: 'config',
@@ -370,6 +394,7 @@ export class Fingerprint {
         current: previous.data.output,
       };
     }
+    type FieldsExcludingService = Exclude<FieldsExcludingOutput, 'service'>;
     if (
       this.data.service?.readyWhen.lineMatches !==
       previous.data.service?.readyWhen.lineMatches
@@ -381,6 +406,7 @@ export class Fingerprint {
         current: previous.data.service,
       };
     }
+    type FieldsExcludingEnv = Exclude<FieldsExcludingService, 'env'>;
     if (JSON.stringify(this.data.env) !== JSON.stringify(previous.data.env)) {
       return {
         name: 'config',
@@ -389,6 +415,7 @@ export class Fingerprint {
         current: previous.data.env,
       };
     }
+    type FieldsExcludingFiles = Exclude<FieldsExcludingEnv, 'files'>;
     const thisFiles = new Set(Object.keys(this.data.files));
     const previousFiles = new Set(Object.keys(previous.data.files));
     for (const path of thisFiles) {
@@ -406,6 +433,10 @@ export class Fingerprint {
         return {name: 'file changed', path};
       }
     }
+    type FieldsExcludingDependencies = Exclude<
+      FieldsExcludingFiles,
+      'dependencies'
+    >;
     const thisDependencies = new Set(
       Object.keys(this.data.dependencies) as ScriptReferenceString[],
     );
@@ -438,6 +469,21 @@ export class Fingerprint {
           script: dependency,
         };
       }
+    }
+    type FieldsExcludingFullyTracked = Exclude<
+      FieldsExcludingDependencies,
+      'fullyTracked'
+    >;
+    if (this.data.fullyTracked !== previous.data.fullyTracked) {
+      // This should never happen, because we already checked that all of
+      // the other fields are the same.
+      throw new Error(
+        `Internal error: fingerprints differed only in the 'fullyTracked' field, which should be impossible.\n    current: ${this.string}\n    previous: ${previous.string}`,
+      );
+    }
+    if (false as boolean) {
+      let remainingFields!: FieldsExcludingFullyTracked;
+      remainingFields satisfies never;
     }
     throw new Error(
       `Internal error: fingerprints different but no difference was found.\n    current: ${this.string}\n    previous: ${previous.string}`,
