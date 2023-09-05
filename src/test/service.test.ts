@@ -806,6 +806,77 @@ test(
 );
 
 test(
+  'ephemeral service with files triggers consumer reruns',
+  timeout(async ({rig}) => {
+    // consumer
+    //    |
+    //    v
+    // service
+
+    const consumer = await rig.newCommand();
+    const service = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          consumer: 'wireit',
+          service: 'wireit',
+        },
+        wireit: {
+          consumer: {
+            command: consumer.command,
+            dependencies: ['service'],
+            files: ['input'],
+            output: [],
+          },
+          service: {
+            command: service.command,
+            service: true,
+            files: ['serviceInput'],
+          },
+        },
+      },
+    });
+
+    await rig.write('input', '0');
+    await rig.write('serviceInput', '0');
+    const wireit = rig.exec('npm run consumer --watch');
+    await wireit.waitForLog(
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
+    );
+
+    // Iteration 1
+    {
+      const serviceInv = await service.nextInvocation();
+      const consumerInv = await consumer.nextInvocation();
+      consumerInv.exit(0);
+      await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
+      await consumerInv.closed;
+      await serviceInv.closed;
+    }
+
+    await rig.write('serviceInput', '2');
+    await wireit.waitForLog(
+      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
+    );
+
+    // Iteration 2
+    {
+      const serviceInv = await service.nextInvocation();
+      const consumerInv = await consumer.nextInvocation();
+      consumerInv.exit(0);
+      await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
+      await consumerInv.closed;
+      await serviceInv.closed;
+    }
+
+    wireit.kill();
+    await wireit.exit;
+    assert.equal(consumer.numInvocations, 2);
+    assert.equal(service.numInvocations, 2);
+  }),
+);
+
+test(
   'persistent services are preserved across watch iterations',
   timeout(async ({rig}) => {
     //     entrypoint
