@@ -16,8 +16,8 @@ test.before.each(async (ctx) => {
   try {
     ctx.rig = new WireitTestRig();
     // Uncomment these lines to debug tests:
-    process.env['SHOW_TEST_OUTPUT'] = 'true';
-    ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
+    // process.env['SHOW_TEST_OUTPUT'] = 'true';
+    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
     await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
@@ -634,7 +634,6 @@ for (const failureMode of ['continue', 'no-new']) {
     //       v     v
     // service   standard
     timeout(async ({rig}) => {
-      rig.env.WIREIT_LOGGER = 'simple';
       const service = await rig.newCommand();
       const standard = await rig.newCommand();
       await rig.writeAtomic({
@@ -651,7 +650,6 @@ for (const failureMode of ['continue', 'no-new']) {
             service: {
               command: service.command,
               service: true,
-              files: [],
             },
             standard: {
               command: standard.command,
@@ -665,21 +663,21 @@ for (const failureMode of ['continue', 'no-new']) {
       const wireit = rig.exec('npm run entrypoint --watch', {
         env: {WIREIT_FAILURES: failureMode},
       });
-      // await wireit.waitForLog(
-      //   /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
-      // );
+      await wireit.waitForLog(
+        /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
+      );
       const serviceInv = await service.nextInvocation();
       const standardInv1 = await standard.nextInvocation();
       standardInv1.exit(1);
-      // await wireit.waitForLog(/❌ \[standard\] exited with exit code 1/);
-      // await wireit.waitForLog(/❌ 1 script failed/);
+      await wireit.waitForLog(/❌ \[standard\] exited with exit code 1/);
+      await wireit.waitForLog(/❌ 1 script failed/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(serviceInv.isRunning);
 
       await rig.write('input/standard', '2');
       const standardInv2 = await standard.nextInvocation();
       standardInv2.exit(0);
-      // await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
+      await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(serviceInv.isRunning);
 
@@ -1367,12 +1365,10 @@ test(
             command: service.command,
             service: true,
             dependencies: ['standard'],
-            files: [],
           },
           standard: {
             command: standard.command,
             files: ['input'],
-            output: [],
           },
         },
       },
@@ -1417,7 +1413,7 @@ test(
     await wireit.waitForLog(/\[standard\] Executed successfully/);
     await service.nextInvocation();
     await wireit.waitForLog(
-      /\[service\] Service stopped because a dependency changed: \[standard\]/,
+      /\[service\] Service stopped because the service depends on \[standard\] which must always be run/,
     );
     await wireit.waitForLog(/\[service\] Service starting.../);
     await wireit.waitForLog(/\[service\] Service ready/);
@@ -1444,16 +1440,20 @@ test(
     // restart, because the fingerprint has been restored to what it was before
     // the failure.
     await rig.write('input', '3');
-    await wireit.waitForLog(/\[standard\] Restored from cache/);
+    await wireit.waitForLog(
+      /🔁 \[service\] File "input" was changed, triggering a new run/,
+    );
+    await wireit.waitForLog(/\[standard\] Running command/);
+    (await standard.nextInvocation()).exit(0);
     await wireit.waitForLog(/\[service\] Watching for file changes/);
     await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(service.numInvocations, 2);
-    assert.equal(standard.numInvocations, 4);
+    assert.equal(service.numInvocations, 3);
+    assert.equal(standard.numInvocations, 5);
 
     wireit.kill();
     await wireit.exit;
-    assert.equal(service.numInvocations, 2);
-    assert.equal(standard.numInvocations, 4);
+    assert.equal(service.numInvocations, 3);
+    assert.equal(standard.numInvocations, 5);
   }),
 );
 

@@ -410,7 +410,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         type: 'info',
         detail: 'running',
         notFreshReason,
-        executionRequestedReason: executionRequestedReason,
+        executionRequestedReason,
       });
 
       const child = new ScriptChildProcess(

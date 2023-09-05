@@ -295,19 +295,6 @@ export class Fingerprint {
     return this.string === other.string;
   }
 
-  requiresRebuild(previous: Fingerprint | undefined): boolean {
-    // If we're not fully tracked, we always need to rebuild.
-    if (!this.data.fullyTracked) {
-      return true;
-    }
-    // If we don't have a previous fingerprint, we need to rebuild.
-    if (previous === undefined) {
-      return true;
-    }
-    // Otherwise, we need to rebuild if the fingerprint changed.
-    return !this.equal(previous);
-  }
-
   difference(previous: Fingerprint): FingerprintDifference | undefined {
     // Do a string comparison first, because it's much faster than
     // checking field by field;
