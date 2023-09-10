@@ -75,6 +75,7 @@ async function retryWithGcUntilCallbackDoesNotThrow(
 ): Promise<void> {
   for (const wait of [0, 10, 100, 500, 1000]) {
     collectGarbage();
+    collectGarbage();
     try {
       cb();
       return;
@@ -251,10 +252,12 @@ test(
           servicePersistent: {
             command: servicePersistent.command,
             service: true,
+            files: [],
           },
           serviceEphemeral: {
             command: serviceEphemeral.command,
             service: true,
+            files: [],
           },
         },
       },

@@ -554,7 +554,7 @@ the given regular expression.
 
 In watch mode, a service will be restarted whenever one of its input files or
 dependencies change, except for dependencies with
-[`cascade`](#execution-cascade) set to `false`. Unlike standard scripts, `wireit` assumes that a service doesn't depend on any files unless you tell it otherwise by defining a `files` array.
+[`cascade`](#execution-cascade) set to `false`.
 
 ### Service output
 

@@ -649,6 +649,7 @@ for (const failureMode of ['continue', 'no-new']) {
             },
             service: {
               command: service.command,
+              files: [],
               service: true,
             },
             standard: {
@@ -833,10 +834,12 @@ test(
           service1: {
             command: service1.command,
             dependencies: ['service2'],
+            files: [],
             service: true,
           },
           service2: {
             command: service2.command,
+            files: [],
             service: true,
           },
           standard: {
@@ -849,9 +852,7 @@ test(
 
     await rig.write('input', '0');
     const wireit = rig.exec('npm run entrypoint --watch');
-    await wireit.waitForLog(
-      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
-    );
+    await wireit.waitForLog(/67% \[2 \/ 3\] \[3 running\] \[2 services\]/);
 
     // Iteration 1
     {
@@ -1146,6 +1147,7 @@ test(
           service: {
             command: service.command,
             service: true,
+            files: [],
             dependencies: [
               'hard',
               {
@@ -1413,7 +1415,7 @@ test(
     await wireit.waitForLog(/\[standard\] Executed successfully/);
     await service.nextInvocation();
     await wireit.waitForLog(
-      /\[service\] Service stopped because the service depends on \[standard\] which must always be run/,
+      /\[service\] Service stopped because it depends on \[standard\] which must always be run/,
     );
     await wireit.waitForLog(/\[service\] Service starting.../);
     await wireit.waitForLog(/\[service\] Service ready/);

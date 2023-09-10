@@ -373,15 +373,13 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'dependency not fully tracked': {
-            return `the service depends on [${labelForScript(
+            return `it depends on [${labelForScript(
               this.rootPackageDir,
               stringToScriptReference(notFullyTrackedReason.dependency),
             )}] which must always be run`;
           }
           case 'no files field': {
-            throw new Error(
-              'Internal error: a service is tracked even without a files field',
-            );
+            return `it has no 'files' field`;
           }
           case 'no output field': {
             throw new Error('Internal error: a service never has output');

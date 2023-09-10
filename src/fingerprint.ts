@@ -209,6 +209,9 @@ export class Fingerprint {
       if (script.command === undefined) {
         return undefined;
       }
+      if (script.files === undefined) {
+        return {name: 'no files field'};
+      }
       // A service. Always fully tracked. No 'files' means that we
       // assume that it writes no files. Can't produce output.
       if (script.service !== undefined) {
@@ -216,9 +219,6 @@ export class Fingerprint {
       }
       // A standard script. Fully tracked if we know both its inputs and
       // outputs.
-      if (script.files === undefined) {
-        return {name: 'no files field'};
-      }
       if (script.output === undefined) {
         return {name: 'no output field'};
       }
