@@ -499,6 +499,6 @@ export const makeWatcher = (
     watcher,
     async [Symbol.asyncDispose]() {
       await watcher.close();
-    }
+    },
   };
 };
