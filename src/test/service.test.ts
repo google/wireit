@@ -1445,6 +1445,7 @@ test(
             command: service.command,
             service: true,
             dependencies: ['standard'],
+            files: [],
           },
           standard: {
             command: standard.command,
@@ -1496,7 +1497,7 @@ test(
     (await standard.nextInvocation()).exit(0);
     await wireit.waitForLog(/\[standard\] Executed successfully/);
     await wireit.waitForLog(
-      /\[service\] Service stopped because it depends on \[standard\] which must always be run/,
+      /\[service\] Service stopped because a dependency changed: \[standard\]/,
     );
     await serviceInvocation1.closed;
     const serviceInvocation2 = await service.nextInvocation();
