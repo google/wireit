@@ -108,7 +108,7 @@ test.before.each(async (ctx) => {
       } else if (mode === 'watch') {
         const actual: string[] = [];
         if (patterns.length > 0) {
-          const {watcher} = makeWatcher(
+          await using fsWatcher = makeWatcher(
             patterns,
             rig.resolve(cwd),
             () => undefined,
@@ -117,6 +117,7 @@ test.before.each(async (ctx) => {
             // about changes, not initial files).
             false,
           );
+          const watcher = fsWatcher.watcher;
           watcher.on('add', (path) => {
             actual.push(rig.resolve(path));
           });
@@ -125,7 +126,6 @@ test.before.each(async (ctx) => {
               resolve();
             }),
           );
-          await watcher.close();
         }
         if (expected === 'ERROR') {
           throw new Error('Not sure how to check chokidar errors yet');

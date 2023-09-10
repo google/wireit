@@ -11,6 +11,7 @@ import {Executor, FailureMode, ServiceMap} from './executor.js';
 import {Logger} from './logging/logger.js';
 import {Deferred} from './util/deferred.js';
 import {WorkerPool} from './util/worker-pool.js';
+import './util/dispose.js';
 import {
   ScriptConfig,
   ScriptReference,
@@ -62,7 +63,7 @@ function unexpectedState(state: WatcherState) {
  * A chokidar file watcher along with the file patterns it was configured to
  * watch.
  */
-interface FileWatcher {
+interface FileWatcher extends AsyncDisposable {
   patterns: string[];
   watcher: chokidar.FSWatcher;
 }
@@ -246,7 +247,7 @@ export class Watcher {
         this.#onConfigFileChanged,
       );
       if (oldWatcher !== undefined) {
-        void oldWatcher.watcher.close();
+        void oldWatcher[Symbol.asyncDispose]();
       }
     }
 
@@ -383,7 +384,7 @@ export class Watcher {
           this.#inputFileWatchers.set(key, newWatcher);
         }
         if (oldWatcher !== undefined) {
-          void oldWatcher.watcher.close();
+          void oldWatcher[Symbol.asyncDispose]();
         }
       }
       for (const dep of script.dependencies) {
@@ -395,7 +396,7 @@ export class Watcher {
     // There also could be some scripts that have been removed entirely.
     for (const [oldKey, oldWatcher] of this.#inputFileWatchers) {
       if (!visited.has(oldKey)) {
-        void oldWatcher.watcher.close();
+        void oldWatcher[Symbol.asyncDispose]();
         this.#inputFileWatchers.delete(oldKey);
       }
     }
@@ -438,9 +439,9 @@ export class Watcher {
   }
 
   #closeAllFileWatchers() {
-    void this.#configFilesWatcher?.watcher.close();
+    void this.#configFilesWatcher?.[Symbol.asyncDispose]();
     for (const value of this.#inputFileWatchers.values()) {
-      void value.watcher.close();
+      void value[Symbol.asyncDispose]();
     }
   }
 }
@@ -496,5 +497,8 @@ export const makeWatcher = (
   return {
     patterns,
     watcher,
+    async [Symbol.asyncDispose]() {
+      await watcher.close();
+    }
   };
 };
