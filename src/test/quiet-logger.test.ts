@@ -6,39 +6,13 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/uvu-timeout.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    // process.env['SHOW_TEST_OUTPUT'] = 'true';
-    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'CI logger with a dependency chain',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // a --> b --> c
     rig.env.WIREIT_LOGGER = 'quiet-ci';
     const cmdA = await rig.newCommand();

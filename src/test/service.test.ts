@@ -9,7 +9,7 @@ import * as assert from 'uvu/assert';
 import {rigTest} from './util/uvu-timeout.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-const test = suite();
+const test = suite<object>();
 
 function testLog(...args: unknown[]) {
   if (!process.env['SHOW_TEST_OUTPUT']) {

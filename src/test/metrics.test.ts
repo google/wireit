@@ -5,40 +5,16 @@
  */
 
 import {suite} from 'uvu';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/uvu-timeout.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 import assert from 'assert';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    ctx.rig.env['WIREIT_LOGGER'] = 'metrics';
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'logs metrics for successful events',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
+    rig.env['WIREIT_LOGGER'] = 'metrics';
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -114,7 +90,8 @@ test(
 
 test(
   'does not log metrics for non-success events',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
+    rig.env['WIREIT_LOGGER'] = 'metrics';
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -142,7 +119,8 @@ test(
 
 test(
   'logs metrics for interesting iterations when in watch mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
+    rig.env['WIREIT_LOGGER'] = 'metrics';
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.writeAtomic({
@@ -211,7 +189,8 @@ test(
 
 test(
   'does not log metrics for non-interesting iterations in watch mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
+    rig.env['WIREIT_LOGGER'] = 'metrics';
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -275,6 +254,10 @@ function assertNthMetric(
   const metric = findNthMetric(n, stdout);
 
   if (!metric) {
+    console.error(`Could not find metric ${n} in stdout:\n`);
+    console.group();
+    console.log(stdout);
+    console.groupEnd();
     throw new Error(`Could not find metric ${n}`);
   }
 

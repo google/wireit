@@ -283,15 +283,20 @@ export class WireitTestRig
         console.log(
           `Ran ${JSON.stringify(
             exitReport.command,
-          )} in ${duration.toLocaleString()}s. ${exitCodeMessage}\nStdout:\n`,
+          )} in ${duration.toLocaleString()}s. ${exitCodeMessage}`,
         );
-        console.group();
-        console.log(exitReport.exit.stdout);
-        console.groupEnd();
-        console.log('\nStderr:\n');
-        console.group();
-        console.error(exitReport.exit.stderr);
-        console.groupEnd();
+        if (exitReport.exit.stdout.trim() !== '') {
+          console.log('Stdout:');
+          console.group();
+          console.log(exitReport.exit.stdout.replace(/\r/g, '↵\n'));
+          console.groupEnd();
+        }
+        if (exitReport.exit.stderr.trim() !== '') {
+          console.log('Stderr:');
+          console.group();
+          console.log(exitReport.exit.stderr.replace(/\r/g, '↵\n'));
+          console.groupEnd();
+        }
         console.log('\n');
       } else {
         console.error(`Failed to run ${JSON.stringify(exitReport.command)}:\n`);
@@ -454,23 +459,25 @@ class ExecResult {
     if (this.#logMatchers.size === 0) {
       return;
     }
-    console.error(
+    console.log(
       `${JSON.stringify(
         this.#command,
       )} was still waiting to see logs matching:`,
     );
     for (const {re, stack} of this.#logMatchers) {
-      console.error('  ', re);
+      console.log('  ', re);
       console.group();
-      console.error('Source:', stack);
+      console.log('Source:', stack?.split('\n')[2]);
       console.groupEnd();
     }
-    console.error(
-      `Unconsumed stdout:\n\`\`\`\n${this.#matcherStdout}\n\`\`\`\n`,
-    );
-    console.error(
-      `Unconsumed stderr:\n\`\`\`\n${this.#matcherStderr}\n\`\`\`\n`,
-    );
+    console.log(`Unconsumed stdout:`);
+    console.group();
+    console.log(this.#matcherStdout.replace(/\r/g, '↵\n'));
+    console.groupEnd();
+    console.log(`Unconsumed stderr:`);
+    console.group();
+    console.log(this.#matcherStderr.replace(/\r/g, '↵\n'));
+    console.groupEnd();
   }
 
   #checkMatchersAgainstLogs() {
