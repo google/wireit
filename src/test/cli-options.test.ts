@@ -28,6 +28,7 @@ async function getOptionsResult(
   env?: Record<string, string | undefined>,
   extraScripts?: Record<string, string>,
 ): Promise<Result<Options>> {
+  rig.env.WIREIT_DEBUG_LOG_TO = '';
   await rig.write({
     'package.json': {
       scripts: {

@@ -117,7 +117,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
   }
 };
 
-const optionsResult = getOptions();
+const optionsResult = await getOptions();
 if (!optionsResult.ok) {
   // if we can't figure out our options, we can't figure out what logger
   // we should use here, so just use the default logger.

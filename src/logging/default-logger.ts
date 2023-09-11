@@ -313,7 +313,7 @@ export class DefaultLogger implements Logger {
   }
 
   [Symbol.dispose](): void {
-    // nothing to clean up
+    this.console[Symbol.dispose]();
   }
 }
 

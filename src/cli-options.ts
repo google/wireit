@@ -58,7 +58,7 @@ export interface Options {
   logger: Logger;
 }
 
-export const getOptions = (): Result<Options> => {
+export const getOptions = async (): Promise<Result<Options>> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
   const scriptName = process.env.npm_lifecycle_event;
@@ -185,17 +185,16 @@ export const getOptions = (): Result<Options> => {
 
   const agent = getNpmUserAgent();
 
-  const loggerResult = ((): Result<Logger> => {
-    const packageRoot = packageDir ?? process.cwd();
+  const console = new Console(process.stdout, process.stderr);
+  const packageRoot = packageDir ?? process.cwd();
+  const loggerResult = await (async (): Promise<Result<Logger>> => {
     const str = process.env['WIREIT_LOGGER'];
-    const console = new Console(process.stdout, process.stderr);
     if (!str) {
       if (process.env.CI) {
         return {ok: true, value: new QuietCiLogger(packageRoot, console)};
       }
       return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
-
     if (str === 'quiet') {
       return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
@@ -224,6 +223,22 @@ export const getOptions = (): Result<Options> => {
     return loggerResult;
   }
 
+  let logger = loggerResult.value;
+  if (process.env['WIREIT_DEBUG_LOG_TO']) {
+    const [{DebugLogger}, {CombinationLogger}] = await Promise.all([
+      import('./logging/debug-logger.js'),
+      import('./logging/combination-logger.js'),
+    ]);
+    const debugLogStream = await fs.createWriteStream(
+      process.env['WIREIT_DEBUG_LOG_TO']!,
+    );
+    const debugLogConsole = new Console(debugLogStream, debugLogStream, true);
+    logger = new CombinationLogger(
+      [logger, new DebugLogger(packageRoot, debugLogConsole)],
+      console,
+    );
+  }
+
   return {
     ok: true,
     value: {
@@ -232,7 +247,7 @@ export const getOptions = (): Result<Options> => {
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
       agent,
-      logger: loggerResult.value,
+      logger,
       ...getArgvOptions(script, agent),
     },
   };
