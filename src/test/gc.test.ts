@@ -30,7 +30,7 @@ const collectGarbage = (() => {
   return global.gc;
 })();
 
-test.before.each(async () => {
+test.before.each(() => {
   try {
     const executorFinalizationRegistry = new FinalizationRegistry(() => {
       numLiveExecutors--;
@@ -55,7 +55,7 @@ test.before.each(async () => {
   }
 });
 
-test.after.each(async () => {
+test.after.each(() => {
   try {
     numLiveExecutors = 0;
     numLiveExecutions = 0;

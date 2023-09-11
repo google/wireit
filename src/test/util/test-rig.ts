@@ -278,7 +278,7 @@ export class WireitTestRig
         const exitCodeMessage =
           exitReport.exit.code === 0
             ? ''
-            : 'Exited with code ${exitReport.exit.code}. ';
+            : `Exited with code ${exitReport.exit.code}. `;
         const duration = Math.round(exitReport.exit.duration / 100) / 10;
         console.log(
           `Ran ${JSON.stringify(
@@ -380,6 +380,7 @@ class ExecResult {
     this.#child.stdout.on('data', this.#onStdout);
     this.#child.stderr.on('data', this.#onStderr);
 
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     this.#child.on('close', async (code, signal) => {
       this.#running = false;
       const duration = performance.now() - this.startTime;

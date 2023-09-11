@@ -6,6 +6,7 @@
 
 import {ExplainLogger} from './explain-logger.js';
 import {Event} from '../event.js';
+import {inspect} from 'node:util';
 
 /**
  * A {@link Logger} for logging debug information, mainly in tests.
@@ -25,9 +26,10 @@ export class DebugLogger extends ExplainLogger {
       case 'success':
         this.console.log(`<success> ${event.reason}`);
         break;
-      default:
+      default: {
         const never: never = event;
-        throw new Error(`Unknown event type: ${never}`);
+        throw new Error(`Unknown event type: ${inspect(never)}`);
+      }
     }
     super.log(event);
   }
