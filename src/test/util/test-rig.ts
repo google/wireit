@@ -297,6 +297,12 @@ export class WireitTestRig
           console.log(exitReport.exit.stderr.replace(/\r/g, '↵\n'));
           console.groupEnd();
         }
+        if (exitReport.exit.debugLog !== undefined) {
+          console.log('Debug log:');
+          console.group();
+          console.log(exitReport.exit.debugLog.replace(/\r/g, '↵\n'));
+          console.groupEnd();
+        }
         console.log('\n');
       } else {
         console.error(`Failed to run ${JSON.stringify(exitReport.command)}:\n`);
@@ -318,6 +324,7 @@ class ExecResult {
   readonly #command: string;
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #exited = new Deferred<ExitResult>();
+  readonly #debugLogPath: string;
   readonly startTime = performance.now();
   #running = true;
   #allStdout = '';
@@ -331,6 +338,10 @@ class ExecResult {
     env: Record<string, string | undefined>,
   ) {
     this.#command = command;
+    env['WIREIT_DEBUG_LOG_TO'] ??= pathlib.resolve(
+      pathlib.join(cwd, '.wireit-debug.log'),
+    );
+    this.#debugLogPath = env['WIREIT_DEBUG_LOG_TO']!;
     // Remove any environment variables that start with "npm_", because those
     // will have been set by the "npm test" or similar command that launched
     // this test itself, and we want a more pristine simulation of running
@@ -369,15 +380,25 @@ class ExecResult {
     this.#child.stdout.on('data', this.#onStdout);
     this.#child.stderr.on('data', this.#onStderr);
 
-    this.#child.on('close', (code, signal) => {
+    this.#child.on('close', async (code, signal) => {
       this.#running = false;
+      const duration = performance.now() - this.startTime;
+
+      let debugLog: string | undefined;
+      try {
+        debugLog = await fs.readFile(this.#debugLogPath, {encoding: 'utf8'});
+      } catch {
+        // ignore
+      }
+
       this.#exited.resolve({
         command,
         code,
         signal,
         stdout: this.#allStdout,
         stderr: this.#allStderr,
-        duration: performance.now() - this.startTime,
+        debugLog,
+        duration,
       });
     });
 
@@ -542,6 +563,7 @@ export interface ExitResult {
   command: string;
   stdout: string;
   stderr: string;
+  debugLog: string | undefined;
   /** The exit code, or null if the child process exited with a signal. */
   code: number | null;
   /** The exit signal, or null if the child process did not exit with a signal. */

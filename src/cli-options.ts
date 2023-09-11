@@ -185,8 +185,9 @@ export const getOptions = async (): Promise<Result<Options>> => {
 
   const agent = getNpmUserAgent();
 
+  const console = new Console(process.stdout, process.stderr);
+  const packageRoot = packageDir ?? process.cwd();
   const loggerResult = await (async (): Promise<Result<Logger>> => {
-    const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
       return {
@@ -197,7 +198,6 @@ export const getOptions = async (): Promise<Result<Options>> => {
         ),
       };
     }
-    const console = new Console(process.stdout, process.stderr);
     if (str === 'quiet') {
       return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
@@ -232,6 +232,20 @@ export const getOptions = async (): Promise<Result<Options>> => {
     return loggerResult;
   }
 
+  let logger = loggerResult.value;
+  if (process.env['WIREIT_DEBUG_LOG_TO']) {
+    const {DebugLogger} = await import('./logging/debug-logger.js');
+    const {CombinationLogger} = await import('./logging/combination-logger.js');
+    const debugLogStream = await fs.createWriteStream(
+      process.env['WIREIT_DEBUG_LOG_TO']!,
+    );
+    const debugLogConsole = new Console(debugLogStream, debugLogStream, true);
+    logger = new CombinationLogger(
+      [logger, new DebugLogger(packageRoot, debugLogConsole)],
+      console,
+    );
+  }
+
   return {
     ok: true,
     value: {
@@ -240,7 +254,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
       agent,
-      logger: loggerResult.value,
+      logger,
       ...getArgvOptions(script, agent),
     },
   };

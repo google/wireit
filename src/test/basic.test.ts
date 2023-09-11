@@ -89,6 +89,18 @@ test(
     checkScriptOutput(res.stderr, 'a stderr\n');
     assert.match(res.stdout, 'a stdout\n');
     assert.match(res.stdout, '✅ Ran 1 script and skipped 0 in');
+    assert.equal(
+      res.debugLog?.trim(),
+      `
+<info> analysis-started
+<info> analysis-completed
+<info> running
+🏃 [a] Running command "${cmdA.command}"
+├  You asked it to run because it was the root script you asked for.
+└  It can't be skipped because it has no "files" field and so it must always be run.
+<success> exit-zero
+✅ [a] Executed successfully`.trim(),
+    );
   }),
 );
 

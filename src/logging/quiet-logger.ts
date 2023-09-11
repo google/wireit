@@ -75,6 +75,7 @@ export class QuietLogger implements Logger {
   [Symbol.dispose](): void {
     this.#statusLineWriter[Symbol.dispose]();
     this.#runTracker[Symbol.dispose]();
+    this.console[Symbol.dispose]();
   }
 }
 
