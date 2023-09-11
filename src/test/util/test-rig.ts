@@ -17,17 +17,37 @@ import {
 } from '../../util/windows.js';
 import {FilesystemTestRig} from './filesystem-test-rig.js';
 import {NODE_MAJOR_VERSION} from './node-version.js';
+import '../../util/dispose.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 
+type ExitReport =
+  | {
+      ok: true;
+      startTime: number;
+      command: string;
+      exit: ExitResult;
+    }
+  | {
+      ok: false;
+      startTime: number;
+      command: string;
+      error: Error;
+    };
+
 /**
  * A test rig for managing a temporary filesystem and executing Wireit.
  */
-export class WireitTestRig extends FilesystemTestRig {
+export class WireitTestRig
+  extends FilesystemTestRig
+  implements AsyncDisposable
+{
   readonly #activeChildProcesses = new Set<ExecResult>();
+  readonly #completedChildProcesses = new Set<ExitReport>();
   readonly #commands: Array<WireitTestRigCommand> = [];
+  #cleanupFinished: undefined | Promise<void>;
 
   /**
    * Environment variables to set on spawned child processes.
@@ -115,6 +135,13 @@ export class WireitTestRig extends FilesystemTestRig {
    * Delete the temporary filesystem and perform other cleanup.
    */
   override async cleanup(): Promise<void> {
+    if (this.#cleanupFinished === undefined) {
+      this.#cleanupFinished = this.#actuallyCleanup();
+    }
+    return this.#cleanupFinished;
+  }
+
+  async #actuallyCleanup() {
     await Promise.all(this.#commands.map((command) => command.close()));
     for (const child of this.#activeChildProcesses) {
       // Force kill child processes, because we're cleaning up the test rig
@@ -181,7 +208,26 @@ export class WireitTestRig extends FilesystemTestRig {
       ...(opts?.env ?? {}),
     });
     this.#activeChildProcesses.add(result);
-    void result.exit.finally(() => this.#activeChildProcesses.delete(result));
+    void result.exit
+      .then(
+        (exitResult) => {
+          this.#completedChildProcesses.add({
+            ok: true,
+            startTime: result.startTime,
+            command,
+            exit: exitResult,
+          });
+        },
+        (error: Error) => {
+          this.#completedChildProcesses.add({
+            ok: false,
+            startTime: result.startTime,
+            command,
+            error,
+          });
+        },
+      )
+      .finally(() => this.#activeChildProcesses.delete(result));
     return result;
   }
 
@@ -216,6 +262,46 @@ export class WireitTestRig extends FilesystemTestRig {
     await command.listen();
     return command;
   }
+
+  async [Symbol.asyncDispose]() {
+    await this.cleanup();
+  }
+
+  // The test failed. Give a full report of every exec call.
+  async reportFullLogs() {
+    await this[Symbol.asyncDispose]();
+    const exitReports = [...this.#completedChildProcesses].sort(
+      (a, b) => a.startTime - b.startTime,
+    );
+    for (const exitReport of exitReports) {
+      if (exitReport.ok) {
+        const exitCodeMessage =
+          exitReport.exit.code === 0
+            ? ''
+            : 'Exited with code ${exitReport.exit.code}. ';
+        const duration = Math.round(exitReport.exit.duration / 100) / 10;
+        console.log(
+          `Ran ${JSON.stringify(
+            exitReport.command,
+          )} in ${duration.toLocaleString()}s. ${exitCodeMessage}\nStdout:\n`,
+        );
+        console.group();
+        console.log(exitReport.exit.stdout);
+        console.groupEnd();
+        console.log('\nStderr:\n');
+        console.group();
+        console.error(exitReport.exit.stderr);
+        console.groupEnd();
+        console.log('\n');
+      } else {
+        console.error(`Failed to run ${JSON.stringify(exitReport.command)}:\n`);
+        console.group();
+        console.error(exitReport.error);
+        console.groupEnd();
+        console.log('\n');
+      }
+    }
+  }
 }
 
 export type {ExecResult};
@@ -227,6 +313,7 @@ class ExecResult {
   readonly #command: string;
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #exited = new Deferred<ExitResult>();
+  readonly startTime = performance.now();
   #running = true;
   #allStdout = '';
   #allStderr = '';
@@ -280,10 +367,12 @@ class ExecResult {
     this.#child.on('close', (code, signal) => {
       this.#running = false;
       this.#exited.resolve({
+        command,
         code,
         signal,
         stdout: this.#allStdout,
         stderr: this.#allStderr,
+        duration: performance.now() - this.startTime,
       });
     });
 
@@ -340,6 +429,7 @@ class ExecResult {
   readonly #logMatchers = new Set<{
     re: RegExp;
     deferred: Deferred<void>;
+    stack: string | undefined;
   }>();
 
   /**
@@ -353,6 +443,7 @@ class ExecResult {
     this.#logMatchers.add({
       re: matcher,
       deferred,
+      stack: new Error().stack,
     });
     // In case we've already received the log we're watching for
     this.#checkMatchersAgainstLogs();
@@ -363,9 +454,16 @@ class ExecResult {
     if (this.#logMatchers.size === 0) {
       return;
     }
-    console.error(`${this.#command} was still waiting to see logs matching:`);
-    for (const {re} of this.#logMatchers) {
+    console.error(
+      `${JSON.stringify(
+        this.#command,
+      )} was still waiting to see logs matching:`,
+    );
+    for (const {re, stack} of this.#logMatchers) {
       console.error('  ', re);
+      console.group();
+      console.error('Source:', stack);
+      console.groupEnd();
     }
     console.error(
       `Unconsumed stdout:\n\`\`\`\n${this.#matcherStdout}\n\`\`\`\n`,
@@ -434,10 +532,13 @@ class ExecResult {
  * The result of {@link ExecResult.exit}.
  */
 export interface ExitResult {
+  command: string;
   stdout: string;
   stderr: string;
   /** The exit code, or null if the child process exited with a signal. */
   code: number | null;
   /** The exit signal, or null if the child process did not exit with a signal. */
   signal: NodeJS.Signals | null;
+  /** The duration that the command was running for, in milliseconds. */
+  duration: number;
 }

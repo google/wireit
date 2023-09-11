@@ -5,6 +5,7 @@
  */
 
 import type * as uvu from 'uvu';
+import {WireitTestRig} from './test-rig.js';
 
 export const DEFAULT_UVU_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 60_000);
 
@@ -42,5 +43,21 @@ export const timeout = <T>(
     ]).finally(() => {
       clearTimeout(timerId);
     });
+  };
+};
+
+export const rigTest = <T>(
+  handler: uvu.Callback<T & {rig: WireitTestRig}>,
+  ms = DEFAULT_UVU_TIMEOUT,
+): uvu.Callback<T> => {
+  return async (context) => {
+    await using rig = new WireitTestRig();
+    try {
+      await rig.setup();
+      await timeout(handler, ms)({...context, rig});
+    } catch (e) {
+      await rig.reportFullLogs();
+      throw e;
+    }
   };
 };

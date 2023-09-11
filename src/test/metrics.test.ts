@@ -245,7 +245,13 @@ test(
     const {stdout} = await exec.exit;
 
     // There should only be one metrics entry in stdout.
-    assert.equal([...stdout.matchAll(/\[metrics\]/gi)].length, 1);
+    const numMetrics = [...stdout.matchAll(/\[metrics\]/gi)].length;
+    if (numMetrics !== 1) {
+      console.error(
+        `Expected one metrics entry, got ${numMetrics}.\nFull stdout:\n$`,
+      );
+      console.error(stdout);
+    }
     assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
   }),
 );
