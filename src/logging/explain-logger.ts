@@ -38,8 +38,8 @@ export class ExplainLogger extends DefaultLogger {
     const executionExplanation = this.#explainExecutionRequestedReason(
       event.executionRequestedReason,
     );
-    console.log(`├  You asked it to run because ${executionExplanation}.`);
-    console.log(`└  It can't be skipped because ${notFreshExplanation}.`);
+    this.console.log(`├  You asked it to run because ${executionExplanation}.`);
+    this.console.log(`└  It can't be skipped because ${notFreshExplanation}.`);
   }
 
   #explainExecutionRequestedReason(reason: ExecutionRequestedReason): string {

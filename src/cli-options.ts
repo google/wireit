@@ -12,7 +12,7 @@ import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
 import {unreachable} from './util/unreachable.js';
-import {Logger} from './logging/logger.js';
+import {Console, Logger} from './logging/logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
 
@@ -189,23 +189,30 @@ export const getOptions = async (): Promise<Result<Options>> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
-      return {ok: true, value: new DefaultLogger(packageRoot)};
+      return {
+        ok: true,
+        value: new DefaultLogger(
+          packageRoot,
+          new Console(process.stdout, process.stderr),
+        ),
+      };
     }
+    const console = new Console(process.stdout, process.stderr);
     if (str === 'quiet') {
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
     if (str === 'quiet-ci') {
-      return {ok: true, value: new QuietCiLogger(packageRoot)};
+      return {ok: true, value: new QuietCiLogger(packageRoot, console)};
     }
     if (str === 'explain') {
       const {ExplainLogger} = await import('./logging/explain-logger.js');
-      return {ok: true, value: new ExplainLogger(packageRoot)};
+      return {ok: true, value: new ExplainLogger(packageRoot, console)};
     }
     if (str === 'simple') {
-      return {ok: true, value: new DefaultLogger(packageRoot)};
+      return {ok: true, value: new DefaultLogger(packageRoot, console)};
     }
     if (str === 'metrics') {
-      return {ok: true, value: new MetricsLogger(packageRoot)};
+      return {ok: true, value: new MetricsLogger(packageRoot, console)};
     }
     return {
       ok: false,

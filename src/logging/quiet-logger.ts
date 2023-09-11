@@ -5,7 +5,7 @@
  */
 
 import {Event} from '../event.js';
-import {Logger} from './logger.js';
+import {Logger, Console} from './logger.js';
 import {
   CiWriter,
   StatusLineWriter,
@@ -23,17 +23,24 @@ import {QuietRunLogger, noChange, nothing} from './quiet/run-tracker.js';
  * When the run is complete, it prints a one line summary of the results.
  */
 export class QuietLogger implements Logger {
+  readonly console: Console;
   #runTracker;
   readonly #rootPackage: string;
   readonly #statusLineWriter: StatusLineWriter;
 
-  constructor(rootPackage: string, statusLineWriter?: StatusLineWriter) {
+  constructor(
+    rootPackage: string,
+    ourConsole: Console,
+    statusLineWriter?: StatusLineWriter,
+  ) {
     this.#rootPackage = rootPackage;
-    this.#statusLineWriter = statusLineWriter ?? new WriteoverLine();
+    this.#statusLineWriter = statusLineWriter ?? new WriteoverLine(ourConsole);
     this.#runTracker = new QuietRunLogger(
       this.#rootPackage,
       this.#statusLineWriter,
+      ourConsole,
     );
+    this.console = ourConsole;
   }
 
   printMetrics() {
@@ -79,7 +86,7 @@ export class QuietLogger implements Logger {
  * the previous line.
  */
 export class QuietCiLogger extends QuietLogger {
-  constructor(rootPackage: string) {
-    super(rootPackage, new CiWriter());
+  constructor(rootPackage: string, ourConsole: Console) {
+    super(rootPackage, ourConsole, new CiWriter(ourConsole));
   }
 }

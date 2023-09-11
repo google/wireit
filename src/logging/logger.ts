@@ -6,11 +6,24 @@
 
 import type {Event} from '../event.js';
 import '../util/dispose.js';
+import { Console as NodeConsole } from 'node:console';
+
+export class Console extends NodeConsole {
+  readonly stdout: NodeJS.WritableStream;
+  readonly stderr: NodeJS.WritableStream;
+  constructor(stdout: NodeJS.WritableStream, stderr: NodeJS.WritableStream) {
+    super(stdout, stderr);
+    this.stdout = stdout;
+    this.stderr = stderr;
+  }
+}
 
 /**
  * Logs Wireit events in some way.
  */
 export interface Logger extends Disposable {
+  readonly console: Console;
+
   log(event: Event): void;
   printMetrics(): void;
 

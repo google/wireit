@@ -13,7 +13,7 @@ import type {
   NeedsToRunReason,
   ServiceStoppedReason,
 } from '../event.js';
-import type {Logger} from './logger.js';
+import type {Logger, Console} from './logger.js';
 import {
   stringToScriptReference,
   type PackageReference,
@@ -42,6 +42,7 @@ const getWireitVersion = (() => {
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
+  readonly console: Console;
   protected readonly rootPackageDir: string;
   readonly #diagnosticPrinter: DiagnosticPrinter;
 
@@ -49,9 +50,10 @@ export class DefaultLogger implements Logger {
    * @param rootPackage The npm package directory that the root script being
    * executed belongs to.
    */
-  constructor(rootPackage: string) {
+  constructor(rootPackage: string, ourConsole: Console) {
     this.rootPackageDir = rootPackage;
     this.#diagnosticPrinter = new DiagnosticPrinter(this.rootPackageDir);
+    this.console = ourConsole;
   }
 
   log(event: Event) {
@@ -72,19 +74,19 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'exit-zero': {
-            console.log(`✅${prefix} Executed successfully`);
+            this.console.log(`✅${prefix} Executed successfully`);
             break;
           }
           case 'no-command': {
-            console.log(`✅${prefix} No command to execute`);
+            this.console.log(`✅${prefix} No command to execute`);
             break;
           }
           case 'fresh': {
-            console.log(`✅${prefix} Already fresh`);
+            this.console.log(`✅${prefix} Already fresh`);
             break;
           }
           case 'cached': {
-            console.log(`✅${prefix} Restored from cache`);
+            this.console.log(`✅${prefix} Restored from cache`);
             break;
           }
         }
@@ -104,27 +106,27 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'launched-incorrectly': {
-            console.error(
+            this.console.error(
               `❌${prefix} wireit must be launched with "npm run" or a compatible command.`,
             );
-            console.error(`    More info: ${event.detail}`);
+            this.console.error(`    More info: ${event.detail}`);
             break;
           }
           case 'missing-package-json': {
-            console.error(
+            this.console.error(
               `❌${prefix} No package.json was found in ${event.script.packageDir}`,
             );
             break;
           }
           case 'invalid-json-syntax': {
             for (const diagnostic of event.diagnostics) {
-              console.error(this.#diagnosticPrinter.print(diagnostic));
+              this.console.error(this.#diagnosticPrinter.print(diagnostic));
             }
             break;
           }
 
           case 'no-scripts-in-package-json': {
-            console.error(
+            this.console.error(
               `❌${prefix} No "scripts" section defined in package.json in ${event.script.packageDir}`,
             );
             break;
@@ -137,26 +139,30 @@ export class DefaultLogger implements Logger {
           case 'cycle':
           case 'dependency-on-missing-package-json':
           case 'dependency-on-missing-script': {
-            console.error(this.#diagnosticPrinter.print(event.diagnostic));
+            this.console.error(this.#diagnosticPrinter.print(event.diagnostic));
             break;
           }
           case 'invalid-usage': {
-            console.error(`❌${prefix} Invalid usage: ${event.message}`);
+            this.console.error(`❌${prefix} Invalid usage: ${event.message}`);
             break;
           }
           case 'exit-non-zero': {
-            console.error(
+            this.console.error(
               `❌${prefix} Failed with exit status ${event.status}`,
             );
             break;
           }
 
           case 'signal': {
-            console.error(`❌${prefix} Failed with signal ${event.signal}`);
+            this.console.error(
+              `❌${prefix} Failed with signal ${event.signal}`,
+            );
             break;
           }
           case 'spawn-error': {
-            console.error(`❌${prefix} Process spawn error: ${event.message}`);
+            this.console.error(
+              `❌${prefix} Process spawn error: ${event.message}`,
+            );
             break;
           }
           case 'start-cancelled': {
@@ -165,27 +171,29 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'failed-previous-watch-iteration': {
-            console.error(`❌${prefix} Failed on previous watch iteration`);
+            this.console.error(
+              `❌${prefix} Failed on previous watch iteration`,
+            );
             break;
           }
           case 'killed': {
-            console.error(`💀${prefix} Killed`);
+            this.console.error(`💀${prefix} Killed`);
             break;
           }
           case 'unknown-error-thrown': {
-            console.error(
+            this.console.error(
               `❌${prefix} Internal error! Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.\n    Unknown error thrown: ${String(
                 event.error,
               )}`,
             );
             const maybeError = event.error as Partial<Error> | undefined;
             if (maybeError?.stack) {
-              console.error(maybeError.stack);
+              this.console.error(maybeError.stack);
             }
             break;
           }
           case 'dependency-invalid': {
-            console.error(
+            this.console.error(
               `❌${prefix} Depended, perhaps indirectly, on ${labelForScript(
                 this.rootPackageDir,
                 event.dependency,
@@ -194,7 +202,7 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'service-exited-unexpectedly': {
-            console.error(`❌${prefix} Service exited unexpectedly`);
+            this.console.error(`❌${prefix} Service exited unexpectedly`);
             break;
           }
           case 'aborted':
@@ -238,7 +246,7 @@ export class DefaultLogger implements Logger {
             );
           }
           case 'running': {
-            console.log(
+            this.console.log(
               `🏃${prefix} Running command "${
                 event.script.command?.value ?? ''
               }"`,
@@ -246,13 +254,13 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'locked': {
-            console.log(
+            this.console.log(
               `💤${prefix} Waiting for another process which is already running this script.`,
             );
             break;
           }
           case 'output-modified': {
-            console.log(
+            this.console.log(
               `ℹ️${prefix} Output files were modified since the previous run.`,
             );
             break;
@@ -267,23 +275,25 @@ export class DefaultLogger implements Logger {
               // This string is the ESC character (ASCII \x1B) followed by "c",
               // which is the VT100 reset sequence, supported by most terminals:
               // https://www2.ccs.neu.edu/research/gpc/VonaUtils/vona/terminal/vtansi.htm#:~:text=Reset%20Device
-              console.log('\x1Bc');
+              this.console.log('\x1Bc');
             }
             break;
           }
           case 'watch-run-end': {
-            console.log(`👀${prefix} Watching for file changes`);
+            this.console.log(`👀${prefix} Watching for file changes`);
             break;
           }
           case 'watch-aborted': {
             switch (event.reason) {
               case 'SIGINT': {
-                console.log(`🛑${prefix} ctrl-c received, ending watch mode`);
+                this.console.log(
+                  `🛑${prefix} ctrl-c received, ending watch mode`,
+                );
                 break;
               }
               default: {
                 const never: never = event;
-                console.log(
+                this.console.log(
                   `🛑${prefix} Watch aborted for unknown reason: `,
                   never,
                 );
@@ -293,13 +303,13 @@ export class DefaultLogger implements Logger {
           }
           case 'watched-file-triggered-run': {
             if (event.runActive) {
-              console.log(
+              this.console.log(
                 `🔁${prefix} File ${JSON.stringify(event.path)} was ${
                   event.operation
                 }, queuing up a new run once this one is finished.`,
               );
             } else {
-              console.log(
+              this.console.log(
                 `🔁${prefix} File ${JSON.stringify(event.path)} was ${
                   event.operation
                 }, triggering a new run.`,
@@ -308,26 +318,26 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'cache-info': {
-            console.log(`ℹ️${prefix} ${event.message}`);
+            this.console.log(`ℹ️${prefix} ${event.message}`);
             break;
           }
           case 'service-process-started': {
-            console.log(`⬆️${prefix} Service starting...`);
+            this.console.log(`⬆️${prefix} Service starting...`);
             break;
           }
           case 'service-ready': {
-            console.log(`⬆️${prefix} Service ready`);
+            this.console.log(`⬆️${prefix} Service ready`);
             break;
           }
           case 'service-stopped': {
             const reason = this.#explainServiceStopped(event.reason);
-            console.log(`⬇️${prefix} Service stopped because ${reason}`);
+            this.console.log(`⬇️${prefix} Service stopped because ${reason}`);
             if (event.failure !== undefined) {
-              // Use console.group to indent
-              console.group();
-              console.log(`Related failure:`);
+              // Use this.console.group to indent
+              this.console.group();
+              this.console.log(`Related failure:`);
               this.log(event.failure);
-              console.groupEnd();
+              this.console.groupEnd();
             }
             break;
           }

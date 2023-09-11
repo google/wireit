@@ -11,6 +11,7 @@ import type {Logger} from './logger.js';
  * A logger for watch mode that avoids useless output.
  */
 export class WatchLogger implements Logger {
+  readonly console;
   readonly #actualLogger: Logger;
   readonly #iterationBuffer: Event[] = [];
   #iterationIsInteresting =
@@ -18,6 +19,7 @@ export class WatchLogger implements Logger {
 
   constructor(actualLogger: Logger) {
     this.#actualLogger = actualLogger;
+    this.console = actualLogger.console;
   }
 
   log(event: Event) {

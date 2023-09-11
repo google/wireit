@@ -7,6 +7,7 @@
 import {hrtime} from 'process';
 import {Event} from '../event.js';
 import {DefaultLogger} from './default-logger.js';
+import {Console} from './logger.js';
 
 interface Metric {
   name: string;
@@ -48,8 +49,8 @@ export class MetricsLogger extends DefaultLogger {
    * @param rootPackage The npm package directory that the root script being
    * executed belongs to.
    */
-  constructor(rootPackage: string) {
-    super(rootPackage);
+  constructor(rootPackage: string, console: Console) {
+    super(rootPackage, console);
   }
 
   /**
@@ -91,7 +92,7 @@ export class MetricsLogger extends DefaultLogger {
       out.push(`\t${name}: ${count} (${percent}%)`);
     }
 
-    console.log(out.join('\n'));
+    this.console.log(out.join('\n'));
 
     this.#resetMetrics();
   }
