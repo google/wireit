@@ -187,7 +187,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
 
   const console = new Console(process.stdout, process.stderr);
   const packageRoot = packageDir ?? process.cwd();
-  const loggerResult = await (async (): Promise<Result<Logger>> => {
+  const loggerResult = ((): Result<Logger> => {
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
       if (process.env.CI) {

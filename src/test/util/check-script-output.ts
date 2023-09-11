@@ -40,10 +40,6 @@ export function checkScriptOutput(
   }
   const assertOutputEqualish =
     NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
-  console.log(`
-    actual: ${JSON.stringify(actual)}
-    expected: ${JSON.stringify(expected)}
-  `);
   assertOutputEqualish(actual, expected, message);
 }
 

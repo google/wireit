@@ -17,5 +17,9 @@ module.exports = {
     // maybe we should turn this on, but it started suddenly triggering in
     // an unrelated change.
     '@typescript-eslint/no-non-null-assertion': 'off',
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {argsIgnorePattern: '^_', varsIgnorePattern: '^_'},
+    ],
   },
 };

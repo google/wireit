@@ -96,8 +96,6 @@ test(
 <info> analysis-completed
 <info> running
 🏃 [a] Running command "${cmdA.command}"
-├  You asked it to run because it was the root script you asked for.
-└  It can't be skipped because it has no "files" field and so it must always be run.
 <success> exit-zero
 ✅ [a] Executed successfully`.trim(),
     );

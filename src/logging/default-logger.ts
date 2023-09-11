@@ -222,11 +222,11 @@ export class DefaultLogger implements Logger {
           // TODO(aomarks) More advanced handling of output streams so that
           // output isn't simply interweaved.
           case 'stdout': {
-            process.stdout.write(event.data);
+            this.console.stdout.write(event.data);
             break;
           }
           case 'stderr': {
-            process.stderr.write(event.data);
+            this.console.stderr.write(event.data);
             break;
           }
         }

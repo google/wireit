@@ -39,6 +39,7 @@ async function getOptionsResult(
       },
     },
   });
+  env = {...env, WIREIT_DEBUG_LOG_TO: ''};
   assert.equal((await rig.exec(command, {env}).exit).code, 0);
   return JSON.parse(await rig.read('options.json')) as Result<Options>;
 }

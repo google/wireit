@@ -11,7 +11,7 @@ import {Console as NodeConsole} from 'node:console';
 // To prevent using the global console accidentally, we shadow it with
 // undefined
 const console = undefined;
-function markAsUsed(_: unknown) { }
+function markAsUsed(_: unknown) {}
 markAsUsed(console);
 
 export class Console extends NodeConsole {

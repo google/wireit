@@ -6,6 +6,7 @@
 
 import {DefaultLogger} from './default-logger.js';
 import {Event} from '../event.js';
+import {inspect} from 'node:util';
 
 // To prevent using the global console accidentally, we shadow it with
 // undefined
@@ -27,13 +28,14 @@ export class DebugLogger extends DefaultLogger {
         break;
       case 'output':
         // too verbose, log nothing
-        break;
+        return;
       case 'success':
         this.console.log(`<success> ${event.reason}`);
         break;
-      default:
+      default: {
         const never: never = event;
-        throw new Error(`Unknown event type: ${never}`);
+        throw new Error(`Unknown event type: ${inspect(never)}`);
+      }
     }
     super.log(event);
   }

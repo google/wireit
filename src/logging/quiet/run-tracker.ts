@@ -21,7 +21,7 @@ import {StackMap} from './stack-map.js';
 // To prevent using the global console accidentally, we shadow it with
 // undefined
 const console = undefined;
-function markAsUsed(_: unknown) { }
+function markAsUsed(_: unknown) {}
 markAsUsed(console);
 
 interface SimpleOutput {
