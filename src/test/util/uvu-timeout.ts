@@ -23,7 +23,7 @@ export const wait = async (ms: number) =>
  * @param handler The uvu test function.
  * @param ms Millisecond failure timeout.
  */
-export const timeout = <T>(
+const timeout = <T>(
   handler: uvu.Callback<T>,
   ms = DEFAULT_UVU_TIMEOUT,
 ): uvu.Callback<T> => {
