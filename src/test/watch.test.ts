@@ -6,39 +6,13 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/uvu-timeout.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    // process.env['SHOW_TEST_OUTPUT'] = 'true';
-    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'runs initially and waits for SIGINT',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -88,7 +62,7 @@ test(
 
 test(
   'runs again when input file changes after execution',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -135,7 +109,7 @@ test(
 
 test(
   'runs again when new input file created',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -182,7 +156,7 @@ test(
 
 test(
   'runs again when input file deleted',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -227,7 +201,7 @@ test(
 
 test(
   'runs again when input file changes in the middle of execution',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -274,7 +248,7 @@ test(
 
 test(
   'reloads config when package.json changes and runs again',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA1 = await rig.newCommand();
     const cmdA2 = await rig.newCommand();
     await rig.writeAtomic({
@@ -331,7 +305,7 @@ test(
 
 test(
   'changes are detected in same-package dependencies',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.writeAtomic({
@@ -411,7 +385,7 @@ test(
 
 test(
   'changes are detected in cross-package dependencies',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.writeAtomic({
@@ -497,7 +471,7 @@ test(
 
 test(
   'error from script is not fatal',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -546,7 +520,7 @@ test(
 
 test(
   'recovers from analysis errors',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // In this test we do very fast sequences of writes, which causes chokidar
     // to sometimes not report events, possibly caused by some internal
     // throttling it apparently does:
@@ -650,7 +624,7 @@ test(
 
 test(
   'watchers understand negations',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -710,7 +684,7 @@ test(
 
 test(
   '.dotfiles are watched',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -754,7 +728,7 @@ test(
 
 test(
   'package-lock.json files are watched',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'foo/package.json': {
@@ -796,7 +770,7 @@ test(
 
 test(
   'debounces when two scripts are watching the same file',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.writeAtomic({
@@ -859,7 +833,7 @@ test(
 
 test(
   'strips leading slash from watch paths',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -902,7 +876,7 @@ test(
 
 test(
   'script fails but still emits output consumed by another script',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test relies on the simple logger.
     rig.env['WIREIT_LOGGER'] = 'simple';
 
@@ -978,7 +952,7 @@ test(
 
 test(
   'input file changes but the contents are the same',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {

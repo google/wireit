@@ -6,8 +6,7 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/uvu-timeout.js';
 import {
   Executor,
   registerExecutorConstructorHook,
@@ -18,7 +17,7 @@ import {DefaultLogger} from '../logging/default-logger.js';
 import {WorkerPool} from '../util/worker-pool.js';
 import {registerExecutionConstructorHook} from '../execution/base.js';
 
-const test = suite<{rig: WireitTestRig}>();
+const test = suite<object>();
 
 let numLiveExecutors = 0;
 let numLiveExecutions = 0;
@@ -30,7 +29,7 @@ const collectGarbage = (() => {
   return global.gc;
 })();
 
-test.before.each(async (ctx) => {
+test.before.each(async () => {
   try {
     const executorFinalizationRegistry = new FinalizationRegistry(() => {
       numLiveExecutors--;
@@ -47,8 +46,6 @@ test.before.each(async (ctx) => {
       numLiveExecutions++;
       executionFinalizationRegistry.register(execution, null);
     });
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
     // see https://github.com/lukeed/uvu/issues/191.
@@ -57,11 +54,10 @@ test.before.each(async (ctx) => {
   }
 });
 
-test.after.each(async (ctx) => {
+test.after.each(async () => {
   try {
     numLiveExecutors = 0;
     numLiveExecutions = 0;
-    await ctx.rig.cleanup();
   } catch (error) {
     // Uvu has a bug where it silently ignores failures in before and after,
     // see https://github.com/lukeed/uvu/issues/191.
@@ -89,7 +85,7 @@ async function retryWithGcUntilCallbackDoesNotThrow(
 
 test(
   'standard garbage collection',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -154,7 +150,7 @@ test(
 
 test(
   'persistent service garbage collection',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const service = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -228,7 +224,7 @@ test(
 
 test(
   'no-command, standard, persistent service, and ephemeral service garbage collection',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
     const servicePersistent = await rig.newCommand();
     const serviceEphemeral = await rig.newCommand();

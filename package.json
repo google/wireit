@@ -419,7 +419,6 @@
     "esbuild": "^0.19.2",
     "eslint": "^8.48.0",
     "eslint-plugin-no-only-tests": "^3.1.0",
-    "jsonc-parser": "^3.0.0",
     "jsonschema": "^1.4.0",
     "pnpm": "^8.7.1",
     "prettier": "^3.0.3",

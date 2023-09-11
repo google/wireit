@@ -21,6 +21,7 @@ const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 export class FilesystemTestRig {
   readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
   #state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
+  #donePromise: Promise<void> | undefined = undefined;
 
   protected _assertState(expected: 'uninitialized' | 'running' | 'done') {
     if (this.#state !== expected) {
@@ -43,6 +44,13 @@ export class FilesystemTestRig {
    * Delete the temporary filesystem.
    */
   async cleanup(): Promise<void> {
+    if (this.#donePromise === undefined) {
+      this.#donePromise = this.#actuallyCleanup();
+    }
+    return this.#donePromise;
+  }
+
+  async #actuallyCleanup(): Promise<void> {
     this._assertState('running');
     await this.delete('.');
     this.#state = 'done';

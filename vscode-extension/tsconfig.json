@@ -13,9 +13,7 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
-    "useUnknownInCatchVariables": true,
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo"
+    "useUnknownInCatchVariables": true
   },
   "include": ["src/**/*.ts"],
   "exclude": []

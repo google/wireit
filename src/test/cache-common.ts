@@ -6,23 +6,22 @@
 
 import * as assert from 'uvu/assert';
 import * as pathlib from 'path';
-import {timeout} from './util/uvu-timeout.js';
+import {rigTest} from './util/uvu-timeout.js';
 import {sep} from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
 import type {Test} from 'uvu';
-import type {WireitTestRig} from './util/test-rig.js';
 
 /**
  * Registers test cases that are common to all cache implementations.
  */
 export const registerCommonCacheTests = (
-  test: Test<{rig: WireitTestRig}>,
+  test: Test,
   cacheMode: 'local' | 'github',
 ) => {
   test(
     'caches single file',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -89,7 +88,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caching follows glob patterns',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -184,7 +183,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caching supports glob re-inclusion',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -279,7 +278,7 @@ export const registerCommonCacheTests = (
 
   test(
     'cleans output when restoring from cache even when clean setting is false',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -362,7 +361,7 @@ export const registerCommonCacheTests = (
 
   test(
     'does not cache script with undefined output',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -416,7 +415,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caches script with defined but empty output',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -469,7 +468,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caches symlinks to files without following them',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -539,7 +538,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caches symlinks to directories without following them',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -618,7 +617,7 @@ export const registerCommonCacheTests = (
 
   test(
     'does not cache when WIREIT_CACHE=none',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -678,7 +677,7 @@ export const registerCommonCacheTests = (
 
   test(
     'does not cache when CI=true and WIREIT_CACHE is unset',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -744,7 +743,7 @@ export const registerCommonCacheTests = (
 
   test(
     `caches when CI=true and WIREIT_CACHE=${cacheMode}`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -819,7 +818,7 @@ export const registerCommonCacheTests = (
 
   test(
     'can cache empty directory',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -898,7 +897,7 @@ export const registerCommonCacheTests = (
 
   test(
     'leading slash on output glob is package relative',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -965,7 +964,7 @@ export const registerCommonCacheTests = (
 
   test(
     'errors if caching output outside of the package',
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'foo/package.json': {

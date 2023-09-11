@@ -7,39 +7,15 @@
 import * as pathlib from 'path';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/uvu-timeout.js';
 import {shuffle} from '../util/shuffle.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'fresh script is skipped',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -79,7 +55,7 @@ test(
 
 test(
   'changing input file makes script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -124,7 +100,7 @@ test(
 
 test(
   'directory matched by files array covers recursive contents',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -170,7 +146,7 @@ test(
 
 test(
   'content of symlink targets affects key',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -215,7 +191,7 @@ test(
 
 test(
   'freshness check supports glob re-inclusion',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -272,7 +248,7 @@ test(
 
 test(
   'changing input file modtime does not make script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -317,7 +293,7 @@ test(
 
 test(
   'script with undefined input files is always stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -362,7 +338,7 @@ test(
 
 test(
   'script with undefined output files is always stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -407,7 +383,7 @@ test(
 
 test(
   'script with undefined input/output files and undefined command can be fresh',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdC = await rig.newCommand();
     await rig.write({
@@ -468,7 +444,7 @@ test(
 
 test(
   'script with empty input files can be fresh',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -507,7 +483,7 @@ test(
 
 test(
   'empty directory is not included in fingerprint',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -548,7 +524,7 @@ test(
 
 test(
   'cross-package freshness is tracked',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -637,7 +613,7 @@ test(
 
 test(
   'input file can be outside of package',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
@@ -690,7 +666,7 @@ test(
 
 test(
   'two commands which reference the same input file',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdB = await rig.newCommand();
     const cmdC = await rig.newCommand();
     await rig.write({
@@ -761,7 +737,7 @@ test(
 
 test(
   'glob recursive stars (**) match input files',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -806,7 +782,7 @@ test(
 
 test(
   'glob negations (!) exclude input files',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -863,7 +839,7 @@ test(
 
 test(
   'fresh script is skipped with unsafe characters in script name',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test confirms that we are serializing the previous fingerprint file
     // in a way that doesn't try to put forbidden characters in filenames (as
     // would be the case if we used the script name directly).
@@ -921,7 +897,7 @@ test(
 
 test(
   'failure makes script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -964,7 +940,7 @@ test(
 
 test(
   'fingerprint file is deleted before invoking command',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1033,7 +1009,7 @@ test(
 
 test(
   'script is stale if a dependency was stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -1112,7 +1088,7 @@ test(
 
 test(
   'script is always stale if a dependency has no input files',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -1167,7 +1143,7 @@ test(
 
 test(
   'changing script command makes script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA1 = await rig.newCommand();
     const cmdA2 = await rig.newCommand();
 
@@ -1228,7 +1204,7 @@ test(
 
 test(
   'changing output glob patterns makes script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
 
     await rig.write({
@@ -1285,7 +1261,7 @@ test(
 
 test(
   'changing clean setting makes script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
 
     await rig.write({
@@ -1343,7 +1319,7 @@ test(
 
 test(
   'fingerprint is independent of file ordering',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1401,7 +1377,7 @@ test(
 
 test(
   'fingerprint is independent of dependency ordering',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //         a
     //         |
     //    +-+--+--+-+
@@ -1514,7 +1490,7 @@ for (const [agent, lockfile] of [
 ]) {
   test(
     `changing ${lockfile} with ${agent} changes fingerprint`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'foo/package.json': {
@@ -1586,7 +1562,7 @@ for (const [agent, lockfile] of [
 
 test(
   'changing package-lock.json does not invalidate when packageLocks is empty',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1638,7 +1614,7 @@ test(
 
 test(
   'changing custom.lock invalidates when set in packageLocks',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1692,7 +1668,7 @@ test(
 
 test(
   'packageLocks can have multiple files',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1758,7 +1734,7 @@ test(
 
 test(
   'leading slash on files glob is package relative',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1803,7 +1779,7 @@ test(
 
 test(
   'file-only rule affects fingerprint of consumers',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const consumer = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1854,7 +1830,7 @@ test(
 
 test(
   'script is not fresh if output file is modified externally',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const main = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1955,7 +1931,7 @@ test(
 
 test(
   'changing external environment variable makes script stale',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {

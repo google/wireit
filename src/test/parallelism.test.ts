@@ -6,41 +6,17 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout, wait} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest, wait} from './util/uvu-timeout.js';
 import * as os from 'os';
 import {IS_WINDOWS} from '../util/windows.js';
 
 import type {PackageJson} from './util/package-json.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'by default we run dependencies in parallel',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // Note the test rig set WIREIT_PARALLELISM to 10 by default, even though
     // the real default is based on CPU count.
     const dep1 = await rig.newCommand();
@@ -84,7 +60,7 @@ test(
 
 test(
   'can set WIREIT_PARALLEL=1 to run sequentially',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const dep1 = await rig.newCommand();
     const dep2 = await rig.newCommand();
     const main = await rig.newCommand();
@@ -137,7 +113,7 @@ test(
 
 test(
   'can set WIREIT_PARALLEL=Infinity to run many commands in parallel',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const main = await rig.newCommand();
     // Pick a number of scripts that we will expect to run simultaneously which is
     // higher than the default of CPUs x 4, to show that we have increased beyond
@@ -190,7 +166,7 @@ test(
 
 test(
   'should fall back to default parallelism with empty WIREIT_PARALLEL',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const dep1 = await rig.newCommand();
     const dep2 = await rig.newCommand();
     const main = await rig.newCommand();
@@ -228,7 +204,7 @@ test(
 
 test(
   'scripts acquire exclusive locks across wireit processes',
-  timeout(
+  rigTest(
     async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
@@ -277,7 +253,7 @@ test(
 
 test(
   "scripts don't acquire exclusive locks when output=[]",
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
