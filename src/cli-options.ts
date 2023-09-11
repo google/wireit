@@ -12,7 +12,7 @@ import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
 import {unreachable} from './util/unreachable.js';
-import {Logger} from './logging/logger.js';
+import {Console, Logger} from './logging/logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
 
@@ -188,23 +188,25 @@ export const getOptions = (): Result<Options> => {
   const loggerResult = ((): Result<Logger> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
+    const console = new Console(process.stdout, process.stderr);
     if (!str) {
       if (process.env.CI) {
-        return {ok: true, value: new QuietCiLogger(packageRoot)};
+        return {ok: true, value: new QuietCiLogger(packageRoot, console)};
       }
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
+
     if (str === 'quiet') {
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
     if (str === 'quiet-ci') {
-      return {ok: true, value: new QuietCiLogger(packageRoot)};
+      return {ok: true, value: new QuietCiLogger(packageRoot, console)};
     }
     if (str === 'simple') {
-      return {ok: true, value: new DefaultLogger(packageRoot)};
+      return {ok: true, value: new DefaultLogger(packageRoot, console)};
     }
     if (str === 'metrics') {
-      return {ok: true, value: new MetricsLogger(packageRoot)};
+      return {ok: true, value: new MetricsLogger(packageRoot, console)};
     }
     return {
       ok: false,

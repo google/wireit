@@ -16,6 +16,7 @@ import {Analyzer} from '../analyzer.js';
 import {DefaultLogger} from '../logging/default-logger.js';
 import {WorkerPool} from '../util/worker-pool.js';
 import {registerExecutionConstructorHook} from '../execution/base.js';
+import {Console} from '../logging/logger.js';
 
 const test = suite<object>();
 
@@ -100,7 +101,8 @@ test(
       },
     });
 
-    const logger = new DefaultLogger(rig.temp);
+    const console = new Console(process.stderr, process.stderr);
+    const logger = new DefaultLogger(rig.temp, console);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'standard'},
       [],
@@ -166,7 +168,8 @@ test(
       },
     });
 
-    const logger = new DefaultLogger(rig.temp);
+    const console = new Console(process.stderr, process.stderr);
+    const logger = new DefaultLogger(rig.temp, console);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'service'},
       [],
@@ -256,7 +259,8 @@ test(
       },
     });
 
-    const logger = new DefaultLogger(rig.temp);
+    const console = new Console(process.stderr, process.stderr);
+    const logger = new DefaultLogger(rig.temp, console);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'entrypoint'},
       [],

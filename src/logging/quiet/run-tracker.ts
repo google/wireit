@@ -13,9 +13,16 @@ import {
 } from '../../config.js';
 import {Failure, Info, Success, Output, Event} from '../../event.js';
 import {DefaultLogger, labelForScript} from '../default-logger.js';
+import {Console} from '../logger.js';
 import {DEBUG} from '../logger.js';
 import {StatusLineWriter} from './writeover-line.js';
 import {StackMap} from './stack-map.js';
+
+// To prevent using the global console accidentally, we shadow it with
+// undefined
+const console = undefined;
+function markAsUsed(_: unknown) { }
+markAsUsed(console);
 
 interface SimpleOutput {
   readonly stream: 'stdout' | 'stderr';
@@ -154,6 +161,7 @@ export class QuietRunLogger implements Disposable {
   readonly #rootPackage: string;
   readonly #defaultLogger: DefaultLogger;
   readonly #statusLineWriter;
+  readonly console: Console;
   /**
    * Sometimes a script will fail multiple times, but we only want to report
    * about the first failure for it that we find. Sometimes a script will
@@ -166,11 +174,14 @@ export class QuietRunLogger implements Disposable {
   constructor(
     rootPackage: string,
     statusLineWriter: StatusLineWriter,
+    console: Console,
     defaultLogger?: DefaultLogger,
   ) {
     this.#rootPackage = rootPackage;
     this.#statusLineWriter = statusLineWriter;
-    this.#defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
+    this.#defaultLogger =
+      defaultLogger ?? new DefaultLogger(rootPackage, console);
+    this.console = console;
   }
 
   /**
@@ -182,6 +193,7 @@ export class QuietRunLogger implements Disposable {
     const instance = new QuietRunLogger(
       this.#rootPackage,
       this.#statusLineWriter,
+      this.console,
       this.#defaultLogger,
     );
     // Persistent services stay running between runs, so pass along what we
@@ -272,7 +284,7 @@ export class QuietRunLogger implements Disposable {
     // run.
     const count = this.#ran + this.#servicesStarted;
     const s = count === 1 ? '' : 's';
-    console.log(
+    this.console.log(
       `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this.#skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`,
     );
   }
@@ -364,7 +376,7 @@ export class QuietRunLogger implements Disposable {
 
   #handleInfo(event: Info): StatusLineResult {
     if (DEBUG) {
-      console.log(
+      this.console.log(
         `info: ${event.detail} ${labelForScript(
           this.#rootPackage,
           event.script,
@@ -454,7 +466,7 @@ export class QuietRunLogger implements Disposable {
 
   #handleSuccess(event: Success) {
     if (DEBUG) {
-      console.log(
+      this.console.log(
         `success: ${event.reason} ${labelForScript(
           this.#rootPackage,
           event.script,
@@ -490,7 +502,7 @@ export class QuietRunLogger implements Disposable {
 
   #handleFailure(event: Failure): typeof noChange {
     if (DEBUG) {
-      console.log(
+      this.console.log(
         `failure: ${event.reason} ${labelForScript(
           this.#rootPackage,
           event.script,
