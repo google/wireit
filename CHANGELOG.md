@@ -20,6 +20,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The default logger has switched from 'simple'. It's 'quiet-ci' if the environment variable `CI` is set, otherwise it's 'quiet'. To switch back, set the environment variable WIREIT_LOGGER to 'simple'.
+
+## [0.13.0] - 2023-09-01
+
+### Changed
+
 - **[BREAKING]** Node 14 and Node 16 are no longer supported. Node 14 is past its end of life and Node 16 will be shortly. See the Node Release Schedule here:https://github.com/nodejs/Release#release-schedule. Node 18 will be supported until April 2025.
 
 ## [0.12.0] - 2023-09-01

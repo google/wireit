@@ -189,7 +189,10 @@ export const getOptions = (): Result<Options> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
-      return {ok: true, value: new DefaultLogger(packageRoot)};
+      if (process.env.CI) {
+        return {ok: true, value: new QuietCiLogger(packageRoot)};
+      }
+      return {ok: true, value: new QuietLogger(packageRoot)};
     }
     if (str === 'quiet') {
       return {ok: true, value: new QuietLogger(packageRoot)};
