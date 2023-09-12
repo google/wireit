@@ -8,19 +8,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## [Unreleased] -->
 
-## [Unreleased]
+## [0.14.0] - 2023-09-12
+
+### Changed
+
+- The default logger has switched from 'simple'. It's 'quiet-ci' if the environment variable `CI` is set, otherwise it's 'quiet'. To switch back, set the environment variable WIREIT_LOGGER to 'simple'.
 
 ### Fixed
 
 - More reliably handle and report diagnostics for scripts with invalid configurations. Specifically fixed https://github.com/google/wireit/issues/803.
 
 - Gracefully handle errors from the GitHub download cache API.
-
-## [0.13.0] - 2023-09-01
-
-### Changed
-
-- The default logger has switched from 'simple'. It's 'quiet-ci' if the environment variable `CI` is set, otherwise it's 'quiet'. To switch back, set the environment variable WIREIT_LOGGER to 'simple'.
 
 ## [0.13.0] - 2023-09-01
 
@@ -556,6 +554,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Initial release.
 
 [unreleased]: https://github.com/google/wireit/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/google/wireit/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/google/wireit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/google/wireit/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/google/wireit/compare/v0.10.0...v0.11.0
