@@ -7,12 +7,22 @@
 import * as pathlib from 'path';
 import {unreachable} from '../util/unreachable.js';
 
-import type {Event} from '../event.js';
+import type {
+  Event,
+  FingerprintDifference,
+  NeedsToRunReason,
+  ServiceStoppedReason,
+} from '../event.js';
 import type {Logger} from './logger.js';
-import type {PackageReference, ScriptReference} from '../config.js';
+import {
+  stringToScriptReference,
+  type PackageReference,
+  type ScriptReference,
+} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
 import {createRequire} from 'module';
 import {WatchLogger} from './watch-logger.js';
+import {inspect} from 'node:util';
 
 const getWireitVersion = (() => {
   let version: string | undefined;
@@ -32,7 +42,7 @@ const getWireitVersion = (() => {
  * Default {@link Logger} which logs to stdout and stderr.
  */
 export class DefaultLogger implements Logger {
-  readonly #rootPackageDir: string;
+  protected readonly rootPackageDir: string;
   readonly #diagnosticPrinter: DiagnosticPrinter;
 
   /**
@@ -40,13 +50,13 @@ export class DefaultLogger implements Logger {
    * executed belongs to.
    */
   constructor(rootPackage: string) {
-    this.#rootPackageDir = rootPackage;
-    this.#diagnosticPrinter = new DiagnosticPrinter(this.#rootPackageDir);
+    this.rootPackageDir = rootPackage;
+    this.#diagnosticPrinter = new DiagnosticPrinter(this.rootPackageDir);
   }
 
   log(event: Event) {
     const type = event.type;
-    const label = labelForScript(this.#rootPackageDir, event.script);
+    const label = labelForScript(this.rootPackageDir, event.script);
     const prefix = label !== '' ? ` [${label}]` : '';
     switch (type) {
       default: {
@@ -177,7 +187,7 @@ export class DefaultLogger implements Logger {
           case 'dependency-invalid': {
             console.error(
               `❌${prefix} Depended, perhaps indirectly, on ${labelForScript(
-                this.#rootPackageDir,
+                this.rootPackageDir,
                 event.dependency,
               )} which could not be validated. Please file a bug at https://github.com/google/wireit/issues/new, mention this message, that you encountered it in wireit version ${getWireitVersion()}, and give information about your package.json files.`,
             );
@@ -265,6 +275,38 @@ export class DefaultLogger implements Logger {
             console.log(`👀${prefix} Watching for file changes`);
             break;
           }
+          case 'watch-aborted': {
+            switch (event.reason) {
+              case 'SIGINT': {
+                console.log(`🛑${prefix} ctrl-c received, ending watch mode`);
+                break;
+              }
+              default: {
+                const never: never = event;
+                console.log(
+                  `🛑${prefix} Watch aborted for unknown reason: `,
+                  never,
+                );
+              }
+            }
+            break;
+          }
+          case 'watched-file-triggered-run': {
+            if (event.runActive) {
+              console.log(
+                `🔁${prefix} File ${JSON.stringify(event.path)} was ${
+                  event.operation
+                }, queuing up a new run once this one is finished.`,
+              );
+            } else {
+              console.log(
+                `🔁${prefix} File ${JSON.stringify(event.path)} was ${
+                  event.operation
+                }, triggering a new run.`,
+              );
+            }
+            break;
+          }
           case 'cache-info': {
             console.log(`ℹ️${prefix} ${event.message}`);
             break;
@@ -278,7 +320,15 @@ export class DefaultLogger implements Logger {
             break;
           }
           case 'service-stopped': {
-            console.log(`⬇️${prefix} Service stopped`);
+            const reason = this.#explainServiceStopped(event.reason);
+            console.log(`⬇️${prefix} Service stopped because ${reason}`);
+            if (event.failure !== undefined) {
+              // Use console.group to indent
+              console.group();
+              console.log(`Related failure:`);
+              this.log(event.failure);
+              console.groupEnd();
+            }
             break;
           }
           case 'analysis-started':
@@ -286,6 +336,124 @@ export class DefaultLogger implements Logger {
             break;
           }
         }
+      }
+    }
+  }
+
+  #explainServiceStopped(reason: ServiceStoppedReason): string {
+    switch (reason.name) {
+      default: {
+        const never: never = reason;
+        throw new Error(`Unknown service stop reason: ${inspect(never)}`);
+      }
+      case 'all consumers of the service are done':
+        return 'all its consumers are done';
+      case 'the depgraph changed, service is no longer needed':
+        return 'the depgraph changed, and it is no longer needed';
+      case 'the run was aborted':
+      case 'unknown':
+        return reason.name;
+      case 'restart': {
+        return this.#explainServiceRestart(reason.reason);
+      }
+    }
+  }
+
+  #explainServiceRestart(reason: NeedsToRunReason): string {
+    switch (reason.name) {
+      default: {
+        const never: never = reason;
+        throw new Error(`Unknown restart reason: ${inspect(never)}`);
+      }
+      case 'not-fully-tracked': {
+        const notFullyTrackedReason = reason.reason;
+        switch (notFullyTrackedReason.name) {
+          default: {
+            const never: never = notFullyTrackedReason;
+            throw new Error(
+              `Unknown not-fully-tracked reason: ${inspect(never)}`,
+            );
+          }
+          case 'dependency not fully tracked': {
+            return `it depends on [${labelForScript(
+              this.rootPackageDir,
+              stringToScriptReference(notFullyTrackedReason.dependency),
+            )}] which must always be run`;
+          }
+          case 'no files field': {
+            return `it has no 'files' field`;
+          }
+          case 'no output field': {
+            throw new Error('Internal error: a service never has output');
+          }
+        }
+      }
+      case 'no-previous-fingerprint': {
+        throw new Error(
+          'Internal error: could not find a previous fingerprint, so we restarted the server?',
+        );
+      }
+      case 'fingerprints-differed': {
+        return this.#explainServiceFingerprintDifference(reason.difference);
+      }
+    }
+  }
+
+  #explainServiceFingerprintDifference(
+    difference: FingerprintDifference,
+  ): string {
+    switch (difference.name) {
+      default: {
+        const never: never = difference;
+        throw new Error(`Unknown not-fully-tracked reason: ${inspect(never)}`);
+      }
+      case 'config': {
+        return `config field ${difference.field} changed from ${inspect(
+          difference.previous,
+        )} to ${inspect(difference.current)}`;
+      }
+      case 'environment': {
+        return `the ${
+          difference.field
+        } of the environment changed from ${inspect(
+          difference.previous,
+        )} to ${inspect(difference.current)}`;
+      }
+      case 'dependency added': {
+        return `a dependency was added: [${labelForScript(
+          this.rootPackageDir,
+          stringToScriptReference(difference.script),
+        )}]`;
+      }
+      case 'dependency removed': {
+        return `a dependency was removed: [${labelForScript(
+          this.rootPackageDir,
+          stringToScriptReference(difference.script),
+        )}]`;
+      }
+      case 'dependency changed': {
+        return `a dependency changed: [${labelForScript(
+          this.rootPackageDir,
+          stringToScriptReference(difference.script),
+        )}]`;
+      }
+      case 'file added': {
+        return `a file was added: ${pathlib.relative(
+          this.rootPackageDir,
+          difference.path,
+        )}`;
+      }
+      case 'file removed': {
+        return `a file was removed: ${pathlib.relative(
+          this.rootPackageDir,
+          difference.path,
+        )}`;
+      }
+      case 'file changed': {
+        return `a file was changed: ${pathlib.relative(
+          this.rootPackageDir,
+          difference.path,
+        )}`;
       }
     }
   }

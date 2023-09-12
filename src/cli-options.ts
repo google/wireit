@@ -58,7 +58,7 @@ export interface Options {
   logger: Logger;
 }
 
-export const getOptions = (): Result<Options> => {
+export const getOptions = async (): Promise<Result<Options>> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
   const scriptName = process.env.npm_lifecycle_event;
@@ -185,7 +185,7 @@ export const getOptions = (): Result<Options> => {
 
   const agent = getNpmUserAgent();
 
-  const loggerResult = ((): Result<Logger> => {
+  const loggerResult = await (async (): Promise<Result<Logger>> => {
     const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
@@ -196,6 +196,10 @@ export const getOptions = (): Result<Options> => {
     }
     if (str === 'quiet-ci') {
       return {ok: true, value: new QuietCiLogger(packageRoot)};
+    }
+    if (str === 'explain') {
+      const {ExplainLogger} = await import('./logging/explain-logger.js');
+      return {ok: true, value: new ExplainLogger(packageRoot)};
     }
     if (str === 'simple') {
       return {ok: true, value: new DefaultLogger(packageRoot)};
@@ -209,7 +213,9 @@ export const getOptions = (): Result<Options> => {
         reason: 'invalid-usage',
         message:
           `Expected the WIREIT_LOGGER env variable to be ` +
-          `"quiet", "simple", or "metrics", got ${JSON.stringify(str)}`,
+          `"quiet", "quiet-ci", "explain", "simple", or "metrics", got ${JSON.stringify(
+            str,
+          )}`,
         script,
         type: 'failure',
       },

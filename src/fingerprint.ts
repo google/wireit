@@ -14,6 +14,7 @@ import type {
   ScriptReferenceString,
   Dependency,
 } from './config.js';
+import {FingerprintDifference, NotFullyTrackedReason} from './event.js';
 
 /**
  * All meaningful inputs of a script. Used for determining if a script is fresh,
@@ -113,6 +114,11 @@ type FingerprintSha256HexDigest = string & {
   __FingerprintSha256HexDigestBrand__: never;
 };
 
+export type ComputeFingerprintResult = {
+  fingerprint: Fingerprint;
+  notFullyTrackedReason: NotFullyTrackedReason | undefined;
+};
+
 /**
  * The fingerprint of a script. Converts lazily between string and data object
  * forms.
@@ -131,8 +137,8 @@ export class Fingerprint {
   static async compute(
     script: ScriptConfig,
     dependencyFingerprints: Array<[Dependency, Fingerprint]>,
-  ): Promise<Fingerprint> {
-    let allDependenciesAreFullyTracked = true;
+  ): Promise<ComputeFingerprintResult> {
+    let notFullyTrackedDep: ScriptReferenceString | undefined = undefined;
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintSha256HexDigest]
     > = [];
@@ -143,7 +149,9 @@ export class Fingerprint {
         continue;
       }
       if (!depFingerprint.data.fullyTracked) {
-        allDependenciesAreFullyTracked = false;
+        if (notFullyTrackedDep === undefined) {
+          notFullyTrackedDep = scriptReferenceToString(dep.config);
+        }
       }
       filteredDependencyFingerprints.push([
         scriptReferenceToString(dep.config),
@@ -186,19 +194,37 @@ export class Fingerprint {
       fileHashes = [];
     }
 
-    const fullyTracked =
+    const notFullyTrackedReason: NotFullyTrackedReason | undefined = (() => {
       // If any any dependency is not fully tracked, then we can't be either,
       // because we can't know if there was an undeclared input that this script
       // depends on.
-      allDependenciesAreFullyTracked &&
+      if (notFullyTrackedDep !== undefined) {
+        return {
+          name: 'dependency not fully tracked',
+          dependency: notFullyTrackedDep,
+        };
+      }
       // A no-command script. Doesn't ever do anything itsef, so always fully
       // tracked.
-      (script.command === undefined ||
-        // A service. Fully tracked if we know its inputs. Can't produce output.
-        (script.service !== undefined && script.files !== undefined) ||
-        // A standard script. Fully tracked if we know both its inputs and
-        // outputs.
-        (script.files !== undefined && script.output !== undefined));
+      if (script.command === undefined) {
+        return undefined;
+      }
+      if (script.files === undefined) {
+        return {name: 'no files field'};
+      }
+      // A service. Always fully tracked. No 'files' means that we
+      // assume that it writes no files. Can't produce output.
+      if (script.service !== undefined) {
+        return undefined;
+      }
+      // A standard script. Fully tracked if we know both its inputs and
+      // outputs.
+      if (script.output === undefined) {
+        return {name: 'no output field'};
+      }
+      return undefined;
+    })();
+    const fullyTracked = notFullyTrackedReason === undefined;
 
     const fingerprint = new Fingerprint();
 
@@ -232,7 +258,7 @@ export class Fingerprint {
       env: script.env,
     };
     fingerprint.#data = data as FingerprintData;
-    return fingerprint;
+    return {fingerprint, notFullyTrackedReason};
   }
 
   #str?: FingerprintString;
@@ -266,5 +292,192 @@ export class Fingerprint {
 
   equal(other: Fingerprint): boolean {
     return this.string === other.string;
+  }
+
+  difference(previous: Fingerprint): FingerprintDifference | undefined {
+    // Do a string comparison first, because it's much faster than
+    // checking field by field;
+    if (this.equal(previous)) {
+      return undefined;
+    }
+
+    // To be sure that we don't miss any differences, as we check each field
+    // we remove its type from this union. If we get to the end and there are
+    // still fields left, then we missed something.
+    type FingerprintFields = Exclude<
+      keyof FingerprintData,
+      '__FingerprintDataBrand__'
+    >;
+    // TODO: we might be able to better explain fingerprint changes if we
+    //     grouped information together. For example, one return value with
+    //     all of the environment fields that changed; one with all config
+    //     fields; one that explains all added, removed, and changed
+    //     dependencies; one with all added, removed, and changed files.
+    type FieldsExcludingPlatform = Exclude<FingerprintFields, 'platform'>;
+    if (this.data.platform !== previous.data.platform) {
+      return {
+        name: 'environment',
+        field: 'platform',
+        current: this.data.platform,
+        previous: previous.data.platform,
+      };
+    }
+    type FieldsExcludingArch = Exclude<FieldsExcludingPlatform, 'arch'>;
+    if (this.data.arch !== previous.data.arch) {
+      return {
+        name: 'environment',
+        field: 'arch',
+        current: this.data.arch,
+        previous: previous.data.arch,
+      };
+    }
+    type FieldsExcludingNodeVersion = Exclude<
+      FieldsExcludingArch,
+      'nodeVersion'
+    >;
+    if (this.data.nodeVersion !== previous.data.nodeVersion) {
+      return {
+        name: 'environment',
+        field: 'nodeVersion',
+        current: this.data.nodeVersion,
+        previous: previous.data.nodeVersion,
+      };
+    }
+    type FieldsExcludingCommand = Exclude<
+      FieldsExcludingNodeVersion,
+      'command'
+    >;
+    if (this.data.command !== previous.data.command) {
+      return {
+        name: 'config',
+        field: 'command',
+        current: this.data.command,
+        previous: previous.data.command,
+      };
+    }
+    type FieldsExcludingExtraArgs = Exclude<
+      FieldsExcludingCommand,
+      'extraArgs'
+    >;
+    if (this.data.extraArgs.join(' ') !== previous.data.extraArgs.join(' ')) {
+      return {
+        name: 'config',
+        field: 'extraArgs',
+        current: this.data.extraArgs,
+        previous: previous.data.extraArgs,
+      };
+    }
+    type FieldsExcludingClean = Exclude<FieldsExcludingExtraArgs, 'clean'>;
+    if (this.data.clean !== previous.data.clean) {
+      return {
+        name: 'config',
+        field: 'clean',
+        current: this.data.clean,
+        previous: previous.data.clean,
+      };
+    }
+    type FieldsExcludingOutput = Exclude<FieldsExcludingClean, 'output'>;
+    if (this.data.output.join(' ') !== previous.data.output.join(' ')) {
+      return {
+        name: 'config',
+        field: 'output',
+        current: this.data.output,
+        previous: previous.data.output,
+      };
+    }
+    type FieldsExcludingService = Exclude<FieldsExcludingOutput, 'service'>;
+    if (
+      this.data.service?.readyWhen.lineMatches !==
+      previous.data.service?.readyWhen.lineMatches
+    ) {
+      return {
+        name: 'config',
+        field: 'service',
+        current: this.data.service,
+        previous: previous.data.service,
+      };
+    }
+    type FieldsExcludingEnv = Exclude<FieldsExcludingService, 'env'>;
+    if (JSON.stringify(this.data.env) !== JSON.stringify(previous.data.env)) {
+      return {
+        name: 'config',
+        field: 'env',
+        current: this.data.env,
+        previous: previous.data.env,
+      };
+    }
+    type FieldsExcludingFiles = Exclude<FieldsExcludingEnv, 'files'>;
+    const thisFiles = new Set(Object.keys(this.data.files));
+    const previousFiles = new Set(Object.keys(previous.data.files));
+    for (const path of thisFiles) {
+      if (!previousFiles.has(path)) {
+        return {name: 'file added', path};
+      }
+    }
+    for (const path of previousFiles) {
+      if (!thisFiles.has(path)) {
+        return {name: 'file removed', path};
+      }
+    }
+    for (const path of thisFiles) {
+      if (this.data.files[path] !== previous.data.files[path]) {
+        return {name: 'file changed', path};
+      }
+    }
+    type FieldsExcludingDependencies = Exclude<
+      FieldsExcludingFiles,
+      'dependencies'
+    >;
+    const thisDependencies = new Set(
+      Object.keys(this.data.dependencies) as ScriptReferenceString[],
+    );
+    const previousDependencies = new Set(
+      Object.keys(previous.data.dependencies) as ScriptReferenceString[],
+    );
+    for (const dependency of thisDependencies) {
+      if (!previousDependencies.has(dependency)) {
+        return {
+          name: 'dependency changed',
+          script: dependency,
+        };
+      }
+    }
+    for (const dependency of previousDependencies) {
+      if (!thisDependencies.has(dependency)) {
+        return {
+          name: 'dependency removed',
+          script: dependency,
+        };
+      }
+    }
+    for (const dependency of thisDependencies) {
+      if (
+        this.data.dependencies[dependency] !==
+        previous.data.dependencies[dependency]
+      ) {
+        return {
+          name: 'dependency changed',
+          script: dependency,
+        };
+      }
+    }
+    type FieldsExcludingFullyTracked = Exclude<
+      FieldsExcludingDependencies,
+      'fullyTracked'
+    >;
+    if (this.data.fullyTracked !== previous.data.fullyTracked) {
+      // This should never happen, because we already checked that all of
+      // the other fields are the same.
+      throw new Error(
+        `Internal error: fingerprints differed only in the 'fullyTracked' field, which should be impossible.\n    current: ${this.string}\n    previous: ${previous.string}`,
+      );
+    }
+    if (false as boolean) {
+      let remainingFields!: FieldsExcludingFullyTracked;
+      remainingFields satisfies never;
+    }
+    throw new Error(
+      `Internal error: fingerprints different but no difference was found.\n    current: ${this.string}\n    previous: ${previous.string}`,
+    );
   }
 }

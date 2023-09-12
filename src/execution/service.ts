@@ -5,7 +5,7 @@
  */
 
 import {BaseExecutionWithCommand} from './base.js';
-import {Fingerprint} from '../fingerprint.js';
+import {ComputeFingerprintResult, Fingerprint} from '../fingerprint.js';
 import {Deferred} from '../util/deferred.js';
 import {ScriptChildProcess} from '../script-child-process.js';
 import {LineMonitor} from '../util/line-monitor.js';
@@ -14,7 +14,12 @@ import type {ExecutionResult} from './base.js';
 import type {Dependency, ServiceScriptConfig} from '../config.js';
 import type {Executor} from '../executor.js';
 import type {Logger} from '../logging/logger.js';
-import type {Failure} from '../event.js';
+import type {
+  ExecutionRequestedReason,
+  Failure,
+  NeedsToRunReason,
+  ServiceStoppedReason,
+} from '../event.js';
 import type {Result} from '../error.js';
 
 type ServiceState =
@@ -234,6 +239,7 @@ function unexpectedState(state: ServiceState) {
  */
 export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScriptConfig> {
   #state: ServiceState;
+  readonly config: ServiceScriptConfig;
   readonly #terminated = new Deferred<Result<void, Failure>>();
   readonly #isWatchMode: boolean;
 
@@ -246,6 +252,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * its own service dependencies exited unexpectedly.
    */
   readonly terminated = this.#terminated.promise;
+  #stopReason: ServiceStoppedReason = {name: 'unknown'};
 
   constructor(
     config: ServiceScriptConfig,
@@ -254,8 +261,10 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     entireExecutionAborted: Promise<void>,
     adoptee: ServiceScriptExecution | undefined,
     isWatchMode: boolean,
+    executionRequestedReason: ExecutionRequestedReason,
   ) {
-    super(config, executor, logger);
+    super(config, executor, logger, executionRequestedReason);
+    this.config = config;
     this.#isWatchMode = isWatchMode;
     this.#state = {
       id: 'initial',
@@ -264,11 +273,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     };
     // Doing this here ensures that we always log when the
     // service stops, no matter how that happens.
-    void this.#terminated.promise.then(() => {
+    void this.#terminated.promise.then((result) => {
+      const failure = result.ok ? undefined : result.error;
       this._logger.log({
         script: this._config,
         type: 'info',
         detail: 'service-stopped',
+        reason: this.#stopReason,
+        failure,
       });
     });
   }
@@ -352,14 +364,21 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         const allConsumersDone = Promise.all(
           this._config.serviceConsumers.map(
             (consumer) =>
-              this._executor.getExecution(consumer).servicesNotNeeded,
+              this._executor.getExecution(
+                consumer,
+                this.getReasonForChildExecution(),
+              ).servicesNotNeeded,
           ),
         );
         const abort = this._config.isPersistent
           ? Promise.all([this.#state.entireExecutionAborted, allConsumersDone])
           : allConsumersDone;
         void abort.then(() => {
-          void this.abort();
+          void this.abort(
+            this._config.isPersistent
+              ? {name: 'the run was aborted'}
+              : {name: 'all consumers of the service are done'},
+          );
         });
 
         this.#state = {
@@ -474,14 +493,41 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     }
   }
 
-  #onFingerprinted(fingerprint: Fingerprint) {
+  #needsToBeRestarted(
+    computeResult: ComputeFingerprintResult,
+    adoptee: ServiceScriptExecution | undefined,
+  ): undefined | NeedsToRunReason {
+    if (computeResult.notFullyTrackedReason !== undefined) {
+      return {
+        name: 'not-fully-tracked',
+        reason: computeResult.notFullyTrackedReason,
+      };
+    }
+    const fingerprint = computeResult.fingerprint;
+    const prevFingerprint = adoptee?.fingerprint;
+    if (prevFingerprint === undefined) {
+      return {name: 'no-previous-fingerprint'};
+    }
+    const difference = fingerprint.difference(prevFingerprint);
+    if (difference === undefined) {
+      return undefined;
+    }
+    return {
+      name: 'fingerprints-differed',
+      difference,
+    };
+  }
+
+  #onFingerprinted(computeResult: ComputeFingerprintResult) {
+    const fingerprint = computeResult.fingerprint;
     switch (this.#state.id) {
       case 'fingerprinting': {
         const adoptee = this.#state.adoptee;
-        if (
-          adoptee?.fingerprint !== undefined &&
-          !adoptee.fingerprint.equal(fingerprint)
-        ) {
+        const needsToRestartReason = this.#needsToBeRestarted(
+          computeResult,
+          adoptee,
+        );
+        if (adoptee !== undefined && needsToRestartReason !== undefined) {
           // There is a previous running version of this service, but the
           // fingerprint changed, so we need to restart it.
           this.#state = {
@@ -489,9 +535,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             fingerprint,
             deferredFingerprint: this.#state.deferredFingerprint,
           };
-          void adoptee.abort().then(() => {
-            this.#onAdopteeStopped();
-          });
+          void adoptee
+            .abort({name: 'restart', reason: needsToRestartReason})
+            .then(() => {
+              this.#onAdopteeStopped();
+            });
           return;
         }
         this.#state.deferredFingerprint.resolve({
@@ -978,7 +1026,8 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * Stop this service if it has started, and return a promise that resolves
    * when it is stopped.
    */
-  abort(): Promise<void> {
+  abort(reason: ServiceStoppedReason): Promise<void> {
+    this.#stopReason = reason;
     switch (this.#state.id) {
       case 'started':
       case 'started-broken': {

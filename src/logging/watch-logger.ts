@@ -66,7 +66,8 @@ export class WatchLogger implements Logger {
       case 'watch-run-start':
       case 'start-cancelled':
       case 'locked':
-      case 'analysis-completed': {
+      case 'analysis-completed':
+      case 'watched-file-triggered-run': {
         return false;
       }
     }

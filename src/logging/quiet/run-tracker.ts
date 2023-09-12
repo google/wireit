@@ -407,6 +407,8 @@ export class QuietRunLogger implements Disposable {
       case 'service-ready':
       case 'watch-run-start':
       case 'watch-run-end':
+      case 'watch-aborted':
+      case 'watched-file-triggered-run':
         return noChange;
       case 'locked': {
         // the script is blocked on starting because something else is

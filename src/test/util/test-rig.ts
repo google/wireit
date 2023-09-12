@@ -121,6 +121,7 @@ export class WireitTestRig extends FilesystemTestRig {
       // at the end of the test, and if any are still running then the test
       // has probably failed from timeout. If the process is hung, we'll
       // already see that from the timeout.
+      child.reportStalledLogMatchers();
       child.kill({force: true});
       await child.exit;
     }
@@ -223,6 +224,7 @@ export type {ExecResult};
  * The object returned by {@link WireitTestRig.exec}.
  */
 class ExecResult {
+  readonly #command: string;
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #exited = new Deferred<ExitResult>();
   #running = true;
@@ -236,6 +238,7 @@ class ExecResult {
     cwd: string,
     env: Record<string, string | undefined>,
   ) {
+    this.#command = command;
     // Remove any environment variables that start with "npm_", because those
     // will have been set by the "npm test" or similar command that launched
     // this test itself, and we want a more pristine simulation of running
@@ -347,10 +350,29 @@ class ExecResult {
    */
   waitForLog(matcher: RegExp): Promise<void> {
     const deferred = new Deferred<void>();
-    this.#logMatchers.add({re: matcher, deferred});
+    this.#logMatchers.add({
+      re: matcher,
+      deferred,
+    });
     // In case we've already received the log we're watching for
     this.#checkMatchersAgainstLogs();
     return deferred.promise;
+  }
+
+  reportStalledLogMatchers() {
+    if (this.#logMatchers.size === 0) {
+      return;
+    }
+    console.error(`${this.#command} was still waiting to see logs matching:`);
+    for (const {re} of this.#logMatchers) {
+      console.error('  ', re);
+    }
+    console.error(
+      `Unconsumed stdout:\n\`\`\`\n${this.#matcherStdout}\n\`\`\`\n`,
+    );
+    console.error(
+      `Unconsumed stderr:\n\`\`\`\n${this.#matcherStderr}\n\`\`\`\n`,
+    );
   }
 
   #checkMatchersAgainstLogs() {

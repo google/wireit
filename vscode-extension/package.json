@@ -43,6 +43,7 @@
         "..:build"
       ],
       "files": [
+        ".tsbuildinfo",
         "tsconfig.json",
         "src/**/*.ts"
       ],

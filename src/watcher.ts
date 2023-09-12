@@ -20,6 +20,11 @@ import {
 
 import type {Agent} from './cli-options.js';
 import type {Fingerprint} from './fingerprint.js';
+import {
+  FileOperation,
+  WatchAbortedReason,
+  WatchRunStartReason,
+} from './event.js';
 
 /**
  * ```
@@ -43,19 +48,19 @@ import type {Fingerprint} from './fingerprint.js';
  * ```
  */
 type WatcherState =
-  | 'initial'
-  | 'watching'
-  | 'debouncing'
-  | 'running'
-  | 'queued'
-  | 'aborted';
+  | {name: 'initial'}
+  | {name: 'watching'}
+  | {name: 'debouncing'; reason: WatchRunStartReason}
+  | {name: 'running'; reason: WatchRunStartReason}
+  | {name: 'queued'; reason: WatchRunStartReason}
+  | {name: 'aborted'; why: WatchAbortedReason};
 
 function unknownState(state: never) {
   return new Error(`Unknown watcher state ${String(state)}`);
 }
 
 function unexpectedState(state: WatcherState) {
-  return new Error(`Unexpected watcher state ${state}`);
+  return new Error(`Unexpected watcher state ${state.name}`);
 }
 
 /**
@@ -89,7 +94,7 @@ const DEBOUNCE_MS = 0;
  */
 export class Watcher {
   /** See {@link WatcherState} */
-  #state: WatcherState = 'initial';
+  #state: WatcherState = {name: 'initial'};
 
   readonly #rootScript: ScriptReference;
   readonly #extraArgs: string[] | undefined;
@@ -144,7 +149,7 @@ export class Watcher {
   }
 
   watch(): Promise<void> {
-    void this.#startRun();
+    void this.#startRun({name: 'initial'});
     return this.#finished.promise;
   }
 
@@ -163,10 +168,10 @@ export class Watcher {
   }
 
   #onDebounced(): void {
-    switch (this.#state) {
+    switch (this.#state.name) {
       case 'debouncing': {
         this.#debounceTimeoutId = undefined;
-        this.#startRun();
+        this.#startRun(this.#state.reason);
         return;
       }
       case 'initial':
@@ -182,15 +187,16 @@ export class Watcher {
     }
   }
 
-  #startRun(): void {
-    switch (this.#state) {
+  #startRun(reason: WatchRunStartReason): void {
+    switch (this.#state.name) {
       case 'initial':
       case 'debouncing': {
-        this.#state = 'running';
+        this.#state = {name: 'running', reason};
         this.#logger.log({
           script: this.#rootScript,
           type: 'info',
           detail: 'watch-run-start',
+          reason,
         });
         if (this.#latestRootScriptConfig === undefined) {
           void this.#analyze();
@@ -221,13 +227,13 @@ export class Watcher {
   }
 
   async #analyze(): Promise<void> {
-    if (this.#state !== 'running') {
+    if (this.#state.name !== 'running') {
       throw unexpectedState(this.#state);
     }
 
     const analyzer = new Analyzer(this.#agent, this.#logger);
     const result = await analyzer.analyze(this.#rootScript, this.#extraArgs);
-    if ((this.#state as WatcherState) === 'aborted') {
+    if ((this.#state as WatcherState).name === 'aborted') {
       return;
     }
 
@@ -264,7 +270,7 @@ export class Watcher {
   }
 
   async #execute(script: ScriptConfig): Promise<void> {
-    if (this.#state !== 'running') {
+    if (this.#state.name !== 'running') {
       throw unexpectedState(this.#state);
     }
     this.#executor = new Executor(
@@ -295,7 +301,7 @@ export class Watcher {
       type: 'info',
       detail: 'watch-run-end',
     });
-    switch (this.#state) {
+    switch (this.#state.name) {
       case 'queued': {
         // Note that the debounce time could actually have already elapsed since
         // the last file change while we were running, but we don't start the
@@ -303,12 +309,12 @@ export class Watcher {
         // interval is also the minimum time between successive runs. This seems
         // fine and probably good, and is simpler than maintaining a separate
         // "queued-debouncing" state.
-        this.#state = 'debouncing';
+        this.#state = {name: 'debouncing', reason: this.#state.reason};
         void this.#startDebounce();
         return;
       }
       case 'running': {
-        this.#state = 'watching';
+        this.#state = {name: 'watching'};
         return;
       }
       case 'aborted': {
@@ -326,15 +332,26 @@ export class Watcher {
     }
   }
 
-  #onConfigFileChanged = (): void => {
+  #onConfigFileChanged = (operation: FileOperation, path: string): void => {
     this.#latestRootScriptConfig = undefined;
-    this.#fileChanged();
+    this.#fileChanged(operation, path);
   };
 
-  #fileChanged = (): void => {
-    switch (this.#state) {
+  #fileChanged = (operation: FileOperation, path: string): void => {
+    switch (this.#state.name) {
       case 'watching': {
-        this.#state = 'debouncing';
+        this.#logger.log({
+          script: this.#rootScript,
+          type: 'info',
+          detail: 'watched-file-triggered-run',
+          path,
+          operation,
+          runActive: false,
+        });
+        this.#state = {
+          name: 'debouncing',
+          reason: {name: 'file-changed', path, operation},
+        };
         void this.#startDebounce();
         return;
       }
@@ -344,7 +361,18 @@ export class Watcher {
         return;
       }
       case 'running': {
-        this.#state = 'queued';
+        this.#logger.log({
+          script: this.#rootScript,
+          type: 'info',
+          detail: 'watched-file-triggered-run',
+          path,
+          operation,
+          runActive: true,
+        });
+        this.#state = {
+          name: 'queued',
+          reason: {name: 'file-changed', path, operation},
+        };
         return;
       }
       case 'queued':
@@ -401,31 +429,37 @@ export class Watcher {
     }
   }
 
-  abort(): void {
+  abort(why: WatchAbortedReason): void {
+    if (this.#state.name === 'aborted') {
+      return;
+    }
     if (this.#executor !== undefined) {
       this.#executor.abort();
       this.#executor = undefined;
     }
-    switch (this.#state) {
+    this.#logger.log({
+      script: this.#rootScript,
+      type: 'info',
+      detail: 'watch-aborted',
+      reason: why,
+    });
+    switch (this.#state.name) {
       case 'debouncing':
       case 'watching': {
-        if (this.#state === 'debouncing') {
+        if (this.#state.name === 'debouncing') {
           this.#cancelDebounce();
         }
-        this.#state = 'aborted';
+        this.#state = {name: 'aborted', why};
         this.#closeAllFileWatchers();
         this.#finished.resolve();
         return;
       }
       case 'running':
       case 'queued': {
-        this.#state = 'aborted';
+        this.#state = {name: 'aborted', why};
         this.#closeAllFileWatchers();
         // Don't resolve #finished immediately so that we will wait for #analyze
         // or #execute to finish.
-        return;
-      }
-      case 'aborted': {
         return;
       }
       case 'initial': {
@@ -477,7 +511,7 @@ const watchPathsEqual = (
 export const makeWatcher = (
   patterns: string[],
   cwd: string,
-  callback: () => void,
+  callback: (operation: FileOperation, path: string) => void,
   ignoreInitial = true,
 ): FileWatcher => {
   // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
@@ -492,7 +526,31 @@ export const makeWatcher = (
       ignoreInitial,
     },
   );
-  watcher.on('all', callback);
+  watcher.on('all', (kind, path) => {
+    let operation: FileOperation;
+    switch (kind) {
+      case 'add':
+      case 'addDir': {
+        operation = 'created';
+        break;
+      }
+      case 'change': {
+        operation = 'changed';
+        break;
+      }
+      case 'unlink':
+      case 'unlinkDir': {
+        operation = 'deleted';
+        break;
+      }
+      default: {
+        kind satisfies never;
+        operation = 'altered in an unknown way';
+      }
+    }
+
+    callback(operation, path);
+  });
   return {
     patterns,
     watcher,
