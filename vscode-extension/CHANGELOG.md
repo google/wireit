@@ -4,6 +4,11 @@ All notable changes to the "wireit" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.7.0] - 2023-09-12
+
+- More reliably handle and report diagnostics for scripts with invalid
+  configurations. Specifically fixed https://github.com/google/wireit/issues/803.
+
 ## [0.6.0] - 2023-02-06
 
 - Updated to allow scripts that are in the "wireit" section but not the main
