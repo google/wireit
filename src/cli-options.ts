@@ -66,7 +66,7 @@ export const getOptions = (): Result<Options> => {
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be "npx-cli.js",
   // though, so we use that combination to detect this special case.
   const launchedWithNpx =
-    scriptName === 'npx' && process.env.npm_execpath?.endsWith('npx-cli.js');
+    scriptName === 'npx' && process.env.npm_command === 'exec';
   if (!packageDir || !scriptName || launchedWithNpx) {
     const detail = [];
     if (!packageDir) {
