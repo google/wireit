@@ -4,6 +4,11 @@ All notable changes to the "wireit" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## Unreleased
+
+- Fix our `npx wireit` detection so we continue to give a good error message
+  with the latest version of `npm` when wireit is run this way.
+
 ## [0.7.0] - 2023-09-12
 
 - More reliably handle and report diagnostics for scripts with invalid
