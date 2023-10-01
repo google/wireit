@@ -30,7 +30,12 @@ import {IdeAnalyzer} from './ide.js';
 const ideAnalyzer = new IdeAnalyzer();
 const connection = createConnection(ProposedFeatures.all);
 
-connection.onInitialize(() => {
+connection.onInitialize((init) => {
+  const workspacePaths: string[] = [];
+  for (const folder of init.workspaceFolders ?? []) {
+    workspacePaths.push(url.fileURLToPath(folder.uri));
+  }
+  ideAnalyzer.setWorkspaceRoots(workspacePaths);
   const result: InitializeResult = {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -43,6 +48,7 @@ connection.onInitialize(() => {
         ],
       },
       definitionProvider: true,
+      referencesProvider: true,
     },
   };
   return result;
@@ -130,6 +136,13 @@ connection.onDefinition(async (params) => {
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
   return ideAnalyzer.getDefinition(path, position);
+});
+
+connection.onReferences(async (params) => {
+  // TODO: handle params.context.includeDeclaration
+  const path = url.fileURLToPath(params.textDocument.uri);
+  const position = params.position;
+  return ideAnalyzer.findAllReferences(path, position);
 });
 
 // Actually start listening
