@@ -480,9 +480,27 @@ export class IdeAnalyzer {
     const distanceInto =
       ourPosition - scriptSpecifier.offset - 1; /* for the leading quote */
     const specifierBeforeCursor = scriptSpecifier.value.slice(0, distanceInto);
+    let targetPackageJson: PackageJson;
+    let targetPackageDir: string;
     if (specifierBeforeCursor.startsWith('.')) {
-      // This cross-file dependency, we don't offer any completion items yet.
-      return undefined;
+      const indexOfColon = specifierBeforeCursor.indexOf(':');
+      if (indexOfColon === -1) {
+        // We'd be autocompleting on the file path portion of the specifier.
+        // Not implemented yet.
+        return undefined;
+      }
+      targetPackageDir = pathlib.join(
+        packageDir,
+        specifierBeforeCursor.slice(0, indexOfColon),
+      );
+      const result = await this.#analyzer.getPackageJson(targetPackageDir);
+      if (!result.ok) {
+        return undefined;
+      }
+      targetPackageJson = result.value;
+    } else {
+      targetPackageJson = packageJson;
+      targetPackageDir = packageDir;
     }
 
     const result: CompletionList = {
@@ -493,7 +511,7 @@ export class IdeAnalyzer {
     };
 
     const replaceRange = OffsetToPositionConverter.get(
-      packageJson.jsonFile,
+      targetPackageJson.jsonFile,
     ).toIdeRange(scriptSpecifier);
 
     // result.itemDefaults = {
@@ -502,10 +520,10 @@ export class IdeAnalyzer {
 
     // analyze the scripts in this file
     const potentiallyValidScripts = await Promise.all(
-      [...packageJson.scripts].map((script) => {
+      [...targetPackageJson.scripts].map((script) => {
         return this.#analyzer.analyzeIgnoringErrors({
           name: script.name,
-          packageDir,
+          packageDir: targetPackageDir,
         });
       }),
     );

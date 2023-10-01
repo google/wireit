@@ -848,6 +848,40 @@ async function assertCompletions(
 
 test('we can get completions for same file dependencies', async ({rig}) => {
   const ide = new IdeAnalyzer();
+  const expected = {
+    // We actually propose all scripts, and let the IDE narrow them down.
+    isIncomplete: false,
+    items: [
+      {
+        label: 'a',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'b',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'bar',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'deps',
+        kind: completionItemKinds.dependenciesOnly,
+      },
+      {
+        label: 'files',
+        kind: completionItemKinds.filesOnly,
+      },
+      {
+        label: 'foo',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'service',
+        kind: completionItemKinds.service,
+      },
+    ],
+  };
   await assertCompletions(ide, {
     path: rig.resolve('package.json'),
     contentsWithPipe: JSON.stringify(
@@ -862,6 +896,7 @@ test('we can get completions for same file dependencies', async ({rig}) => {
           },
           bar: {
             dependencies: ['fo|'],
+            command: 'echo',
           },
           service: {
             service: true,
@@ -870,41 +905,145 @@ test('we can get completions for same file dependencies', async ({rig}) => {
           files: {
             files: ['*.js'],
           },
+          deps: {
+            dependencies: ['foo'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: expected,
+  });
+
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          foo: {
+            command: 'echo',
+          },
+          bar: {
+            dependencies: ['|'],
+            script: 'echo',
+          },
+          service: {
+            service: true,
+            command: 'foo',
+          },
+          files: {
+            files: ['*.js'],
+          },
+          deps: {
+            dependencies: ['foo'],
+          },
         },
       },
       null,
       2,
     ),
     expected: {
-      // We actually propose all scripts, and let the IDE narrow them down.
-      isIncomplete: false,
-      items: [
-        {
-          label: 'a',
-          kind: completionItemKinds.normalScript,
-        },
-        {
-          label: 'b',
-          kind: completionItemKinds.normalScript,
-        },
-        {
-          label: 'bar',
-          kind: completionItemKinds.dependenciesOnly,
-        },
-        {
-          label: 'files',
-          kind: completionItemKinds.filesOnly,
-        },
-        {
-          label: 'foo',
-          kind: completionItemKinds.normalScript,
-        },
-        {
-          label: 'service',
-          kind: completionItemKinds.service,
-        },
-      ],
+      ...expected,
+      // It's incomplete because we don't know whether the user wants to type
+      // a ./ or a ../ or just the name of a script.
+      isIncomplete: true,
     },
+  });
+});
+
+test('we can get completions for cross file dependencies', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await rig.write('child/package.json', {
+    scripts: {
+      a: 'wireit',
+      b: 'wireit',
+    },
+    wireit: {
+      foo: {
+        command: 'echo',
+      },
+      bar: {
+        dependencies: ['foo'],
+      },
+      service: {
+        service: true,
+        command: 'foo',
+      },
+      files: {
+        files: ['*.js'],
+      },
+    },
+  });
+  const expected = {
+    // We actually propose all scripts, and let the IDE narrow them down.
+    isIncomplete: false,
+    items: [
+      {
+        label: 'a',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'b',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'bar',
+        kind: completionItemKinds.dependenciesOnly,
+      },
+      {
+        label: 'files',
+        kind: completionItemKinds.filesOnly,
+      },
+      {
+        label: 'foo',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'service',
+        kind: completionItemKinds.service,
+      },
+    ],
+  };
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:fo|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected,
+  });
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected,
   });
 });
 
