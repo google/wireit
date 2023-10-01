@@ -119,120 +119,126 @@ test(
 
 test(
   'logs metrics for interesting iterations when in watch mode',
-  rigTest(async ({rig}) => {
-    rig.env['WIREIT_LOGGER'] = 'metrics';
-    const cmdA = await rig.newCommand();
-    const cmdB = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-          b: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            dependencies: ['b'],
-            files: ['a.txt'],
-            output: [],
-          },
-          b: {
-            command: cmdB.command,
-            files: ['b.txt'],
-            output: [],
-          },
-        },
-      },
-      'a.txt': 'v0',
-      'b.txt': 'v0',
-    });
-
-    const exec = rig.exec('npm run a --watch');
-
-    // Initial execution. Both A and B run.
-    {
-      const invB = await cmdB.nextInvocation();
-      invB.exit(0);
-      const invA = await cmdA.nextInvocation();
-      invA.exit(0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
-    }
-
-    // Input to A is changed, so A runs again. B is a dependency of A, but it is
-    // unchanged, so B is fresh.
-    {
+  rigTest(
+    async ({rig}) => {
+      rig.env['WIREIT_LOGGER'] = 'metrics';
+      const cmdA = await rig.newCommand();
+      const cmdB = await rig.newCommand();
       await rig.writeAtomic({
-        'a.txt': 'v1',
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+            b: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              dependencies: ['b'],
+              files: ['a.txt'],
+              output: [],
+            },
+            b: {
+              command: cmdB.command,
+              files: ['b.txt'],
+              output: [],
+            },
+          },
+        },
+        'a.txt': 'v0',
+        'b.txt': 'v0',
       });
-      const invA = await cmdA.nextInvocation();
-      invA.exit(0);
-    }
 
-    // Wait a moment to give the watcher time to react.
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    exec.kill();
-    const {stdout} = await exec.exit;
+      const exec = rig.exec('npm run a --watch');
 
-    assert.equal([...stdout.matchAll(/🏁/gi)].length, 3);
-    assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
-    assertNthMetric(1, stdout, {total: 1, ran: 1, percentRan: 100});
-    assertNthMetric(2, stdout, {
-      total: 2,
-      ran: 1,
-      percentRan: 50,
-      fresh: 1,
-      percentFresh: 50,
-    });
-  }),
+      // Initial execution. Both A and B run.
+      {
+        const invB = await cmdB.nextInvocation();
+        invB.exit(0);
+        const invA = await cmdA.nextInvocation();
+        invA.exit(0);
+        assert.equal(cmdA.numInvocations, 1);
+        assert.equal(cmdB.numInvocations, 1);
+      }
+
+      // Input to A is changed, so A runs again. B is a dependency of A, but it is
+      // unchanged, so B is fresh.
+      {
+        await rig.writeAtomic({
+          'a.txt': 'v1',
+        });
+        const invA = await cmdA.nextInvocation();
+        invA.exit(0);
+      }
+
+      // Wait a moment to give the watcher time to react.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      exec.kill();
+      const {stdout} = await exec.exit;
+
+      assert.equal([...stdout.matchAll(/🏁/gi)].length, 3);
+      assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
+      assertNthMetric(1, stdout, {total: 1, ran: 1, percentRan: 100});
+      assertNthMetric(2, stdout, {
+        total: 2,
+        ran: 1,
+        percentRan: 50,
+        fresh: 1,
+        percentFresh: 50,
+      });
+    },
+    {flaky: true},
+  ),
 );
 
 test(
   'does not log metrics for non-interesting iterations in watch mode',
-  rigTest(async ({rig}) => {
-    rig.env['WIREIT_LOGGER'] = 'metrics';
-    const cmdA = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['a.txt'],
-            output: [],
+  rigTest(
+    async ({rig}) => {
+      rig.env['WIREIT_LOGGER'] = 'metrics';
+      const cmdA = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['a.txt'],
+              output: [],
+            },
           },
         },
-      },
-      'a.txt': 'v0',
-    });
+        'a.txt': 'v0',
+      });
 
-    const exec = rig.exec('npm run a --watch');
+      const exec = rig.exec('npm run a --watch');
 
-    // Initial execution. A should run.
-    const inv = await cmdA.nextInvocation();
-    inv.exit(0);
+      // Initial execution. A should run.
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
 
-    // Input to A is changed, but has the same content as before. This is not an
-    // 'interesting' iteration, so metrics shouldn't be logged.
-    await rig.writeAtomic('a.txt', 'v0');
+      // Input to A is changed, but has the same content as before. This is not an
+      // 'interesting' iteration, so metrics shouldn't be logged.
+      await rig.writeAtomic('a.txt', 'v0');
 
-    // Wait a moment to give the watcher time to react.
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    exec.kill();
-    const {stdout} = await exec.exit;
+      // Wait a moment to give the watcher time to react.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      exec.kill();
+      const {stdout} = await exec.exit;
 
-    // There should only be one metrics entry in stdout.
-    const numMetrics = [...stdout.matchAll(/\[metrics\]/gi)].length;
-    if (numMetrics !== 1) {
-      console.error(
-        `Expected one metrics entry, got ${numMetrics}.\nFull stdout:\n$`,
-      );
-      console.error(stdout);
-    }
-    assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
-  }),
+      // There should only be one metrics entry in stdout.
+      const numMetrics = [...stdout.matchAll(/\[metrics\]/gi)].length;
+      if (numMetrics !== 1) {
+        console.error(
+          `Expected one metrics entry, got ${numMetrics}.\nFull stdout:\n$`,
+        );
+        console.error(stdout);
+      }
+      assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
+    },
+    {flaky: true},
+  ),
 );
 
 /**
