@@ -8,10 +8,11 @@ import {inspect} from 'util';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggle, OffsetToPositionConverter} from '../error.js';
-import {IdeAnalyzer} from '../ide.js';
+import {completionItemKinds, IdeAnalyzer} from '../ide.js';
 import {WireitTestRig} from './util/test-rig.js';
 import * as url from 'url';
 import {removeAnsiColors} from './util/colors.js';
+import {type CompletionList} from 'vscode-languageclient';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -801,6 +802,109 @@ test('we can find references to a dependency', async ({rig}) => {
         ~~~
       `,
     ],
+  });
+});
+
+async function assertCompletions(
+  ide: IdeAnalyzer,
+  options: {
+    path: string;
+    contentsWithPipe: string;
+    expected: undefined | CompletionList;
+  },
+) {
+  const offset = options.contentsWithPipe.indexOf('|');
+  const contents =
+    options.contentsWithPipe.slice(0, offset) +
+    options.contentsWithPipe.slice(offset + 1);
+  ide.setOpenFileContents(options.path, contents);
+  const sourceFile = await ide.getPackageJsonForTest(options.path);
+  if (sourceFile === undefined) {
+    throw new Error(`could not get source file`);
+  }
+  const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
+  const completionList = await ide.getCompletionItems(
+    options.path,
+    sourceConverter.toIdePosition(offset),
+  );
+  if (completionList === undefined) {
+    if (options.expected === undefined) {
+      return; // No references, as expected.
+    }
+    throw new Error(
+      `Expected completionList matching \n${inspect(
+        options.expected,
+      )} but got undefined`,
+    );
+  }
+
+  if (options.expected === undefined) {
+    throw new Error(
+      `Expected no completionList, but got: ${inspect(completionList)}`,
+    );
+  }
+  assert.equal(completionList, options.expected);
+}
+
+test('we can get completions for same file dependencies', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          foo: {
+            command: 'echo',
+          },
+          bar: {
+            dependencies: ['fo|'],
+          },
+          service: {
+            service: true,
+            command: 'foo',
+          },
+          files: {
+            files: ['*.js'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: {
+      // We actually propose all scripts, and let the IDE narrow them down.
+      isIncomplete: false,
+      items: [
+        {
+          label: 'a',
+          kind: completionItemKinds.normalScript,
+        },
+        {
+          label: 'b',
+          kind: completionItemKinds.normalScript,
+        },
+        {
+          label: 'bar',
+          kind: completionItemKinds.dependenciesOnly,
+        },
+        {
+          label: 'files',
+          kind: completionItemKinds.filesOnly,
+        },
+        {
+          label: 'foo',
+          kind: completionItemKinds.normalScript,
+        },
+        {
+          label: 'service',
+          kind: completionItemKinds.service,
+        },
+      ],
+    },
   });
 });
 

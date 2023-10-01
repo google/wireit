@@ -49,6 +49,11 @@ connection.onInitialize((init) => {
       },
       definitionProvider: true,
       referencesProvider: true,
+      completionProvider: {
+        // We don't have more information later, so don't bother asking.
+        resolveProvider: false,
+        completionItem: {},
+      },
     },
   };
   return result;
@@ -57,11 +62,11 @@ connection.onInitialize((init) => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function log(...values: unknown[]) {
   for (const value of values) {
-    let message;
+    let message: string;
     if (typeof value === 'string') {
       message = value;
     } else {
-      message = inspect(value);
+      message = inspect(value, {depth: 4});
     }
     connection.console.log(message);
   }
@@ -143,6 +148,12 @@ connection.onReferences(async (params) => {
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
   return ideAnalyzer.findAllReferences(path, position);
+});
+
+connection.onCompletion(async (params) => {
+  const path = url.fileURLToPath(params.textDocument.uri);
+  const position = params.position;
+  return ideAnalyzer.getCompletionItems(path, position);
 });
 
 // Actually start listening

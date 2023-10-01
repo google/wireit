@@ -17,19 +17,21 @@ import {
 } from './error.js';
 
 import type {FileSystem} from './util/package-json-reader.js';
-import type {
-  Diagnostic as IdeDiagnostic,
-  DiagnosticSeverity,
-  DiagnosticRelatedInformation,
-  CodeAction,
-  TextEdit,
-  WorkspaceEdit,
-  Position,
-  DefinitionLink,
-  Location,
+import {
+  type Diagnostic as IdeDiagnostic,
+  type DiagnosticSeverity,
+  type DiagnosticRelatedInformation,
+  type CodeAction,
+  type TextEdit,
+  type WorkspaceEdit,
+  type Position,
+  type DefinitionLink,
+  type Location,
+  type CompletionList,
+  type CompletionItemKind,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
-import type {JsonFile} from './util/ast.js';
+import type {JsonAstNode, JsonFile} from './util/ast.js';
 
 class OverlayFilesystem implements FileSystem {
   // filename to contents
@@ -43,6 +45,14 @@ class OverlayFilesystem implements FileSystem {
     return fs.readFile(path, options);
   }
 }
+
+export const completionItemKinds = {
+  service: 24, // CompletionItemKind.Operator
+  normalScript: 2, // CompletionItemKind.Method
+  dependenciesOnly: 9, // CompletionItemKind.Module
+  filesOnly: 17, // CompletionItemKind.File
+  folder: 19, // CompletionItemKind.Folder
+} as const;
 
 /**
  * The interface for an IDE to communicate with wireit's analysis pipeline.
@@ -419,6 +429,125 @@ export class IdeAnalyzer {
       return a.range.start.line - b.range.start.line;
     });
     return references;
+  }
+
+  async getCompletionItems(
+    path: string,
+    position: Position,
+  ): Promise<CompletionList | undefined> {
+    const packageDir = pathlib.dirname(path);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      console.log('not in a package.json');
+      return undefined;
+    }
+    const packageJson = packageJsonResult.value;
+    const ourPosition = OffsetToPositionConverter.get(
+      packageJson.jsonFile,
+    ).idePositionToOffset(position);
+    const scriptInfo = await this.#getInfoAboutLocation(
+      packageJson,
+      ourPosition,
+    );
+    if (scriptInfo === undefined) {
+      console.log('no script info');
+      return undefined;
+    }
+    let scriptSpecifier: JsonAstNode<string>;
+    if (scriptInfo.kind !== 'dependency') {
+      // Annoyingly, it's particularly important that we offer completions
+      // when the user is typing inside an empty dependency specifier, which
+      // is not a syntactically valid script config. So we need special logic
+      // here
+      const dependenciesProp =
+        scriptInfo.scriptSyntaxInfo.wireitConfigNode?.children?.find(
+          (child) =>
+            child.type === 'property' &&
+            child.children?.[0]?.value === 'dependencies',
+        );
+      const dependency = dependenciesProp?.children?.[1]?.children?.find(
+        (child) => offsetInsideRange(ourPosition, child),
+      );
+      if (typeof dependency?.value !== 'string') {
+        return undefined;
+      }
+      scriptSpecifier = dependency as JsonAstNode<string>;
+    } else {
+      scriptSpecifier = scriptInfo.dependency.specifier;
+    }
+    // Ok, the user is typing inside a dependency specifier, so we want to
+    // offer them completion items. Next question, are we in the (optional)
+    // file path portion of the specifier, or the script name portion?
+    const dep = scriptInfo.dependency;
+    const distanceInto =
+      ourPosition - scriptSpecifier.offset - 1; /* for the leading quote */
+    const specifierBeforeCursor = scriptSpecifier.value.slice(0, distanceInto);
+    if (specifierBeforeCursor.startsWith('.')) {
+      // This cross-file dependency, we don't offer any completion items yet.
+      return undefined;
+    }
+
+    console.log(`Specifier before cursor: ${specifierBeforeCursor}`);
+    const result: CompletionList = {
+      // If the user hasn't typed anything yet, our results are incomplete
+      // because they could type ./ or ../ and we don't complete those yet.
+      isIncomplete: specifierBeforeCursor === '',
+      items: [],
+    };
+
+    const replaceRange = OffsetToPositionConverter.get(
+      packageJson.jsonFile,
+    ).toIdeRange(scriptSpecifier);
+
+    // result.itemDefaults = {
+    // editRange: replaceRange,
+    // };
+
+    // analyze the scripts in this file
+    const potentiallyValidScripts = await Promise.all(
+      [...packageJson.scripts].map((script) => {
+        return this.#analyzer.analyzeIgnoringErrors({
+          name: script.name,
+          packageDir,
+        });
+      }),
+    );
+
+    // Ok, so this is a same-file dependency, we can offer completion items.
+    for (const script of potentiallyValidScripts) {
+      // By default, we assume it's a regular script.
+      let kind: CompletionItemKind = completionItemKinds.normalScript;
+      if (script !== undefined) {
+        if (script.service !== undefined) {
+          kind = completionItemKinds.service;
+        } else if (script.command !== undefined) {
+          kind = completionItemKinds.normalScript;
+        } else if (
+          script.dependencies !== undefined &&
+          script.dependencies.length > 0
+        ) {
+          kind = completionItemKinds.dependenciesOnly;
+        } else if (script.files !== undefined) {
+          kind = completionItemKinds.filesOnly;
+        } else {
+          kind = completionItemKinds.normalScript;
+        }
+      }
+      result.items.push({
+        label: script.name,
+        kind,
+        // filterText: specifierBeforeCursor,
+        // insertText: script.name,
+
+        // insertText: script.name,
+        // textEdit: {range: replaceRange, newText: script.name},
+      });
+    }
+
+    // Sort results for deterministic tests.
+    result.items.sort((a, b) => a.label.localeCompare(b.label));
+
+    return result;
   }
 
   async getPackageJsonForTest(
