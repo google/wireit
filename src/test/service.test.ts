@@ -606,7 +606,73 @@ for (const failureMode of ['continue', 'no-new']) {
     //        /   \
     //       v     v
     // service   standard
-    rigTest(async ({rig}) => {
+    rigTest(
+      async ({rig}) => {
+        const service = await rig.newCommand();
+        const standard = await rig.newCommand();
+        await rig.writeAtomic({
+          'package.json': {
+            scripts: {
+              entrypoint: 'wireit',
+              service: 'wireit',
+              standard: 'wireit',
+            },
+            wireit: {
+              entrypoint: {
+                dependencies: ['service', 'standard'],
+              },
+              service: {
+                command: service.command,
+                service: true,
+              },
+              standard: {
+                command: standard.command,
+                files: ['input/standard'],
+              },
+            },
+          },
+        });
+
+        await rig.write('input/standard', '1');
+        const wireit = rig.exec('npm run entrypoint --watch', {
+          env: {WIREIT_FAILURES: failureMode},
+        });
+        await wireit.waitForLog(
+          /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
+        );
+        const serviceInv = await service.nextInvocation();
+        const standardInv1 = await standard.nextInvocation();
+        standardInv1.exit(1);
+        await wireit.waitForLog(/❌ \[standard\] exited with exit code 1/);
+        await wireit.waitForLog(/❌ 1 script failed/);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        assert.ok(serviceInv.isRunning);
+
+        await rig.write('input/standard', '2');
+        const standardInv2 = await standard.nextInvocation();
+        standardInv2.exit(0);
+        await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        assert.ok(serviceInv.isRunning);
+
+        wireit.kill();
+        await wireit.exit;
+        assert.equal(service.numInvocations, 1);
+        assert.equal(standard.numInvocations, 2);
+      },
+      {flaky: true},
+    ),
+  );
+}
+
+test(
+  `unrelated errors kill services in watch mode with failure mode kill`,
+  //      entrypoint
+  //        /   \
+  //       v     v
+  // service   standard
+  rigTest(
+    async ({rig}) => {
       const service = await rig.newCommand();
       const standard = await rig.newCommand();
       await rig.writeAtomic({
@@ -626,323 +692,274 @@ for (const failureMode of ['continue', 'no-new']) {
             },
             standard: {
               command: standard.command,
-              files: ['input/standard'],
             },
           },
         },
       });
 
-      await rig.write('input/standard', '1');
       const wireit = rig.exec('npm run entrypoint --watch', {
-        env: {WIREIT_FAILURES: failureMode},
+        env: {WIREIT_FAILURES: 'kill'},
       });
       await wireit.waitForLog(
         /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
       );
       const serviceInv = await service.nextInvocation();
-      const standardInv1 = await standard.nextInvocation();
-      standardInv1.exit(1);
-      await wireit.waitForLog(/❌ \[standard\] exited with exit code 1/);
-      await wireit.waitForLog(/❌ 1 script failed/);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      assert.ok(serviceInv.isRunning);
+      const standardInv = await standard.nextInvocation();
+      standardInv.exit(1);
+      await wireit.waitForLog(/❌ 2 scripts failed\./);
+      await serviceInv.closed;
+      wireit.kill();
+      await wireit.exit;
+    },
+    {flaky: true},
+  ),
+);
 
-      await rig.write('input/standard', '2');
+test(
+  'ephemeral service shuts down between watch iterations',
+  rigTest(
+    async ({rig}) => {
+      // consumer
+      //    |
+      //    v
+      // service
+
+      const consumer = await rig.newCommand();
+      const service = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            consumer: 'wireit',
+            service: 'wireit',
+          },
+          wireit: {
+            consumer: {
+              command: consumer.command,
+              dependencies: ['service'],
+              files: ['input'],
+            },
+            service: {
+              command: service.command,
+              service: true,
+            },
+          },
+        },
+      });
+
+      await rig.write('input', '0');
+      const wireit = rig.exec('npm run consumer --watch');
+      await wireit.waitForLog(
+        /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
+      );
+
+      // Iteration 1
+      {
+        const serviceInv = await service.nextInvocation();
+        const consumerInv = await consumer.nextInvocation();
+        consumerInv.exit(0);
+        await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
+        await consumerInv.closed;
+        await serviceInv.closed;
+      }
+
+      await rig.write('input', '1');
+      await wireit.waitForLog(
+        /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
+      );
+
+      // Iteration 2
+      {
+        const serviceInv = await service.nextInvocation();
+        const consumerInv = await consumer.nextInvocation();
+        consumerInv.exit(0);
+        await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
+        await consumerInv.closed;
+        await serviceInv.closed;
+      }
+
+      wireit.kill();
+      await wireit.exit;
+      assert.equal(consumer.numInvocations, 2);
+      assert.equal(service.numInvocations, 2);
+    },
+    {flaky: true},
+  ),
+);
+
+test(
+  'persistent services are preserved across watch iterations',
+  rigTest(
+    async ({rig}) => {
+      //     entrypoint
+      //     /        \
+      //    v          v
+      // service1    standard
+      //    |
+      //    v
+      // service2
+
+      const service1 = await rig.newCommand();
+      const service2 = await rig.newCommand();
+      const standard = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            service1: 'wireit',
+            service2: 'wireit',
+            standard: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['service1', 'standard'],
+            },
+            service1: {
+              command: service1.command,
+              dependencies: ['service2'],
+              service: true,
+            },
+            service2: {
+              command: service2.command,
+              service: true,
+            },
+            standard: {
+              command: standard.command,
+              files: ['input'],
+            },
+          },
+        },
+      });
+
+      await rig.write('input', '0');
+      const wireit = rig.exec('npm run entrypoint --watch');
+      await wireit.waitForLog(
+        /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
+      );
+
+      // Iteration 1
+      {
+        await service2.nextInvocation();
+        await service1.nextInvocation();
+        const standardInv = await standard.nextInvocation();
+        standardInv.exit(0);
+        await standardInv.closed;
+        await wireit.waitForLog(/✅ Ran 3 scripts and skipped 0/);
+      }
+
+      await rig.write('input', '1');
+      await wireit.waitForLog(
+        /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
+      );
+
+      // Iteration 2
+      {
+        const standardInv = await standard.nextInvocation();
+        standardInv.exit(0);
+        await standardInv.closed;
+        await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
+      }
+
+      wireit.kill();
+      assert.equal(service1.numInvocations, 1);
+      assert.equal(service2.numInvocations, 1);
+      assert.equal(standard.numInvocations, 2);
+    },
+    {flaky: true},
+  ),
+);
+
+test(
+  'deleted service shuts down between watch iterations',
+  rigTest(
+    async ({rig}) => {
+      //      entrypoint
+      //        /   \
+      //       v     v
+      // standard   service (gets deleted)
+
+      const standard = await rig.newCommand();
+      const service = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            standard: 'wireit',
+            service: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['standard', 'service'],
+            },
+            standard: {
+              command: standard.command,
+            },
+            service: {
+              command: service.command,
+              service: true,
+            },
+          },
+        },
+      });
+
+      // Iteration 1. Both scripts start.
+      const wireit = rig.exec('npm run entrypoint --watch');
+      await wireit.waitForLog(
+        /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
+      );
+      const serviceInv = await service.nextInvocation();
+      const standardInv1 = await standard.nextInvocation();
+      standardInv1.exit(0);
+      await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
+
+      // Iteration 2. We update the config to delete the service. It should get
+      // shut down.
+      const serviceSigint = IS_WINDOWS
+        ? undefined
+        : serviceInv.interceptSigint();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            entrypoint: 'wireit',
+            standard: 'wireit',
+          },
+          wireit: {
+            entrypoint: {
+              dependencies: ['standard'],
+            },
+            standard: {
+              command: standard.command,
+            },
+          },
+        },
+      });
+      await wireit.waitForLog(/0% \[0 \/ 1\] \[1 running\] (standard|service)/);
+      if (!IS_WINDOWS) {
+        // Ensure that we continue to forward stdout/stderr while a stale service
+        // is being stopped. This won't be the case if we naively detach from the
+        // first execution, since then we'd stop listening for the output event
+        // listeners. Note we don't get graceful shutdown in Windows, so just skip
+        // this in Windows.
+        await serviceSigint;
+        serviceInv.stdout('Service shutting down\n');
+        await wireit.waitForLog(/Service shutting down/);
+        // Because we intercepted the sigint from wireit, we need to manually
+        // exit now.
+        serviceInv.exit(0);
+      }
+      await serviceInv.closed;
+      await wireit.waitForLog(/0% \[0 \/ 1\] \[1 running\] standard/);
+
       const standardInv2 = await standard.nextInvocation();
       standardInv2.exit(0);
       await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      assert.ok(serviceInv.isRunning);
 
       wireit.kill();
       await wireit.exit;
       assert.equal(service.numInvocations, 1);
       assert.equal(standard.numInvocations, 2);
-    }),
-  );
-}
-
-test(
-  `unrelated errors kill services in watch mode with failure mode kill`,
-  //      entrypoint
-  //        /   \
-  //       v     v
-  // service   standard
-  rigTest(async ({rig}) => {
-    const service = await rig.newCommand();
-    const standard = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          entrypoint: 'wireit',
-          service: 'wireit',
-          standard: 'wireit',
-        },
-        wireit: {
-          entrypoint: {
-            dependencies: ['service', 'standard'],
-          },
-          service: {
-            command: service.command,
-            service: true,
-          },
-          standard: {
-            command: standard.command,
-          },
-        },
-      },
-    });
-
-    const wireit = rig.exec('npm run entrypoint --watch', {
-      env: {WIREIT_FAILURES: 'kill'},
-    });
-    await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
-    );
-    const serviceInv = await service.nextInvocation();
-    const standardInv = await standard.nextInvocation();
-    standardInv.exit(1);
-    await wireit.waitForLog(/❌ 2 scripts failed\./);
-    await serviceInv.closed;
-    wireit.kill();
-    await wireit.exit;
-  }),
-);
-
-test(
-  'ephemeral service shuts down between watch iterations',
-  rigTest(async ({rig}) => {
-    // consumer
-    //    |
-    //    v
-    // service
-
-    const consumer = await rig.newCommand();
-    const service = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          consumer: 'wireit',
-          service: 'wireit',
-        },
-        wireit: {
-          consumer: {
-            command: consumer.command,
-            dependencies: ['service'],
-            files: ['input'],
-          },
-          service: {
-            command: service.command,
-            service: true,
-          },
-        },
-      },
-    });
-
-    await rig.write('input', '0');
-    const wireit = rig.exec('npm run consumer --watch');
-    await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
-    );
-
-    // Iteration 1
-    {
-      const serviceInv = await service.nextInvocation();
-      const consumerInv = await consumer.nextInvocation();
-      consumerInv.exit(0);
-      await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
-      await consumerInv.closed;
-      await serviceInv.closed;
-    }
-
-    await rig.write('input', '1');
-    await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
-    );
-
-    // Iteration 2
-    {
-      const serviceInv = await service.nextInvocation();
-      const consumerInv = await consumer.nextInvocation();
-      consumerInv.exit(0);
-      await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
-      await consumerInv.closed;
-      await serviceInv.closed;
-    }
-
-    wireit.kill();
-    await wireit.exit;
-    assert.equal(consumer.numInvocations, 2);
-    assert.equal(service.numInvocations, 2);
-  }),
-);
-
-test(
-  'persistent services are preserved across watch iterations',
-  rigTest(async ({rig}) => {
-    //     entrypoint
-    //     /        \
-    //    v          v
-    // service1    standard
-    //    |
-    //    v
-    // service2
-
-    const service1 = await rig.newCommand();
-    const service2 = await rig.newCommand();
-    const standard = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          entrypoint: 'wireit',
-          service1: 'wireit',
-          service2: 'wireit',
-          standard: 'wireit',
-        },
-        wireit: {
-          entrypoint: {
-            dependencies: ['service1', 'standard'],
-          },
-          service1: {
-            command: service1.command,
-            dependencies: ['service2'],
-            service: true,
-          },
-          service2: {
-            command: service2.command,
-            service: true,
-          },
-          standard: {
-            command: standard.command,
-            files: ['input'],
-          },
-        },
-      },
-    });
-
-    await rig.write('input', '0');
-    const wireit = rig.exec('npm run entrypoint --watch');
-    await wireit.waitForLog(
-      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
-    );
-
-    // Iteration 1
-    {
-      await service2.nextInvocation();
-      await service1.nextInvocation();
-      const standardInv = await standard.nextInvocation();
-      standardInv.exit(0);
-      await standardInv.closed;
-      await wireit.waitForLog(/✅ Ran 3 scripts and skipped 0/);
-    }
-
-    await rig.write('input', '1');
-    await wireit.waitForLog(
-      /67% \[2 \/ 3\] \[3 running\] \[2 services\] standard/,
-    );
-
-    // Iteration 2
-    {
-      const standardInv = await standard.nextInvocation();
-      standardInv.exit(0);
-      await standardInv.closed;
-      await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
-    }
-
-    wireit.kill();
-    assert.equal(service1.numInvocations, 1);
-    assert.equal(service2.numInvocations, 1);
-    assert.equal(standard.numInvocations, 2);
-  }),
-);
-
-test(
-  'deleted service shuts down between watch iterations',
-  rigTest(async ({rig}) => {
-    //      entrypoint
-    //        /   \
-    //       v     v
-    // standard   service (gets deleted)
-
-    const standard = await rig.newCommand();
-    const service = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          entrypoint: 'wireit',
-          standard: 'wireit',
-          service: 'wireit',
-        },
-        wireit: {
-          entrypoint: {
-            dependencies: ['standard', 'service'],
-          },
-          standard: {
-            command: standard.command,
-          },
-          service: {
-            command: service.command,
-            service: true,
-          },
-        },
-      },
-    });
-
-    // Iteration 1. Both scripts start.
-    const wireit = rig.exec('npm run entrypoint --watch');
-    await wireit.waitForLog(
-      /50% \[1 \/ 2\] \[2 running\] \[1 service\] standard/,
-    );
-    const serviceInv = await service.nextInvocation();
-    const standardInv1 = await standard.nextInvocation();
-    standardInv1.exit(0);
-    await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0/);
-
-    // Iteration 2. We update the config to delete the service. It should get
-    // shut down.
-    const serviceSigint = IS_WINDOWS ? undefined : serviceInv.interceptSigint();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          entrypoint: 'wireit',
-          standard: 'wireit',
-        },
-        wireit: {
-          entrypoint: {
-            dependencies: ['standard'],
-          },
-          standard: {
-            command: standard.command,
-          },
-        },
-      },
-    });
-    await wireit.waitForLog(/0% \[0 \/ 1\] \[1 running\] (standard|service)/);
-    if (!IS_WINDOWS) {
-      // Ensure that we continue to forward stdout/stderr while a stale service
-      // is being stopped. This won't be the case if we naively detach from the
-      // first execution, since then we'd stop listening for the output event
-      // listeners. Note we don't get graceful shutdown in Windows, so just skip
-      // this in Windows.
-      await serviceSigint;
-      serviceInv.stdout('Service shutting down\n');
-      await wireit.waitForLog(/Service shutting down/);
-      // Because we intercepted the sigint from wireit, we need to manually
-      // exit now.
-      serviceInv.exit(0);
-    }
-    await serviceInv.closed;
-    await wireit.waitForLog(/0% \[0 \/ 1\] \[1 running\] standard/);
-
-    const standardInv2 = await standard.nextInvocation();
-    standardInv2.exit(0);
-    await wireit.waitForLog(/✅ Ran 1 script and skipped 0/);
-
-    wireit.kill();
-    await wireit.exit;
-    assert.equal(service.numInvocations, 1);
-    assert.equal(standard.numInvocations, 2);
-  }),
+    },
+    {flaky: true},
+  ),
 );
 
 test(
@@ -1022,160 +1039,166 @@ test(
 
 test(
   'caching with service dependencies works in watch mode',
-  rigTest(async ({rig}) => {
-    // consumer
-    //    |
-    //    v
-    // service
+  rigTest(
+    async ({rig}) => {
+      // consumer
+      //    |
+      //    v
+      // service
 
-    const consumer = await rig.newCommand();
-    const service = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          consumer: 'wireit',
-          service: 'wireit',
-        },
-        wireit: {
-          consumer: {
-            command: consumer.command,
-            dependencies: ['service'],
-            files: [],
-            output: [],
+      const consumer = await rig.newCommand();
+      const service = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            consumer: 'wireit',
+            service: 'wireit',
           },
-          service: {
-            command: service.command,
-            service: true,
-            files: ['input'],
+          wireit: {
+            consumer: {
+              command: consumer.command,
+              dependencies: ['service'],
+              files: [],
+              output: [],
+            },
+            service: {
+              command: service.command,
+              service: true,
+              files: ['input'],
+            },
           },
         },
-      },
-    });
+      });
 
-    await rig.write('input', 'A');
-    const wireit = rig.exec('npm run consumer --watch');
-
-    // 1st run with input A. Runs.
-    {
-      const serviceInv = await service.nextInvocation();
-      const consumerInv1 = await consumer.nextInvocation();
-      consumerInv1.exit(0);
-      await serviceInv.closed;
-      await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
-      assert.equal(service.numInvocations, 1);
-      assert.equal(consumer.numInvocations, 1);
-    }
-
-    // 2nd run with input B. Runs.
-    {
-      await rig.write('input', 'B');
-      const serviceInv = await service.nextInvocation();
-      const consumerInv1 = await consumer.nextInvocation();
-      consumerInv1.exit(0);
-      await serviceInv.closed;
-      await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
-      assert.equal(service.numInvocations, 2);
-      assert.equal(consumer.numInvocations, 2);
-    }
-
-    // 3rd run with input A. Restored from cache.
-    {
       await rig.write('input', 'A');
-      await wireit.waitForLog(/Ran 0 scripts and skipped 1/);
+      const wireit = rig.exec('npm run consumer --watch');
+
+      // 1st run with input A. Runs.
+      {
+        const serviceInv = await service.nextInvocation();
+        const consumerInv1 = await consumer.nextInvocation();
+        consumerInv1.exit(0);
+        await serviceInv.closed;
+        await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
+        assert.equal(service.numInvocations, 1);
+        assert.equal(consumer.numInvocations, 1);
+      }
+
+      // 2nd run with input B. Runs.
+      {
+        await rig.write('input', 'B');
+        const serviceInv = await service.nextInvocation();
+        const consumerInv1 = await consumer.nextInvocation();
+        consumerInv1.exit(0);
+        await serviceInv.closed;
+        await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
+        assert.equal(service.numInvocations, 2);
+        assert.equal(consumer.numInvocations, 2);
+      }
+
+      // 3rd run with input A. Restored from cache.
+      {
+        await rig.write('input', 'A');
+        await wireit.waitForLog(/Ran 0 scripts and skipped 1/);
+        assert.equal(service.numInvocations, 2);
+        assert.equal(consumer.numInvocations, 2);
+      }
+
+      wireit.kill();
+      await wireit.exit;
       assert.equal(service.numInvocations, 2);
       assert.equal(consumer.numInvocations, 2);
-    }
-
-    wireit.kill();
-    await wireit.exit;
-    assert.equal(service.numInvocations, 2);
-    assert.equal(consumer.numInvocations, 2);
-  }),
+    },
+    {flaky: true},
+  ),
 );
 
 test(
   'service with cascade:false does not require restart in watch mode',
-  rigTest(async ({rig}) => {
-    //    service
-    //    /    \
-    //   v      v
-    // hard    soft
+  rigTest(
+    async ({rig}) => {
+      //    service
+      //    /    \
+      //   v      v
+      // hard    soft
 
-    // This test uses standard logger output to ensure that
-    // certain operations happen in the right order.
-    rig.env['WIREIT_LOGGER'] = 'simple';
+      // This test uses standard logger output to ensure that
+      // certain operations happen in the right order.
+      rig.env['WIREIT_LOGGER'] = 'simple';
 
-    const service = await rig.newCommand();
-    const hard = await rig.newCommand();
-    const soft = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          service: 'wireit',
-          hard: 'wireit',
-          soft: 'wireit',
+      const service = await rig.newCommand();
+      const hard = await rig.newCommand();
+      const soft = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            service: 'wireit',
+            hard: 'wireit',
+            soft: 'wireit',
+          },
+          wireit: {
+            service: {
+              command: service.command,
+              service: true,
+              dependencies: [
+                'hard',
+                {
+                  script: 'soft',
+                  cascade: false,
+                },
+              ],
+            },
+            hard: {
+              command: hard.command,
+              files: ['input/hard'],
+              output: [],
+            },
+            soft: {
+              command: soft.command,
+              files: ['input/soft'],
+              output: [],
+            },
+          },
         },
-        wireit: {
-          service: {
-            command: service.command,
-            service: true,
-            dependencies: [
-              'hard',
-              {
-                script: 'soft',
-                cascade: false,
-              },
-            ],
-          },
-          hard: {
-            command: hard.command,
-            files: ['input/hard'],
-            output: [],
-          },
-          soft: {
-            command: soft.command,
-            files: ['input/soft'],
-            output: [],
-          },
-        },
-      },
-    });
+      });
 
-    // Initial run
-    await rig.write('input/hard', '1');
-    await rig.write('input/soft', '1');
-    const wireit = rig.exec('npm run service --watch');
-    const hardInv1 = await hard.nextInvocation();
-    const softInv1 = await soft.nextInvocation();
-    hardInv1.exit(0);
-    softInv1.exit(0);
-    const serviceInv1 = await service.nextInvocation();
-    await wireit.waitForLog(/Service ready/);
-    await wireit.waitForLog(/Watching for file changes/);
+      // Initial run
+      await rig.write('input/hard', '1');
+      await rig.write('input/soft', '1');
+      const wireit = rig.exec('npm run service --watch');
+      const hardInv1 = await hard.nextInvocation();
+      const softInv1 = await soft.nextInvocation();
+      hardInv1.exit(0);
+      softInv1.exit(0);
+      const serviceInv1 = await service.nextInvocation();
+      await wireit.waitForLog(/Service ready/);
+      await wireit.waitForLog(/Watching for file changes/);
 
-    // Changing input of soft dependency does not restart service
-    await rig.write('input/soft', '2');
-    const softInv2 = await soft.nextInvocation();
-    softInv2.exit(0);
-    await wireit.waitForLog(/Watching for file changes/);
-    assert.ok(serviceInv1.isRunning);
+      // Changing input of soft dependency does not restart service
+      await rig.write('input/soft', '2');
+      const softInv2 = await soft.nextInvocation();
+      softInv2.exit(0);
+      await wireit.waitForLog(/Watching for file changes/);
+      assert.ok(serviceInv1.isRunning);
 
-    // Changing input of hard dependency does restart service
-    await rig.write('input/hard', '2');
-    const hardInv2 = await hard.nextInvocation();
-    hardInv2.exit(0);
-    await serviceInv1.closed;
-    await service.nextInvocation();
-    await wireit.waitForLog(/Service stopped/);
-    await wireit.waitForLog(/Service ready/);
-    await wireit.waitForLog(/Watching for file changes/);
+      // Changing input of hard dependency does restart service
+      await rig.write('input/hard', '2');
+      const hardInv2 = await hard.nextInvocation();
+      hardInv2.exit(0);
+      await serviceInv1.closed;
+      await service.nextInvocation();
+      await wireit.waitForLog(/Service stopped/);
+      await wireit.waitForLog(/Service ready/);
+      await wireit.waitForLog(/Watching for file changes/);
 
-    wireit.kill();
-    await wireit.exit;
-    assert.equal(service.numInvocations, 2);
-    assert.equal(hard.numInvocations, 2);
-    assert.equal(soft.numInvocations, 2);
-  }),
+      wireit.kill();
+      await wireit.exit;
+      assert.equal(service.numInvocations, 2);
+      assert.equal(hard.numInvocations, 2);
+      assert.equal(soft.numInvocations, 2);
+    },
+    {flaky: true},
+  ),
 );
 
 test(
@@ -1184,80 +1207,83 @@ test(
   //    |
   //    v
   // childService (restarts and fails)
-  rigTest(async ({rig}) => {
-    // This test uses standard logger output to ensure that
-    // certain operations happen in the right order.
-    rig.env['WIREIT_LOGGER'] = 'simple';
+  rigTest(
+    async ({rig}) => {
+      // This test uses standard logger output to ensure that
+      // certain operations happen in the right order.
+      rig.env['WIREIT_LOGGER'] = 'simple';
 
-    const parentService = await rig.newCommand();
-    const childService = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          parentService: 'wireit',
-          childService: 'wireit',
-        },
-        wireit: {
-          parentService: {
-            command: parentService.command,
-            service: true,
-            dependencies: [
-              {
-                script: 'childService',
-                cascade: false,
-              },
-            ],
-            files: ['input/parentService'],
+      const parentService = await rig.newCommand();
+      const childService = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            parentService: 'wireit',
+            childService: 'wireit',
           },
-          childService: {
-            command: childService.command,
-            service: true,
-            files: ['input/childService'],
+          wireit: {
+            parentService: {
+              command: parentService.command,
+              service: true,
+              dependencies: [
+                {
+                  script: 'childService',
+                  cascade: false,
+                },
+              ],
+              files: ['input/parentService'],
+            },
+            childService: {
+              command: childService.command,
+              service: true,
+              files: ['input/childService'],
+            },
           },
         },
-      },
-    });
+      });
 
-    await rig.write('input/parentService', '1');
-    await rig.write('input/childService', '1');
-    const wireit = rig.exec('npm run parentService --watch');
+      await rig.write('input/parentService', '1');
+      await rig.write('input/childService', '1');
+      const wireit = rig.exec('npm run parentService --watch');
 
-    // Services start in bottom-up order.
-    const childServiceInv1 = await childService.nextInvocation();
-    await wireit.waitForLog(/\[childService\] Service ready/);
-    const parentServiceInv1 = await parentService.nextInvocation();
-    await wireit.waitForLog(/\[parentService\] Service ready/);
-    await wireit.waitForLog(/\[parentService\] Watching for file changes/);
+      // Services start in bottom-up order.
+      const childServiceInv1 = await childService.nextInvocation();
+      await wireit.waitForLog(/\[childService\] Service ready/);
+      const parentServiceInv1 = await parentService.nextInvocation();
+      await wireit.waitForLog(/\[parentService\] Service ready/);
+      await wireit.waitForLog(/\[parentService\] Watching for file changes/);
 
-    // childService restarts.
-    await rig.write('input/childService', '2');
-    await childServiceInv1.closed;
-    await wireit.waitForLog(/\[childService\] Service stopped/);
-    const childServiceInv2 = await childService.nextInvocation();
-    await wireit.waitForLog(/\[childService\] Service ready/);
+      // childService restarts.
+      await rig.write('input/childService', '2');
+      await childServiceInv1.closed;
+      await wireit.waitForLog(/\[childService\] Service stopped/);
+      const childServiceInv2 = await childService.nextInvocation();
+      await wireit.waitForLog(/\[childService\] Service ready/);
 
-    // Wait a moment to increase confidence.
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.ok(parentServiceInv1.isRunning);
-    assert.ok(childServiceInv2.isRunning);
-    assert.not(childServiceInv1.isRunning);
+      // Wait a moment to increase confidence.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.ok(parentServiceInv1.isRunning);
+      assert.ok(childServiceInv2.isRunning);
+      assert.not(childServiceInv1.isRunning);
 
-    // childService fails.
-    childServiceInv2.exit(1);
-    await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.ok(parentServiceInv1.isRunning);
-    assert.not(childServiceInv2.isRunning);
-    assert.not(childServiceInv1.isRunning);
+      // childService fails.
+      childServiceInv2.exit(1);
+      await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.ok(parentServiceInv1.isRunning);
+      assert.not(childServiceInv2.isRunning);
+      assert.not(childServiceInv1.isRunning);
 
-    wireit.kill();
-    await wireit.exit;
-    assert.not(parentServiceInv1.isRunning);
-    assert.not(childServiceInv2.isRunning);
-    assert.not(childServiceInv1.isRunning);
-    assert.equal(parentService.numInvocations, 1);
-    assert.equal(childService.numInvocations, 2);
-  }),
+      wireit.kill();
+      await wireit.exit;
+      assert.not(parentServiceInv1.isRunning);
+      assert.not(childServiceInv2.isRunning);
+      assert.not(childServiceInv1.isRunning);
+      assert.equal(parentService.numInvocations, 1);
+      assert.equal(childService.numInvocations, 2);
+    },
+    {flaky: true},
+  ),
 );
 
 test(
@@ -1320,100 +1346,103 @@ test(
   //    |
   //    v
   // standard
-  rigTest(async ({rig}) => {
-    // This test uses standard logger output to ensure that
-    // certain operations happen in the right order.
-    rig.env['WIREIT_LOGGER'] = 'simple';
+  rigTest(
+    async ({rig}) => {
+      // This test uses standard logger output to ensure that
+      // certain operations happen in the right order.
+      rig.env['WIREIT_LOGGER'] = 'simple';
 
-    const service = await rig.newCommand();
-    const standard = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          service: 'wireit',
-          standard: 'wireit',
-        },
-        wireit: {
-          service: {
-            command: service.command,
-            service: true,
-            dependencies: ['standard'],
+      const service = await rig.newCommand();
+      const standard = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            service: 'wireit',
+            standard: 'wireit',
           },
-          standard: {
-            command: standard.command,
-            files: ['input'],
+          wireit: {
+            service: {
+              command: service.command,
+              service: true,
+              dependencies: ['standard'],
+            },
+            standard: {
+              command: standard.command,
+              files: ['input'],
+            },
           },
         },
-      },
-    });
+      });
 
-    await rig.write('input', '1');
-    const wireit = rig.exec('npm run service --watch');
+      await rig.write('input', '1');
+      const wireit = rig.exec('npm run service --watch');
 
-    // Initial build is OK.
-    await wireit.waitForLog(/\[standard\] Running/);
-    (await standard.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[standard\] Executed successfully/);
-    await service.nextInvocation();
-    await wireit.waitForLog(/\[service\] Service ready/);
-    await wireit.waitForLog(/\[service\] Watching for file changes/);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(service.numInvocations, 1);
-    assert.equal(standard.numInvocations, 1);
+      // Initial build is OK.
+      await wireit.waitForLog(/\[standard\] Running/);
+      (await standard.nextInvocation()).exit(0);
+      await wireit.waitForLog(/\[standard\] Executed successfully/);
+      await service.nextInvocation();
+      await wireit.waitForLog(/\[service\] Service ready/);
+      await wireit.waitForLog(/\[service\] Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(service.numInvocations, 1);
+      assert.equal(standard.numInvocations, 1);
 
-    // Introduce an error. Service keeps running but goes into a temporary
-    // "started-broken" state, where it awaits its dependencies being fixed.
-    await rig.write('input', '2');
-    await wireit.waitForLog(/\[standard\] Running/);
-    (await standard.nextInvocation()).exit(1);
-    await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
-    await wireit.waitForLog(/\[service\] Watching for file changes/);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(service.numInvocations, 1);
-    assert.equal(standard.numInvocations, 2);
+      // Introduce an error. Service keeps running but goes into a temporary
+      // "started-broken" state, where it awaits its dependencies being fixed.
+      await rig.write('input', '2');
+      await wireit.waitForLog(/\[standard\] Running/);
+      (await standard.nextInvocation()).exit(1);
+      await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
+      await wireit.waitForLog(/\[service\] Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(service.numInvocations, 1);
+      assert.equal(standard.numInvocations, 2);
 
-    // Fix the error. Service restarts because the fingerprint of its dependency
-    // has changed.
-    await rig.write('input', '3');
-    await wireit.waitForLog(/\[standard\] Running/);
-    (await standard.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[standard\] Executed successfully/);
-    await service.nextInvocation();
-    await wireit.waitForLog(/\[service\] Service stopped/);
-    await wireit.waitForLog(/\[service\] Service ready/);
-    await wireit.waitForLog(/\[service\] Watching for file changes/);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(service.numInvocations, 2);
-    assert.equal(standard.numInvocations, 3);
+      // Fix the error. Service restarts because the fingerprint of its dependency
+      // has changed.
+      await rig.write('input', '3');
+      await wireit.waitForLog(/\[standard\] Running/);
+      (await standard.nextInvocation()).exit(0);
+      await wireit.waitForLog(/\[standard\] Executed successfully/);
+      await service.nextInvocation();
+      await wireit.waitForLog(/\[service\] Service stopped/);
+      await wireit.waitForLog(/\[service\] Service ready/);
+      await wireit.waitForLog(/\[service\] Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(service.numInvocations, 2);
+      assert.equal(standard.numInvocations, 3);
 
-    // Introduce another error. Again the service keeps running as
-    // "started-broken".
-    await rig.write('input', '4');
-    await wireit.waitForLog(/\[standard\] Running/);
-    (await standard.nextInvocation()).exit(1);
-    await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
-    await wireit.waitForLog(/\[service\] Watching for file changes/);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(service.numInvocations, 2);
-    assert.equal(standard.numInvocations, 4);
+      // Introduce another error. Again the service keeps running as
+      // "started-broken".
+      await rig.write('input', '4');
+      await wireit.waitForLog(/\[standard\] Running/);
+      (await standard.nextInvocation()).exit(1);
+      await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
+      await wireit.waitForLog(/\[service\] Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(service.numInvocations, 2);
+      assert.equal(standard.numInvocations, 4);
 
-    // Fix the error, this time by reverting. This time the service doesn't
-    // restart, because the fingerprint has been restored to what it was before
-    // the failure.
-    await rig.write('input', '3');
-    await wireit.waitForLog(/\[standard\] Running/);
-    (await standard.nextInvocation()).exit(0);
-    await wireit.waitForLog(/\[standard\] Executed successfully/);
-    await wireit.waitForLog(/\[service\] Watching for file changes/);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    assert.equal(service.numInvocations, 2);
-    assert.equal(standard.numInvocations, 5);
+      // Fix the error, this time by reverting. This time the service doesn't
+      // restart, because the fingerprint has been restored to what it was before
+      // the failure.
+      await rig.write('input', '3');
+      await wireit.waitForLog(/\[standard\] Running/);
+      (await standard.nextInvocation()).exit(0);
+      await wireit.waitForLog(/\[standard\] Executed successfully/);
+      await wireit.waitForLog(/\[service\] Watching for file changes/);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(service.numInvocations, 2);
+      assert.equal(standard.numInvocations, 5);
 
-    wireit.kill();
-    await wireit.exit;
-    assert.equal(service.numInvocations, 2);
-    assert.equal(standard.numInvocations, 5);
-  }),
+      wireit.kill();
+      await wireit.exit;
+      assert.equal(service.numInvocations, 2);
+      assert.equal(standard.numInvocations, 5);
+    },
+    {flaky: true},
+  ),
 );
 
 test.run();

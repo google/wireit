@@ -247,7 +247,7 @@ test(
 
       assert.equal(cmdA.numInvocations, concurrency);
     },
-    IS_WINDOWS ? 60_000 : undefined,
+    {ms: IS_WINDOWS ? 60_000 : undefined},
   ),
 );
 
