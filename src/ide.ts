@@ -438,7 +438,6 @@ export class IdeAnalyzer {
     const packageDir = pathlib.dirname(path);
     const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
     if (!packageJsonResult.ok) {
-      console.log('not in a package.json');
       return undefined;
     }
     const packageJson = packageJsonResult.value;
@@ -450,7 +449,6 @@ export class IdeAnalyzer {
       ourPosition,
     );
     if (scriptInfo === undefined) {
-      console.log('no script info');
       return undefined;
     }
     let scriptSpecifier: JsonAstNode<string>;
@@ -487,7 +485,6 @@ export class IdeAnalyzer {
       return undefined;
     }
 
-    console.log(`Specifier before cursor: ${specifierBeforeCursor}`);
     const result: CompletionList = {
       // If the user hasn't typed anything yet, our results are incomplete
       // because they could type ./ or ../ and we don't complete those yet.
