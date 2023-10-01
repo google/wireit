@@ -997,39 +997,42 @@ test(
 
 test(
   'input file changes but the contents are the same',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['input'],
-            output: [],
+  rigTest(
+    async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.writeAtomic({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['input'],
+              output: [],
+            },
           },
         },
-      },
-      input: 'foo',
-    });
+        input: 'foo',
+      });
 
-    const exec = rig.exec('npm run a --watch');
-    const inv = await cmdA.nextInvocation();
-    inv.exit(0);
-    await exec.waitForLog(/Ran 1 script and skipped 0/);
+      const exec = rig.exec('npm run a --watch');
+      const inv = await cmdA.nextInvocation();
+      inv.exit(0);
+      await exec.waitForLog(/Ran 1 script and skipped 0/);
 
-    // Write an input file, but it's the same content. This will cause the file
-    // watcher to trigger, and will start an execution, but the execution will
-    // ultimately do nothing interesting because the fingerprint is the same, so
-    // we shouldn't actually expect any logging.
-    await rig.writeAtomic('input', 'foo');
-    await exec.waitForLog(/Ran 0 scripts and skipped 1/);
+      // Write an input file, but it's the same content. This will cause the file
+      // watcher to trigger, and will start an execution, but the execution will
+      // ultimately do nothing interesting because the fingerprint is the same, so
+      // we shouldn't actually expect any logging.
+      await rig.writeAtomic('input', 'foo');
+      await exec.waitForLog(/Ran 0 scripts and skipped 1/);
 
-    exec.kill();
-    assert.equal(cmdA.numInvocations, 1);
-  }, {flaky: true}),
+      exec.kill();
+      assert.equal(cmdA.numInvocations, 1);
+    },
+    {flaky: true},
+  ),
 );
 
 test.run();

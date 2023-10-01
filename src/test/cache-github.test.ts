@@ -439,7 +439,7 @@ test(
         assert.equal(await rig.read('output'), fileContent);
       }
     },
-    { ms: Math.max(DEFAULT_UVU_TIMEOUT, 15_000) },
+    {ms: Math.max(DEFAULT_UVU_TIMEOUT, 15_000)},
   ),
 );
 
