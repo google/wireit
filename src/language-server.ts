@@ -53,6 +53,7 @@ connection.onInitialize((init) => {
         // We don't have more information later, so don't bother asking.
         resolveProvider: false,
         completionItem: {},
+        triggerCharacters: ['"', ':', '/'],
       },
     },
   };

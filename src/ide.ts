@@ -29,6 +29,7 @@ import {
   type Location,
   type CompletionList,
   type CompletionItemKind,
+  type CompletionItem,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
 import type {JsonAstNode, JsonFile} from './util/ast.js';
@@ -487,7 +488,17 @@ export class IdeAnalyzer {
       if (indexOfColon === -1) {
         // We'd be autocompleting on the file path portion of the specifier.
         // Not implemented yet.
-        return undefined;
+        const items = await this.#completionItemsForPath(
+          packageDir,
+          specifierBeforeCursor,
+        );
+        if (items == null) {
+          return undefined;
+        }
+        return {
+          isIncomplete: true,
+          items,
+        };
       }
       targetPackageDir = pathlib.join(
         packageDir,
@@ -562,6 +573,40 @@ export class IdeAnalyzer {
     // Sort results for deterministic tests.
     result.items.sort((a, b) => a.label.localeCompare(b.label));
 
+    return result;
+  }
+
+  async #completionItemsForPath(
+    packageDir: string,
+    specifierSoFar: string,
+  ): Promise<CompletionItem[] | undefined> {
+    const result: CompletionItem[] = [];
+    const relPathToDirCompletingIn = specifierSoFar.endsWith('/')
+      ? specifierSoFar
+      : pathlib.dirname(specifierSoFar);
+    const pathToDirCompletingIn = pathlib.join(
+      packageDir,
+      relPathToDirCompletingIn,
+    );
+    let dirContents;
+    try {
+      dirContents = await fs.readdir(pathToDirCompletingIn, {
+        withFileTypes: true,
+      });
+    } catch {
+      return undefined;
+    }
+    for (const dirent of dirContents) {
+      if (dirent.name === 'node_modules' || dirent.name.startsWith('.')) {
+        continue;
+      }
+      if (dirent.isDirectory()) {
+        result.push({
+          label: dirent.name,
+          kind: completionItemKinds.folder,
+        });
+      }
+    }
     return result;
   }
 

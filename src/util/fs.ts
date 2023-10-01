@@ -254,3 +254,11 @@ export async function rmdir(target: string) {
     reservation[Symbol.dispose]();
   }
 }
+
+export async function readdir(
+  path: string,
+  options: {withFileTypes: true},
+): Promise<fsTypes.Dirent[]> {
+  using _reservation = await fileBudget.reserve();
+  return await fs.readdir(path, options);
+}
