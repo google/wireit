@@ -7,7 +7,7 @@
 import * as pathlib from 'path';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {shuffle} from '../util/shuffle.js';
 import {IS_WINDOWS} from '../util/windows.js';
 

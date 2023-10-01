@@ -7,7 +7,7 @@
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import pathlib from 'path';
-import {rigTest} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
 const test = suite();

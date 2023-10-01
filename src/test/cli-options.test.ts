@@ -7,7 +7,7 @@
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
 import {suite} from 'uvu';
-import {rigTest} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {Options} from '../cli-options.js';
 import {Result} from '../error.js';

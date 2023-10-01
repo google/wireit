@@ -14,7 +14,7 @@ import {fileURLToPath} from 'url';
 import {ExitResult, WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
 import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
-import {rigTest, DEFAULT_UVU_TIMEOUT} from './util/uvu-timeout.js';
+import {rigTest, DEFAULT_UVU_TIMEOUT} from './util/rig-test.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);

@@ -6,7 +6,7 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {Analyzer} from '../analyzer.js';
 
 const test = suite<object>();

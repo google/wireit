@@ -6,7 +6,7 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest, wait} from './util/uvu-timeout.js';
+import {rigTest, wait} from './util/rig-test.js';
 import * as os from 'os';
 import {IS_WINDOWS} from '../util/windows.js';
 

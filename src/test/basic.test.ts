@@ -6,7 +6,7 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {checkScriptOutput} from './util/check-script-output.js';

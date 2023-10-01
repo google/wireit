@@ -5,7 +5,7 @@
  */
 
 import {suite} from 'uvu';
-import {rigTest} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 import assert from 'assert';
 
