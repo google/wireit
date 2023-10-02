@@ -1209,6 +1209,6 @@ test('we can get completions for paths', async ({rig}) => {
 //
 // I've tried to get that work work by using the textEdit field of the
 // completion item, but that just results in vscode ignoring all of our
-// completions
+// completions. Filed as https://github.com/microsoft/vscode/issues/194580
 
 test.run();
