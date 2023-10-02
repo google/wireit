@@ -154,7 +154,7 @@ connection.onReferences(async (params) => {
 connection.onCompletion(async (params) => {
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
-  return ideAnalyzer.getCompletionItems(path, position);
+  return ideAnalyzer.getCompletions(path, position);
 });
 
 // Actually start listening

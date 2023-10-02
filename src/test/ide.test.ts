@@ -823,7 +823,7 @@ async function assertCompletions(
     throw new Error(`could not get source file`);
   }
   const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
-  const completionList = await ide.getCompletionItems(
+  const completionList = await ide.getCompletions(
     options.path,
     sourceConverter.toIdePosition(offset),
   );

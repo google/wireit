@@ -5,7 +5,7 @@
  */
 
 import * as fs from './util/fs.js';
-import {Analyzer} from './analyzer.js';
+import {Analyzer, PotentiallyValidScriptConfig} from './analyzer.js';
 import * as url from 'url';
 import * as pathlib from 'path';
 import * as jsonParser from 'jsonc-parser';
@@ -432,7 +432,7 @@ export class IdeAnalyzer {
     return references;
   }
 
-  async getCompletionItems(
+  async getCompletions(
     path: string,
     position: Position,
   ): Promise<CompletionList | undefined> {
@@ -477,7 +477,6 @@ export class IdeAnalyzer {
     // Ok, the user is typing inside a dependency specifier, so we want to
     // offer them completion items. Next question, are we in the (optional)
     // file path portion of the specifier, or the script name portion?
-    const dep = scriptInfo.dependency;
     const distanceInto =
       ourPosition - scriptSpecifier.offset - 1; /* for the leading quote */
     const specifierBeforeCursor = scriptSpecifier.value.slice(0, distanceInto);
@@ -514,21 +513,6 @@ export class IdeAnalyzer {
       targetPackageDir = packageDir;
     }
 
-    const result: CompletionList = {
-      // If the user hasn't typed anything yet, our results are incomplete
-      // because they could type ./ or ../ and we don't complete those yet.
-      isIncomplete: specifierBeforeCursor === '',
-      items: [],
-    };
-
-    const replaceRange = OffsetToPositionConverter.get(
-      targetPackageJson.jsonFile,
-    ).toIdeRange(scriptSpecifier);
-
-    // result.itemDefaults = {
-    // editRange: replaceRange,
-    // };
-
     // analyze the scripts in this file
     const potentiallyValidScripts = await Promise.all(
       [...targetPackageJson.scripts].map((script) => {
@@ -539,41 +523,42 @@ export class IdeAnalyzer {
       }),
     );
 
-    // Ok, so this is a same-file dependency, we can offer completion items.
-    for (const script of potentiallyValidScripts) {
-      // By default, we assume it's a regular script.
-      let kind: CompletionItemKind = completionItemKinds.normalScript;
-      if (script !== undefined) {
-        if (script.service !== undefined) {
-          kind = completionItemKinds.service;
-        } else if (script.command !== undefined) {
-          kind = completionItemKinds.normalScript;
-        } else if (
-          script.dependencies !== undefined &&
-          script.dependencies.length > 0
-        ) {
-          kind = completionItemKinds.dependenciesOnly;
-        } else if (script.files !== undefined) {
-          kind = completionItemKinds.filesOnly;
-        } else {
-          kind = completionItemKinds.normalScript;
-        }
-      }
-      result.items.push({
-        label: script.name,
-        kind,
-        // filterText: specifierBeforeCursor,
-        // insertText: script.name,
-
-        // insertText: script.name,
-        // textEdit: {range: replaceRange, newText: script.name},
-      });
-    }
+    const result: CompletionList = {
+      // If the user hasn't typed anything yet, our results are incomplete
+      // because they could type ./ or ../ and we don't complete those yet.
+      isIncomplete: specifierBeforeCursor === '',
+      items: potentiallyValidScripts.map((script) => {
+        return {
+          label: script.name,
+          kind: this.#completionKindForScript(script),
+        };
+      }),
+    };
 
     // Sort results for deterministic tests.
     result.items.sort((a, b) => a.label.localeCompare(b.label));
 
     return result;
+  }
+
+  #completionKindForScript(
+    script: PotentiallyValidScriptConfig,
+  ): CompletionItemKind {
+    if (script !== undefined) {
+      if (script.service !== undefined) {
+        return completionItemKinds.service;
+      } else if (script.command !== undefined) {
+        return completionItemKinds.normalScript;
+      } else if (
+        script.dependencies !== undefined &&
+        script.dependencies.length > 0
+      ) {
+        return completionItemKinds.dependenciesOnly;
+      } else if (script.files !== undefined) {
+        return completionItemKinds.filesOnly;
+      }
+    }
+    return completionItemKinds.normalScript;
   }
 
   async #completionItemsForPath(
