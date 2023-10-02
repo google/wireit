@@ -6,6 +6,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## Unreleased
 
+- Add intellisense completions for dependencies.
+
 - Support the find all references command (default keybinding F12), to find all
   scripts that depend on the script under the cursor. This searches all
   package.json files reachable from all open package.json files, as well as from all package.json files in workspace roots.
