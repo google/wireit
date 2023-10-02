@@ -1203,6 +1203,12 @@ test('we can get completions for paths', async ({rig}) => {
 });
 
 // test for completions of script names with colons in them after the first
-// colon
+// colon. here, we're running into a bug where considers the colon a break
+// in the name, so if you've typed, say `build:t` and you select a completion
+// for `build:typescript` the text that it types is `build:build:typescript`
+//
+// I've tried to get that work work by using the textEdit field of the
+// completion item, but that just results in vscode ignoring all of our
+// completions
 
 test.run();
