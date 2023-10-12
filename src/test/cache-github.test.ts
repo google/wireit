@@ -14,8 +14,7 @@ import {fileURLToPath} from 'url';
 import {ExitResult, WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
 import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
-import {timeout, DEFAULT_UVU_TIMEOUT} from './util/uvu-timeout.js';
-import {NODE_MAJOR_VERSION} from './util/node-version.js';
+import {rigTest, DEFAULT_UVU_TIMEOUT} from './util/rig-test.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -88,7 +87,7 @@ registerCommonCacheTests(test, 'github');
 
 test(
   'cache key affected by ImageOS environment variable',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -148,7 +147,7 @@ test(
 
 test(
   'recovers from reservation race condition',
-  timeout(async ({rig, server}) => {
+  rigTest(async ({rig, server}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -233,7 +232,7 @@ function assertSuccess(exitResult: ExitResult) {
 for (const code of [429, 503, 'ECONNRESET'] as const) {
   test(
     `recovers from ${code} error`,
-    timeout(async ({rig, server}) => {
+    rigTest(async ({rig, server}) => {
       await rig.write({
         'package.json': {
           scripts: {
@@ -340,7 +339,7 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
 
 test(
   'uploads large tarball in multiple chunks',
-  timeout(
+  rigTest(
     async ({rig, server}) => {
       const cmdA = await rig.newCommand();
 
@@ -444,11 +443,4 @@ test(
   ),
 );
 
-if (NODE_MAJOR_VERSION === 19) {
-  console.error(
-    'Skipping GitHub caching tests on Node 19 due to performance issue, ' +
-      'see https://github.com/google/wireit/issues/554',
-  );
-} else {
-  test.run();
-}
+test.run();

@@ -5,6 +5,7 @@
  */
 
 import type * as uvu from 'uvu';
+import {WireitTestRig} from './test-rig.js';
 
 export const DEFAULT_UVU_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 60_000);
 
@@ -22,7 +23,7 @@ export const wait = async (ms: number) =>
  * @param handler The uvu test function.
  * @param ms Millisecond failure timeout.
  */
-export const timeout = <T>(
+const timeout = <T>(
   handler: uvu.Callback<T>,
   ms = DEFAULT_UVU_TIMEOUT,
 ): uvu.Callback<T> => {
@@ -42,5 +43,39 @@ export const timeout = <T>(
     ]).finally(() => {
       clearTimeout(timerId);
     });
+  };
+};
+
+export const rigTest = <T extends {rig?: WireitTestRig}>(
+  handler: uvu.Callback<T & {rig: WireitTestRig}>,
+  ms = DEFAULT_UVU_TIMEOUT,
+): uvu.Callback<T> => {
+  return async (context) => {
+    await using rig = await (async () => {
+      if (context.rig !== undefined) {
+        // if the suite provides a rig, use it, it's already been
+        // configured for these tests specifically.
+        // we'll dispose of it ourselves, but that's ok, disposing multiple
+        // times is a noop
+        return context.rig;
+      }
+      const rig = new WireitTestRig();
+      await rig.setup();
+      return rig;
+    })();
+    try {
+      await timeout(handler, ms)({...context, rig});
+    } catch (e) {
+      const consoleCommandRed = '\x1b[31m';
+      const consoleReset = '\x1b[0m';
+      const consoleBold = '\x1b[1m';
+      console.log(
+        `${consoleCommandRed}✘${consoleReset} Test failed: ${consoleBold}${context.__test__}${consoleReset}`,
+      );
+      console.group();
+      await rig.reportFullLogs();
+      console.groupEnd();
+      throw e;
+    }
   };
 };

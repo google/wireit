@@ -7,35 +7,12 @@
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
 import {suite} from 'uvu';
-import {timeout} from './util/uvu-timeout.js';
+import {rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {Options} from '../cli-options.js';
 import {Result} from '../error.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 const TEST_BINARY_COMMAND = `node ${pathlib.join(
   process.cwd(),
@@ -51,6 +28,7 @@ async function getOptionsResult(
   env?: Record<string, string | undefined>,
   extraScripts?: Record<string, string>,
 ): Promise<Result<Options>> {
+  rig.env.WIREIT_DEBUG_LOG_FILE = '';
   await rig.write({
     'package.json': {
       scripts: {
@@ -61,6 +39,7 @@ async function getOptionsResult(
       },
     },
   });
+  env = {...env, WIREIT_DEBUG_LOG_FILE: ''};
   assert.equal((await rig.exec(command, {env}).exit).code, 0);
   return JSON.parse(await rig.read('options.json')) as Result<Options>;
 }
@@ -97,7 +76,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} run main`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} run main`, {
         agent,
         script: {
@@ -110,7 +89,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} test`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} test`, {
         agent,
         script: {
@@ -123,7 +102,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} start`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} start`, {
         agent,
         script: {
@@ -136,7 +115,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} run main -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} run main -- --extra`, {
         agent,
         script: {
@@ -151,7 +130,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
   skipIfPnpm(
     `${command} test -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} test -- --extra`, {
         agent,
         script: {
@@ -165,7 +144,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} start -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} start -- --extra`, {
         agent,
         script: {
@@ -179,7 +158,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} run main --watch`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} run main --watch`, {
         agent,
         script: {
@@ -194,7 +173,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
   skipIfPnpm(
     `${command} test --watch`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} test --watch`, {
         agent,
         script: {
@@ -208,7 +187,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} start --watch`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} start --watch`, {
         agent,
         script: {
@@ -222,7 +201,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} run main --watch -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} run main --watch -- --extra`, {
         agent,
         script: {
@@ -238,7 +217,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
   // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
   skipIfPnpm(
     `${command} test --watch -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} test --watch -- --extra`, {
         agent,
         script: {
@@ -253,7 +232,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} start --watch -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(rig, `${command} start --watch -- --extra`, {
         agent,
         script: {
@@ -268,7 +247,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
 
   test(
     `${command} run recurse -> ${command} run start --watch`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(
         rig,
         `${command} run recurse`,
@@ -289,41 +268,47 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
     }),
   );
 
-  test(`WIREIT_LOGGER=simple ${command} run main`, async ({rig}) => {
-    await assertOptions(
-      rig,
-      `${command} run main`,
-      {
-        agent,
-        script: {
-          packageDir: rig.temp,
-          name: 'main',
+  test(
+    `WIREIT_LOGGER=simple ${command} run main`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${command} run main`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'DefaultLogger',
         },
-        logger: 'DefaultLogger',
-      },
-      {
-        WIREIT_LOGGER: 'simple',
-      },
-    );
-  });
+        {
+          WIREIT_LOGGER: 'simple',
+        },
+      );
+    }),
+  );
 
-  test(`WIREIT_LOGGER=quiet ${command} run main`, async ({rig}) => {
-    await assertOptions(
-      rig,
-      `${command} run main`,
-      {
-        agent,
-        script: {
-          packageDir: rig.temp,
-          name: 'main',
+  test(
+    `WIREIT_LOGGER=quiet ${command} run main`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${command} run main`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'QuietLogger',
         },
-        logger: 'QuietLogger',
-      },
-      {
-        WIREIT_LOGGER: 'quiet',
-      },
-    );
-  });
+        {
+          WIREIT_LOGGER: 'quiet',
+        },
+      );
+    }),
+  );
 
   // Doesn't work with yarn 1.x due to
   // https://github.com/yarnpkg/yarn/issues/8905. Anything before a "--" is not
@@ -332,7 +317,7 @@ for (const command of ['npm', 'yarn', 'pnpm'] as const) {
   // instead of the current script.
   skipIfYarn(
     `${command} run recurse -> ${command} run start --watch -- --extra`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       await assertOptions(
         rig,
         `${command} run recurse`,

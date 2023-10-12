@@ -6,42 +6,16 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    // process.env['SHOW_TEST_OUTPUT'] = 'true';
-    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'rig commands exit and emit stdout/stderr as requested',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // Test 2 different simultaneous commands, one with two simultaneous
     // invocations.
     const cmdA = await rig.newCommand();
@@ -84,7 +58,7 @@ test(
 
 test(
   'runs one script that succeeds',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -115,12 +89,22 @@ test(
     checkScriptOutput(res.stderr, 'a stderr\n');
     assert.match(res.stdout, 'a stdout\n');
     assert.match(res.stdout, '✅ Ran 1 script and skipped 0 in');
+    assert.equal(
+      res.debugLog?.trim(),
+      `
+<info> analysis-started
+<info> analysis-completed
+<info> running
+🏃 [a] Running command "${cmdA.command}"
+<success> exit-zero
+✅ [a] Executed successfully`.trim(),
+    );
   }),
 );
 
 test(
   'runs one script that succeeds from a package sub-directory',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -162,7 +146,7 @@ test(
 
 test(
   'dependency chain in one package that succeeds',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // a --> b --> c
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
@@ -226,7 +210,7 @@ test(
 
 test(
   'dependency chain with vanilla npm script at the end',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // a --> b --> c
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
@@ -288,7 +272,7 @@ test(
 
 test(
   'dependency diamond in one package that succeeds',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //     a
     //    / \
     //   v   v
@@ -356,7 +340,7 @@ test(
 
 test(
   'cross-package dependency',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -402,7 +386,7 @@ test(
 
 test(
   'cross-package dependency using object format',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -452,7 +436,7 @@ test(
 
 test(
   'cross-package dependency that validly cycles back to the first package',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // Cycles between packages are fine, as long as there aren't cycles in the
     // script graph.
     const cmdA = await rig.newCommand();
@@ -511,7 +495,7 @@ test(
 
 test(
   'finds node_modules binary in starting dir',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -540,7 +524,7 @@ test(
 
 test(
   'finds node_modules binary in parent dir',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
@@ -569,7 +553,7 @@ test(
 
 test(
   'finds node_modules binary across packages (child)',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -608,7 +592,7 @@ test(
 
 test(
   'finds node_modules binary across packages (sibling)',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
@@ -647,7 +631,7 @@ test(
 
 test(
   'starting node_modules binaries are not available across packages (sibling)',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
@@ -693,7 +677,7 @@ test(
 // eslint-disable-next-line @typescript-eslint/unbound-method
 (NODE_MAJOR_VERSION > 14 ? test : test.skip)(
   'commands run under npm workspaces',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -746,7 +730,7 @@ test(
 
 test(
   'finds package directory without npm_package_json',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This confirms that we can walk up the filesystem to find the nearest
     // package.json when the npm_package_json environment variable isn't set.
     // This variable isn't set by yarn, pnpm, and older versions of npm.
@@ -784,7 +768,7 @@ test(
 
 test(
   'runs a script with yarn',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -810,7 +794,7 @@ test(
 
 test(
   'runs a script with pnpm',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -836,7 +820,7 @@ test(
 
 test(
   'commands run under yarn workspaces',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -898,7 +882,7 @@ test(
 
 test(
   'commands run under pnpm workspaces',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -953,7 +937,7 @@ test(
 
 test(
   'multiple cross-package dependencies',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     const cmdC = await rig.newCommand();
@@ -1018,7 +1002,7 @@ test(
 
 test(
   'top-level SIGINT kills running scripts',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const main = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1050,7 +1034,7 @@ test(
 for (const agent of ['npm', 'yarn', 'pnpm']) {
   test(
     `can pass extra args with using "${agent} run --"`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -1109,7 +1093,7 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
 
 test(
   'cascade:false dependency does not inherit fingerprint',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  a --[cascade:false]--> b --> c
     const a = await rig.newCommand();
     const b = await rig.newCommand();
@@ -1210,7 +1194,7 @@ test(
 
 test(
   'can write fingerprint file for extremely large script graph',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // These numbers found experimentally, they were just enough to trigger an
     // "Invalid string length" error from JSON.stringify while trying to write
     // the fingerprint file.
@@ -1262,7 +1246,7 @@ test(
 
 test(
   'environment variables are passed to children',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -1307,7 +1291,7 @@ test(
 
 test(
   'dependency which is not in script section',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({

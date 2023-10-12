@@ -7,38 +7,14 @@
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import pathlib from 'path';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite();
 
 test(
   'invoked directly',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const result = rig.exec(
       `node ${pathlib.join('..', '..', 'bin', 'wireit.js')}`,
     );
@@ -55,7 +31,7 @@ test(
 
 test(
   'invoked through npx',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const result = rig.exec('npx wireit');
     const done = await result.exit;
     assert.equal(done.code, 1);
@@ -77,7 +53,7 @@ test(
 
 test(
   'negative parallelism',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -101,7 +77,7 @@ test(
 
 test(
   'zero parallelism',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -125,7 +101,7 @@ test(
 
 test(
   'nonsense parallelism',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -151,7 +127,7 @@ test(
 
 test(
   'nonsense WIREIT_CACHE',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -177,7 +153,7 @@ test(
 
 test(
   'nonsense WIREIT_FAILURES',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -203,7 +179,7 @@ test(
 
 test(
   'github caching without ACTIONS_CACHE_URL',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -233,7 +209,7 @@ test(
 
 test(
   'github caching but ACTIONS_CACHE_URL does not end in slash',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -263,7 +239,7 @@ test(
 
 test(
   'github caching without ACTIONS_RUNTIME_TOKEN',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {

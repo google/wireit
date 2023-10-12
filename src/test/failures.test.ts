@@ -6,37 +6,13 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'runs one script that fails',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -68,7 +44,7 @@ test(
 
 test(
   'runs one non-root script that fails',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -104,7 +80,7 @@ test(
 
 test(
   'dependency chain in one package that fails in the middle',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // a --> b* --> c
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
@@ -149,7 +125,7 @@ test(
 
 test(
   'dependency chain in one package that fails in nested dependency',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     const cmdC = await rig.newCommand();
@@ -203,7 +179,7 @@ for (const envSetting of ['no-new', undefined]) {
     `don't start new script after unrelated failure when WIREIT_FAILURES=${
       envSetting ?? '<unset>'
     }`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       //   main
       //    / \
       //   |   \
@@ -317,7 +293,7 @@ for (const envSetting of ['no-new', undefined]) {
 
 test(
   "don't start new script after unrelated failure with constrained parallelism in no-new mode",
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test covers handling for a race condition that occurs where the
     // WorkerPool might release a slot and let the next script start before a
     // failure has asynchronously propagated to the Executor.
@@ -381,7 +357,7 @@ test(
 
 test(
   'allow unrelated scripts to start after failure in continue mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //   main
     //    /\
     //   |  |
@@ -453,7 +429,7 @@ test(
 
 test(
   'kill running script after failure in kill mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //   main
     //    / \
     //   |   |

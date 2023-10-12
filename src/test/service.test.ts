@@ -6,41 +6,14 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    // Uncomment these lines to debug tests:
-    // process.env['SHOW_TEST_OUTPUT'] = 'true';
-    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'simple consumer and service with stdout',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // consumer
     //    |
     //    v
@@ -100,7 +73,7 @@ test(
 
 test(
   'service with standard and service deps',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  consumer
     //     |
     //     v
@@ -189,7 +162,7 @@ test(
 
 test(
   'standard scripts are killed when service exits unexpectedly',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // consumer
     //    |
     //    v
@@ -243,7 +216,7 @@ test(
 
 test(
   'service remembers unexpected exit failure for next start call',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //     entrypoint
     //     /        \
     //    v          v
@@ -330,7 +303,7 @@ test(
 
 test(
   'service shuts down when service dependency exits unexpectedly',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // consumer
     //    |
     //    v
@@ -407,7 +380,7 @@ test(
   //    |
   //    v
   // service2
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test uses standard logger output to ensure that
     // certain operations happen in the right order.
     rig.env['WIREIT_LOGGER'] = 'simple';
@@ -490,7 +463,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
     //  (fails)      |
     //               v
     //            service2
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       // This test uses standard logger output to ensure that
       // certain operations happen in the right order.
       rig.env['WIREIT_LOGGER'] = 'simple';
@@ -584,7 +557,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
     //       v     v
     // service1   service2
     //  (fails)
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const service1 = await rig.newCommand();
       const service2 = await rig.newCommand();
       await rig.writeAtomic({
@@ -633,7 +606,7 @@ for (const failureMode of ['continue', 'no-new']) {
     //        /   \
     //       v     v
     // service   standard
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       const service = await rig.newCommand();
       const standard = await rig.newCommand();
       await rig.writeAtomic({
@@ -695,7 +668,7 @@ test(
   //        /   \
   //       v     v
   // service   standard
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const service = await rig.newCommand();
     const standard = await rig.newCommand();
     await rig.writeAtomic({
@@ -738,7 +711,7 @@ test(
 
 test(
   'ephemeral service shuts down between watch iterations',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // consumer
     //    |
     //    v
@@ -806,7 +779,7 @@ test(
 
 test(
   'persistent services are preserved across watch iterations',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //     entrypoint
     //     /        \
     //    v          v
@@ -885,7 +858,7 @@ test(
 
 test(
   'deleted service shuts down between watch iterations',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //      entrypoint
     //        /   \
     //       v     v
@@ -974,7 +947,7 @@ test(
 
 test(
   'service fingerprint is trackable despite never having outputs',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // consumer
     //    |
     //    v
@@ -1049,7 +1022,7 @@ test(
 
 test(
   'caching with service dependencies works in watch mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // consumer
     //    |
     //    v
@@ -1122,7 +1095,7 @@ test(
 
 test(
   'service with cascade:false does not require restart in watch mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //    service
     //    /    \
     //   v      v
@@ -1211,7 +1184,7 @@ test(
   //    |
   //    v
   // childService (restarts and fails)
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test uses standard logger output to ensure that
     // certain operations happen in the right order.
     rig.env['WIREIT_LOGGER'] = 'simple';
@@ -1293,7 +1266,7 @@ test(
   //    |
   //    v
   // service
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
     const service = await rig.newCommand();
     await rig.writeAtomic({
@@ -1347,7 +1320,7 @@ test(
   //    |
   //    v
   // standard
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test uses standard logger output to ensure that
     // certain operations happen in the right order.
     rig.env['WIREIT_LOGGER'] = 'simple';

@@ -12,7 +12,7 @@ import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
 import {FailureMode} from './executor.js';
 import {unreachable} from './util/unreachable.js';
-import {Logger} from './logging/logger.js';
+import {Console, Logger} from './logging/logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
 
@@ -58,7 +58,7 @@ export interface Options {
   logger: Logger;
 }
 
-export const getOptions = (): Result<Options> => {
+export const getOptions = async (): Promise<Result<Options>> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
   const scriptName = process.env.npm_lifecycle_event;
@@ -185,26 +185,27 @@ export const getOptions = (): Result<Options> => {
 
   const agent = getNpmUserAgent();
 
+  const console = new Console(process.stdout, process.stderr);
+  const packageRoot = packageDir ?? process.cwd();
   const loggerResult = ((): Result<Logger> => {
-    const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
       if (process.env.CI) {
-        return {ok: true, value: new QuietCiLogger(packageRoot)};
+        return {ok: true, value: new QuietCiLogger(packageRoot, console)};
       }
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
     if (str === 'quiet') {
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
     if (str === 'quiet-ci') {
-      return {ok: true, value: new QuietCiLogger(packageRoot)};
+      return {ok: true, value: new QuietCiLogger(packageRoot, console)};
     }
     if (str === 'simple') {
-      return {ok: true, value: new DefaultLogger(packageRoot)};
+      return {ok: true, value: new DefaultLogger(packageRoot, console)};
     }
     if (str === 'metrics') {
-      return {ok: true, value: new MetricsLogger(packageRoot)};
+      return {ok: true, value: new MetricsLogger(packageRoot, console)};
     }
     return {
       ok: false,
@@ -222,6 +223,22 @@ export const getOptions = (): Result<Options> => {
     return loggerResult;
   }
 
+  let logger = loggerResult.value;
+  if (process.env['WIREIT_DEBUG_LOG_FILE']) {
+    const [{DebugLogger}, {CombinationLogger}] = await Promise.all([
+      import('./logging/debug-logger.js'),
+      import('./logging/combination-logger.js'),
+    ]);
+    const debugLogStream = await fs.createWriteStream(
+      process.env['WIREIT_DEBUG_LOG_FILE']!,
+    );
+    const debugLogConsole = new Console(debugLogStream, debugLogStream, true);
+    logger = new CombinationLogger(
+      [logger, new DebugLogger(packageRoot, debugLogConsole)],
+      console,
+    );
+  }
+
   return {
     ok: true,
     value: {
@@ -230,7 +247,7 @@ export const getOptions = (): Result<Options> => {
       cache: cacheResult.value,
       failureMode: failureModeResult.value,
       agent,
-      logger: loggerResult.value,
+      logger,
       ...getArgvOptions(script, agent),
     },
   };

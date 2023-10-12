@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// To prevent using the global console accidentally, we shadow it with
+// undefined
+const console = undefined;
+function markAsUsed(_: unknown) {}
+markAsUsed(console);
+
 /**
  * A map that can also efficiently return the most recently added entry.
  */

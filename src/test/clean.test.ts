@@ -6,39 +6,15 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 import * as pathlib from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+const test = suite<object>();
 
 test(
   'cleans output by default',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -73,7 +49,7 @@ test(
 
 test(
   'cleans output when clean is true',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -109,7 +85,7 @@ test(
 
 test(
   'does not clean output when clean is false',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -142,7 +118,7 @@ test(
 
 test(
   'cleaning deletes all files matched by glob pattern',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -177,7 +153,7 @@ test(
 
 test(
   'cleaning supports glob re-inclusion',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -214,7 +190,7 @@ test(
 
 test(
   'cleaning deletes directories',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -246,7 +222,7 @@ test(
 
 test(
   'cleaning deletes symlinks but not their targets',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -280,7 +256,7 @@ test(
 
 test(
   'errors if cleaning output outside of the package',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'foo/package.json': {
@@ -322,7 +298,7 @@ test(
 
 test(
   '"if-file-deleted" cleans only when input file deleted',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -467,7 +443,7 @@ test(
 
 test(
   'directories are not deleted unless empty',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -532,7 +508,7 @@ test(
 
 test(
   'leading slash on output glob is package relative',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {

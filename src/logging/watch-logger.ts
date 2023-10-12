@@ -7,10 +7,17 @@
 import type {Event} from '../event.js';
 import type {Logger} from './logger.js';
 
+// To prevent using the global console accidentally, we shadow it with
+// undefined
+const console = undefined;
+function markAsUsed(_: unknown) {}
+markAsUsed(console);
+
 /**
  * A logger for watch mode that avoids useless output.
  */
 export class WatchLogger implements Logger {
+  readonly console;
   readonly #actualLogger: Logger;
   readonly #iterationBuffer: Event[] = [];
   #iterationIsInteresting =
@@ -18,6 +25,7 @@ export class WatchLogger implements Logger {
 
   constructor(actualLogger: Logger) {
     this.#actualLogger = actualLogger;
+    this.console = actualLogger.console;
   }
 
   log(event: Event) {
@@ -79,5 +87,6 @@ export class WatchLogger implements Logger {
 
   [Symbol.dispose](): void {
     this.#actualLogger[Symbol.dispose]();
+    this.console[Symbol.dispose]();
   }
 }
