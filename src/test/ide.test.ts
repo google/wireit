@@ -8,10 +8,11 @@ import {inspect} from 'util';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {drawSquiggle, OffsetToPositionConverter} from '../error.js';
-import {IdeAnalyzer} from '../ide.js';
+import {completionItemKinds, IdeAnalyzer} from '../ide.js';
 import {WireitTestRig} from './util/test-rig.js';
 import * as url from 'url';
 import {removeAnsiColors} from './util/colors.js';
+import {type CompletionList} from 'vscode-languageclient';
 
 const test = suite<{rig: WireitTestRig}>();
 
@@ -803,5 +804,411 @@ test('we can find references to a dependency', async ({rig}) => {
     ],
   });
 });
+
+async function assertCompletions(
+  ide: IdeAnalyzer,
+  options: {
+    path: string;
+    contentsWithPipe: string;
+    expected: undefined | CompletionList;
+  },
+) {
+  const offset = options.contentsWithPipe.indexOf('|');
+  const contents =
+    options.contentsWithPipe.slice(0, offset) +
+    options.contentsWithPipe.slice(offset + 1);
+  ide.setOpenFileContents(options.path, contents);
+  const sourceFile = await ide.getPackageJsonForTest(options.path);
+  if (sourceFile === undefined) {
+    throw new Error(`could not get source file`);
+  }
+  const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
+  const completionList = await ide.getCompletions(
+    options.path,
+    sourceConverter.toIdePosition(offset),
+  );
+  if (completionList === undefined) {
+    if (options.expected === undefined) {
+      return; // No references, as expected.
+    }
+    throw new Error(
+      `Expected completionList matching \n${inspect(
+        options.expected,
+      )} but got undefined`,
+    );
+  }
+
+  if (options.expected === undefined) {
+    throw new Error(
+      `Expected no completionList, but got: ${inspect(completionList)}`,
+    );
+  }
+  assert.equal(completionList, options.expected);
+}
+
+test('we can get completions for same file dependencies', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  const expected = {
+    // We actually propose all scripts, and let the IDE narrow them down.
+    isIncomplete: false,
+    items: [
+      {
+        label: 'a',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'b',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'bar',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'deps',
+        kind: completionItemKinds.dependenciesOnly,
+      },
+      {
+        label: 'files',
+        kind: completionItemKinds.filesOnly,
+      },
+      {
+        label: 'foo',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'service',
+        kind: completionItemKinds.service,
+      },
+    ],
+  };
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          foo: {
+            command: 'echo',
+          },
+          bar: {
+            dependencies: ['fo|'],
+            command: 'echo',
+          },
+          service: {
+            service: true,
+            command: 'foo',
+          },
+          files: {
+            files: ['*.js'],
+          },
+          deps: {
+            dependencies: ['foo'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: expected,
+  });
+
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          foo: {
+            command: 'echo',
+          },
+          bar: {
+            dependencies: ['|'],
+            script: 'echo',
+          },
+          service: {
+            service: true,
+            command: 'foo',
+          },
+          files: {
+            files: ['*.js'],
+          },
+          deps: {
+            dependencies: ['foo'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: {
+      ...expected,
+      // It's incomplete because we don't know whether the user wants to type
+      // a ./ or a ../ or just the name of a script.
+      isIncomplete: true,
+    },
+  });
+});
+
+test('we can get completions for cross file dependencies', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await rig.write('child/package.json', {
+    scripts: {
+      a: 'wireit',
+      b: 'wireit',
+    },
+    wireit: {
+      foo: {
+        command: 'echo',
+      },
+      bar: {
+        dependencies: ['foo'],
+      },
+      service: {
+        service: true,
+        command: 'foo',
+      },
+      files: {
+        files: ['*.js'],
+      },
+    },
+  });
+  const expected = {
+    // We actually propose all scripts, and let the IDE narrow them down.
+    isIncomplete: false,
+    items: [
+      {
+        label: 'a',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'b',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'bar',
+        kind: completionItemKinds.dependenciesOnly,
+      },
+      {
+        label: 'files',
+        kind: completionItemKinds.filesOnly,
+      },
+      {
+        label: 'foo',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'service',
+        kind: completionItemKinds.service,
+      },
+    ],
+  };
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:fo|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected,
+  });
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected,
+  });
+});
+
+test('we can get completions for paths', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await rig.write('packages/child/package.json', {
+    scripts: {
+      a: 'wireit',
+      b: 'wireit',
+    },
+    wireit: {
+      foo: {
+        command: 'echo',
+      },
+      bar: {
+        dependencies: ['foo'],
+      },
+      service: {
+        service: true,
+        command: 'foo',
+      },
+      files: {
+        files: ['*.js'],
+      },
+    },
+  });
+  // we shouldn't suggest directories starting with .
+  await rig.write('.git/something', '');
+  // we shouldn't suggest regular files
+  await rig.write('somefile.txt', '');
+  const expectedInChild = {
+    // We actually propose all scripts, and let the IDE narrow them down.
+    isIncomplete: false,
+    items: [
+      {
+        label: 'a',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'b',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'bar',
+        kind: completionItemKinds.dependenciesOnly,
+      },
+      {
+        label: 'files',
+        kind: completionItemKinds.filesOnly,
+      },
+      {
+        label: 'foo',
+        kind: completionItemKinds.normalScript,
+      },
+      {
+        label: 'service',
+        kind: completionItemKinds.service,
+      },
+    ],
+  };
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: {
+      isIncomplete: true,
+      items: [
+        {
+          label: 'packages',
+          kind: completionItemKinds.folder,
+        },
+      ],
+    },
+  });
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./asdf|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: {
+      isIncomplete: true,
+      items: [
+        {
+          label: 'packages',
+          kind: completionItemKinds.folder,
+        },
+      ],
+    },
+  });
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./packages/|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: {
+      isIncomplete: true,
+      items: [
+        {
+          label: 'child',
+          kind: completionItemKinds.folder,
+        },
+      ],
+    },
+  });
+  await assertCompletions(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./packages/child:|'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: expectedInChild,
+  });
+});
+
+// test for completions of script names with colons in them after the first
+// colon. here, we're running into a bug where considers the colon a break
+// in the name, so if you've typed, say `build:t` and you select a completion
+// for `build:typescript` the text that it types is `build:build:typescript`
+//
+// I've tried to get that work work by using the textEdit field of the
+// completion item, but that just results in vscode ignoring all of our
+// completions. Filed as https://github.com/microsoft/vscode/issues/194580
 
 test.run();
