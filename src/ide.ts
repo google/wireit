@@ -26,6 +26,7 @@ import type {
   WorkspaceEdit,
   Position,
   DefinitionLink,
+  Location,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
 import type {JsonFile} from './util/ast.js';
@@ -55,10 +56,15 @@ class OverlayFilesystem implements FileSystem {
  */
 export class IdeAnalyzer {
   readonly #overlayFs;
+  #workspaceRoots: readonly string[] = [];
   #analyzer;
   constructor() {
     this.#overlayFs = new OverlayFilesystem();
     this.#analyzer = new Analyzer('npm', undefined, this.#overlayFs);
+  }
+
+  setWorkspaceRoots(roots: readonly string[]) {
+    this.#workspaceRoots = roots;
   }
 
   /**
@@ -345,6 +351,74 @@ export class IdeAnalyzer {
         ];
       }
     }
+  }
+
+  async findAllReferences(
+    path: string,
+    position: Position,
+  ): Promise<Location[] | undefined> {
+    const packageDir = pathlib.dirname(path);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      return undefined;
+    }
+    const packageJson = packageJsonResult.value;
+    const ourPosition = OffsetToPositionConverter.get(
+      packageJson.jsonFile,
+    ).idePositionToOffset(position);
+    const scriptInfo = await this.#getInfoAboutLocation(
+      packageJson,
+      ourPosition,
+    );
+    if (scriptInfo == null) {
+      return undefined;
+    }
+    let scriptToLookup;
+    if (scriptInfo.kind === 'dependency') {
+      scriptToLookup = scriptInfo.dependency.config;
+    } else {
+      scriptToLookup = scriptInfo.script;
+    }
+    const allScripts = await this.#analyzer.analyzeAllScripts([
+      ...this.openFiles,
+      ...this.#workspaceRoots.map((r) => pathlib.join(r, 'package.json')),
+    ]);
+    const references: Location[] = [];
+    for (const script of allScripts) {
+      const dependencies = script.placeholder.dependencies;
+      if (dependencies == null) {
+        continue;
+      }
+      for (const dep of dependencies) {
+        const depFile = script.placeholder.declaringFile;
+        if (depFile === undefined) {
+          continue;
+        }
+        if (dep.config.name !== scriptToLookup.name) {
+          continue;
+        }
+        if (dep.config.packageDir !== scriptToLookup.packageDir) {
+          continue;
+        }
+        references.push({
+          uri: url.pathToFileURL(depFile.path).toString(),
+          range: OffsetToPositionConverter.get(depFile).toIdeRange(
+            dep.specifier,
+          ),
+        });
+      }
+    }
+    // sort the references, first by file, then by offset
+    references.sort((a, b) => {
+      if (a.uri < b.uri) {
+        return -1;
+      }
+      if (a.uri > b.uri) {
+        return 1;
+      }
+      return a.range.start.line - b.range.start.line;
+    });
+    return references;
   }
 
   async getPackageJsonForTest(

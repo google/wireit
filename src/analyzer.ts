@@ -341,6 +341,53 @@ export class Analyzer {
   }
 
   /**
+   * Adds the given package.json files to the known set, and analyzes all
+   * scripts reachable from any of them, recursively.
+   *
+   * Useful for whole program analysis, e.g. for "find all references" in the
+   * IDE.
+   */
+  async analyzeAllScripts(
+    packageJsonPaths: Iterable<string>,
+  ): Promise<Iterable<PlaceholderInfo>> {
+    const done = new Set<ScriptReferenceString>();
+    const todo: ScriptReference[] = [];
+    for (const file of packageJsonPaths) {
+      const packageDir = pathlib.dirname(file);
+      const packageJsonResult = await this.getPackageJson(packageDir);
+      if (!packageJsonResult.ok) {
+        continue;
+      }
+      for (const script of packageJsonResult.value.scripts) {
+        todo.push({name: script.name, packageDir});
+      }
+    }
+
+    while (true) {
+      await Promise.all(
+        todo.map(async (ref) => {
+          await this.analyze(ref, undefined);
+          done.add(scriptReferenceToString(ref));
+        }),
+      );
+      todo.length = 0;
+      for (const info of this.#placeholders.values()) {
+        if (
+          info.placeholder.state === 'unvalidated' &&
+          !done.has(scriptReferenceToString(info.placeholder))
+        ) {
+          todo.push(info.placeholder);
+        }
+      }
+      if (todo.length === 0) {
+        break;
+      }
+    }
+
+    return this.#placeholders.values();
+  }
+
+  /**
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */

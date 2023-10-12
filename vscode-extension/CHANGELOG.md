@@ -6,8 +6,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## Unreleased
 
-- Fix our `npx wireit` detection so we continue to give a good error message
-  with the latest version of `npm` when wireit is run this way.
+- Support the find all references command (default keybinding F12), to find all
+  scripts that depend on the script under the cursor. This searches all
+  package.json files reachable from all open package.json files, as well as from all package.json files in workspace roots.
 
 ## [0.7.0] - 2023-09-12
 

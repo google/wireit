@@ -91,7 +91,7 @@ export class PackageJson {
     }
   }
 
-  _getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
+  #getOrMakeScriptInfo(name: string): ScriptSyntaxInfo {
     let info = this.#scripts.get(name);
     if (info === undefined) {
       info = {name};
@@ -153,7 +153,7 @@ export class PackageJson {
       }
       const scriptAstNode = valueResult.value as NamedAstNode<string>;
       scriptAstNode.name = nameResult.value;
-      this._getOrMakeScriptInfo(nameResult.value.value).scriptNode =
+      this.#getOrMakeScriptInfo(nameResult.value.value).scriptNode =
         scriptAstNode;
     }
     return scriptsSectionResult.value;
@@ -217,7 +217,7 @@ export class PackageJson {
       }
       const wireitConfigNode = rawValue as NamedAstNode;
       wireitConfigNode.name = nameResult.value;
-      this._getOrMakeScriptInfo(nameResult.value.value).wireitConfigNode =
+      this.#getOrMakeScriptInfo(nameResult.value.value).wireitConfigNode =
         wireitConfigNode;
     }
     return wireitSectionResult.value;

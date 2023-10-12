@@ -596,4 +596,212 @@ test('can jump from colon in scripts section to wireit config', async ({
   });
 });
 
+async function assertReferences(
+  ide: IdeAnalyzer,
+  options: {
+    path: string;
+    contentsWithPipe: string;
+    expected: undefined | string[];
+  },
+) {
+  const offset = options.contentsWithPipe.indexOf('|');
+  const contents =
+    options.contentsWithPipe.slice(0, offset) +
+    options.contentsWithPipe.slice(offset + 1);
+  ide.setOpenFileContents(options.path, contents);
+  const sourceFile = await ide.getPackageJsonForTest(options.path);
+  if (sourceFile === undefined) {
+    throw new Error(`could not get source file`);
+  }
+  const sourceConverter = OffsetToPositionConverter.get(sourceFile.jsonFile);
+  const references = await ide.findAllReferences(
+    options.path,
+    sourceConverter.toIdePosition(offset),
+  );
+  if (references === undefined) {
+    if (options.expected === undefined) {
+      return; // No references, as expected.
+    }
+    throw new Error(
+      `Expected to find references matching \n${inspect(options.expected)}`,
+    );
+  }
+
+  if (options.expected === undefined) {
+    throw new Error(`Expected no references, but got: ${inspect(references)}`);
+  }
+  const actualSquiggles = [];
+  for (const reference of references) {
+    const targetFile = await ide.getPackageJsonForTest(
+      url.fileURLToPath(reference.uri),
+    );
+    if (targetFile === undefined) {
+      throw new Error(`Could not load target file ${reference.uri}`);
+    }
+    const targetConverter = OffsetToPositionConverter.get(targetFile.jsonFile);
+    const targetSquiggle = drawSquiggle(
+      {
+        file: targetFile.jsonFile,
+        range: targetConverter.ideRangeToRange(reference.range),
+      },
+      0,
+    );
+    actualSquiggles.push(targetSquiggle);
+  }
+  if (actualSquiggles.length !== options.expected.length) {
+    throw new Error(
+      `Expected ${options.expected.length} squiggles, but got ${
+        actualSquiggles.length
+      }\n  Actual: ${inspect(actualSquiggles)}\n\n  Expected: ${inspect(
+        options.expected,
+      )}`,
+    );
+  }
+  for (const [index, actual] of actualSquiggles.entries()) {
+    assertSquiggleEquals(actual, options.expected[index]!);
+  }
+}
+
+test('we can find references for same file dependencies', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await assertReferences(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b'],
+          },
+          b: {
+            command: '|echo',
+          },
+          c: {
+            dependencies: ['a', 'b'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: [
+      `
+        "b"
+        ~~~
+      `,
+      `
+        "b"
+        ~~~
+      `,
+    ],
+  });
+});
+
+test('we can find references across files', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await rig.write('child/package.json', {
+    scripts: {foo: 'wireit'},
+    wireit: {
+      foo: {
+        dependencies: ['..:b'],
+      },
+    },
+  });
+
+  await assertReferences(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b'],
+          },
+          b: {
+            command: '|echo',
+          },
+          c: {
+            dependencies: ['a', 'b', './child:foo'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: [
+      `
+        "..:b"
+        ~~~~~~
+      `,
+
+      `
+        "b"
+        ~~~
+      `,
+      `
+        "b",
+        ~~~
+      `,
+    ],
+  });
+});
+
+test('we can find references to a dependency', async ({rig}) => {
+  const ide = new IdeAnalyzer();
+  await rig.write('child/package.json', {
+    scripts: {foo: 'wireit'},
+    wireit: {
+      foo: {
+        dependencies: ['..:b'],
+      },
+    },
+  });
+
+  await assertReferences(ide, {
+    path: rig.resolve('package.json'),
+    contentsWithPipe: JSON.stringify(
+      {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'echo',
+          },
+          c: {
+            dependencies: ['a', '|b', './child:foo'],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    expected: [
+      `
+        "..:b"
+        ~~~~~~
+      `,
+
+      `
+        "b"
+        ~~~
+      `,
+      `
+        "b",
+        ~~~
+      `,
+    ],
+  });
+});
+
 test.run();
