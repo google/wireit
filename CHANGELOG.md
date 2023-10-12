@@ -8,6 +8,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
 - Fix our `npx wireit` detection so we continue to give a good error message
   with the latest version of `npm` when wireit is run this way.
 
