@@ -28,7 +28,7 @@ async function getOptionsResult(
   env?: Record<string, string | undefined>,
   extraScripts?: Record<string, string>,
 ): Promise<Result<Options>> {
-  rig.env.WIREIT_DEBUG_LOG_TO = '';
+  rig.env.WIREIT_DEBUG_LOG_FILE = '';
   await rig.write({
     'package.json': {
       scripts: {
@@ -39,7 +39,7 @@ async function getOptionsResult(
       },
     },
   });
-  env = {...env, WIREIT_DEBUG_LOG_TO: ''};
+  env = {...env, WIREIT_DEBUG_LOG_FILE: ''};
   assert.equal((await rig.exec(command, {env}).exit).code, 0);
   return JSON.parse(await rig.read('options.json')) as Result<Options>;
 }

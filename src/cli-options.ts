@@ -224,13 +224,13 @@ export const getOptions = async (): Promise<Result<Options>> => {
   }
 
   let logger = loggerResult.value;
-  if (process.env['WIREIT_DEBUG_LOG_TO']) {
+  if (process.env['WIREIT_DEBUG_LOG_FILE']) {
     const [{DebugLogger}, {CombinationLogger}] = await Promise.all([
       import('./logging/debug-logger.js'),
       import('./logging/combination-logger.js'),
     ]);
     const debugLogStream = await fs.createWriteStream(
-      process.env['WIREIT_DEBUG_LOG_TO']!,
+      process.env['WIREIT_DEBUG_LOG_FILE']!,
     );
     const debugLogConsole = new Console(debugLogStream, debugLogStream, true);
     logger = new CombinationLogger(

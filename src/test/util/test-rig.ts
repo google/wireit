@@ -337,10 +337,10 @@ class ExecResult {
     env: Record<string, string | undefined>,
   ) {
     this.#command = command;
-    env['WIREIT_DEBUG_LOG_TO'] ??= pathlib.resolve(
+    env['WIREIT_DEBUG_LOG_FILE'] ??= pathlib.resolve(
       pathlib.join(cwd, '.wireit-debug.log'),
     );
-    this.#debugLogPath = env['WIREIT_DEBUG_LOG_TO']!;
+    this.#debugLogPath = env['WIREIT_DEBUG_LOG_FILE']!;
     // Remove any environment variables that start with "npm_", because those
     // will have been set by the "npm test" or similar command that launched
     // this test itself, and we want a more pristine simulation of running
