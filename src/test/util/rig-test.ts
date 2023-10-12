@@ -48,9 +48,14 @@ const timeout = <T>(
 
 export const rigTest = <T extends {rig?: WireitTestRig}>(
   handler: uvu.Callback<T & {rig: WireitTestRig}>,
-  ms = DEFAULT_UVU_TIMEOUT,
+  inputOptions?: {flaky?: boolean; ms?: number},
 ): uvu.Callback<T> => {
-  return async (context) => {
+  const {flaky, ms} = {
+    flaky: false,
+    ms: DEFAULT_UVU_TIMEOUT,
+    ...inputOptions,
+  };
+  const runTest: uvu.Callback<T> = async (context) => {
     await using rig = await (async () => {
       if (context.rig !== undefined) {
         // if the suite provides a rig, use it, it's already been
@@ -78,4 +83,16 @@ export const rigTest = <T extends {rig?: WireitTestRig}>(
       throw e;
     }
   };
+
+  if (flaky) {
+    return async (context) => {
+      try {
+        return await runTest(context);
+      } catch (e) {
+        console.log('Test failed, retrying...');
+      }
+      return await runTest(context);
+    };
+  }
+  return runTest;
 };
