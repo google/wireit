@@ -432,9 +432,8 @@ class ExecResult {
     if (!IS_WINDOWS) {
       process.kill(-this.#child.pid, 'SIGINT');
     } else {
-      // On Windows, we don't have signals, so we just send a Ctrl+C character
-      // to the child process's stdin.
-      this.#child.stdin.write('\x03');
+      // On Windows, we don't have signals, so we just kill the process.
+      this.kill();
     }
   }
 
