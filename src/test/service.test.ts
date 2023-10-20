@@ -1445,4 +1445,46 @@ test(
   ),
 );
 
+test(
+  `can abort a service while it's waiting on a dependency`,
+  // service
+  //    |
+  //    v
+  // standard
+  rigTest(async ({rig}) => {
+    const service = await rig.newCommand();
+    const standard = await rig.newCommand();
+    await rig.writeAtomic({
+      'package.json': {
+        scripts: {
+          service: 'wireit',
+          standard: 'wireit',
+        },
+        wireit: {
+          service: {
+            command: service.command,
+            service: true,
+            dependencies: ['standard'],
+          },
+          standard: {
+            command: standard.command,
+            files: ['input'],
+          },
+        },
+      },
+    });
+    await rig.write('input', '1');
+    const exec = rig.exec('npm run service');
+    const standardInv = await standard.nextInvocation();
+    await exec.waitForLog(
+      /0% \[0 \/ 2\] \[1 running\] \[0 services\] standard/,
+    );
+    // send a SIGINT to the service
+    exec.sendSigint();
+    // we close properly
+    await standardInv.closed;
+    await exec.exit;
+  }),
+);
+
 test.run();

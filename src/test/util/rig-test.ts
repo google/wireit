@@ -65,6 +65,7 @@ export const rigTest = <T extends {rig?: WireitTestRig}>(
         return context.rig;
       }
       const rig = new WireitTestRig();
+
       await rig.setup();
       return rig;
     })();
