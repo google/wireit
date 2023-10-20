@@ -1009,10 +1009,22 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         break;
       }
-      case 'initial':
       case 'executingDeps':
       case 'fingerprinting':
       case 'stoppingAdoptee':
+        this.#state.deferredFingerprint.resolve({
+          ok: false,
+          error: [
+            {
+              type: 'failure',
+              script: this._config,
+              reason: 'aborted',
+            },
+          ],
+        });
+        this.#enterStoppedState();
+        break;
+      case 'initial':
       case 'unstarted':
       case 'depsStarting': {
         this.#enterStoppedState();

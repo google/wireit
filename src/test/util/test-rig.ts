@@ -422,6 +422,22 @@ class ExecResult {
     return this.#exited.promise;
   }
 
+  sendSigint(): void {
+    if (!this.running) {
+      throw new Error("Can't kill child process because it is not running");
+    }
+    if (this.#child.pid === undefined) {
+      throw new Error("Can't kill child process because it has no pid");
+    }
+    if (!IS_WINDOWS) {
+      process.kill(-this.#child.pid, 'SIGINT');
+    } else {
+      // On Windows, we don't have signals, so we just send a Ctrl+C character
+      // to the child process's stdin.
+      this.#child.stdin.write('\x03');
+    }
+  }
+
   /**
    * Kill the child process.
    */

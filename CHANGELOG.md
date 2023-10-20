@@ -13,6 +13,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Fix our `npx wireit` detection so we continue to give a good error message
   with the latest version of `npm` when wireit is run this way.
 
+- Fix a bug where wireit would hang with an empty spinner after being killed
+  with CTRL-C when running a service whose dependencies were still starting.
+
 ## [0.14.0] - 2023-09-12
 
 ### Changed
