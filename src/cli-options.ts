@@ -190,7 +190,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
   const loggerResult = ((): Result<Logger> => {
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
-      if (process.env.CI) {
+      if (process.env.CI || !process.stdout.isTTY) {
         return {ok: true, value: new QuietCiLogger(packageRoot, console)};
       }
       return {ok: true, value: new QuietLogger(packageRoot, console)};
