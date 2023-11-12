@@ -40,11 +40,15 @@ const ACTIONS_CACHE_URL = requireEnv('ACTIONS_CACHE_URL');
 // shared to all workflow steps.
 const ACTIONS_RUNTIME_TOKEN = requireEnv('ACTIONS_RUNTIME_TOKEN');
 
+// URL needed by @actions/artifact package.
+const ACTIONS_RUNTIME_URL = requireEnv('ACTIONS_RUNTIME_URL');
+
 appendFileSync(
   GITHUB_ENV,
   `
 WIREIT_CACHE=github
 ACTIONS_CACHE_URL=${ACTIONS_CACHE_URL}
 ACTIONS_RUNTIME_TOKEN=${ACTIONS_RUNTIME_TOKEN}
+ACTIONS_RUNTIME_URL=${ACTIONS_RUNTIME_URL}
 `
 );
