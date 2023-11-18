@@ -9,8 +9,8 @@ import {readFile, stat} from 'node:fs/promises';
 // TODO string-template-parser
 
 export async function readEnvFile(filepath: string, entries: Array<[string, string]>): Promise<void> {
-  const fileStat = await stat(filepath);
-  if (!fileStat.isFile()) {
+  const fileStat = await stat(filepath).catch(() => null);
+  if (!fileStat || !fileStat.isFile()) {
     console.warn('Skipping non-file env file: ' + filepath);
     return;
   }
