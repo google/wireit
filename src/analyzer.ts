@@ -30,6 +30,7 @@ import type {
 } from './config.js';
 import type {Agent} from './cli-options.js';
 import {Logger} from './logging/logger.js';
+import {readEnvFile} from './read-env-file.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -630,7 +631,12 @@ export class Analyzer {
       files,
     );
 
-    const env = this.#processEnv(placeholder, packageJson, syntaxInfo, command);
+    const entries = this.#processEnv(placeholder, packageJson, syntaxInfo, command);
+    await this.#processEnvFile(placeholder, packageJson, syntaxInfo, command, entries);
+
+    // Sort for better fingerprint match rate.
+    entries.sort();
+    const env = Object.fromEntries(entries);
 
     if (placeholder.failures.length > 0) {
       // A script with locally-determined errors doesn't get upgraded to
@@ -1319,13 +1325,13 @@ export class Analyzer {
     packageJson: PackageJson,
     syntaxInfo: ScriptSyntaxInfo,
     command: JsonAstNode<string> | undefined,
-  ): Record<string, string> {
+  ): Array<[string, string]> {
     if (syntaxInfo.wireitConfigNode === undefined) {
-      return {};
+      return [];
     }
     const envNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['env']);
     if (envNode === undefined) {
-      return {};
+      return [];
     }
     if (command === undefined) {
       placeholder.failures.push({
@@ -1358,7 +1364,7 @@ export class Analyzer {
       });
     }
     if (envNode.children === undefined) {
-      return {};
+      return [];
     }
     const entries: Array<[string, string]> = [];
     for (const propNode of envNode.children) {
@@ -1428,8 +1434,67 @@ export class Analyzer {
       }
     }
     // Sort for better fingerprint match rate.
-    entries.sort();
-    return Object.fromEntries(entries);
+    return entries;
+  }
+
+  async #processEnvFile(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+    command: JsonAstNode<string> | undefined,
+    entries: Array<[string, string]>
+  ): Promise<void> {
+    if (syntaxInfo.wireitConfigNode === undefined) {
+      return;
+    }
+    const envFileNode = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['env-file']);
+    if (envFileNode === undefined) {
+      return;
+    }
+    if (command === undefined) {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: 'Can\'t set "env-file" unless "command" is set',
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: envFileNode.length, offset: envFileNode.offset},
+          },
+        },
+      });
+    }
+    if (envFileNode.type !== 'array') {
+      placeholder.failures.push({
+        type: 'failure',
+        reason: 'invalid-config-syntax',
+        script: placeholder,
+        diagnostic: {
+          severity: 'error',
+          message: 'Expected an array',
+          location: {
+            file: packageJson.jsonFile,
+            range: {length: envFileNode.length, offset: envFileNode.offset},
+          },
+        },
+      });
+    }
+    if (envFileNode.children === undefined) {
+      return;
+    }
+    const promiseEnvFiles: Array<Promise<void>> = [];
+    for (const propNode of envFileNode.children) {
+      if (propNode.type !== 'string') {
+        throw new Error(
+          'Internal error: expected array JSON node child to be string',
+        );
+      }
+      const envFile = propNode.value as string;
+      promiseEnvFiles.push(readEnvFile(envFile, entries));
+    }
+    await Promise.all(promiseEnvFiles);
   }
 
   /**

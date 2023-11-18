@@ -117,6 +117,13 @@
                 }
               ]
             }
+          },
+          "env-file": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "type": "object"
