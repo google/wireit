@@ -7,7 +7,7 @@
 import * as pathlib from 'path';
 import {unreachable} from '../util/unreachable.js';
 
-import type {Event} from '../event.js';
+import type {Event, Stderr, Stdout} from '../event.js';
 import type {Logger, Console} from './logger.js';
 import {type PackageReference, type ScriptReference} from '../config.js';
 import {DiagnosticPrinter} from '../error.js';
@@ -42,6 +42,8 @@ export class DefaultLogger implements Logger {
   readonly console: Console;
   readonly #diagnosticPrinter: DiagnosticPrinter;
 
+  private outputWrite: typeof DefaultLogger.prototype.outputWriteDebug;
+
   /**
    * @param rootPackage The npm package directory that the root script being
    * executed belongs to.
@@ -50,6 +52,15 @@ export class DefaultLogger implements Logger {
     this.#rootPackageDir = rootPackage;
     this.#diagnosticPrinter = new DiagnosticPrinter(this.#rootPackageDir);
     this.console = ourConsole;
+    this.outputWrite = process.env['WIREIT_LOGGER_PREFIX'] ? this.outputWriteDebug : this.outputWriteDefault;
+  }
+
+  private outputWriteDefault(this: void, stream: NodeJS.WritableStream, event: Stdout | Stderr) {
+    stream.write(event.data);
+  }
+
+  private outputWriteDebug(this: void, stream: NodeJS.WritableStream, event: Stdout | Stderr, label: string) {
+    stream.write(event.data.toString().split('\n').map(line => line.trim() ? `[${label}] ${line}` : line).join('\n'));
   }
 
   log(event: Event) {
@@ -222,11 +233,11 @@ export class DefaultLogger implements Logger {
           // TODO(aomarks) More advanced handling of output streams so that
           // output isn't simply interweaved.
           case 'stdout': {
-            this.console.stdout.write(event.data);
+            this.outputWrite(this.console.stdout, event, label);
             break;
           }
           case 'stderr': {
-            this.console.stderr.write(event.data);
+            this.outputWrite(this.console.stderr, event, label);
             break;
           }
         }

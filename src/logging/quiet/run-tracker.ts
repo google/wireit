@@ -600,6 +600,13 @@ export class QuietRunLogger implements Disposable {
     return state.hasBufferedOutput;
   }
 
+  private outputWrite = process.env['WIREIT_LOGGER_PREFIX'] ? (stream: NodeJS.WritableStream, output: Output) => {
+    const label = labelForScript(this.#rootPackage, output.script);
+    stream.write(output.data.toString().split('\n').map(line => line.trim() ? `[${label}] ${line}` : line).join('\n'));
+  } : (stream: NodeJS.WritableStream, output: Output) => {
+    stream.write(output.data);
+  }
+
   #handleOutput(event: Output): StatusLineResult {
     const key = scriptReferenceToString(event.script);
     const state = this.#running.get(key);
@@ -618,9 +625,9 @@ export class QuietRunLogger implements Disposable {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       using _pause = this.#statusLineWriter.clearUntilDisposed();
       if (event.stream === 'stdout') {
-        process.stdout.write(event.data);
+        this.outputWrite(process.stdout, event);
       } else {
-        process.stderr.write(event.data);
+        this.outputWrite(process.stderr, event);
       }
       return noChange;
     }
