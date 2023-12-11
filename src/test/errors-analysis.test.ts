@@ -2201,6 +2201,40 @@ test(
 );
 
 test(
+  'env entry value that is object with "default" property must be a string',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: {
+              FOO: {
+                external: true,
+                default: {}
+              },
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+      ❌ package.json:11:22 Expected "default" to be a string
+              "default": {}
+                         ~~`,
+    );
+  }),
+);
+
+test(
   "script with no command can't have env",
   rigTest(async ({rig}) => {
     await rig.write({

@@ -8,6 +8,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- Added a `default` option to the `env` setting for externally-provided environment variables to use when no value is provided.
+
 ### Changed
 
 - The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.

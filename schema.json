@@ -112,6 +112,10 @@
                     "external": {
                       "markdownDescription": "Do not re-use output if this externally-provided environment variable changes across iterations.\n\nFor more info see: https://github.com/google/wireit#indicating-external-environment-variables",
                       "const": true
+                    },
+                    "default": {
+                      "markdownDescription": "A default value to use when the environment variable is not provided externally.\n\nFor more info see: https://github.com/google/wireit#indicating-external-environment-variables",
+                      "type": "string"
                     }
                   }
                 }
