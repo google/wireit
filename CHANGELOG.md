@@ -12,6 +12,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.
 
+### Fixed
+
+- Handle missing file errors thrown while trying to fingerprint an input file.
+
 ## [0.14.1] - 2023-10-20
 
 ### Fixed

@@ -172,16 +172,37 @@ export class Fingerprint {
       // read) as a heuristic to detect files that have likely changed, and
       // otherwise re-use cached hashes that we store in e.g.
       // ".wireit/<script>/hashes".
-      fileHashes = await Promise.all(
-        files.map(async (file): Promise<[string, FileSha256HexDigest]> => {
+      let wasFileDeleted = false;
+      const globbedHashes = await Promise.all(
+        files.map(async (file): Promise<[string, FileSha256HexDigest]|undefined> => {
           const absolutePath = file.path;
           const hash = createHash('sha256');
-          for await (const chunk of await createReadStream(absolutePath)) {
-            hash.update(chunk as Buffer);
+          try {
+            const stream = await createReadStream(absolutePath);
+            for await (const chunk of stream) {
+              hash.update(chunk as Buffer);
+            }
+          } catch (error) {
+            // It's possible for a file to be deleted between the
+            // time it is globbed and the time it is fingerprinted.
+            const {code} = error as {code: string};
+            if (code === /* does not exist */ 'ENOENT') {
+              wasFileDeleted = true;
+              return undefined;
+            }
+            throw error;
           }
           return [file.path, hash.digest('hex') as FileSha256HexDigest];
         }),
       );
+
+      if ( wasFileDeleted ) {
+        fileHashes = globbedHashes.filter(
+          (fileHash): fileHash is [string, FileSha256HexDigest] => fileHash !== undefined
+        );
+      } else {
+        fileHashes = globbedHashes as [string, FileSha256HexDigest][];
+      }
     } else {
       fileHashes = [];
     }
