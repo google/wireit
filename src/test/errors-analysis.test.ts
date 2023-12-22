@@ -2214,7 +2214,7 @@ test(
             env: {
               FOO: {
                 external: true,
-                default: {}
+                default: {},
               },
             },
           },

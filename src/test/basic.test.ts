@@ -1266,7 +1266,7 @@ test(
               QUX: {
                 external: true,
                 default: 'qux-good',
-              }
+              },
             },
           },
         },
