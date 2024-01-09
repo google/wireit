@@ -25,6 +25,8 @@ import type {
 } from './config.js';
 import type {Failure} from './event.js';
 import type {Fingerprint} from './fingerprint.js';
+import { ExecutionResult } from './execution/base.js';
+import { convertExceptionToFailure } from './error.js';
 
 type Execution =
   | NoCommandScriptExecution
@@ -186,9 +188,14 @@ export class Executor {
     }
 
     const errors: Failure[] = [];
-    const rootExecutionResult = await this.getExecution(
-      this.#rootConfig,
-    ).execute();
+    let rootExecutionResult: ExecutionResult;
+    try {
+      rootExecutionResult = await this.getExecution(
+        this.#rootConfig,
+      ).execute();
+    } catch ( error ) {
+      rootExecutionResult = convertExceptionToFailure(error, this.#rootConfig);
+    }
     if (!rootExecutionResult.ok) {
       errors.push(...rootExecutionResult.error);
     }
