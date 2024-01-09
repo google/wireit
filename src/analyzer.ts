@@ -1421,9 +1421,31 @@ export class Analyzer {
           });
           continue;
         }
+        const defaultNode = findNodeAtLocation(val, ['default']);
+        if (defaultNode && defaultNode.type !== 'string') {
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            diagnostic: {
+              severity: 'error',
+              message: 'Expected "default" to be a string',
+              location: {
+                file: packageJson.jsonFile,
+                range: {
+                  length: (defaultNode ?? val).length,
+                  offset: (defaultNode ?? val).offset,
+                },
+              },
+            },
+          });
+          continue;
+        }
         const envValue = process.env[keyStr];
         if (envValue !== undefined) {
           entries.push([keyStr, envValue]);
+        } else if (defaultNode) {
+          entries.push([keyStr, defaultNode.value as string]);
         }
       }
     }
