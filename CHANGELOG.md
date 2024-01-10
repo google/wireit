@@ -15,6 +15,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.
+- Unhandled exceptions will now be handled more gracefully.
 
 ## [0.14.1] - 2023-10-20
 
