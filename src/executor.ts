@@ -36,10 +36,10 @@ type Execution =
 type ConfigToExecution<T extends ScriptConfig> = T extends NoCommandScriptConfig
   ? NoCommandScriptExecution
   : T extends StandardScriptConfig
-  ? StandardScriptExecution
-  : T extends ServiceScriptConfig
-  ? ServiceScriptExecution
-  : never;
+    ? StandardScriptExecution
+    : T extends ServiceScriptConfig
+      ? ServiceScriptExecution
+      : never;
 
 export type ServiceMap = Map<ScriptReferenceString, ServiceScriptExecution>;
 
