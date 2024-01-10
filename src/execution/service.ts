@@ -408,7 +408,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         void Fingerprint.compute(this._config, depFingerprints).then(
           (result) => {
-            this.#onFingerprinted(result);
+            if (!result.ok) {
+              this.#onFingerprintingErr(result.error);
+            } else {
+              this.#onFingerprinted(result.value);
+            }
           },
         );
         return;
@@ -463,6 +467,41 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       case 'starting':
       case 'readying':
       case 'started':
+      case 'stopping':
+      case 'failing':
+      case 'detached': {
+        throw unexpectedState(this.#state);
+      }
+      default: {
+        throw unknownState(this.#state);
+      }
+    }
+  }
+
+  #onFingerprintingErr(failure: Failure) {
+    switch (this.#state.id) {
+      case 'fingerprinting': {
+        const detached = this.#state.adoptee?.detach();
+        if (detached !== undefined) {
+          this.#enterStartedBrokenState(failure, detached);
+        } else {
+          this.#enterFailedState(failure);
+        }
+        return;
+      }
+      case 'failed':
+      case 'stopped': {
+        return;
+      }
+      case 'initial':
+      case 'executingDeps':
+      case 'stoppingAdoptee':
+      case 'unstarted':
+      case 'depsStarting':
+      case 'starting':
+      case 'readying':
+      case 'started':
+      case 'started-broken':
       case 'stopping':
       case 'failing':
       case 'detached': {
