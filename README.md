@@ -467,7 +467,8 @@ If an environment variable affects the behavior of a script but is set
 _externally_ (i.e. it is passed to the `wireit` parent process), set the `env`
 property to `{"external": true}`. This tells Wireit that if the value of an
 environment variable changes across executions of a script, then its output
-should not be re-used.
+should not be re-used. You may also set a `default` value for the variable
+to use when none is provided externally.
 
 ```json
 {
@@ -477,6 +478,10 @@ should not be re-used.
       "env": {
         "MY_VARIABLE": {
           "external": true
+        },
+        "MY_VARIABLE_2": {
+          "external": true,
+          "default": "foo"
         }
       }
     }
@@ -831,6 +836,7 @@ The following properties can be set inside `wireit.<script>` objects in
 | `clean`                   | `boolean \| "if-file-deleted"`     | `true`                  | [Delete output files before running](#cleaning-output).                                                                         |
 | `env`                     | `Record<string, string \| object>` | `false`                 | [Environment variables](#environment-variables) to set when running this command, or that are external and affect the behavior. |
 | `env[i].external`         | `true \| undefined`                | `undefined`             | `true` if an [environment variable](#environment-variables) is set externally and affects the script's behavior.                |
+| `env[i].default`          | `string \| undefined`              | `undefined`             | Default value to use when an external [environment variable](#environment-variables) is not provided.                           |
 | `service`                 | `boolean`                          | `false`                 | [Whether this script is long-running, e.g. a server](#cleaning-output).                                                         |
 | `packageLocks`            | `string[]`                         | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                                                  |
 

@@ -1263,6 +1263,10 @@ test(
               BAR: {
                 external: true,
               },
+              QUX: {
+                external: true,
+                default: 'qux-good',
+              },
             },
           },
         },
@@ -1284,6 +1288,7 @@ test(
     assert.equal(env.FOO, 'foo-good');
     assert.equal(env.BAR, 'bar-good');
     assert.equal(env.BAZ, 'baz-good');
+    assert.equal(env.QUX, 'qux-good');
     inv.exit(0);
     assert.equal((await wireit.exit).code, 0);
   }),
