@@ -46,9 +46,7 @@ export class WorkerPool {
       await waiter.promise;
       if (this.#availableWorkers <= 0) {
         throw new Error(
-          `Internal error: expected availableWorkers to be positive after task was awoken, but was ${
-            this.#availableWorkers
-          }`,
+          `Internal error: expected availableWorkers to be positive after task was awoken, but was ${this.#availableWorkers}`,
         );
       }
     }
@@ -62,9 +60,7 @@ export class WorkerPool {
         // case.
         // eslint-disable-next-line no-unsafe-finally
         throw new Error(
-          `Internal error: expected availableWorkers to be positive after incrementing, but was ${
-            this.#availableWorkers
-          }`,
+          `Internal error: expected availableWorkers to be positive after incrementing, but was ${this.#availableWorkers}`,
         );
       }
       this.#waitingWorkers.pop()?.resolve();

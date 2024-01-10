@@ -6,11 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+<!-- ## Unreleased -->
+
+## [0.14.2] - 2024-01-10
+
+### Added
+
+- Added a `default` option to the `env` setting for externally-provided environment variables to use when no value is provided.
 
 ### Changed
 
 - The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.
+- The local cache strategy will now create copy-on-write files when supported. This can improve performance when copying output files either into the cache or restoring from out of it, as the files' underlying data doesn't need to be copied, only filesystem metadata.
+- Unhandled exceptions will now be handled more gracefully.
 
 ### Fixed
 

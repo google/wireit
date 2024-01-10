@@ -65,8 +65,8 @@ export class WatchLogger implements Logger {
       event.type === 'output'
         ? event.stream
         : event.type === 'info'
-        ? event.detail
-        : event.reason;
+          ? event.detail
+          : event.reason;
     switch (code) {
       case 'fresh':
       case 'no-command':
