@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- ## Unreleased -->
 
+## [0.14.3] - 2024-01-10
+
+### Fixed
+
+- Handle missing file errors thrown while trying to fingerprint an input file with a graceful abort.
+
 ## [0.14.2] - 2024-01-10
 
 ### Added
@@ -19,10 +25,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.
 - The local cache strategy will now create copy-on-write files when supported. This can improve performance when copying output files either into the cache or restoring from out of it, as the files' underlying data doesn't need to be copied, only filesystem metadata.
 - Unhandled exceptions will now be handled more gracefully.
-
-### Fixed
-
-- Handle missing file errors thrown while trying to fingerprint an input file.
 
 ## [0.14.1] - 2023-10-20
 
