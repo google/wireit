@@ -15,6 +15,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.
+- The local cache strategy will now create copy-on-write files when supported. This can improve performance when copying output files either into the cache or restoring from out of it, as the files' underlying data doesn't need to be copied, only filesystem metadata.
 
 ## [0.14.1] - 2023-10-20
 
