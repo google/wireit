@@ -14,6 +14,8 @@ import type {
   ScriptReferenceString,
   Dependency,
 } from './config.js';
+import {Result} from './error.js';
+import {Failure} from './event.js';
 
 /**
  * All meaningful inputs of a script. Used for determining if a script is fresh,
@@ -131,7 +133,7 @@ export class Fingerprint {
   static async compute(
     script: ScriptConfig,
     dependencyFingerprints: Array<[Dependency, Fingerprint]>,
-  ): Promise<Fingerprint> {
+  ): Promise<Result<Fingerprint, Failure>> {
     let allDependenciesAreFullyTracked = true;
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintSha256HexDigest]
@@ -172,9 +174,9 @@ export class Fingerprint {
       // read) as a heuristic to detect files that have likely changed, and
       // otherwise re-use cached hashes that we store in e.g.
       // ".wireit/<script>/hashes".
-      let wasFileDeleted = false;
-      const globbedHashes = await Promise.all(
-        files.map(async (file): Promise<[string, FileSha256HexDigest]|undefined> => {
+      const erroredFilePaths: string[] = [];
+      fileHashes = await Promise.all(
+        files.map(async (file): Promise<[string, FileSha256HexDigest]> => {
           const absolutePath = file.path;
           const hash = createHash('sha256');
           try {
@@ -186,22 +188,25 @@ export class Fingerprint {
             // It's possible for a file to be deleted between the
             // time it is globbed and the time it is fingerprinted.
             const {code} = error as {code: string};
-            if (code === /* does not exist */ 'ENOENT') {
-              wasFileDeleted = true;
-              return undefined;
+            if (code !== /* does not exist */ 'ENOENT') {
+              throw error;
             }
-            throw error;
+            erroredFilePaths.push(absolutePath);
           }
           return [file.path, hash.digest('hex') as FileSha256HexDigest];
         }),
       );
 
-      if ( wasFileDeleted ) {
-        fileHashes = globbedHashes.filter(
-          (fileHash): fileHash is [string, FileSha256HexDigest] => fileHash !== undefined
-        );
-      } else {
-        fileHashes = globbedHashes as [string, FileSha256HexDigest][];
+      if (erroredFilePaths.length > 0) {
+        return {
+          ok: false,
+          error: {
+            type: 'failure',
+            reason: 'files-deleted-during-fingerprinting',
+            script: script,
+            filePaths: erroredFilePaths,
+          },
+        };
       }
     } else {
       fileHashes = [];
@@ -253,7 +258,7 @@ export class Fingerprint {
       env: script.env,
     };
     fingerprint.#data = data as FingerprintData;
-    return fingerprint;
+    return {ok: true, value: fingerprint};
   }
 
   #str?: FingerprintString;

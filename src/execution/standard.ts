@@ -79,10 +79,17 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         // Note we must wait for dependencies to finish before generating the
         // cache key, because a dependency could create or modify an input file to
         // this script, which would affect the key.
-        const fingerprint = await Fingerprint.compute(
+        const fingerprintResponse = await Fingerprint.compute(
           this._config,
           dependencyFingerprints.value,
         );
+        if (!fingerprintResponse.ok) {
+          return {
+            ok: false,
+            error: [fingerprintResponse.error],
+          };
+        }
+        const fingerprint = fingerprintResponse.value;
         if (
           this._executor.failedInPreviousWatchIteration(
             this._config,

@@ -100,7 +100,8 @@ export type Failure =
   | DependencyInvalid
   | ServiceExitedUnexpectedly
   | DependencyServiceExitedUnexpectedly
-  | Aborted;
+  | Aborted
+  | FilesDeletedDuringFingerprinting;
 
 interface ErrorBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -279,6 +280,15 @@ export interface DependencyServiceExitedUnexpectedly extends ErrorBase {
  */
 export interface Aborted extends ErrorBase {
   reason: 'aborted';
+}
+
+/**
+ * A file was deleting after globbing but before fingerprinting and
+ * was unable to be read.
+ */
+export interface FilesDeletedDuringFingerprinting extends ErrorBase {
+  reason: 'files-deleted-during-fingerprinting';
+  filePaths: string[];
 }
 
 /**

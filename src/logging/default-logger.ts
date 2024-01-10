@@ -201,6 +201,14 @@ export class DefaultLogger implements Logger {
             this.console.error(`❌${prefix} Service exited unexpectedly`);
             break;
           }
+          case 'files-deleted-during-fingerprinting': {
+            for (const filePath of event.filePaths) {
+              this.console.error(
+                `❌${prefix} "${filePath}" was deleted during fingerprinting.`,
+              );
+            }
+            break;
+          }
           case 'aborted':
           case 'dependency-service-exited-unexpectedly': {
             // These event isn't very useful to log, because they are downstream
