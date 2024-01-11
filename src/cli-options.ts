@@ -17,14 +17,26 @@ import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
-  // Recent versions of npm set this environment variable that tells us the
-  // package.
-  const packageJsonPath = process.env.npm_package_json;
-  if (packageJsonPath) {
-    return pathlib.dirname(packageJsonPath);
+  // Recent versions of npm and yarn set the `npm_package_json` environment
+  // variable.
+  //
+  // `yarn` will only find `wireit` with the `-T` flag, which also sets
+  // `npm_package_json` to the package.json at the project root, even if we're
+  // in another package.
+  //
+  // Therefore, trust `npm_package_json` when in npm, but introspect the
+  // filesystem otherwise.
+
+  const agent = getNpmUserAgent();
+
+  if (agent === 'npm') {
+    const packageJsonPath = process.env.npm_package_json;
+    if (packageJsonPath) {
+      return pathlib.dirname(packageJsonPath);
+    }
   }
-  // Older versions of npm, as well as yarn and pnpm, don't set this variable,
-  // so we have to find the nearest package.json by walking up the filesystem.
+
+  // Find the nearest package.json by walking up the filesystem.
   let maybePackageDir = process.cwd();
   while (true) {
     try {
