@@ -6,8 +6,10 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
+import {dedent} from 'ts-dedent';
 import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
+import {injectYarnBerryToRig} from './util/yarn-berry.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 
@@ -876,6 +878,109 @@ test(
       assert.equal((await exec.exit).code, 0);
       assert.equal(cmdA.numInvocations, 2);
       assert.equal(cmdB.numInvocations, 1);
+    }
+  }),
+);
+
+test(
+  'commands can be run locally in yarn berry',
+  rigTest(async ({rig}) => {
+    await injectYarnBerryToRig(rig);
+
+    const rootCmd = await rig.newCommand();
+    const innerCmd = await rig.newCommand();
+
+    const originalLock = await rig.read('yarn.lock');
+
+    await rig.write({
+      'package.json': {
+        private: true,
+        workspaces: ['packages/*'],
+        scripts: {
+          cmd: 'yarn run -B wireit',
+        },
+        wireit: {
+          cmd: {
+            command: rootCmd.command,
+          },
+        },
+        devDependencies: {
+          wireit: '*',
+        },
+        resolutions: {
+          wireit: `portal:${process.cwd()}`,
+        },
+      },
+
+      'packages/inner/package.json': {
+        scripts: {
+          cmd: 'yarn run -TB wireit',
+        },
+        wireit: {
+          cmd: {
+            command: innerCmd.command,
+          },
+        },
+      },
+
+      // On a real system, `yarn` should do this automatically; however, in this
+      // test rig, a stale copy (`originalLock`) remains, even if we manually
+      // run `yarn`.  Therefore, we manually update the lockfile here to include
+      // the inner package.
+      'yarn.lock':
+        originalLock +
+        dedent`
+
+        "inner-d81e84@workspace:packages/inner":
+          version: 0.0.0-use.local
+          resolution: "inner-d81e84@workspace:packages/inner"
+          languageName: unknown
+          linkType: soft
+
+        "wireit@portal:${process.cwd()}::locator=root-workspace-0b6124%40workspace%3A.":
+          version: 0.0.0-use.local
+          resolution: "wireit@portal:${process.cwd()}::locator=root-workspace-0b6124%40workspace%3A."
+          dependencies:
+            braces: "npm:^3.0.2"
+            chokidar: "npm:^3.5.3"
+            dedent: "npm:^1.5.1"
+            fast-glob: "npm:^3.2.11"
+            jsonc-parser: "npm:^3.0.0"
+            proper-lockfile: "npm:^4.1.2"
+            ts-dedent: "npm:^2.2.0"
+          bin:
+            wireit: bin/wireit.js
+          languageName: node
+          linkType: soft
+      `,
+    });
+
+    // this is what should modify the lockfile, so we don't have to do it
+    // manually
+    rig.exec('yarn');
+
+    // logging: can be deleted once this works
+    //
+    // since the `.bin` is already set up by the test rig, IDK if we should need to
+    // modify the lockfile to include wireit.  however, it's saying
+    //
+    //     Usage Error: Couldn't find a script name "wireit" in the top-level (used by inner-d81e84@workspace:packages/inner).
+    //
+    // so i'm trying to make it work
+    rig.exec('ls -la node_modules/.bin');
+    rig.read('yarn.lock').then(console.log);
+
+    {
+      const exec = rig.exec('yarn run cmd', {cwd: 'packages/inner'});
+      (
+        await Promise.race([
+          innerCmd.nextInvocation(),
+          rootCmd.nextInvocation(),
+        ])
+      ).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(innerCmd.numInvocations, 1);
+      assert.equal(rootCmd.numInvocations, 0);
     }
   }),
 );
