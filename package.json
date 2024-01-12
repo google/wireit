@@ -424,6 +424,7 @@
     "pnpm": "^8.7.1",
     "prettier": "^3.0.3",
     "selfsigned": "^2.0.1",
+    "ts-dedent": "^2.2.0",
     "typescript": "^5.2.2",
     "uvu": "^0.5.3",
     "vscode-languageclient": "^9.0.1",
