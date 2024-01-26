@@ -221,6 +221,7 @@ export async function glob(
         // inefficient and would also break brace escaping.
         braceExpansion: false,
       });
+      const potentiallyProblematicSymlinkParents = new Set<string>();
       for (const match of matches) {
         // Normalize the path so that:
         //
@@ -249,6 +250,59 @@ export async function glob(
           }
         }
         combinedMap.set(match.path, match);
+        if (
+          opts.expandDirectories &&
+          !opts.followSymlinks &&
+          match.dirent.isSymbolicLink()
+        ) {
+          potentiallyProblematicSymlinkParents.add(match.path);
+        }
+      }
+      if (potentiallyProblematicSymlinkParents.size > 0) {
+        // When the user passes a path "foo" and expandDirectories is true, we
+        // convert the pattern to "foo/**" (see above about expandDirectories
+        // for why).
+        //
+        // However, what if "foo" is a symlink to a folder with some children,
+        // and followSymbolicLinks is false (which is the combination of
+        // settings we use when wireit globs output files for caching)?
+        //
+        // Well, if you pass "foo/**" to fast-glob where "foo" is a symlink to a
+        // directory, it's actually going to follow the symlink and return its
+        // children, even if followSymbolicLinks is false. (This seems fairly
+        // reasonable, since otherwise it would always have to check all parent
+        // directories of a path before reading any directory contents in case
+        // there's a symlink somewhere up the tree).
+        //
+        // But that's bad for us, because if a wireit user has a script that
+        // creates a symlink to a directory, and they list that symlink directly
+        // in their output paths, then for the purposes of caching we really
+        // just want to just restore the literal symlink, and not copy its
+        // contents. (Otherwise it would be a symlink when built the first time,
+        // but a regular folder with children when restored from cache).
+        //
+        // So, since we don't know whether we might have problematically
+        // appended a "/**" to a symlink, we will instead filter out child
+        // matches. (Otherwise we'd need to check every given path to see if
+        // it's a symlink, and directly listed symlinks are pretty rare, this
+        // post-hoc approach is probably more efficient on average).
+        for (const match of combinedMap.values()) {
+          // Walk up the file hierarchy to check if any parent was a symlink
+          // that was also directly matched by the glob.
+          let child = match.path;
+          while (true) {
+            const parent = pathlib.dirname(child);
+            if (parent === child) {
+              // Reached the filesystem root.
+              break;
+            }
+            if (potentiallyProblematicSymlinkParents.has(parent)) {
+              combinedMap.delete(match.path);
+              break;
+            }
+            child = parent;
+          }
+        }
       }
     }),
   );

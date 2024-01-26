@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## Unreleased
+
+### Fixed
+
+- When listing a symlink that points to a directory in `output` files, the
+  symlink will now be directly cached as a symlink, instead of its children
+  being cached. This also fixes an `file already exists, symlink` exception that
+  could occur in the same situation.
 
 ## [0.14.3] - 2024-01-10
 
