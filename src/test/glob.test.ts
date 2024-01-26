@@ -610,6 +610,23 @@ for (const mode of ['once', 'watch'] as const) {
       }),
   );
 
+  skipIfWatch(
+    `[${mode}] does not expand directly specified symlinked directories when followSymlinks=false`,
+    ({check}) =>
+      check({
+        mode,
+        files: [
+          'target/foo',
+          {target: 'target', path: 'symlink', windowsType: 'dir'},
+        ],
+        patterns: ['symlink'],
+        expected: ['symlink'],
+        followSymlinks: false,
+        includeDirectories: true,
+        expandDirectories: true,
+      }),
+  );
+
   test(`[${mode}] dirent tags files`, async ({rig}) => {
     await rig.touch('foo');
     const actual = await glob(['foo'], {
