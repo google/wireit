@@ -2,5 +2,5 @@ name: 'wireit-setup-github-actions-caching'
 author: 'Google LLC'
 description: "Enables Wireit's GitHub Actions caching mode and exposes required environment variables"
 runs:
-  using: 'node16'
+  using: 'node20'
   main: 'index.js'
