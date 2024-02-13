@@ -412,7 +412,7 @@
     "@types/selfsigned": "^2.0.1",
     "@types/vscode": "^1.66.0",
     "@typescript-eslint/eslint-plugin": "^6.5.0",
-    "@typescript-eslint/parser": "^6.5.0",
+    "@typescript-eslint/parser": "^7.0.1",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^2.22.0",
     "cmd-shim": "^6.0.0",
