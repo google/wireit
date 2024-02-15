@@ -20,7 +20,7 @@
     "wireit.svg"
   ],
   "engines": {
-    "node": ">=14.14.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "build": "wireit",

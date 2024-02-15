@@ -908,7 +908,7 @@ cache](#caching).
 - The environment variable values configured in `env`.
 - The system platform (e.g. `linux`, `win32`).
 - The system CPU architecture (e.g. `x64`).
-- The system Node version (e.g. `16.7.0`).
+- The system Node version (e.g. `20.11.1`).
 - The fingerprint of all transitive dependencies, unless `cascade` is set to
   `false`.
 
@@ -921,12 +921,9 @@ input also affects the fingerprint:
 
 Wireit is supported on Linux, macOS, and Windows.
 
-Wireit is supported on Node Current (20), LTS (18), and Maintenance (16).
-See [Node releases](https://nodejs.org/en/about/releases/) for the schedule.
-
-> **Warning**
-> Wireit will drop support for Node 16 soon after it reaches end-of-life on
-> 2023-09-11. We recommend upgrading to Node 20.
+Wireit is supported on Node Current (21), Active LTS (20), and Maintenance LTS
+(18). See [Node releases](https://nodejs.org/en/about/releases/) for the
+schedule.
 
 Wireit is supported on the npm versions that ship with the latest versions of
 the above supported Node versions (6 and 8), Yarn Classic (1), Yarn Berry (3),
