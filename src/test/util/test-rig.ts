@@ -64,22 +64,30 @@ export class WireitTestRig
    */
   override async setup() {
     await super.setup();
-    const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
-    const absWireitTempInstallPath = pathlib.resolve(
-      this.temp,
-      'node_modules',
-      '.bin',
-      'wireit',
+
+    await Promise.all(
+      [['wireit', ['bin', 'wireit.js']] as const].map(
+        async ([name, pathParts]) => {
+          const binaryPath = pathlib.resolve(repoRoot, ...pathParts);
+          const tempInstallPath = pathlib.resolve(
+            this.temp,
+            'node_modules',
+            '.bin',
+            name,
+          );
+
+          if (IS_WINDOWS) {
+            // Npm install works differently on Windows, since it won't recognize a
+            // shebang like "#!/usr/bin/env node". Npm instead uses the cmd-shim
+            // package to generate Windows shell wrappers for each binary, so we do
+            // that here too.
+            await cmdShim(binaryPath, tempInstallPath);
+          } else {
+            await this.symlink(binaryPath, tempInstallPath, 'file');
+          }
+        },
+      ),
     );
-    if (IS_WINDOWS) {
-      // Npm install works differently on Windows, since it won't recognize a
-      // shebang like "#!/usr/bin/env node". Npm instead uses the cmd-shim
-      // package to generate Windows shell wrappers for each binary, so we do
-      // that here too.
-      await cmdShim(absWireitBinaryPath, absWireitTempInstallPath);
-    } else {
-      await this.symlink(absWireitBinaryPath, absWireitTempInstallPath, 'file');
-    }
   }
 
   /**
