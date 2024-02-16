@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Changed
+
+- Updated `engines` in `package.json` so that users of Node 16 and 17 will get
+  install warnings (consistent with `0.13.0` which already raised the minimum
+  supported version to Node 18).
+
 ## [0.14.4] - 2024-01-26
 
 ### Fixed

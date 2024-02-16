@@ -20,7 +20,7 @@
     "wireit.svg"
   ],
   "engines": {
-    "node": ">=14.14.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "build": "wireit",
@@ -411,12 +411,12 @@
     "@types/proper-lockfile": "^4.1.2",
     "@types/selfsigned": "^2.0.1",
     "@types/vscode": "^1.66.0",
-    "@typescript-eslint/eslint-plugin": "^6.5.0",
-    "@typescript-eslint/parser": "^6.5.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.1",
+    "@typescript-eslint/parser": "^7.0.1",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^2.22.0",
     "cmd-shim": "^6.0.0",
-    "esbuild": "^0.19.2",
+    "esbuild": "^0.20.0",
     "eslint": "^8.48.0",
     "eslint-plugin-no-only-tests": "^3.1.0",
     "jsonc-parser": "^3.0.0",

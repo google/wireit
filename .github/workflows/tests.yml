@@ -15,15 +15,17 @@ jobs:
           - node: 18
             os: ubuntu-22.04
           - node: 18
-            os: macos-12
+            os: macos-13
           - node: 18
             os: windows-2022
           - node: 20
             os: ubuntu-22.04
           - node: 20
-            os: macos-12
+            os: macos-13
           - node: 20
             os: windows-2022
+          - node: 21
+            os: ubuntu-22.04
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
