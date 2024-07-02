@@ -5,7 +5,7 @@
  */
 
 import fastGlob from 'fast-glob';
-import braces from 'braces';
+import braces from 'brace-expansion';
 import * as pathlib from 'path';
 
 import type {Entry} from 'fast-glob';
@@ -91,7 +91,8 @@ export async function glob(
     // can reliably interpret the syntax of the pattern. For example, for
     // re-rooting we need to check for a leading `/`, but we can't do that
     // directly on `{/foo,/bar}`.
-    for (const expanded of braces(pattern, {expand: true})) {
+    const allExpanded = pattern === '' ? [''] : braces(pattern);
+    for (const expanded of allExpanded) {
       expandedPatterns.push(expanded);
       if (opts.expandDirectories) {
         // Also include a recursive-children version of every pattern, in case
