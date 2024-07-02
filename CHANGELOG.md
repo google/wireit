@@ -14,7 +14,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   install warnings (consistent with `0.13.0` which already raised the minimum
   supported version to Node 18).
 
-- Replaced `braces` dependency with smaller `brace-extension` dependency.
+- Replaced `braces` dependency with smaller `brace-expansion` dependency.
 
 ## [0.14.4] - 2024-01-26
 
