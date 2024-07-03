@@ -416,7 +416,7 @@
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^2.22.0",
     "cmd-shim": "^6.0.0",
-    "esbuild": "^0.20.0",
+    "esbuild": "^0.23.0",
     "eslint": "^8.48.0",
     "eslint-plugin-no-only-tests": "^3.1.0",
     "jsonc-parser": "^3.0.0",
