@@ -1019,7 +1019,38 @@ test(
 
     const wireit = rig.exec('npm run main');
     const inv = await main.nextInvocation();
-    wireit.kill();
+    wireit.kill('SIGINT');
+    await inv.closed;
+    await wireit.exit;
+    assert.equal(main.numInvocations, 1);
+    // on windows we just die without reporting anything when we get a SIGINT
+    if (!IS_WINDOWS) {
+      await wireit.waitForLog(/❌ \[main\] killed/);
+      await wireit.waitForLog(/❌ 1 script failed/);
+    }
+  }),
+);
+
+test(
+  'top-level SIGTERM kills running scripts',
+  rigTest(async ({rig}) => {
+    const main = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {
+            command: main.command,
+          },
+        },
+      },
+    });
+
+    const wireit = rig.exec('npm run main');
+    const inv = await main.nextInvocation();
+    wireit.kill('SIGTERM');
     await inv.closed;
     await wireit.exit;
     assert.equal(main.numInvocations, 1);
