@@ -8,6 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Fixed
+
+- Wireit will now shut down its child processes gracefully when receiving
+  `SIGTERM`. Previously only `SIGINT` was listened for.
+
 ### Changed
 
 - Updated `engines` in `package.json` so that users of Node 16 and 17 will get

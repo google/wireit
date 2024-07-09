@@ -81,6 +81,9 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
     process.on('SIGINT', () => {
       watcher.abort();
     });
+    process.on('SIGTERM', () => {
+      watcher.abort();
+    });
     await watcher.watch();
     return {ok: true, value: undefined};
   } else {
@@ -99,6 +102,9 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       false,
     );
     process.on('SIGINT', () => {
+      executor.abort();
+    });
+    process.on('SIGTERM', () => {
       executor.abort();
     });
     const {persistentServices, errors} = await executor.execute();

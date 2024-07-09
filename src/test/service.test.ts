@@ -1479,8 +1479,7 @@ test(
     await exec.waitForLog(
       /0% \[0 \/ 2\] \[1 running\] \[0 services\] standard/,
     );
-    // send a SIGINT to the service
-    exec.sendSigint();
+    exec.kill();
     // we close properly
     await standardInv.closed;
     await exec.exit;

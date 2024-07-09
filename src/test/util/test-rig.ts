@@ -148,7 +148,7 @@ export class WireitTestRig
       // at the end of the test, and if any are still running then the test
       // has probably failed from timeout. If the process is hung, we'll
       // already see that from the timeout.
-      child.kill({force: true});
+      child.kill('SIGTERM');
       await child.exit;
     }
     await super.cleanup();
@@ -421,26 +421,10 @@ class ExecResult {
   get exit(): Promise<ExitResult> {
     return this.#exited.promise;
   }
-
-  sendSigint(): void {
-    if (!this.running) {
-      throw new Error("Can't kill child process because it is not running");
-    }
-    if (this.#child.pid === undefined) {
-      throw new Error("Can't kill child process because it has no pid");
-    }
-    if (!IS_WINDOWS) {
-      process.kill(-this.#child.pid, 'SIGINT');
-    } else {
-      // On Windows, we don't have signals, so we just kill the process.
-      this.kill();
-    }
-  }
-
   /**
-   * Kill the child process.
+   * Send a kill signal to the child process. SIGINT by default.
    */
-  kill({force} = {force: false}): void {
+  kill(signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL' = 'SIGINT'): void {
     if (!this.running) {
       throw new Error("Can't kill child process because it is not running");
     }
@@ -459,11 +443,7 @@ class ExecResult {
       // own process group. Passing the negative of the child's pid kills all
       // processes in the group (without the negative only the leader "sh"
       // process would be killed).
-      if (force) {
-        process.kill(-this.#child.pid, 'SIGKILL');
-      } else {
-        process.kill(-this.#child.pid, 'SIGINT');
-      }
+      process.kill(-this.#child.pid, signal);
     }
   }
 
