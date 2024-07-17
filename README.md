@@ -489,6 +489,22 @@ to use when none is provided externally.
 }
 ```
 
+### Parsing the env file
+
+```json
+{
+  "wireit": {
+    "my-script": {
+      "command": "my-command",
+      "env-file": [
+        ".env",
+        ".dev.env"
+      ]
+    }
+  }
+}
+```
+
 ## Services
 
 By default, Wireit assumes that your scripts will eventually exit by themselves.
