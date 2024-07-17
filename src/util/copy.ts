@@ -112,11 +112,11 @@ const copySymlinkGracefully = async (
     // need to check the type of the target.
     const windowsType = IS_WINDOWS
       ? // The target could be in the source or the destination, check both.
-        (await detectWindowsSymlinkType(target, src)) ??
+        ((await detectWindowsSymlinkType(target, src)) ??
         (await detectWindowsSymlinkType(target, dest)) ??
         // It doesn't exist in either place, so there's no way to know. Just
         // assume "file".
-        'file'
+        'file')
       : undefined;
     await fs.symlink(target, dest, windowsType);
   } catch (error) {
