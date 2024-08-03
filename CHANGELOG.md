@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## Unreleased
+
+### Added
+
+- Added support for the `v2` version of the
+  `google/wireit@setup-github-actions-caching` action, which provides improved
+  security. All users are advised to upgrade to
+  `google/wireit@setup-github-actions-caching/v2`.
 
 ## [0.14.5] - 2024-07-08
 
