@@ -180,13 +180,16 @@ test(
 test(
   'github caching without ACTIONS_CACHE_URL',
   rigTest(async ({rig}) => {
+    const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
         scripts: {
           main: 'wireit',
         },
         wireit: {
-          main: {command: (await rig.newCommand()).command},
+          main: {
+            command: cmd.command,
+          },
         },
       },
     });
@@ -197,8 +200,9 @@ test(
         ACTIONS_RUNTIME_TOKEN: 'token',
       },
     });
+    (await cmd.nextInvocation()).exit(0);
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.equal(done.code, 0);
     assert.match(
       done.stderr,
       `
@@ -210,13 +214,16 @@ test(
 test(
   'github caching but ACTIONS_CACHE_URL does not end in slash',
   rigTest(async ({rig}) => {
+    const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
         scripts: {
           main: 'wireit',
         },
         wireit: {
-          main: {command: (await rig.newCommand()).command},
+          main: {
+            command: cmd.command,
+          },
         },
       },
     });
@@ -227,8 +234,9 @@ test(
         ACTIONS_RUNTIME_TOKEN: 'token',
       },
     });
+    (await cmd.nextInvocation()).exit(0);
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.equal(done.code, 0);
     assert.match(
       done.stderr,
       `
@@ -240,13 +248,16 @@ test(
 test(
   'github caching without ACTIONS_RUNTIME_TOKEN',
   rigTest(async ({rig}) => {
+    const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
         scripts: {
           main: 'wireit',
         },
         wireit: {
-          main: {command: (await rig.newCommand()).command},
+          main: {
+            command: cmd.command,
+          },
         },
       },
     });
@@ -257,8 +268,9 @@ test(
         ACTIONS_RUNTIME_TOKEN: undefined,
       },
     });
+    (await cmd.nextInvocation()).exit(0);
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.equal(done.code, 0);
     assert.match(
       done.stderr,
       `
