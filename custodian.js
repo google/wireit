@@ -39,7 +39,7 @@ for (let i = 0; port === undefined && i < MAX_TRIES; i++) {
     const candidate = randIntInclusive(49152, 65535);
     console.log(`[custodian] Trying port ${candidate}`);
     server.once("error", resolve);
-    server.listen(candidate, () => {
+    server.listen("127.0.0.1", candidate, () => {
       port = candidate;
       resolve();
     });
@@ -63,4 +63,3 @@ WIREIT_CACHE_GITHUB_CUSTODIAN_PORT=${port}
   console.error("[custodian] Could not find a free port");
   process.send(1, () => process.exit(1));
 }
-
