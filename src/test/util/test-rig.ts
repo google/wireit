@@ -168,17 +168,22 @@ export class WireitTestRig
     this._assertState('running');
     const cwd = this.#resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
+      // GitHub Actions sets CI=true, but we want our tests to act like they are
+      // running locally by default, even when they are actually running on CI.
+      CI: undefined,
+      // Remove all WIREIT_ prefixed variables because we don't want our tests
+      // to inherit any configuration that is for our CI environment.
+      ...Object.fromEntries(
+        Object.keys(process.env)
+          .filter((name) => name.startsWith('WIREIT_'))
+          .map((name) => [name, undefined]),
+      ),
       // We hard code the parallelism here because by default we infer a value
       // based on the number of cores we find on the machine, but we want tests
       // to behave as consistently as possible across machines.
       WIREIT_PARALLEL: '10',
-      // GitHub Actions sets CI=true, but we want our tests to act like they are
-      // running locally by default, even when they are actually running on CI.
-      CI: undefined,
       // Unset GitHub Actions caching environment variables that are set when we
-      // are running these tests in CI.
-      WIREIT_CACHE: undefined,
-      WIREIT_FAILURES: undefined,
+      // are running these tests in CI using the v1 version of the action.
       ACTIONS_CACHE_URL: undefined,
       ACTIONS_RUNTIME_TOKEN: undefined,
       // In npm 6 (which ships with Node 14), "npm run" only includes the
