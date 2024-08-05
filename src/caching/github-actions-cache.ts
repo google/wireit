@@ -15,6 +15,7 @@ import '../util/dispose.js';
 import {fileBudget} from '../util/fs.js';
 import {execFile} from 'child_process';
 import '../util/dispose.js';
+import {inspect} from 'util';
 
 import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
@@ -82,7 +83,7 @@ export class GitHubActionsCache implements Cache {
         },
       };
     }
-    const custodianUrl = `http://localhost:${custodianPort}`;
+    const custodianUrl = `http://127.0.0.1:${custodianPort}`;
     let result: {
       caching: {
         github: {
@@ -105,7 +106,7 @@ export class GitHubActionsCache implements Cache {
           reason: 'unknown-error-thrown',
           error: new Error(
             `Error communicating with cache token mediator service: ` +
-              String(error),
+              inspect(error),
           ),
         },
       };
