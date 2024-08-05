@@ -47,7 +47,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      - uses: google/wireit@setup-github-actions-caching/v2
+      - uses: google/wireit@test-custodian
 
       - run: npm ci
 
