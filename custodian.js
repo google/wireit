@@ -66,5 +66,5 @@ WIREIT_CACHE_GITHUB_CUSTODIAN_PORT=${port}
 
 while (true) {
   console.log('[custodian] still alive');
-  await new Promise((resolve) => setTimeout(1000 , resolve));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 }
