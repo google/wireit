@@ -6,7 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## [0.14.7] - 2024-08-05
+
+- When GitHub caching fails to initialize, more information is now shown about
+  the error, and it is no longer fatal.
 
 ## [0.14.6] - 2024-08-05
 
