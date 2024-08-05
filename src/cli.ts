@@ -31,18 +31,18 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
         './caching/github-actions-cache.js'
       );
       const cacheResult = await GitHubActionsCache.create(logger);
-      if (!cacheResult.ok) {
-        return {
-          ok: false,
-          error: [
-            {
-              script: options.script,
-              ...cacheResult.error,
-            },
-          ],
-        };
+      if (cacheResult.ok) {
+        cache = cacheResult.value;
+      } else {
+        cache = undefined;
+        console.warn(
+          '⚠️ Error initializing GitHub cache. Caching is disabled for this run',
+        );
+        logger.log({
+          script: options.script,
+          ...cacheResult.error,
+        });
       }
-      cache = cacheResult.value;
       break;
     }
     case 'none': {
