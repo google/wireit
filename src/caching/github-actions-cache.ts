@@ -83,7 +83,7 @@ export class GitHubActionsCache implements Cache {
         },
       };
     }
-    const custodianUrl = `http://127.0.0.1:${custodianPort}`;
+    const custodianUrl = `http://localhost:${custodianPort}`;
     let result: {
       caching: {
         github: {
