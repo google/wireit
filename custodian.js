@@ -39,7 +39,7 @@ for (let i = 0; port === undefined && i < MAX_TRIES; i++) {
     const candidate = randIntInclusive(49152, 65535);
     console.log(`[custodian] Trying port ${candidate}`);
     server.once("error", resolve);
-    server.listen("127.0.0.1", candidate, () => {
+    server.listen(candidate, "127.0.0.1", () => {
       port = candidate;
       resolve();
     });
