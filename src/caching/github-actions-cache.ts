@@ -23,6 +23,7 @@ import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
+import type {InvalidUsage, UnknownErrorThrown} from '../event.js';
 
 /**
  * Caches script output to the GitHub Actions caching service.
@@ -48,9 +49,80 @@ export class GitHubActionsCache implements Cache {
     this.#logger = logger;
   }
 
-  static create(
+  static async create(
     logger: Logger,
-  ): Result<GitHubActionsCache, {reason: 'invalid-usage'; message: string}> {
+  ): Promise<
+    Result<
+      GitHubActionsCache,
+      Omit<InvalidUsage, 'script'> | Omit<UnknownErrorThrown, 'script'>
+    >
+  > {
+    const custodianPort = process.env['WIREIT_CACHE_GITHUB_CUSTODIAN_PORT'];
+    if (custodianPort === undefined) {
+      if (
+        process.env['ACTIONS_RUNTIME_TOKEN'] !== undefined ||
+        process.env['ACTIONS_CACHE_URL'] !== undefined
+      ) {
+        console.warn(
+          '⚠️ Please upgrade to google/wireit@setup-github-cache/v2. ' +
+            'In the future, Wireit caching for this project will stop working.\n',
+        );
+        return GitHubActionsCache.#deprecatedCreate(logger);
+      }
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-usage',
+          message:
+            'The WIREIT_CACHE_GITHUB_CUSTODIAN_PORT environment variable was ' +
+            'not set, but is required when WIREIT_CACHE=github. Use the ' +
+            'google/wireit@setup-github-cache/v2 action to automatically set ' +
+            'this environment variable.',
+        },
+      };
+    }
+    const custodianUrl = `http://localhost:${custodianPort}`;
+    let result: {
+      caching: {
+        github: {
+          ACTIONS_CACHE_URL: string;
+          ACTIONS_RUNTIME_TOKEN: string;
+        };
+      };
+    };
+    try {
+      const response = await fetch(custodianUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP status ${response.status}`);
+      }
+      result = (await response.json()) as typeof result;
+    } catch (error) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'unknown-error-thrown',
+          error: new Error(
+            `Error communicating with cache token mediator service: ` +
+              String(error),
+          ),
+        },
+      };
+    }
+    return {
+      ok: true,
+      value: new GitHubActionsCache(
+        logger,
+        result.caching.github.ACTIONS_CACHE_URL,
+        result.caching.github.ACTIONS_RUNTIME_TOKEN,
+      ),
+    };
+  }
+
+  static #deprecatedCreate(
+    logger: Logger,
+  ): Result<GitHubActionsCache, Omit<InvalidUsage, 'script'>> {
     // The ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN environment variables are
     // automatically provided to GitHub Actions re-usable workflows. However,
     // they are _not_ provided to regular "run" scripts. For this reason, we
@@ -63,6 +135,7 @@ export class GitHubActionsCache implements Cache {
       return {
         ok: false,
         error: {
+          type: 'failure',
           reason: 'invalid-usage',
           message:
             'The ACTIONS_CACHE_URL variable was not set, but is required when ' +
@@ -78,6 +151,7 @@ export class GitHubActionsCache implements Cache {
       return {
         ok: false,
         error: {
+          type: 'failure',
           reason: 'invalid-usage',
           message: `The ACTIONS_CACHE_URL must end in a forward-slash, got ${JSON.stringify(
             baseUrl,
@@ -92,6 +166,7 @@ export class GitHubActionsCache implements Cache {
       return {
         ok: false,
         error: {
+          type: 'failure',
           reason: 'invalid-usage',
           message:
             'The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when ' +

@@ -30,28 +30,17 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       const {GitHubActionsCache} = await import(
         './caching/github-actions-cache.js'
       );
-      const cacheResult = GitHubActionsCache.create(logger);
+      const cacheResult = await GitHubActionsCache.create(logger);
       if (!cacheResult.ok) {
-        if (cacheResult.error.reason === 'invalid-usage') {
-          return {
-            ok: false,
-            error: [
-              {
-                script: options.script,
-                type: 'failure',
-                reason: 'invalid-usage',
-                message: cacheResult.error.message,
-              },
-            ],
-          };
-        } else {
-          const never: never = cacheResult.error.reason;
-          throw new Error(
-            `Internal error: unexpected cache result error reason: ${String(
-              never,
-            )}`,
-          );
-        }
+        return {
+          ok: false,
+          error: [
+            {
+              script: options.script,
+              ...cacheResult.error,
+            },
+          ],
+        };
       }
       cache = cacheResult.value;
       break;
