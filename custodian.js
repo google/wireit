@@ -63,3 +63,8 @@ WIREIT_CACHE_GITHUB_CUSTODIAN_PORT=${port}
   console.error("[custodian] Could not find a free port");
   process.send(1, () => process.exit(1));
 }
+
+while (true) {
+  console.log('[custodian] still alive');
+  await new Promise((resolve) => setTimeout(1000 , resolve));
+}
