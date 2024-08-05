@@ -1,6 +1,6 @@
 {
   "name": "wireit",
-  "version": "0.14.7-pre.2",
+  "version": "0.14.7-pre.3",
   "description": "Upgrade your npm scripts to make them smarter and more efficient",
   "author": "Google LLC",
   "license": "Apache-2.0",
@@ -429,7 +429,7 @@
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.4",
-    "wireit": "^0.14.7-pre.2",
+    "wireit": "^0.14.7-pre.3",
     "yarn": "^1.22.18"
   },
   "prettier": {
