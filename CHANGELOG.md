@@ -13,6 +13,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Fixes Windows support by allowing the "custodian" HTTP server to persist after
   the setup action has completed.
 
+### Changed
+
+- Custodian server now listens only on localhost instead of all hosts (should
+  have no effect).
+
 ## [2.0.0] - 2024-08-02
 
 ### Changed
