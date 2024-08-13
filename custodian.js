@@ -39,7 +39,7 @@ for (let i = 0; port === undefined && i < MAX_TRIES; i++) {
     const candidate = randIntInclusive(49152, 65535);
     console.log(`[custodian] Trying port ${candidate}`);
     server.once("error", resolve);
-    server.listen(candidate, () => {
+    server.listen(candidate, 'localhost', () => {
       port = candidate;
       resolve();
     });
@@ -47,7 +47,6 @@ for (let i = 0; port === undefined && i < MAX_TRIES; i++) {
 }
 
 if (port) {
-  console.log(`[custodian] Listening on port ${port}`);
   // Writing to this file sets environment variables for all subsequent steps in
   // the user's workflow. Reference:
   // https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-environment-variable
@@ -58,9 +57,7 @@ WIREIT_CACHE=github
 WIREIT_CACHE_GITHUB_CUSTODIAN_PORT=${port}
 `
   );
-  process.send(0);
+  console.log(`[custodian] Listening on port ${port}`);
 } else {
   console.error("[custodian] Could not find a free port");
-  process.send(1, () => process.exit(1));
 }
-
