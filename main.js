@@ -25,8 +25,8 @@ if (process.platform === "win32") {
     //
     // Under Windows, `{detached: true}` is not sufficient for keeping the
     // server alive after the parent shell exits. The parent shell will exit
-    // soon as this main script is done, because this action is invoked through
-    // a GitHub Actions `uses:` clause (as opposed to `run:` where we would be
+    // after this main script is done, because this action is invoked through a
+    // GitHub Actions `uses:` clause (as opposed to `run:` where we would be
     // sharing our parent shell with subsequent steps).
     "start",
     [
