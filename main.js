@@ -64,7 +64,7 @@ child.unref();
 // unexpected happens.
 const timeoutSecs = 30;
 const pollMillis = 100;
-const start = Date.now();
+const timedOutTime = Date.now() + timeoutSecs * 1000;
 let stdout, stderr;
 while (true) {
   await new Promise((resolve) => setTimeout(resolve, pollMillis));
@@ -76,7 +76,7 @@ while (true) {
     console.log(`[main] Custodian server ready`);
     process.exit(0);
   }
-  if (Date.now() - start > timeoutSecs * 1000) {
+  if (Date.now() > timedOutTime) {
     console.error(stderr);
     console.log(stdout);
     console.log(
