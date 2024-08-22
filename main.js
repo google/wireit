@@ -5,7 +5,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, openSync, readFileSync } from "node:fs";
+import { mkdtempSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -16,6 +16,8 @@ const logDir = mkdtempSync(join(tmpdir(), "wireit_custodian_logs_"));
 console.log("[main] Writing logs to", logDir);
 const outPath = join(logDir, "stdout.log");
 const errPath = join(logDir, "stderr.log");
+writeFileSync(outPath, "");
+writeFileSync(errPath, "");
 
 let child;
 if (process.platform === "win32") {
