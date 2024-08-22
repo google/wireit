@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+<!-- ## Unreleased -->
+
+## [0.14.8] - 2024-08-22
 
 ### Added
 
@@ -624,7 +626,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Initial release.
 
-[unreleased]: https://github.com/google/wireit/compare/v0.14.7...HEAD
+[unreleased]: https://github.com/google/wireit/compare/v0.14.8...HEAD
+[0.14.8]: https://github.com/google/wireit/compare/v0.14.7...v0.14.8
 [0.14.7]: https://github.com/google/wireit/compare/v0.14.6...v0.14.7
 [0.14.6]: https://github.com/google/wireit/compare/v0.14.5...v0.14.6
 [0.14.5]: https://github.com/google/wireit/compare/v0.14.4...v0.14.5
