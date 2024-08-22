@@ -9,6 +9,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {Options, type Agent} from '../cli-options.js';
 import {Result} from '../error.js';
+import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 
@@ -75,6 +76,11 @@ interface AgentCommands {
   runCmd: string;
   testCmd: string | undefined;
   startCmd: string | undefined;
+  /**
+   * Whether this agent needs an extra set of "--" before arguments will be
+   * passed down to Wireit.
+   */
+  needsExtraDashes: boolean;
 }
 
 const commands: AgentCommands[] = [
@@ -83,24 +89,41 @@ const commands: AgentCommands[] = [
     runCmd: 'npm run',
     testCmd: 'npm test',
     startCmd: 'npm start',
+    needsExtraDashes: false,
+  },
+  {
+    agent: 'nodeRun',
+    runCmd: 'node --run',
+    testCmd: undefined,
+    startCmd: undefined,
+    needsExtraDashes: true,
   },
   {
     agent: 'yarnClassic',
     runCmd: 'yarn run',
     testCmd: 'yarn test',
     startCmd: 'yarn start',
+    needsExtraDashes: false,
   },
   {
     agent: 'pnpm',
     runCmd: 'pnpm run',
     testCmd: 'pnpm test',
     startCmd: 'pnpm start',
+    needsExtraDashes: false,
   },
 ];
 
-for (const {agent, runCmd, testCmd, startCmd} of commands) {
+for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
+  if (agent === 'nodeRun' && NODE_MAJOR_VERSION < 22) {
+    // node --run was added in Node 22.
+    continue;
+  }
+
   const isYarn = agent === 'yarnClassic';
   const isPnpm = agent === 'pnpm';
+  const isWindows = process.platform === 'win32';
+  const extraDashes = needsExtraDashes ? '--' : '';
 
   test(
     `${agent} run`,
@@ -118,7 +141,7 @@ for (const {agent, runCmd, testCmd, startCmd} of commands) {
   test(
     `${agent} run --extra`,
     rigTest(async ({rig}) => {
-      await assertOptions(rig, `${runCmd} main -- --extra`, {
+      await assertOptions(rig, `${runCmd} main -- ${extraDashes} --extra`, {
         agent,
         script: {
           packageDir: rig.temp,
@@ -132,7 +155,7 @@ for (const {agent, runCmd, testCmd, startCmd} of commands) {
   test(
     `${agent} run --watch`,
     rigTest(async ({rig}) => {
-      await assertOptions(rig, `${runCmd} main --watch`, {
+      await assertOptions(rig, `${runCmd} main ${extraDashes} --watch`, {
         agent,
         script: {
           packageDir: rig.temp,
@@ -146,19 +169,24 @@ for (const {agent, runCmd, testCmd, startCmd} of commands) {
   test(
     `${agent} run --watch --extra`,
     rigTest(async ({rig}) => {
-      await assertOptions(rig, `${runCmd} main --watch -- --extra`, {
-        agent,
-        script: {
-          packageDir: rig.temp,
-          name: 'main',
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes} --watch -- --extra`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          extraArgs: ['--extra'],
+          watch: true,
         },
-        extraArgs: ['--extra'],
-        watch: true,
-      });
+      );
     }),
   );
 
-  test(
+  // https://github.com/google/wireit/issues/1168
+  (isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -175,7 +203,7 @@ for (const {agent, runCmd, testCmd, startCmd} of commands) {
         },
         undefined,
         {
-          recurse: `${runCmd} other --watch`,
+          recurse: `${runCmd} other ${extraDashes} --watch`,
         },
       );
     }),
@@ -228,7 +256,7 @@ for (const {agent, runCmd, testCmd, startCmd} of commands) {
   // included on argv, and the npm_config_argv variable does not let us
   // reconstruct it, because it always reflects the first script in a chain,
   // instead of the current script.
-  (isYarn ? test.skip : test)(
+  (isYarn || isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch --extra`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -245,7 +273,7 @@ for (const {agent, runCmd, testCmd, startCmd} of commands) {
         },
         undefined,
         {
-          recurse: `${runCmd} other --watch -- --extra`,
+          recurse: `${runCmd} other ${extraDashes} --watch -- --extra`,
         },
       );
     }),
