@@ -104,9 +104,7 @@ and replace the original script with the `wireit` command.
 </table>
 
 Now when you run `npm run build`, Wireit upgrades the script to be smarter and
-more efficient. Wireit works with [yarn](https://yarnpkg.com/)
-(both 1.X "[Classic](https://classic.yarnpkg.com/)" and its successor "Berry")
-and [pnpm](https://pnpm.io/), too.
+more efficient. Wireit also works with [`node --run`](https://nodejs.org/en/blog/announcements/v22-release-announce#running-packagejson-scripts), [yarn](https://yarnpkg.com/), and [pnpm](https://pnpm.io/).
 
 You should also add `.wireit` to your `.gitignore` file. Wireit uses the
 `.wireit` directory to store caches and other data for your scripts.
@@ -236,6 +234,19 @@ npm or Wireit:
 
 ```sh
 npm run build -- --verbose
+```
+
+Or in general:
+
+```sh
+npm run {script} {npm args} {wireit args} -- {script args}
+```
+
+An additional `--` is required when using `node --run` in order to distinguish
+between arguments intended for `node`, `wireit`, and the script itself:
+
+```sh
+node --run {script} {node args} -- {wireit args} -- {script args}
 ```
 
 ## Input and output files
@@ -420,7 +431,15 @@ flag:
 npm run <script> --watch
 ```
 
-The benefit of Wireit's watch mode over built-in watch modes are:
+An additional `--` is required when using `node --run`, otherwise Node's
+built-in [watch](https://nodejs.org/docs/v20.17.0/api/cli.html#--watch) feature
+will be triggered instead of Wireit's:
+
+```sh
+node --run <script> -- --watch
+```
+
+The benefit of Wireit's watch mode over the built-in watch modes of Node and other programs are:
 
 - Wireit watches the entire dependency graph, so a single watch command replaces
   many built-in ones.
@@ -719,7 +738,7 @@ WIREIT_FAILURES=kill
 By default, Wireit automatically treats package manager lock files as input
 files
 ([`package-lock.json`](https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json)
-for npm,
+for npm and `node --run`,
 [`yarn.lock`](https://yarnpkg.com/configuration/yarnrc#lockfileFilename) for
 yarn, and [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles) for pnpm). Wireit
 will look for these lock files in the script's package, and all parent
@@ -921,13 +940,11 @@ input also affects the fingerprint:
 
 Wireit is supported on Linux, macOS, and Windows.
 
-Wireit is supported on Node Current (21), Active LTS (20), and Maintenance LTS
+Wireit is supported on Node Current (22), Active LTS (20), and Maintenance LTS
 (18). See [Node releases](https://nodejs.org/en/about/releases/) for the
 schedule.
 
-Wireit is supported on the npm versions that ship with the latest versions of
-the above supported Node versions (6 and 8), Yarn Classic (1), Yarn Berry (3),
-and pnpm (7).
+Wireit scripts can be launched via `npm`, `node --run`, `pnpm`, and `yarn`.
 
 ## Related tools
 

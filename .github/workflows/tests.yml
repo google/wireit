@@ -6,26 +6,33 @@ jobs:
   tests:
     strategy:
       # We support Node Current, LTS, and Maintenance. See
-      # https://nodejs.org/en/about/releases/ for release schedule.
+      # https://github.com/nodejs/release#release-schedule for release schedule
       #
       # We test all supported Node versions on Linux, and the oldest and newest
-      # on macOS/Windows.
+      # on macOS/Windows. See
+      # https://github.com/actions/runner-images?tab=readme-ov-file#available-images
+      # for the latest available images.
       matrix:
         include:
+          # Maintenance
           - node: 18
             os: ubuntu-22.04
           - node: 18
             os: macos-13
           - node: 18
             os: windows-2022
+
+          # LTS
           - node: 20
             os: ubuntu-22.04
-          - node: 20
+
+          # Current
+          - node: 22
+            os: ubuntu-22.04
+          - node: 22
             os: macos-13
-          - node: 20
+          - node: 22
             os: windows-2022
-          - node: 21
-            os: ubuntu-22.04
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of

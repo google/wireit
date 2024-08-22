@@ -6,10 +6,10 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
-import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {checkScriptOutput} from './util/check-script-output.js';
+import {NODE_MAJOR_VERSION} from './util/node-version.js';
+import {rigTest} from './util/rig-test.js';
 
 const test = suite<object>();
 
@@ -766,6 +766,34 @@ test(
   }),
 );
 
+if (NODE_MAJOR_VERSION >= 22) {
+  test(
+    'runs a script with node --run',
+    rigTest(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+            },
+          },
+        },
+      });
+      const exec = rig.exec('node --run a');
+      await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
+      (await cmdA.nextInvocation()).exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.match(res.stdout, /Ran 1 script and skipped 0/s);
+    }),
+  );
+}
+
 test(
   'runs a script with yarn',
   rigTest(async ({rig}) => {
@@ -1062,9 +1090,21 @@ test(
   }),
 );
 
-for (const agent of ['npm', 'yarn', 'pnpm']) {
+for (const command of [
+  'npm run',
+  'node --run',
+  'yarn run',
+  'pnpm run',
+] as const) {
+  if (command === 'node --run' && NODE_MAJOR_VERSION < 22) {
+    // node --run was added in Node 22.
+    continue;
+  }
+  // node --run needs an extra set of "--" before arguments will be passed down
+  // to Wireit.
+  const extraDashes = command === 'node --run' ? '--' : '';
   test(
-    `can pass extra args with using "${agent} run --"`,
+    `can pass extra args with using "${command} run --"`,
     rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
@@ -1085,7 +1125,9 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
 
       // Initially stale.
       {
-        const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
+        const wireit = rig.exec(
+          `${command} a -- ${extraDashes} foo -bar --baz`,
+        );
         const inv = await cmdA.nextInvocation();
         assert.equal((await inv.environment()).argv.slice(3), [
           'foo',
@@ -1099,7 +1141,9 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
 
       // Nothing changed, fresh.
       {
-        const wireit = rig.exec(`${agent} run a -- foo -bar --baz`);
+        const wireit = rig.exec(
+          `${command} a -- ${extraDashes} foo -bar --baz`,
+        );
         assert.equal((await wireit.exit).code, 0);
         await wireit.waitForLog(/Ran 0 scripts and skipped 1/s); //
       }
@@ -1107,7 +1151,9 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
       // Changing the extra args should change the fingerprint so that we're
       // stale.
       {
-        const wireit = rig.exec(`${agent} run a -- FOO -BAR --BAZ`);
+        const wireit = rig.exec(
+          `${command} a -- ${extraDashes} FOO -BAR --BAZ`,
+        );
         const inv = await cmdA.nextInvocation();
         assert.equal((await inv.environment()).argv.slice(3), [
           'FOO',

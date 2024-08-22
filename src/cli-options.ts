@@ -5,21 +5,22 @@
  */
 
 import * as os from 'os';
-import * as fs from './util/fs.js';
 import * as pathlib from 'path';
-import {Result} from './error.js';
-import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
+import {Result} from './error.js';
 import {FailureMode} from './executor.js';
-import {unreachable} from './util/unreachable.js';
-import {Console, Logger} from './logging/logger.js';
-import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import {DefaultLogger} from './logging/default-logger.js';
+import {Console, Logger} from './logging/logger.js';
+import {MetricsLogger} from './logging/metrics-logger.js';
+import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
+import * as fs from './util/fs.js';
+import {unreachable} from './util/unreachable.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
-  // Recent versions of npm set this environment variable that tells us the
-  // package.
-  const packageJsonPath = process.env.npm_package_json;
+  // Recent versions of npm, and node --run, set environment variables to tell
+  // us the current package.json.
+  const packageJsonPath =
+    process.env.npm_package_json ?? process.env.NODE_RUN_PACKAGE_JSON_PATH;
   if (packageJsonPath) {
     return pathlib.dirname(packageJsonPath);
   }
@@ -45,7 +46,7 @@ export const packageDir = await (async (): Promise<string | undefined> => {
   }
 })();
 
-export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
+export type Agent = 'npm' | 'nodeRun' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 
 export interface Options {
   script: ScriptReference;
@@ -61,7 +62,8 @@ export interface Options {
 export const getOptions = async (): Promise<Result<Options>> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
-  const scriptName = process.env.npm_lifecycle_event;
+  const scriptName =
+    process.env.npm_lifecycle_event ?? process.env['NODE_RUN_SCRIPT_NAME'];
   // We need to handle "npx wireit" as a special case, because it sets
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be "npx-cli.js",
   // though, so we use that combination to detect this special case.
@@ -279,6 +281,9 @@ function getArgvOptions(
         extraArgs: process.argv.slice(2),
       };
     }
+    case 'nodeRun': {
+      return parseRemainingArgs(process.argv.slice(2));
+    }
     case 'yarnClassic': {
       // yarn 1.22.18
       //   - If there is no "--", all arguments go to argv.
@@ -313,6 +318,9 @@ function getArgvOptions(
  * Try to find the npm user agent being used. If we can't detect it, assume npm.
  */
 function getNpmUserAgent(): Agent {
+  if (process.env['NODE_RUN_SCRIPT_NAME'] !== undefined) {
+    return 'nodeRun';
+  }
   const userAgent = process.env['npm_config_user_agent'];
   if (userAgent !== undefined) {
     const match = userAgent.match(/^(npm|yarn|pnpm)\//);
@@ -320,7 +328,6 @@ function getNpmUserAgent(): Agent {
       if (match[1] === 'yarn') {
         return /^yarn\/[01]\./.test(userAgent) ? 'yarnClassic' : 'yarnBerry';
       }
-
       return match[1] as 'npm' | 'pnpm';
     }
   }

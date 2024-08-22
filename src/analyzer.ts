@@ -5,31 +5,31 @@
  */
 
 import * as pathlib from 'path';
+import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
+import {findNodeAtLocation, JsonFile} from './util/ast.js';
 import * as fs from './util/fs.js';
 import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
-import {findNodeAtLocation, JsonFile} from './util/ast.js';
 import {IS_WINDOWS} from './util/windows.js';
 
+import type {Agent} from './cli-options.js';
+import type {
+  ScriptConfig,
+  ScriptReference,
+  ScriptReferenceString,
+} from './config.js';
+import type {Diagnostic, MessageLocation, Result} from './error.js';
+import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
+import {Logger} from './logging/logger.js';
 import type {
   ArrayNode,
   JsonAstNode,
   NamedAstNode,
   ValueTypes,
 } from './util/ast.js';
-import type {Diagnostic, MessageLocation, Result} from './error.js';
-import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
-import type {
-  ScriptConfig,
-  ScriptReference,
-  ScriptReferenceString,
-} from './config.js';
-import type {Agent} from './cli-options.js';
-import {Logger} from './logging/logger.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -118,6 +118,7 @@ const DEFAULT_EXCLUDE_PATHS = [
 
 const DEFAULT_LOCKFILES: Record<Agent, string[]> = {
   npm: ['package-lock.json'],
+  nodeRun: ['package-lock.json'],
   yarnClassic: ['yarn.lock'],
   yarnBerry: ['yarn.lock'],
   pnpm: ['pnpm-lock.yaml'],
