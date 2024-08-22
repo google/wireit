@@ -17,9 +17,10 @@ import * as fs from './util/fs.js';
 import {unreachable} from './util/unreachable.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
-  // Recent versions of npm set this environment variable that tells us the
-  // package.
-  const packageJsonPath = process.env.npm_package_json;
+  // Recent versions of npm, and node --run, set environment variables to tell
+  // us the current package.json.
+  const packageJsonPath =
+    process.env.npm_package_json ?? process.env.NODE_RUN_PACKAGE_JSON_PATH;
   if (packageJsonPath) {
     return pathlib.dirname(packageJsonPath);
   }
