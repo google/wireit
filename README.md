@@ -236,11 +236,17 @@ npm or Wireit:
 npm run build -- --verbose
 ```
 
+Or in general:
+
+```sh
+npm run {script} {npm args} {wireit args} -- {script args}
+```
+
 An additional `--` is required when using `node --run` in order to distinguish
 between arguments intended for `node`, `wireit`, and the script itself:
 
 ```sh
-node --run build -- -- --verbose
+node --run {script} {node args} -- {wireit args} -- {script args}
 ```
 
 ## Input and output files
