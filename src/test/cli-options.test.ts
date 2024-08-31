@@ -161,7 +161,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
           packageDir: rig.temp,
           name: 'main',
         },
-        watch: true,
+        watch: {strategy: 'event'},
       });
     }),
   );
@@ -179,7 +179,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'main',
           },
           extraArgs: ['--extra'],
-          watch: true,
+          watch: {strategy: 'event'},
         },
       );
     }),
@@ -199,7 +199,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'other',
           },
           extraArgs: [],
-          watch: true,
+          watch: {strategy: 'event'},
         },
         undefined,
         {
@@ -269,7 +269,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'other',
           },
           extraArgs: ['--extra'],
-          watch: true,
+          watch: {strategy: 'event'},
         },
         undefined,
         {
@@ -318,7 +318,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             packageDir: rig.temp,
             name: 'test',
           },
-          watch: true,
+          watch: {strategy: 'event'},
         });
       }),
     );
@@ -334,7 +334,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'test',
           },
           extraArgs: ['--extra'],
-          watch: true,
+          watch: {strategy: 'event'},
         });
       }),
     );
@@ -377,7 +377,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             packageDir: rig.temp,
             name: 'start',
           },
-          watch: true,
+          watch: {strategy: 'event'},
         });
       }),
     );
@@ -392,11 +392,87 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'start',
           },
           extraArgs: ['--extra'],
-          watch: true,
+          watch: {strategy: 'event'},
         });
       }),
     );
   }
+
+  test(
+    `${agent} --watch WIREIT_WATCH_STRATEGY=poll`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes} --watch`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'QuietLogger',
+          watch: {
+            strategy: 'poll',
+            interval: 500,
+          },
+        },
+        {
+          WIREIT_WATCH_STRATEGY: 'poll',
+        },
+      );
+    }),
+  );
+
+  test(
+    `${agent} --watch WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes} --watch`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'QuietLogger',
+          watch: {
+            strategy: 'poll',
+            interval: 74,
+          },
+        },
+        {
+          WIREIT_WATCH_STRATEGY: 'poll',
+          WIREIT_WATCH_POLL_MS: '74',
+        },
+      );
+    }),
+  );
+
+  test(
+    `${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'QuietLogger',
+          // This is just testing that the WIREIT_WATCH environment variables
+          // don't actually turn on watch mode. Only the --watch flag does that.
+          watch: false,
+        },
+        {
+          WIREIT_WATCH_STRATEGY: 'poll',
+          WIREIT_WATCH_POLL_MS: '74',
+        },
+      );
+    }),
+  );
 }
 
 test.run();

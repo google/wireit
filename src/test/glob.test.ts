@@ -5,12 +5,12 @@
  */
 
 import * as pathlib from 'path';
-import * as assert from 'uvu/assert';
 import {suite} from 'uvu';
+import * as assert from 'uvu/assert';
 import {glob} from '../util/glob.js';
-import {FilesystemTestRig} from './util/filesystem-test-rig.js';
-import {makeWatcher} from '../watcher.js';
 import {IS_WINDOWS} from '../util/windows.js';
+import {makeWatcher} from '../watcher.js';
+import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 
 interface Symlink {
   /** Where the symlink file points to. */
@@ -116,6 +116,7 @@ test.before.each(async (ctx) => {
             // events to find out what chokidar has found (we usually only care
             // about changes, not initial files).
             false,
+            {strategy: 'event'},
           );
           const watcher = fsWatcher.watcher;
           watcher.on('add', (path) => {
