@@ -19,7 +19,7 @@ import {Deferred} from './util/deferred.js';
 import './util/dispose.js';
 import {WorkerPool} from './util/worker-pool.js';
 
-import type {Agent} from './cli-options.js';
+import type {Agent, Options} from './cli-options.js';
 import type {Fingerprint} from './fingerprint.js';
 
 /**
@@ -126,6 +126,8 @@ export class Watcher {
    */
   readonly #finished = new Deferred<void>();
 
+  readonly #watchOptions: Exclude<Options['watch'], false>;
+
   constructor(
     rootScript: ScriptReference,
     extraArgs: string[] | undefined,
@@ -134,6 +136,7 @@ export class Watcher {
     cache: Cache | undefined,
     failureMode: FailureMode,
     agent: Agent,
+    watchOptions: Exclude<Options['watch'], false>,
   ) {
     this.#rootScript = rootScript;
     this.#extraArgs = extraArgs;
@@ -142,6 +145,7 @@ export class Watcher {
     this.#failureMode = failureMode;
     this.#cache = cache;
     this.#agent = agent;
+    this.#watchOptions = watchOptions;
   }
 
   watch(): Promise<void> {
@@ -245,6 +249,8 @@ export class Watcher {
         configFiles,
         '/',
         this.#onConfigFileChanged,
+        true,
+        this.#watchOptions,
       );
       if (oldWatcher !== undefined) {
         void oldWatcher[Symbol.asyncDispose]();
@@ -380,6 +386,8 @@ export class Watcher {
             newInputFiles,
             script.packageDir,
             this.#fileChanged,
+            true,
+            this.#watchOptions,
           );
           this.#inputFileWatchers.set(key, newWatcher);
         }
@@ -479,7 +487,8 @@ export const makeWatcher = (
   patterns: string[],
   cwd: string,
   callback: () => void,
-  ignoreInitial = true,
+  ignoreInitial: boolean,
+  watchOptions: Exclude<Options['watch'], false>,
 ): FileWatcher => {
   // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
   // currently various differences in what gets watched vs what actually affects
@@ -491,6 +500,9 @@ export const makeWatcher = (
     {
       cwd,
       ignoreInitial,
+      usePolling: watchOptions.strategy === 'poll',
+      interval:
+        watchOptions.strategy === 'poll' ? watchOptions.interval : undefined,
     },
   );
   watcher.on('all', callback);

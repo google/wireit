@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Result} from './error.js';
 import {Analyzer} from './analyzer.js';
-import {Executor} from './executor.js';
-import {WorkerPool} from './util/worker-pool.js';
-import {unreachable} from './util/unreachable.js';
+import {getOptions, Options, packageDir} from './cli-options.js';
+import {Result} from './error.js';
 import {Failure} from './event.js';
-import {packageDir, getOptions, Options} from './cli-options.js';
+import {Executor} from './executor.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {Console} from './logging/logger.js';
+import {unreachable} from './util/unreachable.js';
+import {WorkerPool} from './util/worker-pool.js';
 
 const run = async (options: Options): Promise<Result<void, Failure[]>> => {
   using logger = options.logger;
@@ -66,6 +66,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       cache,
       options.failureMode,
       options.agent,
+      options.watch,
     );
     process.on('SIGINT', () => {
       watcher.abort();
