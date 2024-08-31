@@ -7,17 +7,17 @@
 import chokidar from 'chokidar';
 import {Analyzer} from './analyzer.js';
 import {Cache} from './caching/cache.js';
-import {Executor, FailureMode, ServiceMap} from './executor.js';
-import {Logger} from './logging/logger.js';
-import {Deferred} from './util/deferred.js';
-import {WorkerPool} from './util/worker-pool.js';
-import './util/dispose.js';
 import {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
   scriptReferenceToString,
 } from './config.js';
+import {Executor, FailureMode, ServiceMap} from './executor.js';
+import {Logger} from './logging/logger.js';
+import {Deferred} from './util/deferred.js';
+import './util/dispose.js';
+import {WorkerPool} from './util/worker-pool.js';
 
 import type {Agent} from './cli-options.js';
 import type {Fingerprint} from './fingerprint.js';
