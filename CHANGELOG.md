@@ -12,7 +12,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add support for forcing the use of filesystem polling instead of OS events in watch mode. Set the environment variable `WIREIT_WATCH_STRATEGY=poll`, and optionally the `WIREIT_WATCH_POLL_MS` (default `500`).
+- Add support for forcing the use of filesystem polling instead of OS events in watch mode. Set the environment variable `WIREIT_WATCH_STRATEGY=poll`, and optionally `WIREIT_WATCH_POLL_MS` (default `500`).
 
 ## [0.14.8] - 2024-08-22
 
