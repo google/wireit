@@ -50,7 +50,7 @@ export type Agent = 'npm' | 'nodeRun' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 
 export interface Options {
   script: ScriptReference;
-  watch: boolean;
+  watch: false | {strategy: 'event'} | {strategy: 'poll'; interval: number};
   extraArgs: string[] | undefined;
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
@@ -277,7 +277,10 @@ function getArgvOptions(
       // npm 8.11.0
       //   - Like npm 6, except there is no "npm_config_argv" environment variable.
       return {
-        watch: process.env['npm_config_watch'] !== undefined,
+        watch:
+          process.env['npm_config_watch'] !== undefined
+            ? readWatchConfigFromEnv()
+            : false,
         extraArgs: process.argv.slice(2),
       };
     }
@@ -421,7 +424,7 @@ function findRemainingArgsFromNpmConfigArgv(
 function parseRemainingArgs(
   args: string[],
 ): Pick<Options, 'watch' | 'extraArgs'> {
-  let watch = false;
+  let watch: Options['watch'] = false;
   let extraArgs: string[] = [];
   const unrecognized = [];
   for (let i = 0; i < args.length; i++) {
@@ -430,7 +433,7 @@ function parseRemainingArgs(
       extraArgs = args.slice(i + 1);
       break;
     } else if (arg === '--watch') {
-      watch = true;
+      watch = readWatchConfigFromEnv();
     } else {
       unrecognized.push(arg);
     }
@@ -447,4 +450,48 @@ function parseRemainingArgs(
     watch,
     extraArgs,
   };
+}
+
+const DEFAULT_WATCH_STRATEGY = {strategy: 'event'} as const;
+const DEFAULT_WATCH_INTERVAL = 500;
+
+/**
+ * Interpret the WIREIT_WATCH_* environment variables.
+ */
+function readWatchConfigFromEnv(): Options['watch'] {
+  switch (process.env['WIREIT_WATCH_STRATEGY']) {
+    case 'event':
+    case '':
+    case undefined: {
+      return DEFAULT_WATCH_STRATEGY;
+    }
+    case 'poll': {
+      let interval = DEFAULT_WATCH_INTERVAL;
+      const intervalStr = process.env['WIREIT_WATCH_POLL_MS'];
+      if (intervalStr) {
+        const parsed = Number(intervalStr);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+          console.error(
+            `⚠️ Expected WIREIT_WATCH_POLL_MS to be a positive integer, ` +
+              `got ${JSON.stringify(intervalStr)}. Using default interval of ` +
+              `${DEFAULT_WATCH_INTERVAL}ms.`,
+          );
+        } else {
+          interval = parsed;
+        }
+      }
+      return {
+        strategy: 'poll',
+        interval,
+      };
+    }
+    default: {
+      console.error(
+        `⚠️ Unrecognized WIREIT_WATCH_STRATEGY: ` +
+          `${JSON.stringify(process.env['WIREIT_WATCH_STRATEGY'])}. ` +
+          `Using default strategy of ${DEFAULT_WATCH_STRATEGY.strategy}.`,
+      );
+      return DEFAULT_WATCH_STRATEGY;
+    }
+  }
 }

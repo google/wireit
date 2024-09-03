@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## Unreleased
+
+### Added
+
+- Add support for forcing the use of filesystem polling instead of OS events in watch mode. Set the environment variable `WIREIT_WATCH_STRATEGY=poll`, and optionally the `WIREIT_WATCH_POLL_MS` (default `500`).
 
 ## [0.14.8] - 2024-08-22
 
