@@ -414,7 +414,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.1",
     "@typescript-eslint/parser": "^7.0.1",
     "@vscode/test-electron": "^2.3.8",
-    "@vscode/vsce": "^2.22.0",
+    "@vscode/vsce": "^3.0.0",
     "cmd-shim": "^6.0.0",
     "esbuild": "^0.23.0",
     "eslint": "^8.48.0",
