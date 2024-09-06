@@ -554,7 +554,7 @@ export class Analyzer {
     }
 
     const {dependencies, encounteredError: dependenciesErrored} =
-      this.#processDependencies(placeholder, packageJson, syntaxInfo);
+      await this.#processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
@@ -662,14 +662,15 @@ export class Analyzer {
     Object.assign(placeholder, remainingConfig);
   }
 
-  #processDependencies(
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async #processDependencies(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     scriptInfo: ScriptSyntaxInfo,
-  ): {
+  ): Promise<{
     dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
     encounteredError: boolean;
-  } {
+  }> {
     const dependencies: Array<Dependency<PotentiallyValidScriptConfig>> = [];
     const dependenciesAst =
       scriptInfo.wireitConfigNode &&
@@ -796,6 +797,7 @@ export class Analyzer {
       }
 
       for (const resolved of result.value) {
+        console.log(resolved);
         const uniqueKey = scriptReferenceToString(resolved);
         const duplicate = uniqueDependencies.get(uniqueKey);
         if (duplicate !== undefined) {

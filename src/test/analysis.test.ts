@@ -8,6 +8,7 @@ import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {rigTest} from './util/rig-test.js';
 import {Analyzer} from '../analyzer.js';
+import {parseDependency} from '../analysis/dependency-parser.js';
 
 const test = suite<object>();
 
@@ -249,5 +250,220 @@ test(
     assert.equal(build.output?.values, []);
   }),
 );
+
+test(
+  'dependencies are found',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            dependencies: ['b', 'c'],
+          },
+          b: {
+            command: 'true',
+            dependencies: ['c'],
+          },
+          c: {
+            command: 'true',
+          },
+        },
+      },
+    });
+
+    const analyzer = new Analyzer('npm');
+    const result = await analyzer.analyze(
+      {
+        packageDir: rig.temp,
+        name: 'a',
+      },
+      [],
+    );
+    if (!result.config.ok) {
+      console.log(result.config.error);
+      throw new Error('Not ok');
+    }
+
+    const build = result.config.value;
+    assert.equal(build.dependencies?.length, 2);
+    const [b, c] = build.dependencies;
+    assert.equal(b?.config.name, 'b');
+    assert.equal(c?.config.name, 'c');
+  }),
+);
+
+test(
+  'dependency scripts are found',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            dependencies: ['b', 'c'],
+          },
+          b: {
+            command: 'true',
+            dependencies: ['c'],
+          },
+          c: {
+            command: 'true',
+          },
+        },
+      },
+    });
+
+    const analyzer = new Analyzer('npm');
+    const result = await analyzer.analyze(
+      {
+        packageDir: rig.temp,
+        name: 'a',
+      },
+      [],
+    );
+    if (!result.config.ok) {
+      console.log(result.config.error);
+      throw new Error('Not ok');
+    }
+
+    const build = result.config.value;
+    assert.equal(build.dependencies?.length, 2);
+    const [b, c] = build.dependencies;
+    assert.equal(b?.config.name, 'b');
+    assert.equal(c?.config.name, 'c');
+  }),
+);
+
+test(
+  'dependency script name globs are expanded',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+          foo1: 'wireit',
+          foo2: 'wireit',
+          bar1: 'wireit',
+        },
+        wireit: {
+          main: {
+            command: 'true',
+            dependencies: ['foo*'],
+          },
+          foo1: {command: 'true'},
+          foo2: {command: 'true'},
+          bar1: {command: 'true'},
+        },
+      },
+    });
+
+    const analyzer = new Analyzer('npm');
+    const result = await analyzer.analyze(
+      {
+        packageDir: rig.temp,
+        name: 'main',
+      },
+      [],
+    );
+    if (!result.config.ok) {
+      console.log(result.config.error);
+      throw new Error('Not ok');
+    }
+
+    const build = result.config.value;
+    assert.equal(build.dependencies?.length, 2);
+    const [foo1, foo2] = build.dependencies;
+    assert.equal(foo1?.config.name, 'foo1');
+    assert.equal(foo2?.config.name, 'foo2');
+  }),
+);
+
+test.only('parses dependency', () => {
+  assert.equal(parseDependency('./foo:bar'), {
+    ok: true,
+    value: {package: './foo', script: 'bar'},
+  });
+
+  assert.equal(parseDependency('./foo:bar:baz'), {
+    ok: true,
+    value: {package: './foo', script: 'bar:baz'},
+  });
+
+  assert.equal(parseDependency('./foo/*:bar*'), {
+    ok: true,
+    value: {package: './foo/*', script: 'bar*'},
+  });
+
+  assert.equal(parseDependency('bar'), {
+    ok: true,
+    value: {package: '', script: 'bar'},
+  });
+
+  assert.equal(parseDependency(':bar'), {
+    ok: true,
+    value: {package: '', script: 'bar'},
+  });
+
+  assert.equal(parseDependency('./foo\\:bar:baz'), {
+    ok: true,
+    value: {package: './foo:bar', script: 'baz'},
+  });
+
+  assert.equal(parseDependency('./foo\\:bar:baz:qux'), {
+    ok: true,
+    value: {package: './foo:bar', script: 'baz:qux'},
+  });
+
+  assert.equal(parseDependency('./foo'), {
+    ok: true,
+    value: {package: './foo', script: ''},
+  });
+
+  assert.equal(parseDependency('./foo/bar'), {
+    ok: true,
+    value: {package: './foo/bar', script: ''},
+  });
+
+  assert.equal(parseDependency('./foo\\/bar'), {
+    ok: true,
+    value: {package: './foo\\/bar', script: ''},
+  });
+
+  assert.equal(parseDependency(''), {
+    ok: true,
+    value: {package: '', script: ''},
+  });
+
+  assert.equal(parseDependency(':'), {
+    ok: true,
+    value: {package: '', script: ''},
+  });
+
+  assert.equal(parseDependency('../foo:bar'), {
+    ok: true,
+    value: {package: '../foo', script: 'bar'},
+  });
+
+  assert.equal(parseDependency('...'), {
+    ok: true,
+    value: {package: '...', script: ''},
+  });
+
+  assert.equal(parseDependency('...:...'), {
+    ok: true,
+    value: {package: '...', script: '...'},
+  });
+});
 
 test.run();
