@@ -389,81 +389,219 @@ test(
   }),
 );
 
-test.only('parses dependency', () => {
-  assert.equal(parseDependency('./foo:bar'), {
-    ok: true,
-    value: {package: './foo', script: 'bar'},
-  });
+const cases = [
+  [
+    './foo:bar:baz',
+    {
+      package: [{kind: 'literal', value: './foo'}],
+      script: [{kind: 'literal', value: 'bar:baz'}],
+    },
+  ],
+  [
+    './foo/*:bar*',
+    {
+      package: [{kind: 'literal', value: './foo/*'}],
+      script: [{kind: 'literal', value: 'bar*'}],
+    },
+  ],
+  [
+    'bar',
+    {
+      package: [],
+      script: [{kind: 'literal', value: 'bar'}],
+    },
+  ],
+  [
+    ':bar',
+    {
+      package: [],
+      script: [{kind: 'literal', value: 'bar'}],
+    },
+  ],
+  [
+    './foo\\:bar:baz',
+    {
+      package: [{kind: 'literal', value: './foo:bar'}],
+      script: [{kind: 'literal', value: 'baz'}],
+    },
+  ],
+  [
+    './foo\\:bar:baz:qux',
+    {
+      package: [{kind: 'literal', value: './foo:bar'}],
+      script: [{kind: 'literal', value: 'baz:qux'}],
+    },
+  ],
+  ['./foo', {package: [{kind: 'literal', value: './foo'}], script: []}],
+  ['./foo/bar', {package: [{kind: 'literal', value: './foo/bar'}], script: []}],
+  [
+    './foo\\/bar',
+    {package: [{kind: 'literal', value: './foo\\/bar'}], script: []},
+  ],
+  ['', {package: [], script: []}],
+  [':', {package: [], script: []}],
+  [
+    '../foo:bar',
+    {
+      package: [{kind: 'literal', value: '../foo'}],
+      script: [{kind: 'literal', value: 'bar'}],
+    },
+  ],
+  ['...', {package: [{kind: 'literal', value: '...'}], script: []}],
+  [
+    '...:...',
+    {
+      package: [{kind: 'literal', value: '...'}],
+      script: [{kind: 'literal', value: '...'}],
+    },
+  ],
+  [
+    './packages/*:<this>',
+    {
+      package: [{kind: 'literal', value: './packages/*'}],
+      script: [{kind: 'variable', value: 'this'}],
+    },
+  ],
+  [
+    './packages/*:foo<this>bar',
+    {
+      package: [{kind: 'literal', value: './packages/*'}],
+      script: [
+        {kind: 'literal', value: 'foo'},
+        {kind: 'variable', value: 'this'},
+        {kind: 'literal', value: 'bar'},
+      ],
+    },
+  ],
+  [
+    './packages/*:\\<this>',
+    {
+      package: [{kind: 'literal', value: './packages/*'}],
+      script: [{kind: 'literal', value: '<this>'}],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo:bar:baz'), {
-    ok: true,
-    value: {package: './foo', script: 'bar:baz'},
-  });
+  [
+    './packages/*:<this',
+    {
+      package: [{kind: 'literal', value: './packages/*'}],
+      // TODO(aomarks) Better representation.
+      script: [{kind: 'variable', value: 'ERROR'}],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo/*:bar*'), {
-    ok: true,
-    value: {package: './foo/*', script: 'bar*'},
-  });
+  [
+    './<workspaces>/:<this>',
+    {
+      package: [
+        {kind: 'literal', value: './'},
+        {kind: 'variable', value: 'workspaces'},
+        {kind: 'literal', value: '/'},
+      ],
+      script: [{kind: 'variable', value: 'this'}],
+    },
+  ],
 
-  assert.equal(parseDependency('bar'), {
-    ok: true,
-    value: {package: '', script: 'bar'},
-  });
+  [
+    './\\<workspaces>/:<this>',
+    {
+      package: [{kind: 'literal', value: './<workspaces>/'}],
+      script: [{kind: 'variable', value: 'this'}],
+    },
+  ],
 
-  assert.equal(parseDependency(':bar'), {
-    ok: true,
-    value: {package: '', script: 'bar'},
-  });
+  [
+    './packages/foo:bar',
+    {
+      package: [{kind: 'literal', value: './packages/foo'}],
+      script: [{kind: 'literal', value: 'bar'}],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo\\:bar:baz'), {
-    ok: true,
-    value: {package: './foo:bar', script: 'baz'},
-  });
+  [
+    '\\./packages/foo:bar',
+    {
+      package: [],
+      script: [{kind: 'literal', value: './packages/foo:bar'}],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo\\:bar:baz:qux'), {
-    ok: true,
-    value: {package: './foo:bar', script: 'baz:qux'},
-  });
+  [
+    './packages/foo:./packages/foo',
+    {
+      package: [{kind: 'literal', value: './packages/foo'}],
+      script: [{kind: 'literal', value: './packages/foo'}],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo'), {
-    ok: true,
-    value: {package: './foo', script: ''},
-  });
+  [
+    '<workspaces>:<this>',
+    {
+      package: [],
+      script: [
+        {kind: 'variable', value: 'workspaces'},
+        {kind: 'literal', value: ':'},
+        {kind: 'variable', value: 'this'},
+      ],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo/bar'), {
-    ok: true,
-    value: {package: './foo/bar', script: ''},
-  });
+  [
+    '<workspaces>#<this>',
+    {
+      package: [{kind: 'variable', value: 'workspaces'}],
+      script: [{kind: 'variable', value: 'this'}],
+    },
+  ],
 
-  assert.equal(parseDependency('./foo\\/bar'), {
-    ok: true,
-    value: {package: './foo\\/bar', script: ''},
-  });
+  [
+    '<this>',
+    {
+      package: [],
+      script: [{kind: 'variable', value: 'this'}],
+    },
+  ],
 
-  assert.equal(parseDependency(''), {
-    ok: true,
-    value: {package: '', script: ''},
-  });
+  [
+    '<this><workspaces>',
+    {
+      package: [],
+      script: [
+        {kind: 'variable', value: 'this'},
+        {kind: 'variable', value: 'workspaces'},
+      ],
+    },
+  ],
 
-  assert.equal(parseDependency(':'), {
-    ok: true,
-    value: {package: '', script: ''},
-  });
+  [
+    'build:tsc',
+    {
+      package: [],
+      script: [{kind: 'literal', value: 'build:tsc'}],
+    },
+  ],
 
-  assert.equal(parseDependency('../foo:bar'), {
-    ok: true,
-    value: {package: '../foo', script: 'bar'},
-  });
+  [
+    'build',
+    {
+      package: [],
+      script: [{kind: 'literal', value: 'build:tsc'}],
+    },
+  ],
 
-  assert.equal(parseDependency('...'), {
-    ok: true,
-    value: {package: '...', script: ''},
-  });
+  [
+    '\\<workspaces>:\\<this>',
+    {
+      package: [],
+      script: [{kind: 'literal', value: '<workspaces>:<this>'}],
+    },
+  ],
+] as const;
 
-  assert.equal(parseDependency('...:...'), {
-    ok: true,
-    value: {package: '...', script: '...'},
+for (const [dependency, expected] of cases) {
+  test.only(dependency, () => {
+    assert.equal(parseDependency(dependency), {ok: true, value: expected});
   });
-});
+}
 
 test.run();
