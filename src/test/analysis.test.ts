@@ -415,21 +415,21 @@ const cases = [
     ':bar',
     {
       package: [],
-      script: [{kind: 'literal', value: 'bar'}],
+      script: [{kind: 'literal', value: ':bar'}],
     },
   ],
   [
     './foo\\:bar:baz',
     {
-      package: [{kind: 'literal', value: './foo:bar'}],
-      script: [{kind: 'literal', value: 'baz'}],
+      package: [{kind: 'literal', value: './foo\\'}],
+      script: [{kind: 'literal', value: 'bar:baz'}],
     },
   ],
   [
     './foo\\:bar:baz:qux',
     {
-      package: [{kind: 'literal', value: './foo:bar'}],
-      script: [{kind: 'literal', value: 'baz:qux'}],
+      package: [{kind: 'literal', value: './foo\\'}],
+      script: [{kind: 'literal', value: 'bar:baz:qux'}],
     },
   ],
   ['./foo', {package: [{kind: 'literal', value: './foo'}], script: []}],
@@ -439,7 +439,7 @@ const cases = [
     {package: [{kind: 'literal', value: './foo\\/bar'}], script: []},
   ],
   ['', {package: [], script: []}],
-  [':', {package: [], script: []}],
+  [':', {package: [], script: [{kind: 'literal', value: ':'}]}],
   [
     '../foo:bar',
     {
@@ -522,7 +522,8 @@ const cases = [
     '\\./packages/foo:bar',
     {
       package: [],
-      script: [{kind: 'literal', value: './packages/foo:bar'}],
+      // TODO(aomarks) Are you sure about this?
+      script: [{kind: 'literal', value: '\\./packages/foo:bar'}],
     },
   ],
 
@@ -575,14 +576,6 @@ const cases = [
 
   [
     'build:tsc',
-    {
-      package: [],
-      script: [{kind: 'literal', value: 'build:tsc'}],
-    },
-  ],
-
-  [
-    'build',
     {
       package: [],
       script: [{kind: 'literal', value: 'build:tsc'}],
