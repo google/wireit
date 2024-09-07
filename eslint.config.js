@@ -54,7 +54,6 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-arguments': 'off',
       '@typescript-eslint/no-unnecessary-template-expression': 'off',
       '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
-      '@typescript-eslint/return-await': 'off',
     },
   },
 );

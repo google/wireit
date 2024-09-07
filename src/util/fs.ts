@@ -76,7 +76,7 @@ export async function mkdir(
 ): Promise<string | undefined> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.mkdir(path, options);
+    return await fs.mkdir(path, options);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -85,7 +85,7 @@ export async function mkdir(
 export async function mkdtemp(path: string): Promise<string> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.mkdtemp(path);
+    return await fs.mkdtemp(path);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -98,7 +98,7 @@ export async function writeFile(
 ): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.writeFile(path, contents, encoding);
+    return await fs.writeFile(path, contents, encoding);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -110,7 +110,7 @@ export async function readFile(
 ): Promise<string> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.readFile(path, encoding);
+    return await fs.readFile(path, encoding);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -122,7 +122,7 @@ export async function rm(
 ): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.rm(path, options);
+    return await fs.rm(path, options);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -131,7 +131,7 @@ export async function rm(
 export async function lstat(path: string): Promise<fsTypes.Stats> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.lstat(path);
+    return await fs.lstat(path);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -140,7 +140,7 @@ export async function lstat(path: string): Promise<fsTypes.Stats> {
 export async function stat(path: string): Promise<fsTypes.Stats> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.stat(path);
+    return await fs.stat(path);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -149,7 +149,7 @@ export async function stat(path: string): Promise<fsTypes.Stats> {
 export async function access(path: string): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.access(path);
+    return await fs.access(path);
   } finally {
     reservation[Symbol.dispose]();
   }
