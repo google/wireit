@@ -10,8 +10,6 @@
 
 // jsonc-parser often uses 'any' when they mean 'unknown'. We might want to
 // declare our own types for them, but for now, we'll just quiet down eslint.
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 
 import {
   createConnection,
@@ -60,7 +58,6 @@ connection.onInitialize((init) => {
   return result;
 });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function log(...values: unknown[]) {
   for (const value of values) {
     let message: string;

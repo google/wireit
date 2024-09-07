@@ -153,7 +153,6 @@ export class QuietRunLogger implements Disposable {
   #encounteredFailures = false;
   #servicesRunning = 0;
   #servicesStarted = 0;
-  #servicesPersistedFromPreviousRun = 0;
   #analysisInfo: AnalysisInfo | undefined = undefined;
   #finishedScriptsWithCommands = new Set<ScriptReferenceString>();
   #statusLineState: StatusLineState = 'initial';
@@ -200,7 +199,6 @@ export class QuietRunLogger implements Disposable {
     // know.
     for (const [key, state] of this.#running) {
       if (state.service) {
-        instance.#servicesPersistedFromPreviousRun++;
         instance.#servicesRunning++;
         instance.#running.set(key, state);
         instance.#markScriptAsFinished(state.scriptReference);
@@ -511,7 +509,6 @@ export class QuietRunLogger implements Disposable {
     }
     this.#encounteredFailures = true;
     {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       using _pause = this.#statusLineWriter.clearUntilDisposed();
       this.#reportFailure(event);
     }
@@ -616,7 +613,6 @@ export class QuietRunLogger implements Disposable {
     if (state.service) {
       // Pause the status line while we print this real quick, but then resume
       // it.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       using _pause = this.#statusLineWriter.clearUntilDisposed();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);

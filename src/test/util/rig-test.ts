@@ -89,7 +89,7 @@ export const rigTest = <T extends {rig?: WireitTestRig}>(
     return async (context) => {
       try {
         return await runTest(context);
-      } catch (e) {
+      } catch {
         console.log('Test failed, retrying...');
       }
       return await runTest(context);

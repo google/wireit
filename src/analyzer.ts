@@ -1913,7 +1913,7 @@ const failUnlessArray = (
 export const failUnlessJsonObject = (
   astNode: JsonAstNode,
   file: JsonFile,
-): Failure | void => {
+): Failure | undefined => {
   if (astNode.type !== 'object') {
     return {
       type: 'failure',

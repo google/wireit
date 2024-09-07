@@ -19,7 +19,7 @@ async function main() {
     try {
       await run();
       return;
-    } catch (err) {
+    } catch {
       console.error('Failed to run tests, retrying...');
     }
     // wait a few seconds before retrying

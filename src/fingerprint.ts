@@ -267,7 +267,6 @@ export class Fingerprint {
 
   get string(): FingerprintString {
     if (this.#str === undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.#str = JSON.stringify(this.#data!) as FingerprintString;
     }
     return this.#str;
@@ -275,7 +274,6 @@ export class Fingerprint {
 
   get data(): FingerprintData {
     if (this.#data === undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.#data = JSON.parse(this.#str!) as FingerprintData;
     }
     return this.#data;
