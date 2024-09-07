@@ -70,21 +70,28 @@ class DependencyParser {
   }
 
   parse(): Result<ParsedDependency, Diagnostic> {
-    if (this.#peek() === PERIOD) {
-      return this.#parseBackwardsCompatible();
-    }
+    const startsWithPeriod = this.#peek() === PERIOD;
 
-    const first = this.#parseParts();
+    const first = this.#parseParts(startsWithPeriod);
     if (this.#done()) {
+      if (startsWithPeriod) {
+        return {
+          ok: true,
+          value: {package: first, script: []},
+        };
+      }
       return {
         ok: true,
         value: {package: [], script: first},
       };
     }
+
+    // Assume it's either a "#" or a ":".
     this.#skip();
     const second = this.#parseParts();
     if (!this.#done()) {
       return {
+        // TODO(aomarks) Error
         ok: true,
         value: {package: [], script: []},
       };
@@ -95,30 +102,7 @@ class DependencyParser {
     };
   }
 
-  #parseBackwardsCompatible(): Result<ParsedDependency, Diagnostic> {
-    const pkg = this.#parseParts(true);
-    if (this.#done()) {
-      return {
-        ok: true,
-        value: {package: pkg, script: []},
-      };
-    }
-    // Assume it's either a "#" or a ":".
-    this.#skip();
-    const script = this.#parseParts();
-    if (!this.#done()) {
-      return {
-        ok: true,
-        value: {package: [], script: []},
-      };
-    }
-    return {
-      ok: true,
-      value: {package: pkg, script},
-    };
-  }
-
-  #parseParts(isPathPosition = false): Part[] {
+  #parseParts(isInPathPosition = false): Part[] {
     let buffer = '';
     const parts: Part[] = [];
     while (this.#pos < this.#len) {
@@ -137,22 +121,33 @@ class DependencyParser {
       } else if (this.#peek() === HASH) {
         break;
       } else if (
-        isPathPosition &&
+        isInPathPosition &&
         this.#peek() === COLON &&
-        !this.#lookAhead('#', 1)
+        !this.#lookAhead(HASH, 1)
       ) {
         // This case provides backwards compatibility for the syntax before "#"
         // was adopted. The rule here covers cases like:
         //
-        //   ./foo:bar
+        //   "./foo:bar"
         //
         // Which we would today recommend writing as:
         //
-        //   ./foo#bar
+        //   "./foo#bar"
         //
         // But which, without this case, would be wrongly interpreted as:
         //
         //   { package: undefined , script: "./foo:bar" }
+        //
+        // Note the reason we switch from ":" to "#" is because of ambiguous
+        // cases. Consider the two cases:
+        //
+        //   1. "build:tsc"
+        //   2. "<workspaces>:build"
+        //   3. "<this>:build"
+        //
+        // In case (1), the user clearly meant "the script in this package
+        // called build:tsc", but in case (2) they clearly meant "the package
+        // called build in all workspaces".
         break;
       } else {
         buffer += this.#consume();

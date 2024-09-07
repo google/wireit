@@ -554,6 +554,21 @@ const cases = [
       script: [{kind: 'variable', value: 'this'}],
     },
   ],
+  [
+    'a<workspaces>b#c<this>d',
+    {
+      package: [
+        {kind: 'literal', value: 'a'},
+        {kind: 'variable', value: 'workspaces'},
+        {kind: 'literal', value: 'b'},
+      ],
+      script: [
+        {kind: 'literal', value: 'c'},
+        {kind: 'variable', value: 'this'},
+        {kind: 'literal', value: 'd'},
+      ],
+    },
+  ],
 
   [
     '<this>',
