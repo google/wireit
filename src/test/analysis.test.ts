@@ -6,9 +6,13 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {
+  parseDependency,
+  type ParsedDependency,
+} from '../analysis/dependency-parser.js';
 import {Analyzer} from '../analyzer.js';
-import {parseDependency} from '../analysis/dependency-parser.js';
+import type {DiagnosticWithoutFile} from '../error.js';
+import {rigTest} from './util/rig-test.js';
 
 const test = suite<object>();
 
@@ -389,7 +393,7 @@ test(
   }),
 );
 
-const cases = [
+const cases: Array<[string, ParsedDependency | DiagnosticWithoutFile]> = [
   [
     './foo:bar:baz',
     {
@@ -484,10 +488,57 @@ const cases = [
   [
     './packages/*:<this',
     {
-      package: [{kind: 'literal', value: './packages/*'}],
-      // TODO(aomarks) Better representation.
-      script: [{kind: 'variable', value: 'ERROR'}],
-    },
+      severity: 'error',
+      message:
+        'Expected ">" to terminate a variable, but got the end of the string.',
+      location: {
+        range: {offset: 13, length: 5},
+      },
+    } satisfies DiagnosticWithoutFile,
+  ],
+
+  [
+    '<foo#>',
+    {
+      severity: 'error',
+      message: 'The character "#" is not allowed in a variable name.',
+      location: {
+        range: {offset: 4, length: 1},
+      },
+    } satisfies DiagnosticWithoutFile,
+  ],
+
+  [
+    '<foo:>',
+    {
+      severity: 'error',
+      message: 'The character ":" is not allowed in a variable name.',
+      location: {
+        range: {offset: 4, length: 1},
+      },
+    } satisfies DiagnosticWithoutFile,
+  ],
+
+  [
+    '<foo\\>',
+    {
+      severity: 'error',
+      message: 'The character "\\" is not allowed in a variable name.',
+      location: {
+        range: {offset: 4, length: 1},
+      },
+    } satisfies DiagnosticWithoutFile,
+  ],
+
+  [
+    './foo#bar#baz',
+    {
+      severity: 'error',
+      message: 'Unexpected # delimiter. Maybe you meant to escape it with \\#?',
+      location: {
+        range: {offset: 9, length: 1},
+      },
+    } satisfies DiagnosticWithoutFile,
   ],
 
   [
@@ -606,9 +657,14 @@ const cases = [
   ],
 ] as const;
 
-for (const [dependency, expected] of cases) {
+for (const [dependency, valueOrError] of cases) {
   test.only(dependency, () => {
-    assert.equal(parseDependency(dependency), {ok: true, value: expected});
+    const actual = parseDependency(dependency);
+    const expected =
+      'severity' in valueOrError
+        ? {ok: false, error: valueOrError}
+        : {ok: true, value: valueOrError};
+    assert.equal(actual, expected);
   });
 }
 

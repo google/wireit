@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {Diagnostic, Range, Result} from '../error.js';
+import type {DiagnosticWithoutFile, Range, Result} from '../error.js';
 
 export function parseDependency(
   dependency: string,
-): Result<ParsedDependency, Diagnostic> {
+): Result<ParsedDependency, DiagnosticWithoutFile> {
   return new DependencyParser(dependency).parse();
 }
 
@@ -55,12 +55,6 @@ class DependencyParser {
     this.#pos += num;
   }
 
-  #consume(num = 1): string {
-    const substr = this.#str.slice(this.#pos, this.#pos + num);
-    this.#pos += num;
-    return substr;
-  }
-
   #done(): boolean {
     return this.#pos >= this.#len;
   }
@@ -69,60 +63,78 @@ class DependencyParser {
     return this.#str.includes(substr, this.#pos + offset);
   }
 
-  parse(): Result<ParsedDependency, Diagnostic> {
+  parse(): Result<ParsedDependency, DiagnosticWithoutFile> {
     const startsWithPeriod = this.#peek() === PERIOD;
 
     const first = this.#parseParts(startsWithPeriod);
+    if (!first.ok) {
+      return first;
+    }
     if (this.#done()) {
       if (startsWithPeriod) {
+        // E.g. "./packages/server:build"
         return {
           ok: true,
-          value: {package: first, script: []},
+          value: {package: first.value, script: []},
         };
       }
+      // E.g. "server:build"
       return {
         ok: true,
-        value: {package: [], script: first},
+        value: {package: [], script: first.value},
       };
     }
 
     // Assume it's either a "#" or a ":".
     this.#skip();
     const second = this.#parseParts();
+    if (!second.ok) {
+      return second;
+    }
     if (!this.#done()) {
       return {
-        // TODO(aomarks) Error
-        ok: true,
-        value: {package: [], script: []},
+        ok: false,
+        error: {
+          severity: 'error',
+          message:
+            `Unexpected ${HASH} delimiter. ` +
+            `Maybe you meant to escape it with ${BACKSLASH + HASH}?`,
+          location: {range: {offset: this.#pos, length: 1}},
+        },
       };
     }
     return {
       ok: true,
-      value: {package: first, script: second},
+      value: {package: first.value, script: second.value},
     };
   }
 
-  #parseParts(isInPathPosition = false): Part[] {
+  #parseParts(isInPathPosition = false): Result<Part[], DiagnosticWithoutFile> {
     let buffer = '';
     const parts: Part[] = [];
-    while (this.#pos < this.#len) {
-      if (this.#peek() === BACKSLASH && this.#peek(1) === HASH) {
+    while (!this.#done()) {
+      const cur = this.#peek()!;
+      if (cur === BACKSLASH && this.#peek(1) === HASH) {
         buffer += HASH;
         this.#skip(2);
-      } else if (this.#peek() === BACKSLASH && this.#peek(1) === LT) {
+      } else if (cur === BACKSLASH && this.#peek(1) === LT) {
         buffer += LT;
         this.#skip(2);
-      } else if (this.#peek() === LT) {
+      } else if (cur === LT) {
         if (buffer.length > 0) {
           parts.push({kind: 'literal', value: buffer});
         }
         buffer = '';
-        parts.push(this.#parseVariable());
-      } else if (this.#peek() === HASH) {
+        const variable = this.#parseVariable();
+        if (!variable.ok) {
+          return variable;
+        }
+        parts.push(variable.value);
+      } else if (cur === HASH) {
         break;
       } else if (
         isInPathPosition &&
-        this.#peek() === COLON &&
+        cur === COLON &&
         !this.#lookAhead(HASH, 1)
       ) {
         // This case provides backwards compatibility for the syntax before "#"
@@ -150,29 +162,56 @@ class DependencyParser {
         // called build in all workspaces".
         break;
       } else {
-        buffer += this.#consume();
+        buffer += cur;
+        this.#skip();
       }
     }
     if (buffer.length > 0) {
       parts.push({kind: 'literal', value: buffer});
     }
-    return parts;
+    return {ok: true, value: parts};
   }
 
-  #parseVariable(): VariablePart {
+  #parseVariable(): Result<VariablePart, DiagnosticWithoutFile> {
+    const start = this.#pos;
     this.#skip();
     let value = '';
-    while (this.#pos < this.#len) {
-      if (this.#peek() === BACKSLASH && this.#peek(1) === GT) {
-        value += GT;
-        this.#skip(2);
-      } else if (this.#peek() === GT) {
-        this.#skip();
-        return {kind: 'variable', value};
-      } else {
-        value += this.#consume();
+    while (!this.#done()) {
+      const cur = this.#peek()!;
+      switch (cur) {
+        case GT: {
+          this.#skip();
+          return {ok: true, value: {kind: 'variable', value}};
+        }
+        case PERIOD:
+        case HASH:
+        case COLON:
+        case BACKSLASH: {
+          return {
+            ok: false,
+            error: {
+              severity: 'error',
+              message: `The character "${cur}" is not allowed in a variable name.`,
+              location: {
+                range: {offset: 4, length: 1},
+              },
+            },
+          };
+        }
+        default: {
+          value += cur;
+          this.#skip();
+        }
       }
     }
-    return {kind: 'variable', value: 'ERROR'};
+    return {
+      ok: false,
+      error: {
+        severity: 'error',
+        message:
+          'Expected ">" to terminate a variable, but got the end of the string.',
+        location: {range: {offset: start, length: this.#pos - start}},
+      },
+    };
   }
 }
