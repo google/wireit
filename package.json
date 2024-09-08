@@ -118,7 +118,9 @@
       "#comment": "Need to build first so that the vscode-extension lint can see our types.",
       "command": "eslint --color --cache --cache-location .eslintcache .",
       "files": [
-        "eslint.config.js"
+        "eslint.config.js",
+        "bin/*.js",
+        "website/*.{js,cjs}"
       ],
       "output": []
     },
