@@ -8,7 +8,7 @@ import pluginJs from '@eslint/js';
 import noOnlyTests from 'eslint-plugin-no-only-tests';
 import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
+export default [
   {
     ignores: [
       '**/*.js',
@@ -56,4 +56,4 @@ export default tseslint.config(
       '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
     },
   },
-);
+];
