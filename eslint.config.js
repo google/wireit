@@ -15,7 +15,7 @@ import tseslint from 'typescript-eslint';
  * TypeScript project. Maybe there is a simpler way to do this?
  */
 const onlyTypeScriptFiles = (configs) =>
-  configs.map((config) => ({...config, files: config.files ?? ['**/*.ts']}));
+  configs.map((config) => ({files: ['**/*.ts'], ...config}));
 
 export default [
   {
