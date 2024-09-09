@@ -6,17 +6,17 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {Analyzer} from '../analyzer.js';
+import {registerExecutionConstructorHook} from '../execution/base.js';
 import {
   Executor,
   registerExecutorConstructorHook,
   ServiceMap,
 } from '../executor.js';
-import {Analyzer} from '../analyzer.js';
 import {DefaultLogger} from '../logging/default-logger.js';
-import {WorkerPool} from '../util/worker-pool.js';
-import {registerExecutionConstructorHook} from '../execution/base.js';
 import {Console} from '../logging/logger.js';
+import {WorkerPool} from '../util/worker-pool.js';
+import {rigTest} from './util/rig-test.js';
 
 const test = suite<object>();
 

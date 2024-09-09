@@ -77,7 +77,12 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
     await watcher.watch();
     return {ok: true, value: undefined};
   } else {
-    const analyzer = new Analyzer(options.agent, logger);
+    const analyzer = new Analyzer(
+      options.agent,
+      logger,
+      undefined,
+      options.script,
+    );
     const {config} = await analyzer.analyze(options.script, options.extraArgs);
     if (!config.ok) {
       return config;

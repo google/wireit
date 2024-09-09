@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as pathlib from 'path';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
 import {
@@ -349,6 +350,75 @@ test(
   }),
 );
 
+test.only(
+  'dependency package paths are expanded as globs',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {
+            command: 'true',
+            dependencies: ['./packages/*:build'],
+          },
+        },
+      },
+      'packages/foo/package.json': {
+        wireit: {
+          build: {command: 'true'},
+          test: {command: 'true'},
+        },
+      },
+      'packages/bar/package.json': {
+        wireit: {
+          build: {command: 'true'},
+          test: {command: 'true'},
+        },
+      },
+      'packages/baz/potato.json': {
+        wireit: {
+          build: {command: 'true'},
+          test: {command: 'true'},
+        },
+      },
+    });
+
+    const analyzer = new Analyzer('npm', undefined, undefined, {
+      packageDir: rig.temp,
+      name: 'main',
+    });
+    const result = await analyzer.analyze(
+      {
+        packageDir: rig.temp,
+        name: 'main',
+      },
+      [],
+    );
+    if (!result.config.ok) {
+      console.log(result.config.error);
+      throw new Error('Not ok');
+    }
+
+    const build = result.config.value;
+    assert.equal(build.dependencies?.length, 2);
+    const [bar, foo] = build.dependencies.sort((a, b) =>
+      a.config.packageDir.localeCompare(b.config.packageDir),
+    );
+    assert.equal(
+      bar?.config.packageDir,
+      pathlib.join(rig.temp, 'packages/bar'),
+    );
+    assert.equal(bar?.config.name, 'build');
+    assert.equal(
+      foo?.config.packageDir,
+      pathlib.join(rig.temp, 'packages/foo'),
+    );
+    assert.equal(foo?.config.name, 'build');
+  }),
+);
+
 test(
   'dependency script name globs are expanded',
   rigTest(async ({rig}) => {
@@ -372,7 +442,10 @@ test(
       },
     });
 
-    const analyzer = new Analyzer('npm');
+    const analyzer = new Analyzer('npm', undefined, undefined, {
+      packageDir: rig.temp,
+      name: 'main',
+    });
     const result = await analyzer.analyze(
       {
         packageDir: rig.temp,
@@ -658,7 +731,7 @@ const cases: Array<[string, ParsedDependency | DiagnosticWithoutFile]> = [
 ] as const;
 
 for (const [dependency, valueOrError] of cases) {
-  test.only(dependency, () => {
+  test(dependency, () => {
     const actual = parseDependency(dependency);
     const expected =
       'severity' in valueOrError

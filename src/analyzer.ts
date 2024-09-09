@@ -29,6 +29,7 @@ import type {
   NamedAstNode,
   ValueTypes,
 } from './util/ast.js';
+import {glob} from './util/glob.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
 
 export interface AnalyzeResult {
@@ -147,11 +148,18 @@ export class Analyzer {
   readonly #relevantConfigFilePaths = new Set<string>();
   readonly #agent: Agent;
   readonly #logger: Logger | undefined;
+  readonly #script: ScriptReference | undefined;
 
-  constructor(agent: Agent, logger?: Logger, filesystem?: FileSystem) {
+  constructor(
+    agent: Agent,
+    logger?: Logger,
+    filesystem?: FileSystem,
+    script?: ScriptReference,
+  ) {
     this.#agent = agent;
     this.#logger = logger;
     this.#packageJsonReader = new CachingPackageJsonReader(filesystem);
+    this.#script = script;
   }
 
   /**
@@ -785,7 +793,7 @@ export class Analyzer {
       }
 
       const unresolved = specifierResult.value;
-      const result = this.#resolveDependency(
+      const result = await this.#resolveDependency(
         unresolved,
         placeholder,
         packageJson.jsonFile,
@@ -1705,16 +1713,16 @@ export class Analyzer {
    *
    * Note this can return 0, 1, or >1 script references.
    */
-  #resolveDependency(
+  async #resolveDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
     referencingFile: JsonFile,
-  ): Result<Array<ScriptReference>, Failure> {
+  ): Promise<Result<Array<ScriptReference>, Failure>> {
     // TODO(aomarks) Implement $WORKSPACES syntax.
     if (dependency.value.startsWith('.')) {
       // TODO(aomarks) It is technically valid for an npm script to start with a
       // ".". We should support that edge case with backslash escaping.
-      const result = this.#resolveCrossPackageDependency(
+      const result = await this.#resolveCrossPackageDependency(
         dependency,
         context,
         referencingFile,
@@ -1722,7 +1730,7 @@ export class Analyzer {
       if (!result.ok) {
         return result;
       }
-      return {ok: true, value: [result.value]};
+      return {ok: true, value: result.value};
     }
     return {
       ok: true,
@@ -1734,11 +1742,11 @@ export class Analyzer {
    * Resolve a cross-package dependency (e.g. "../other-package:build").
    * Cross-package dependencies always start with a ".".
    */
-  #resolveCrossPackageDependency(
+  async #resolveCrossPackageDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
     referencingFile: JsonFile,
-  ): Result<ScriptReference, Failure> {
+  ): Promise<Result<ScriptReference[], Failure>> {
     // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
     // path. We should support that edge case with backslash escaping.
     const firstColonIdx = dependency.value.indexOf(':');
@@ -1786,6 +1794,36 @@ export class Analyzer {
       };
     }
     const relativePackageDir = dependency.value.slice(0, firstColonIdx);
+    if (relativePackageDir.includes('*')) {
+      // Execute the glob pattern.
+      const packageDirs = await this.#globPackageDirs(relativePackageDir);
+      console.log({packageDirs});
+      if (packageDirs.length === 0) {
+        return {
+          ok: false,
+          error: {
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: context,
+            diagnostic: {
+              severity: 'error',
+              message: `No packages matched the glob pattern "${relativePackageDir}"`,
+              location: {
+                file: referencingFile,
+                range: {offset: dependency.offset, length: dependency.length},
+              },
+            },
+          },
+        };
+      }
+      return {
+        ok: true,
+        value: packageDirs.map((packageDir) => ({
+          packageDir,
+          name: scriptName,
+        })),
+      };
+    }
     const absolutePackageDir = pathlib.resolve(
       context.packageDir,
       relativePackageDir,
@@ -1812,8 +1850,29 @@ export class Analyzer {
     }
     return {
       ok: true,
-      value: {packageDir: absolutePackageDir, name: scriptName},
+      value: [{packageDir: absolutePackageDir, name: scriptName}],
     };
+  }
+
+  async #globPackageDirs(pattern: string): Promise<string[]> {
+    if (this.#script === undefined) {
+      // TODO(aomarks) Make it required to constructor.
+      throw new Error('Internal error: script must be set to do a glob');
+    }
+    const results = await glob(
+      [
+        (pattern.endsWith('/') ? pattern : pattern + '/') + 'package.json',
+        ...DEFAULT_EXCLUDE_PATHS,
+      ],
+      {
+        cwd: this.#script.packageDir,
+        followSymlinks: true,
+        includeDirectories: false,
+        expandDirectories: false,
+        throwIfOutsideCwd: false,
+      },
+    );
+    return results.map((entry) => pathlib.dirname(entry.path));
   }
 }
 
