@@ -136,9 +136,7 @@ test(
       const name = `dep${i}`;
       depNames.push(name);
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       packageJson.scripts![name] = 'wireit';
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       packageJson.wireit![name] = {command: command.command};
       invocations.push(command.nextInvocation());
     }

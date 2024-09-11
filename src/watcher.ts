@@ -149,7 +149,7 @@ export class Watcher {
   }
 
   watch(): Promise<void> {
-    void this.#startRun();
+    this.#startRun();
     return this.#finished.promise;
   }
 
@@ -311,7 +311,7 @@ export class Watcher {
         // fine and probably good, and is simpler than maintaining a separate
         // "queued-debouncing" state.
         this.#state = 'debouncing';
-        void this.#startDebounce();
+        this.#startDebounce();
         return;
       }
       case 'running': {
@@ -342,12 +342,12 @@ export class Watcher {
     switch (this.#state) {
       case 'watching': {
         this.#state = 'debouncing';
-        void this.#startDebounce();
+        this.#startDebounce();
         return;
       }
       case 'debouncing': {
-        void this.#cancelDebounce();
-        void this.#startDebounce();
+        this.#cancelDebounce();
+        this.#startDebounce();
         return;
       }
       case 'running': {

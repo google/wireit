@@ -556,7 +556,7 @@ export class GitHubActionsCache implements Cache {
         ],
         (error: unknown) => {
           if (error != null) {
-            reject(`tar error: ${String(error)}`);
+            reject(new Error(`tar error: ${String(error)}`));
           } else {
             resolve();
           }
@@ -688,7 +688,7 @@ class GitHubActionsCacheHit implements CacheHit {
         ['--extract', '--file', tarballPath, '--gzip', '-P'],
         (error: unknown) => {
           if (error != null) {
-            reject(`tar error: ${String(error)}`);
+            reject(new Error(`tar error: ${String(error)}`));
           } else {
             resolve();
           }
