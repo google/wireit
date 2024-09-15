@@ -793,7 +793,7 @@ This section contains advice about integrating specific build tools with Wireit.
       "command": "tsc --build --pretty",
       "clean": "if-file-deleted",
       "files": ["src/**/*.ts", "tsconfig.json"],
-      "output": ["lib/**", ".tsbuildinfo"]
+      "output": ["lib/**", "*.tsbuildinfo"]
     }
   }
 }
