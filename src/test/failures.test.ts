@@ -529,14 +529,25 @@ test(
           failer.nextInvocation(),
         ]);
         if ('code' in exitOrInvocation) {
-          finalExit = exitOrInvocation;
-          break;
+          if (exitOrInvocation.stderr.includes('EPERM')) {
+            // See note about EPERM above, it can also happen within wireit.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            continue;
+          } else {
+            finalExit = exitOrInvocation;
+            break;
+          }
         }
         await rig.write('output', '1');
         exitOrInvocation.exit(0);
         finalExit = await wireit.exit;
         if (finalExit.code !== 0) {
-          break;
+          if (finalExit.stderr.includes('EPERM')) {
+            // See note about EPERM above, it can also happen within wireit.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else {
+            break;
+          }
         }
       }
     } finally {
@@ -599,7 +610,12 @@ test(
         failerInv.exit(0);
         finalExit = await wireit.exit;
         if (finalExit.code !== 0) {
-          break;
+          if (finalExit.stderr.includes('EPERM')) {
+            // See note about EPERM above, it can also happen within wireit.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } else {
+            break;
+          }
         }
       }
     } finally {
