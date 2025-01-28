@@ -194,7 +194,7 @@ export async function createWriteStream(
 export async function copyFile(
   src: fsTypes.PathLike,
   dest: fsTypes.PathLike,
-  flags?: number | undefined,
+  flags?: number,
 ) {
   const reservation = await fileBudget.reserve();
   try {
