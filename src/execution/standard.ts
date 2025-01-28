@@ -27,6 +27,7 @@ import type {Cache, CacheHit} from '../caching/cache.js';
 import type {Failure, StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
+import {Stats} from 'fs';
 
 type StandardScriptExecutionState =
   | 'before-running'
@@ -293,9 +294,13 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this.#writeOutputManifest(
-        await this.#computeOutputManifest(outputFilesAfterRunning.value),
+      const outputManifest = await this.#computeOutputManifest(
+        outputFilesAfterRunning.value,
       );
+      if (!outputManifest.ok) {
+        return {ok: false, error: [outputManifest.error]};
+      }
+      await this.#writeOutputManifest(outputManifest.value);
     }
     await writeFingerprintPromise;
 
@@ -446,9 +451,13 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this.#writeOutputManifest(
-        await this.#computeOutputManifest(outputFilesAfterRunning.value),
+      const outputManifest = await this.#computeOutputManifest(
+        outputFilesAfterRunning.value,
       );
+      if (!outputManifest.ok) {
+        return {ok: false, error: [outputManifest.error]};
+      }
+      await this.#writeOutputManifest(outputManifest.value);
     }
     await writeFingerprintPromise;
 
@@ -687,16 +696,39 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    */
   async #computeOutputManifest(
     outputEntries: AbsoluteEntry[],
-  ): Promise<FileManifestString> {
+  ): Promise<Result<FileManifestString>> {
     outputEntries.sort((a, b) => a.path.localeCompare(b.path));
-    const stats = await Promise.all(
-      outputEntries.map((entry) => fs.lstat(entry.path)),
+    const stats: Stats[] = [];
+    const deleted: string[] = [];
+    await Promise.all(
+      outputEntries.map(async (entry, i) => {
+        try {
+          stats[i] = await fs.lstat(entry.path);
+        } catch (e) {
+          if ((e as {code?: string}).code === 'ENOENT') {
+            deleted.push(entry.path);
+          } else {
+            throw e;
+          }
+        }
+      }),
     );
+    if (deleted.length > 0) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'output-file-deleted-unexpectedly',
+          script: this._config,
+          filePaths: deleted.sort(),
+        },
+      };
+    }
     const manifest: Record<string, FileManifestEntry> = {};
     for (let i = 0; i < outputEntries.length; i++) {
       manifest[outputEntries[i]!.path] = computeManifestEntry(stats[i]!);
     }
-    return JSON.stringify(manifest) as FileManifestString;
+    return {ok: true, value: JSON.stringify(manifest) as FileManifestString};
   }
 
   /**
@@ -715,11 +747,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     const newManifest = await this.#computeOutputManifest(
       outputFilesBeforeRunning.value,
     );
+    if (!newManifest.ok) {
+      return newManifest;
+    }
     const oldManifest = await oldManifestPromise;
     if (oldManifest === undefined) {
       return {ok: true, value: false};
     }
-    const equal = newManifest === oldManifest;
+    const equal = newManifest.value === oldManifest;
     if (!equal) {
       this._logger.log({
         script: this._config,

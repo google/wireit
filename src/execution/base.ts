@@ -8,7 +8,7 @@ import {shuffle} from '../util/shuffle.js';
 import {Fingerprint} from '../fingerprint.js';
 import {Deferred} from '../util/deferred.js';
 
-import type {Result} from '../error.js';
+import {convertExceptionToFailure, type Result} from '../error.js';
 import type {Executor} from '../executor.js';
 import type {Dependency, ScriptConfig} from '../config.js';
 import type {Logger} from '../logging/logger.js';
@@ -60,8 +60,12 @@ export abstract class BaseExecution<T extends ScriptConfig> {
    * Execute this script and return its fingerprint. Cached, so safe to call
    * multiple times.
    */
-  execute(): Promise<ExecutionResult> {
-    return (this.#fingerprint ??= this._execute());
+  async execute(): Promise<ExecutionResult> {
+    try {
+      return await (this.#fingerprint ??= this._execute());
+    } catch (error) {
+      return convertExceptionToFailure(error, this._config);
+    }
   }
 
   protected abstract _execute(): Promise<ExecutionResult>;

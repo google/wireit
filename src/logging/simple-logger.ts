@@ -35,9 +35,9 @@ function markAsUsed(_: unknown) {}
 markAsUsed(console);
 
 /**
- * Default {@link Logger} which logs to stdout and stderr.
+ * Simple {@link Logger} which logs to stdout and stderr.
  */
-export class DefaultLogger implements Logger {
+export class SimpleLogger implements Logger {
   readonly #rootPackageDir: string;
   readonly console: Console;
   readonly #diagnosticPrinter: DiagnosticPrinter;
@@ -201,10 +201,18 @@ export class DefaultLogger implements Logger {
             this.console.error(`❌${prefix} Service exited unexpectedly`);
             break;
           }
-          case 'files-deleted-during-fingerprinting': {
+          case 'input-file-deleted-unexpectedly': {
             for (const filePath of event.filePaths) {
               this.console.error(
-                `❌${prefix} "${filePath}" was deleted during fingerprinting.`,
+                `❌${prefix} Input file "${filePath}" was deleted unexpectedly. Is another process writing to the same location?`,
+              );
+            }
+            break;
+          }
+          case 'output-file-deleted-unexpectedly': {
+            for (const filePath of event.filePaths) {
+              this.console.error(
+                `❌${prefix} Output file "${filePath}" was deleted unexpectedly. Is another process writing to the same location?`,
               );
             }
             break;

@@ -9,7 +9,7 @@ import * as pathlib from 'path';
 import {ScriptReference} from './config.js';
 import {Result} from './error.js';
 import {FailureMode} from './executor.js';
-import {DefaultLogger} from './logging/default-logger.js';
+import {SimpleLogger} from './logging/simple-logger.js';
 import {Console, Logger} from './logging/logger.js';
 import {MetricsLogger} from './logging/metrics-logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
@@ -204,7 +204,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       return {ok: true, value: new QuietCiLogger(packageRoot, console)};
     }
     if (str === 'simple') {
-      return {ok: true, value: new DefaultLogger(packageRoot, console)};
+      return {ok: true, value: new SimpleLogger(packageRoot, console)};
     }
     if (str === 'metrics') {
       return {ok: true, value: new MetricsLogger(packageRoot, console)};

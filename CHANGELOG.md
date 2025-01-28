@@ -13,6 +13,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Fix a bug that may have resulted in Wireit attempting to open too many files
   at once (no known reports).
 
+- When an unexpected error occurs, the specific script that failed is now
+  reported by the logger, instead of the less-useful entry-point script.
+
+- When an output file is deleted during output manifest generation, a more
+  useful error message is reported instead of an unexpected error.
+
 ## [0.14.9] - 2024-09-03
 
 ### Added

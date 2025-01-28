@@ -12,7 +12,7 @@ import {
   scriptReferenceToString,
 } from '../../config.js';
 import {Failure, Info, Success, Output, Event} from '../../event.js';
-import {DefaultLogger, labelForScript} from '../default-logger.js';
+import {SimpleLogger, labelForScript} from '../simple-logger.js';
 import {Console} from '../logger.js';
 import {DEBUG} from '../logger.js';
 import {StatusLineWriter} from './writeover-line.js';
@@ -158,7 +158,7 @@ export class QuietRunLogger implements Disposable {
   #statusLineState: StatusLineState = 'initial';
   readonly #startTime = Date.now();
   readonly #rootPackage: string;
-  readonly #defaultLogger: DefaultLogger;
+  readonly #simpleLogger: SimpleLogger;
   readonly #statusLineWriter;
   readonly console: Console;
   /**
@@ -174,12 +174,11 @@ export class QuietRunLogger implements Disposable {
     rootPackage: string,
     statusLineWriter: StatusLineWriter,
     console: Console,
-    defaultLogger?: DefaultLogger,
+    simpleLogger?: SimpleLogger,
   ) {
     this.#rootPackage = rootPackage;
     this.#statusLineWriter = statusLineWriter;
-    this.#defaultLogger =
-      defaultLogger ?? new DefaultLogger(rootPackage, console);
+    this.#simpleLogger = simpleLogger ?? new SimpleLogger(rootPackage, console);
     this.console = console;
   }
 
@@ -193,7 +192,7 @@ export class QuietRunLogger implements Disposable {
       this.#rootPackage,
       this.#statusLineWriter,
       this.console,
-      this.#defaultLogger,
+      this.#simpleLogger,
     );
     // Persistent services stay running between runs, so pass along what we
     // know.
@@ -555,7 +554,8 @@ export class QuietRunLogger implements Disposable {
         // Also logged elswhere.
         break;
       }
-      case 'files-deleted-during-fingerprinting':
+      case 'input-file-deleted-unexpectedly':
+      case 'output-file-deleted-unexpectedly':
       case 'service-exited-unexpectedly':
       case 'cycle':
       case 'dependency-invalid':
@@ -575,7 +575,7 @@ export class QuietRunLogger implements Disposable {
       case 'unknown-error-thrown':
       case 'wireit-config-but-no-script':
         // The default log for these is good.
-        this.#defaultLogger.log(failure);
+        this.#simpleLogger.log(failure);
         break;
       default: {
         const never: never = failure;
@@ -672,6 +672,6 @@ export class QuietRunLogger implements Disposable {
   }
 
   [Symbol.dispose]() {
-    this.#defaultLogger[Symbol.dispose]();
+    this.#simpleLogger[Symbol.dispose]();
   }
 }
