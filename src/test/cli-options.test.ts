@@ -221,7 +221,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             packageDir: rig.temp,
             name: 'main',
           },
-          logger: 'DefaultLogger',
+          logger: 'SimpleLogger',
         },
         {
           WIREIT_LOGGER: 'simple',

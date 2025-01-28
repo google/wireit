@@ -9,7 +9,7 @@ import {getOptions, Options, packageDir} from './cli-options.js';
 import {Result} from './error.js';
 import {Failure} from './event.js';
 import {Executor} from './executor.js';
-import {DefaultLogger} from './logging/default-logger.js';
+import {SimpleLogger} from './logging/simple-logger.js';
 import {Console} from './logging/logger.js';
 import {unreachable} from './util/unreachable.js';
 import {WorkerPool} from './util/worker-pool.js';
@@ -118,7 +118,7 @@ if (!optionsResult.ok) {
   // if we can't figure out our options, we can't figure out what logger
   // we should use here, so just use the default logger.
   const console = new Console(process.stderr, process.stderr);
-  const logger = new DefaultLogger(packageDir ?? process.cwd(), console);
+  const logger = new SimpleLogger(packageDir ?? process.cwd(), console);
   logger.log(optionsResult.error);
   process.exit(1);
 }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {DefaultLogger} from './default-logger.js';
+import {SimpleLogger} from './simple-logger.js';
 import {Event} from '../event.js';
 import {inspect} from 'node:util';
 
@@ -17,7 +17,7 @@ markAsUsed(console);
 /**
  * A {@link Logger} for logging debug information, mainly in tests.
  */
-export class DebugLogger extends DefaultLogger {
+export class DebugLogger extends SimpleLogger {
   override log(event: Event) {
     switch (event.type) {
       case 'info':

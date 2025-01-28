@@ -35,9 +35,9 @@ function markAsUsed(_: unknown) {}
 markAsUsed(console);
 
 /**
- * Default {@link Logger} which logs to stdout and stderr.
+ * Simple {@link Logger} which logs to stdout and stderr.
  */
-export class DefaultLogger implements Logger {
+export class SimpleLogger implements Logger {
   readonly #rootPackageDir: string;
   readonly console: Console;
   readonly #diagnosticPrinter: DiagnosticPrinter;

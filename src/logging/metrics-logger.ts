@@ -6,7 +6,7 @@
 
 import {hrtime} from 'process';
 import {Event} from '../event.js';
-import {DefaultLogger} from './default-logger.js';
+import {SimpleLogger} from './simple-logger.js';
 import {Console} from './logger.js';
 
 // To prevent using the global console accidentally, we shadow it with
@@ -24,7 +24,7 @@ interface Metric {
 /**
  * A {@link Logger} that keeps track of metrics.
  */
-export class MetricsLogger extends DefaultLogger {
+export class MetricsLogger extends SimpleLogger {
   #startTime: [number, number] = hrtime();
   readonly #metrics: [Metric, Metric, Metric, Metric] = [
     {
