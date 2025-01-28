@@ -40,7 +40,7 @@ export class DebugLogger extends SimpleLogger {
     super.log(event);
   }
 
-  [Symbol.dispose](): void {
+  override [Symbol.dispose](): void {
     super[Symbol.dispose]();
     this.console[Symbol.dispose]();
   }
