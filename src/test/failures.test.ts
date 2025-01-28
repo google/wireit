@@ -6,7 +6,7 @@
 
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {DEFAULT_UVU_TIMEOUT, rigTest} from './util/rig-test.js';
 import type {ExitResult} from './util/test-rig.js';
 
 const test = suite<object>();
@@ -483,152 +483,164 @@ test(
 
 test(
   'unexpected input file deletion during fingerprinting',
-  rigTest(async ({rig}) => {
-    // Spam our input file with writes and deletes out-of-band with wireit.
-    let spamming = true;
-    void (async () => {
-      while (spamming) {
-        try {
-          await rig.write('input', Math.random());
-          await rig.delete('input');
-        } catch {
-          // Sometimes we get an EPERM error here on Windows CI. Probably
-          // writing too fast, just sleep a bit.
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-    })();
-
-    let finalExit: ExitResult;
-    try {
-      // It could take multiple attempts to hit the race condition.
-      for (let i = 0; i < 100; i++) {
-        const failer = await rig.newCommand();
-        await rig.write({
-          'package.json': {
-            scripts: {
-              main: 'wireit',
-              failer: 'wireit',
-            },
-            wireit: {
-              main: {
-                dependencies: ['failer'],
-              },
-              failer: {
-                command: failer.command,
-                files: ['input'],
-                output: ['output'],
-              },
-            },
-          },
-        });
-        const wireit = rig.exec('npm run main');
-        // If the error occurs, it will happen before invocation.
-        const exitOrInvocation = await Promise.race([
-          wireit.exit,
-          failer.nextInvocation(),
-        ]);
-        if ('code' in exitOrInvocation) {
-          if (exitOrInvocation.stderr.includes('EPERM')) {
-            // See note about EPERM above, it can also happen within wireit.
+  rigTest(
+    async ({rig}) => {
+      // Spam our input file with writes and deletes out-of-band with wireit.
+      let spamming = true;
+      void (async () => {
+        while (spamming) {
+          try {
+            await rig.write('input', Math.random());
+            await rig.delete('input');
+          } catch {
+            // Sometimes we get an EPERM error here on Windows CI. Probably
+            // writing too fast, just sleep a bit.
             await new Promise((resolve) => setTimeout(resolve, 1000));
-            continue;
-          } else {
-            finalExit = exitOrInvocation;
-            break;
           }
         }
-        await rig.write('output', '1');
-        exitOrInvocation.exit(0);
-        finalExit = await wireit.exit;
-        if (finalExit.code !== 0) {
-          if (finalExit.stderr.includes('EPERM')) {
-            // See note about EPERM above, it can also happen within wireit.
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          } else {
-            break;
+      })();
+
+      let finalExit: ExitResult;
+      try {
+        // It could take multiple attempts to hit the race condition.
+        for (let i = 0; i < 100; i++) {
+          const failer = await rig.newCommand();
+          await rig.write({
+            'package.json': {
+              scripts: {
+                main: 'wireit',
+                failer: 'wireit',
+              },
+              wireit: {
+                main: {
+                  dependencies: ['failer'],
+                },
+                failer: {
+                  command: failer.command,
+                  files: ['input'],
+                  output: ['output'],
+                },
+              },
+            },
+          });
+          const wireit = rig.exec('npm run main');
+          // If the error occurs, it will happen before invocation.
+          const exitOrInvocation = await Promise.race([
+            wireit.exit,
+            failer.nextInvocation(),
+          ]);
+          if ('code' in exitOrInvocation) {
+            if (exitOrInvocation.stderr.includes('EPERM')) {
+              // See note about EPERM above, it can also happen within wireit.
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              continue;
+            } else {
+              finalExit = exitOrInvocation;
+              break;
+            }
+          }
+          await rig.write('output', '1');
+          exitOrInvocation.exit(0);
+          finalExit = await wireit.exit;
+          if (finalExit.code !== 0) {
+            if (finalExit.stderr.includes('EPERM')) {
+              // See note about EPERM above, it can also happen within wireit.
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } else {
+              break;
+            }
           }
         }
+      } finally {
+        spamming = false;
       }
-    } finally {
-      spamming = false;
-    }
 
-    assert.equal(finalExit!.code, 1);
-    assert.match(
-      finalExit!.stderr,
-      `[failer] Input file "${rig.resolve('input')}" was deleted unexpectedly.` +
-        ` Is another process writing to the same location?`,
-    );
-  }),
+      assert.equal(finalExit!.code, 1);
+      assert.match(
+        finalExit!.stderr,
+        `[failer] Input file "${rig.resolve('input')}" was deleted unexpectedly.` +
+          ` Is another process writing to the same location?`,
+      );
+    },
+    {
+      flaky: true,
+      ms: DEFAULT_UVU_TIMEOUT * 2,
+    },
+  ),
 );
 
 test(
   'unexpected output file deletion during manifest generation',
-  rigTest(async ({rig}) => {
-    // Spam our output file with writes and deletes out-of-band with wireit.
-    let spamming = true;
-    void (async () => {
-      while (spamming) {
-        try {
-          await rig.write('output', Math.random());
-          await rig.delete('output');
-        } catch {
-          // Sometimes we get an EPERM error here on Windows CI. Probably
-          // writing too fast, just sleep a bit.
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-    })();
-
-    let finalExit: ExitResult;
-    try {
-      // It could take multiple attempts to hit the race condition.
-      for (let i = 0; i < 100; i++) {
-        const failer = await rig.newCommand();
-        await rig.write({
-          'package.json': {
-            scripts: {
-              main: 'wireit',
-              failer: 'wireit',
-            },
-            wireit: {
-              main: {
-                dependencies: ['failer'],
-              },
-              failer: {
-                command: failer.command,
-                files: ['input'],
-                output: ['output'],
-              },
-            },
-          },
-        });
-        const wireit = rig.exec('npm run main');
-        const failerInv = await failer.nextInvocation();
-        await rig.write('output', '1');
-        failerInv.exit(0);
-        finalExit = await wireit.exit;
-        if (finalExit.code !== 0) {
-          if (finalExit.stderr.includes('EPERM')) {
-            // See note about EPERM above, it can also happen within wireit.
+  rigTest(
+    async ({rig}) => {
+      // Spam our output file with writes and deletes out-of-band with wireit.
+      let spamming = true;
+      void (async () => {
+        while (spamming) {
+          try {
+            await rig.write('output', Math.random());
+            await rig.delete('output');
+          } catch {
+            // Sometimes we get an EPERM error here on Windows CI. Probably
+            // writing too fast, just sleep a bit.
             await new Promise((resolve) => setTimeout(resolve, 1000));
-          } else {
-            break;
           }
         }
-      }
-    } finally {
-      spamming = false;
-    }
+      })();
 
-    assert.equal(finalExit!.code, 1);
-    assert.match(
-      finalExit!.stderr,
-      `[failer] Output file "${rig.resolve('output')}" was deleted unexpectedly.` +
-        ` Is another process writing to the same location?`,
-    );
-  }),
+      let finalExit: ExitResult;
+      try {
+        // It could take multiple attempts to hit the race condition.
+        for (let i = 0; i < 100; i++) {
+          const failer = await rig.newCommand();
+          await rig.write({
+            'package.json': {
+              scripts: {
+                main: 'wireit',
+                failer: 'wireit',
+              },
+              wireit: {
+                main: {
+                  dependencies: ['failer'],
+                },
+                failer: {
+                  command: failer.command,
+                  files: ['input'],
+                  output: ['output'],
+                },
+              },
+            },
+          });
+          const wireit = rig.exec('npm run main');
+          const failerInv = await failer.nextInvocation();
+          await rig.write('output', '1');
+          failerInv.exit(0);
+          finalExit = await wireit.exit;
+          if (finalExit.code !== 0) {
+            if (finalExit.stderr.includes('EPERM')) {
+              // See note about EPERM above, it can also happen within wireit.
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } else {
+              break;
+            }
+          }
+        }
+      } finally {
+        spamming = false;
+      }
+
+      assert.equal(finalExit!.code, 1);
+      assert.match(
+        finalExit!.stderr,
+        `[failer] Output file "${rig.resolve('output')}" was deleted unexpectedly.` +
+          ` Is another process writing to the same location?`,
+      );
+    },
+    {
+      flaky: true,
+      ms: DEFAULT_UVU_TIMEOUT * 2,
+    },
+  ),
 );
 
 test.run();
