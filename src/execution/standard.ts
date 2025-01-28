@@ -293,9 +293,13 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this.#writeOutputManifest(
-        await this.#computeOutputManifest(outputFilesAfterRunning.value),
+      const outputManifest = await this.#computeOutputManifest(
+        outputFilesAfterRunning.value,
       );
+      if (!outputManifest.ok) {
+        return {ok: false, error: [outputManifest.error]};
+      }
+      await this.#writeOutputManifest(outputManifest.value);
     }
     await writeFingerprintPromise;
 
@@ -446,9 +450,13 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this.#writeOutputManifest(
-        await this.#computeOutputManifest(outputFilesAfterRunning.value),
+      const outputManifest = await this.#computeOutputManifest(
+        outputFilesAfterRunning.value,
       );
+      if (!outputManifest.ok) {
+        return {ok: false, error: [outputManifest.error]};
+      }
+      await this.#writeOutputManifest(outputManifest.value);
     }
     await writeFingerprintPromise;
 
@@ -687,7 +695,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    */
   async #computeOutputManifest(
     outputEntries: AbsoluteEntry[],
-  ): Promise<FileManifestString> {
+  ): Promise<Result<FileManifestString>> {
     outputEntries.sort((a, b) => a.path.localeCompare(b.path));
     const stats = await Promise.all(
       outputEntries.map((entry) => fs.lstat(entry.path)),
@@ -696,7 +704,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     for (let i = 0; i < outputEntries.length; i++) {
       manifest[outputEntries[i]!.path] = computeManifestEntry(stats[i]!);
     }
-    return JSON.stringify(manifest) as FileManifestString;
+    return {ok: true, value: JSON.stringify(manifest) as FileManifestString};
   }
 
   /**
@@ -715,11 +723,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     const newManifest = await this.#computeOutputManifest(
       outputFilesBeforeRunning.value,
     );
+    if (!newManifest.ok) {
+      return newManifest;
+    }
     const oldManifest = await oldManifestPromise;
     if (oldManifest === undefined) {
       return {ok: true, value: false};
     }
-    const equal = newManifest === oldManifest;
+    const equal = newManifest.value === oldManifest;
     if (!equal) {
       this._logger.log({
         script: this._config,
