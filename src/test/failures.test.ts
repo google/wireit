@@ -496,7 +496,7 @@ test(
     let finalExit: ExitResult;
     try {
       // It could take multiple attempts to hit the race condition.
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 100; i++) {
         const failer = await rig.newCommand();
         await rig.write({
           'package.json': {
@@ -561,7 +561,7 @@ test(
     let finalExit: ExitResult;
     try {
       // It could take multiple attempts to hit the race condition.
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 100; i++) {
         const failer = await rig.newCommand();
         await rig.write({
           'package.json': {
