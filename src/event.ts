@@ -101,7 +101,7 @@ export type Failure =
   | ServiceExitedUnexpectedly
   | DependencyServiceExitedUnexpectedly
   | Aborted
-  | FilesDeletedDuringFingerprinting;
+  | InputFileDeletedUnexpectedly;
 
 interface ErrorBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -283,11 +283,12 @@ export interface Aborted extends ErrorBase {
 }
 
 /**
- * A file was deleting after globbing but before fingerprinting and
- * was unable to be read.
+ * One or more input files were deleted very unexpectedly, e.g. between globbing
+ * and fingerprinting, indicating that an out-of-band process is modifying the
+ * same input location.
  */
-export interface FilesDeletedDuringFingerprinting extends ErrorBase {
-  reason: 'files-deleted-during-fingerprinting';
+export interface InputFileDeletedUnexpectedly extends ErrorBase {
+  reason: 'input-file-deleted-unexpectedly';
   filePaths: string[];
 }
 

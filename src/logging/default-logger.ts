@@ -201,10 +201,10 @@ export class DefaultLogger implements Logger {
             this.console.error(`❌${prefix} Service exited unexpectedly`);
             break;
           }
-          case 'files-deleted-during-fingerprinting': {
+          case 'input-file-deleted-unexpectedly': {
             for (const filePath of event.filePaths) {
               this.console.error(
-                `❌${prefix} "${filePath}" was deleted during fingerprinting.`,
+                `❌${prefix} Input file "${filePath}" was deleted unexpectedly. Is another process writing to the same location?`,
               );
             }
             break;

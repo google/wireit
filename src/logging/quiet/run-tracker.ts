@@ -555,7 +555,7 @@ export class QuietRunLogger implements Disposable {
         // Also logged elswhere.
         break;
       }
-      case 'files-deleted-during-fingerprinting':
+      case 'input-file-deleted-unexpectedly':
       case 'service-exited-unexpectedly':
       case 'cycle':
       case 'dependency-invalid':

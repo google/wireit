@@ -202,7 +202,7 @@ export class Fingerprint {
           ok: false,
           error: {
             type: 'failure',
-            reason: 'files-deleted-during-fingerprinting',
+            reason: 'input-file-deleted-unexpectedly',
             script: script,
             filePaths: erroredFilePaths,
           },
