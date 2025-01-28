@@ -556,6 +556,7 @@ export class QuietRunLogger implements Disposable {
         break;
       }
       case 'input-file-deleted-unexpectedly':
+      case 'output-file-deleted-unexpectedly':
       case 'service-exited-unexpectedly':
       case 'cycle':
       case 'dependency-invalid':

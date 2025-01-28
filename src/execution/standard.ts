@@ -27,6 +27,7 @@ import type {Cache, CacheHit} from '../caching/cache.js';
 import type {Failure, StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
+import {Stats} from 'fs';
 
 type StandardScriptExecutionState =
   | 'before-running'
@@ -697,9 +698,32 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     outputEntries: AbsoluteEntry[],
   ): Promise<Result<FileManifestString>> {
     outputEntries.sort((a, b) => a.path.localeCompare(b.path));
-    const stats = await Promise.all(
-      outputEntries.map((entry) => fs.lstat(entry.path)),
+    const stats: Stats[] = [];
+    const deleted: string[] = [];
+    await Promise.all(
+      outputEntries.map(async (entry, i) => {
+        try {
+          stats[i] = await fs.lstat(entry.path);
+        } catch (e) {
+          if ((e as {code?: string}).code === 'ENOENT') {
+            deleted.push(entry.path);
+          } else {
+            throw e;
+          }
+        }
+      }),
     );
+    if (deleted.length > 0) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'output-file-deleted-unexpectedly',
+          script: this._config,
+          filePaths: deleted.sort(),
+        },
+      };
+    }
     const manifest: Record<string, FileManifestEntry> = {};
     for (let i = 0; i < outputEntries.length; i++) {
       manifest[outputEntries[i]!.path] = computeManifestEntry(stats[i]!);

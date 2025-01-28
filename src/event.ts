@@ -101,7 +101,8 @@ export type Failure =
   | ServiceExitedUnexpectedly
   | DependencyServiceExitedUnexpectedly
   | Aborted
-  | InputFileDeletedUnexpectedly;
+  | InputFileDeletedUnexpectedly
+  | OutputFileDeletedUnexpectedly;
 
 interface ErrorBase<T extends PackageReference = ScriptReference>
   extends EventBase<T> {
@@ -289,6 +290,16 @@ export interface Aborted extends ErrorBase {
  */
 export interface InputFileDeletedUnexpectedly extends ErrorBase {
   reason: 'input-file-deleted-unexpectedly';
+  filePaths: string[];
+}
+
+/**
+ * One or more output files were deleted very unexpectedly, e.g. between
+ * globbing and generating an output manifest, indicating that an out-of-band
+ * process is modifying the same output location.
+ */
+export interface OutputFileDeletedUnexpectedly extends ErrorBase {
+  reason: 'output-file-deleted-unexpectedly';
   filePaths: string[];
 }
 

@@ -209,6 +209,14 @@ export class DefaultLogger implements Logger {
             }
             break;
           }
+          case 'output-file-deleted-unexpectedly': {
+            for (const filePath of event.filePaths) {
+              this.console.error(
+                `❌${prefix} Output file "${filePath}" was deleted unexpectedly. Is another process writing to the same location?`,
+              );
+            }
+            break;
+          }
           case 'aborted':
           case 'dependency-service-exited-unexpectedly': {
             // These event isn't very useful to log, because they are downstream
