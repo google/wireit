@@ -488,8 +488,14 @@ test(
     let spamming = true;
     void (async () => {
       while (spamming) {
-        await rig.write('input', Math.random());
-        await rig.delete('input');
+        try {
+          await rig.write('input', Math.random());
+          await rig.delete('input');
+        } catch {
+          // Sometimes we get an EPERM error here on Windows CI. Probably
+          // writing too fast, just sleep a bit.
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
     })();
 
@@ -553,8 +559,14 @@ test(
     let spamming = true;
     void (async () => {
       while (spamming) {
-        await rig.write('output', Math.random());
-        await rig.delete('output');
+        try {
+          await rig.write('output', Math.random());
+          await rig.delete('output');
+        } catch {
+          // Sometimes we get an EPERM error here on Windows CI. Probably
+          // writing too fast, just sleep a bit.
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
     })();
 
