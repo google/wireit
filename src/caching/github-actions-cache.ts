@@ -485,9 +485,9 @@ export class GitHubActionsCache implements Cache {
   }
 
   #computeCacheKey(script: ScriptReference): string {
-    return createHash('sha256')
+    return `wireit-${createHash('sha256')
       .update(scriptReferenceToString(script))
-      .digest('hex');
+      .digest('hex')}`;
   }
 
   #computeVersion(fingerprint: Fingerprint): string {
