@@ -6,7 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## Unreleased
+
+### Changed
+
+- It is now supported _and preferred_ to use `#` as the delimiter between
+  packages and scripts in dependency specifiers, instead of `:`. For example,
+  instead of `"../other:build"`, it is now preferred to write
+  `"../other#build"`.
+
+  The `:` character will continue to work the same indefinitely, but the Wireit
+  documentation will exclusively show `#`, and upcoming new features for
+  dependency specifiers will only work with the newer `#` form.
+
+- **[BREAKING]** Certain special characters must now be escaped with a `\`
+  (which in JSON is written as `\\`) if they are to be intepreted literally in a
+  package specifier:
+
+  - `#`
+  - `\`
+  - `<`
+  - `>`
+  - `.` (only required at the start of the specifier)
+  - `!` (only required at the start of the specifier)
+  - `:` (only required when using the legacy delimiter, meaning a `#` does not
+    appear later in the specifier)
+
+  For example, in the (highly unusual) situation that you depend on a script
+  like `"../ha#shy:sl\\ashy"`, you should now write `"../ha\\#shy#sl\\\\ashy"`
+  (note that `\` escapes are _also_ required for JSON, hence the double
+  escapes).
 
 ## [0.14.11] - 2025-02-07
 

@@ -171,9 +171,14 @@ other wireit scripts, and can never be run directly.
 ### Cross-package dependencies
 
 Dependencies can refer to scripts in other npm packages by using a relative path
-with the syntax `<relative-path>:<script-name>`. All cross-package dependencies
+with the syntax `<relative-path>#<script-name>`. All cross-package dependencies
 should start with a `"."`. Cross-package dependencies work well for npm
 workspaces, as well as in other kinds of monorepos.
+
+> [!NOTE]
+> The `:` character can also be used as a delimiter instead of `#` (e.g.
+> `"../other-package:build`), but `#` is preferred since February 2025 because
+> it is less ambiguous given the prevalence of `:` in npm script names.
 
 ```json
 {
@@ -183,7 +188,7 @@ workspaces, as well as in other kinds of monorepos.
   "wireit": {
     "build": {
       "command": "tsc",
-      "dependencies": ["../other-package:build"]
+      "dependencies": ["../other-package#build"]
     }
   }
 }
@@ -534,7 +539,7 @@ expected to exit by itself, set `"service": true`.
       "dependencies": [
         "build:server",
         {
-          "script": "../assets:build",
+          "script": "../assets#build",
           "cascade": false
         }
       ]
@@ -691,7 +696,7 @@ There are two main reasons you might want to set `cascade` to `false`:
          "dependencies": [
            "build:server",
            {
-             "script": "../assets:build",
+             "script": "../assets#build",
              "cascade": false
            }
          ],
@@ -853,7 +858,7 @@ The following properties can be set inside `wireit.<script>` objects in
 | ------------------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `command`                 | `string`                           | `undefined`             | The shell command to run.                                                                                                       |
 | `dependencies`            | `string[] \| object[]`             | `[]`                    | [Scripts that must run before this one](#dependencies).                                                                         |
-| `dependencies[i].script`  | `string`                           | `undefined`             | [The name of the script, when the dependency is an object.](#dependencies).                                                     |
+| `dependencies[i].script`  | `string`                           | `undefined`             | [The name of the script, when the dependency is an object](#dependencies).                                                      |
 | `dependencies[i].cascade` | `boolean`                          | `true`                  | [Whether this dependency always causes this script to re-execute](#execution-cascade).                                          |
 | `files`                   | `string[]`                         | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [fingerprint](#fingerprint).                                  |
 | `output`                  | `string[]`                         | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output).                     |
