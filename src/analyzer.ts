@@ -14,7 +14,11 @@ import {
 } from './util/package-json-reader.js';
 import {IS_WINDOWS} from './util/windows.js';
 
-import {parseDependency} from './analysis/dependency-parser.js';
+import {
+  parseDependency,
+  type ParsedPackageWithRange,
+  type ParsedScriptWithRange,
+} from './analysis/dependency-parser.js';
 import type {Agent} from './cli-options.js';
 import type {
   ScriptConfig,
@@ -560,7 +564,7 @@ export class Analyzer {
     }
 
     const {dependencies, encounteredError: dependenciesErrored} =
-      this.#processDependencies(placeholder, packageJson, syntaxInfo);
+      await this.#processDependencies(placeholder, packageJson, syntaxInfo);
 
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
@@ -668,14 +672,14 @@ export class Analyzer {
     Object.assign(placeholder, remainingConfig);
   }
 
-  #processDependencies(
+  async #processDependencies(
     placeholder: UnvalidatedConfig,
     packageJson: PackageJson,
     scriptInfo: ScriptSyntaxInfo,
-  ): {
+  ): Promise<{
     dependencies: Array<Dependency<PotentiallyValidScriptConfig>>;
     encounteredError: boolean;
-  } {
+  }> {
     const dependencies: Array<Dependency<PotentiallyValidScriptConfig>> = [];
     const dependenciesAst =
       scriptInfo.wireitConfigNode &&
@@ -790,10 +794,10 @@ export class Analyzer {
       }
 
       const unresolved = specifierResult.value;
-      const result = this.#resolveDependency(
+      const result = await this.#resolveDependency(
         unresolved,
         placeholder,
-        packageJson.jsonFile,
+        packageJson,
       );
       if (!result.ok) {
         encounteredError = true;
@@ -1709,11 +1713,11 @@ export class Analyzer {
    *
    * Note this can return 0, 1, or >1 script references.
    */
-  #resolveDependency(
+  async #resolveDependency(
     dependency: JsonAstNode<string>,
     context: ScriptReference,
-    referencingFile: JsonFile,
-  ): Result<Array<ScriptReference>, Failure> {
+    packageJson: PackageJson,
+  ): Promise<Result<Array<ScriptReference>, Failure>> {
     const parsed = parseDependency(dependency.value);
     if (!parsed.ok) {
       return {
@@ -1727,7 +1731,7 @@ export class Analyzer {
             location: {
               // The parser doesn't know about the file, add that to the
               // diagnostic.
-              file: referencingFile,
+              file: packageJson.jsonFile,
               range: {
                 offset:
                   dependency.offset + 1 + parsed.error.location.range.offset,
@@ -1746,84 +1750,114 @@ export class Analyzer {
       return invalidSyntaxError(
         'Dependency inversion operator "!" is not yet supported',
         context,
-        referencingFile,
+        packageJson.jsonFile,
         {offset: dependency.offset, length: 1},
       );
     }
 
-    let packageDir: string;
+    const scriptName = this.#resolveScriptName(script, context);
+    if (!scriptName.ok) {
+      return scriptName;
+    }
+    const packageDirs = await this.#resolvePackageDir(
+      dependency,
+      context,
+      pkg,
+      scriptName.value,
+      packageJson,
+    );
+    if (!packageDirs.ok) {
+      return packageDirs;
+    }
+    return {
+      ok: true,
+      value: packageDirs.value.map((packageDir) => ({
+        packageDir,
+        name: scriptName.value,
+      })),
+    };
+  }
+
+  async #resolvePackageDir(
+    dependency: JsonAstNode<string>,
+    context: ScriptReference,
+    pkg: ParsedPackageWithRange,
+    scriptName: string,
+    packageJson: PackageJson,
+  ): Promise<Result<string[], Failure>> {
     if (pkg.kind === 'this') {
-      packageDir = context.packageDir;
-    } else if (pkg.kind === 'path') {
-      packageDir = pathlib.resolve(context.packageDir, pkg.path);
-      if (packageDir === context.packageDir) {
+      return {ok: true, value: [context.packageDir]};
+    }
+    if (pkg.kind === 'path') {
+      const absolute = pathlib.resolve(context.packageDir, pkg.path);
+      if (absolute === context.packageDir) {
         return invalidSyntaxError(
           `Cross-package dependency "${dependency.value}" ` +
             `resolved to the same package.`,
           context,
-          referencingFile,
+          packageJson.jsonFile,
           {
             offset: dependency.offset + 1 + pkg.range.offset,
             length: pkg.range.length,
           },
         );
       }
-    } else if (pkg.kind === 'npm') {
+      return {ok: true, value: [absolute]};
+    }
+    if (pkg.kind === 'npm') {
       // TODO(aomarks) Support npm resolution.
       return invalidSyntaxError(
         'NPM packages are not yet supported',
         context,
-        referencingFile,
+        packageJson.jsonFile,
         {
           offset: dependency.offset + 1 + pkg.range.offset,
           length: pkg.range.length,
         },
       );
-    } else if (pkg.kind === 'dependencies') {
+    }
+    if (pkg.kind === 'dependencies') {
       // TODO(aomarks) Support "dependencies".
       return invalidSyntaxError(
         `"dependencies" is not yet supported`,
         context,
-        referencingFile,
+        packageJson.jsonFile,
         {
           offset: dependency.offset + 1 + pkg.range.offset,
           length: pkg.range.length,
         },
       );
-    } else if (pkg.kind === 'workspaces') {
+    }
+    if (pkg.kind === 'workspaces') {
       // TODO(aomarks) Support "workspacess".
       return invalidSyntaxError(
         `"workspaces" is not yet supported`,
         context,
-        referencingFile,
+        packageJson.jsonFile,
         {
           offset: dependency.offset + 1 + pkg.range.offset,
           length: pkg.range.length,
         },
       );
-    } else {
-      pkg satisfies never;
-      throw new Error(
-        `Unexpected parsed package format: ${JSON.stringify(pkg)}`,
-      );
     }
+    pkg satisfies never;
+    throw new Error(`Unexpected parsed package format: ${JSON.stringify(pkg)}`);
+  }
 
-    let scriptName: string;
+  #resolveScriptName(
+    script: ParsedScriptWithRange,
+    context: ScriptReference,
+  ): Result<string, Failure> {
     if (script.kind === 'name') {
-      scriptName = script.name;
-    } else if (script.kind === 'this') {
-      scriptName = context.name;
-    } else {
-      script satisfies never;
-      throw new Error(
-        `Unexpected parsed script format: ${JSON.stringify(script)}`,
-      );
+      return {ok: true, value: script.name};
     }
-
-    return {
-      ok: true,
-      value: [{packageDir, name: scriptName}],
-    };
+    if (script.kind === 'this') {
+      return {ok: true, value: context.name};
+    }
+    script satisfies never;
+    throw new Error(
+      `Unexpected parsed script format: ${JSON.stringify(script)}`,
+    );
   }
 }
 
