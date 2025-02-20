@@ -9,8 +9,9 @@ import type {DiagnosticWithoutFile, Range, Result} from '../error.js';
 /**
  * Parse a Wireit dependency specifier.
  *
- * A Wireit dependency string is what appears in a `"wireit.<script>.dependencies"` array in a
- * `package.json` file, which controls which script must run before the current one.
+ * A Wireit dependency specifier is what appears in a
+ * `"wireit.<script>.dependencies"` array in a `package.json` file, which
+ * controls which script must run before the current one.
  *
  *
  * ### QUICK EXAMPLES
@@ -54,8 +55,9 @@ import type {DiagnosticWithoutFile, Range, Result} from '../error.js';
  *
  * ### INVERSION
  *
- * A dependency specifier can be inverted by prefixing it with a `!`. This means that any matching
- * scripts will be excluded from the preceding (but not following) matching scripts.
+ * A dependency specifier can be inverted by prefixing it with a `!`. This means
+ * that any matching scripts will be excluded from the preceding (but not
+ * following) matching scripts.
  *
  * |                           |                                                                   |
  * |---------------------------|-------------------------------------------------------------------|
@@ -65,7 +67,8 @@ import type {DiagnosticWithoutFile, Range, Result} from '../error.js';
  *
  * ### ESCAPING
  *
- * The following characters have special meaning, and must be escaped with `\` if meant literally:
+ * The following characters have special meaning, and must be escaped with `\`
+ * if meant literally:
  *
  * |                           |                                                                   |
  * |---------------------------|-------------------------------------------------------------------|
@@ -153,7 +156,7 @@ type Segment = StringSegment | SpecialSegment;
 type StringSegment = {
   kind: 'string';
   string: string;
-  // Note this can be range can be longe than the length of `string`, since it
+  // Note this can be range can be longer than the length of `string`, since it
   // includes escapes.
   range: Range;
 };
@@ -486,10 +489,10 @@ class DependencyParser {
   #lookAheadForUnescapedHash(): boolean {
     for (let i = this.#pos + 1; i < this.#str.length; i++) {
       const char = this.#str[i];
-      if (char === BACKSLASH) {
-        i += 2;
-      } else if (char === HASH) {
+      if (char === HASH) {
         return true;
+      } else if (char === BACKSLASH) {
+        i++; // Skip an additional character (since it's escaped).
       }
     }
     return false;

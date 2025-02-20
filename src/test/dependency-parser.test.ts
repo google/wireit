@@ -186,6 +186,14 @@ const cases: Array<
     },
   ],
   [
+    String.raw`./pkg:foo\##scr`,
+    String.raw`PPPPPPPPPPP_SSS`,
+    {
+      package: {kind: 'path', path: './pkg:foo#'},
+      script: {kind: 'name', name: 'scr'},
+    },
+  ],
+  [
     '#foo',
     '_SSS',
     {
