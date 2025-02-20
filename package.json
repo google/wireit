@@ -40,6 +40,7 @@
     "test:codeactions": "wireit",
     "test:copy": "wireit",
     "test:delete": "wireit",
+    "test:dependency-parser": "wireit",
     "test:diagnostic": "wireit",
     "test:errors-analysis": "wireit",
     "test:errors-usage": "wireit",
@@ -93,6 +94,7 @@
         "test:codeactions",
         "test:copy",
         "test:delete",
+        "test:dependency-parser",
         "test:diagnostic",
         "test:errors-analysis",
         "test:errors-usage",
@@ -214,6 +216,17 @@
     },
     "test:delete": {
       "command": "uvu lib/test \"^delete\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:dependency-parser": {
+      "command": "uvu lib/test \"^dependency-parser\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
