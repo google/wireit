@@ -56,7 +56,8 @@
     "test:parallelism": "wireit",
     "test:quiet": "wireit",
     "test:service": "wireit",
-    "test:watch": "wireit"
+    "test:watch": "wireit",
+    "test:workspaces": "wireit"
   },
   "wireit": {
     "build": {
@@ -110,7 +111,8 @@
         "test:parallelism",
         "test:quiet",
         "test:service",
-        "test:watch"
+        "test:watch",
+        "test:workspaces"
       ]
     },
     "lint": {
@@ -394,6 +396,17 @@
     },
     "test:watch": {
       "command": "uvu lib/test \"^watch\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:workspaces": {
+      "command": "uvu lib/test \"^workspaces\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
