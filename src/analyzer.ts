@@ -1995,7 +1995,7 @@ export function failUnlessNonBlankString(
 /**
  * Return a failing result if the given value is not an Array.
  */
-const failUnlessArray = (
+export const failUnlessArray = (
   astNode: JsonAstNode,
   file: JsonFile,
 ): Result<void, Failure> => {

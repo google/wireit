@@ -3,15 +3,22 @@
  * Copyright 2022 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import {findNamedNodeAtLocation, JsonFile} from './ast.js';
-import {JsonAstNode, NamedAstNode} from './ast.js';
-import {Failure} from '../event.js';
+
+import * as pathlib from 'path';
 import {
+  failUnlessArray,
   failUnlessJsonObject,
   failUnlessKeyValue,
   failUnlessNonBlankString,
 } from '../analyzer.js';
 import {offsetInsideNamedNode, offsetInsideRange} from '../error.js';
+import type {Failure} from '../event.js';
+import {
+  findNamedNodeAtLocation,
+  type JsonAstNode,
+  type JsonFile,
+  type NamedAstNode,
+} from './ast.js';
 
 export interface ScriptSyntaxInfo {
   name: string;
@@ -46,15 +53,18 @@ export class PackageJson {
   // we only walk the file once, in this class, and nowhere else.
   readonly #fileAstNode: JsonAstNode;
   readonly #scripts: Map<string, ScriptSyntaxInfo> = new Map();
+  readonly #workspaces: string[] = [];
   readonly failures: readonly Failure[];
   readonly scriptsSection: NamedAstNode | undefined = undefined;
   readonly wireitSection: NamedAstNode | undefined = undefined;
+
   constructor(jsonFile: JsonFile, fileAstNode: JsonAstNode) {
     this.jsonFile = jsonFile;
     this.#fileAstNode = fileAstNode;
     const failures: Failure[] = [];
     this.scriptsSection = this.#analyzeScriptsSection(failures);
     this.wireitSection = this.#analyzeWireitSection(failures);
+    this.#analyzeWorkspacesSection(failures);
     this.failures = failures;
   }
 
@@ -64,6 +74,10 @@ export class PackageJson {
 
   get scripts() {
     return this.#scripts.values();
+  }
+
+  get workspaces() {
+    return this.#workspaces;
   }
 
   getInfoAboutLocation(offset: number): LocationSyntaxInfo | undefined {
@@ -222,4 +236,55 @@ export class PackageJson {
     }
     return wireitSectionResult.value;
   }
+
+  #analyzeWorkspacesSection(failures: Failure[]) {
+    const workspacesSectionResult = findNamedNodeAtLocation(
+      this.#fileAstNode,
+      ['workspaces'],
+      this.jsonFile,
+    );
+    if (!workspacesSectionResult.ok) {
+      failures.push(workspacesSectionResult.error);
+      return;
+    }
+    const workspacesSection = workspacesSectionResult.value;
+    if (workspacesSection === undefined) {
+      return;
+    }
+
+    const isArray = failUnlessArray(workspacesSection, this.jsonFile);
+    if (!isArray.ok) {
+      failures.push(isArray.error);
+      return;
+    }
+
+    for (const child of workspacesSection.children ?? []) {
+      if (isJsonString(child)) {
+        this.#workspaces.push(child.value);
+      } else {
+        failures.push({
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: {
+            packageDir: pathlib.dirname(this.jsonFile.path),
+          },
+          diagnostic: {
+            severity: 'error',
+            message: `Expected a string, but was ${child.type}.`,
+            location: {
+              file: this.jsonFile,
+              range: {
+                offset: child.offset,
+                length: child.length,
+              },
+            },
+          },
+        });
+      }
+    }
+  }
+}
+
+function isJsonString(node: JsonAstNode): node is JsonAstNode<string> {
+  return node.type === 'string';
 }
