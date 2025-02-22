@@ -16,6 +16,7 @@ import {IS_WINDOWS} from './util/windows.js';
 
 import {
   parseDependency,
+  type PackagePath,
   type ParsedPackageWithRange,
   type ParsedScriptWithRange,
 } from './analysis/dependency-parser.js';
@@ -795,9 +796,9 @@ export class Analyzer {
 
       const unresolved = specifierResult.value;
       const result = await this.#resolveDependency(
-        unresolved,
-        placeholder,
         packageJson,
+        placeholder,
+        unresolved,
       );
       if (!result.ok) {
         encounteredError = true;
@@ -1708,24 +1709,23 @@ export class Analyzer {
 
   /**
    * Resolve a dependency string specified in a "wireit.<script>.dependencies"
-   * array, which may contain special syntax like relative paths or
-   * "$WORKSPACES", into concrete packages and script names.
+   * array into concrete packages and script names.
    *
    * Note this can return 0, 1, or >1 script references.
    */
   async #resolveDependency(
-    dependency: JsonAstNode<string>,
-    context: ScriptReference,
     packageJson: PackageJson,
+    contextScript: ScriptReference,
+    dependencySpecifier: JsonAstNode<string>,
   ): Promise<Result<Array<ScriptReference>, Failure>> {
-    const parsed = parseDependency(dependency.value);
+    const parsed = parseDependency(dependencySpecifier.value);
     if (!parsed.ok) {
       return {
         ok: false,
         error: {
           type: 'failure',
           reason: 'invalid-config-syntax',
-          script: context,
+          script: contextScript,
           diagnostic: {
             ...parsed.error,
             location: {
@@ -1734,7 +1734,9 @@ export class Analyzer {
               file: packageJson.jsonFile,
               range: {
                 offset:
-                  dependency.offset + 1 + parsed.error.location.range.offset,
+                  dependencySpecifier.offset +
+                  1 +
+                  parsed.error.location.range.offset,
                 length: parsed.error.location.range.length,
               },
             },
@@ -1743,32 +1745,37 @@ export class Analyzer {
       };
     }
 
-    const {package: pkg, script, inverted} = parsed.value;
+    const {
+      package: parsedPackage,
+      script: parsedScript,
+      inverted,
+    } = parsed.value;
 
     if (inverted) {
       // TODO(aomarks) Support inversion.
       return invalidSyntaxError(
         'Dependency inversion operator "!" is not yet supported',
-        context,
+        contextScript,
         packageJson.jsonFile,
-        {offset: dependency.offset, length: 1},
+        {offset: dependencySpecifier.offset, length: 1},
       );
     }
 
-    const scriptName = this.#resolveScriptName(script, context);
+    const scriptName = this.#resolveScriptName(parsedScript, contextScript);
     if (!scriptName.ok) {
       return scriptName;
     }
-    const packageDirs = await this.#resolvePackageDir(
-      dependency,
-      context,
-      pkg,
-      scriptName.value,
+
+    const packageDirs = await this.#resolvePackageDirs(
+      contextScript,
       packageJson,
+      dependencySpecifier,
+      parsedPackage,
     );
     if (!packageDirs.ok) {
       return packageDirs;
     }
+
     return {
       ok: true,
       value: packageDirs.value.map((packageDir) => ({
@@ -1776,72 +1783,6 @@ export class Analyzer {
         name: scriptName.value,
       })),
     };
-  }
-
-  async #resolvePackageDir(
-    dependency: JsonAstNode<string>,
-    context: ScriptReference,
-    pkg: ParsedPackageWithRange,
-    scriptName: string,
-    packageJson: PackageJson,
-  ): Promise<Result<string[], Failure>> {
-    if (pkg.kind === 'this') {
-      return {ok: true, value: [context.packageDir]};
-    }
-    if (pkg.kind === 'path') {
-      const absolute = pathlib.resolve(context.packageDir, pkg.path);
-      if (absolute === context.packageDir) {
-        return invalidSyntaxError(
-          `Cross-package dependency "${dependency.value}" ` +
-            `resolved to the same package.`,
-          context,
-          packageJson.jsonFile,
-          {
-            offset: dependency.offset + 1 + pkg.range.offset,
-            length: pkg.range.length,
-          },
-        );
-      }
-      return {ok: true, value: [absolute]};
-    }
-    if (pkg.kind === 'npm') {
-      // TODO(aomarks) Support npm resolution.
-      return invalidSyntaxError(
-        'NPM packages are not yet supported',
-        context,
-        packageJson.jsonFile,
-        {
-          offset: dependency.offset + 1 + pkg.range.offset,
-          length: pkg.range.length,
-        },
-      );
-    }
-    if (pkg.kind === 'dependencies') {
-      // TODO(aomarks) Support "dependencies".
-      return invalidSyntaxError(
-        `"dependencies" is not yet supported`,
-        context,
-        packageJson.jsonFile,
-        {
-          offset: dependency.offset + 1 + pkg.range.offset,
-          length: pkg.range.length,
-        },
-      );
-    }
-    if (pkg.kind === 'workspaces') {
-      // TODO(aomarks) Support "workspacess".
-      return invalidSyntaxError(
-        `"workspaces" is not yet supported`,
-        context,
-        packageJson.jsonFile,
-        {
-          offset: dependency.offset + 1 + pkg.range.offset,
-          length: pkg.range.length,
-        },
-      );
-    }
-    pkg satisfies never;
-    throw new Error(`Unexpected parsed package format: ${JSON.stringify(pkg)}`);
   }
 
   #resolveScriptName(
@@ -1857,6 +1798,135 @@ export class Analyzer {
     script satisfies never;
     throw new Error(
       `Unexpected parsed script format: ${JSON.stringify(script)}`,
+    );
+  }
+
+  async #resolvePackageDirs(
+    contextScript: ScriptReference,
+    packageJson: PackageJson,
+    dependencySpecifier: JsonAstNode<string>,
+    parsedPackage: ParsedPackageWithRange,
+  ): Promise<Result<string[], Failure>> {
+    if (parsedPackage.kind === 'this') {
+      return {ok: true, value: [contextScript.packageDir]};
+    }
+    if (parsedPackage.kind === 'path') {
+      return this.#resolvePathPackage(
+        packageJson,
+        contextScript,
+        dependencySpecifier,
+        parsedPackage,
+      );
+    }
+    if (parsedPackage.kind === 'npm') {
+      return await this.#resolveNpmPackage(
+        packageJson,
+        contextScript,
+        dependencySpecifier,
+        parsedPackage,
+      );
+    }
+    if (parsedPackage.kind === 'dependencies') {
+      return await this.#resolveNpmDependencyPackages(
+        packageJson,
+        contextScript,
+        dependencySpecifier,
+        parsedPackage,
+      );
+    }
+    if (parsedPackage.kind === 'workspaces') {
+      return await this.#resolveWorkspacesPackages(
+        packageJson,
+        contextScript,
+        dependencySpecifier,
+        parsedPackage,
+      );
+    }
+    parsedPackage satisfies never;
+    throw new Error(
+      `Unexpected parsed package format: ${JSON.stringify(parsedPackage)}`,
+    );
+  }
+
+  #resolvePathPackage(
+    packageJson: PackageJson,
+    contextScript: ScriptReference,
+    dependencySpecifier: JsonAstNode<string>,
+    parsedPackage: ParsedPackageWithRange & PackagePath,
+  ): Result<string[], Failure> {
+    const absolute = pathlib.resolve(
+      contextScript.packageDir,
+      parsedPackage.path,
+    );
+    if (absolute === contextScript.packageDir) {
+      return invalidSyntaxError(
+        `Cross-package dependency "${dependencySpecifier.value}" ` +
+          `resolved to the same package.`,
+        contextScript,
+        packageJson.jsonFile,
+        {
+          offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+          length: parsedPackage.range.length,
+        },
+      );
+    }
+    return {ok: true, value: [absolute]};
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async #resolveNpmPackage(
+    packageJson: PackageJson,
+    contextScript: ScriptReference,
+    dependencySpecifier: JsonAstNode<string>,
+    parsedPackage: ParsedPackageWithRange,
+  ): Promise<Result<string[], Failure>> {
+    // TODO(aomarks) Support "dependencies".
+    return invalidSyntaxError(
+      'NPM packages are not yet supported',
+      contextScript,
+      packageJson.jsonFile,
+      {
+        offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+        length: parsedPackage.range.length,
+      },
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async #resolveNpmDependencyPackages(
+    packageJson: PackageJson,
+    contextScript: ScriptReference,
+    dependencySpecifier: JsonAstNode<string>,
+    parsedPackage: ParsedPackageWithRange,
+  ): Promise<Result<string[], Failure>> {
+    // TODO(aomarks) Support "dependencies".
+    return invalidSyntaxError(
+      `"dependencies" is not yet supported`,
+      contextScript,
+      packageJson.jsonFile,
+      {
+        offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+        length: parsedPackage.range.length,
+      },
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async #resolveWorkspacesPackages(
+    packageJson: PackageJson,
+    contextScript: ScriptReference,
+    dependencySpecifier: JsonAstNode<string>,
+    parsedPackage: ParsedPackageWithRange,
+  ): Promise<Result<string[], Failure>> {
+    // TODO(aomarks) Support "workspacess".
+    return invalidSyntaxError(
+      `"workspaces" is not yet supported`,
+      contextScript,
+      packageJson.jsonFile,
+      {
+        offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+        length: parsedPackage.range.length,
+      },
     );
   }
 }
