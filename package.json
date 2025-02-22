@@ -131,7 +131,10 @@
     "test:analysis": {
       "command": "uvu lib/test \"^analysis\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -142,7 +145,10 @@
     "test:basic": {
       "command": "uvu lib/test \"^basic\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -153,7 +159,10 @@
     "test:cache-github": {
       "command": "uvu lib/test \"^cache-github\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -164,7 +173,10 @@
     "test:cache-local": {
       "command": "uvu lib/test \"^cache-local\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -175,7 +187,10 @@
     "test:clean": {
       "command": "uvu lib/test \"^clean\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -186,7 +201,10 @@
     "test:cli-options": {
       "command": "uvu lib/test \"^cli-options\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -197,7 +215,10 @@
     "test:codeactions": {
       "command": "uvu lib/test \"^codeactions\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -208,7 +229,10 @@
     "test:copy": {
       "command": "uvu lib/test \"^copy\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -219,7 +243,10 @@
     "test:delete": {
       "command": "uvu lib/test \"^delete\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -230,7 +257,10 @@
     "test:dependency-parser": {
       "command": "uvu lib/test \"^dependency-parser\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -241,7 +271,10 @@
     "test:diagnostic": {
       "command": "uvu lib/test \"^diagnostic\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -252,7 +285,10 @@
     "test:errors-analysis": {
       "command": "uvu lib/test \"^errors-analysis\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -263,7 +299,10 @@
     "test:errors-usage": {
       "command": "uvu lib/test \"^errors-usage\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -274,7 +313,10 @@
     "test:failures": {
       "command": "uvu lib/test \"^failures\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -285,7 +327,10 @@
     "test:freshness": {
       "command": "uvu lib/test \"^freshness\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -296,7 +341,10 @@
     "test:gc": {
       "command": "node --expose-gc node_modules/uvu/bin.js lib/test \"^gc\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -307,7 +355,10 @@
     "test:glob": {
       "command": "uvu lib/test \"^glob\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -318,7 +369,10 @@
     "test:ide": {
       "command": "uvu lib/test \"^ide\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -329,7 +383,10 @@
     "test:json-schema": {
       "command": "uvu lib/test \"^json-schema\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -342,7 +399,10 @@
     "test:metrics": {
       "command": "uvu lib/test \"^metrics\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -353,7 +413,10 @@
     "test:optimize-mkdirs": {
       "command": "uvu lib/test \"^optimize-mkdirs\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -364,7 +427,10 @@
     "test:parallelism": {
       "command": "uvu lib/test \"^parallelism\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -375,7 +441,10 @@
     "test:quiet": {
       "command": "uvu lib/test \"^quiet-logger\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -386,7 +455,10 @@
     "test:service": {
       "command": "uvu lib/test \"^service\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -397,7 +469,10 @@
     "test:watch": {
       "command": "uvu lib/test \"^watch\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -408,7 +483,10 @@
     "test:workspaces": {
       "command": "uvu lib/test \"^workspaces\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
@@ -419,7 +497,10 @@
     "test:fs": {
       "command": "uvu lib/test \"^fs\\.test\\.js$\"",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        }
       },
       "dependencies": [
         "build"
