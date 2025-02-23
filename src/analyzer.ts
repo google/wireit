@@ -40,6 +40,7 @@ import type {
   NamedAstNode,
   ValueTypes,
 } from './util/ast.js';
+import {glob} from './util/glob.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
 
 export interface AnalyzeResult {
@@ -169,6 +170,7 @@ export class Analyzer {
   readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
   readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
   readonly #accessedPackageJsonFiles = new Set<string>();
+  readonly #resolvedWorkspacesConfigs: GlobGroup[] = [];
   readonly #agent: Agent;
   readonly #logger: Logger | undefined;
 
@@ -368,7 +370,10 @@ export class Analyzer {
   }
 
   #makeRelevantConfigGlobGroups(): GlobGroup[] {
-    return [{patterns: [...this.#accessedPackageJsonFiles]}];
+    return [
+      {patterns: [...this.#accessedPackageJsonFiles]},
+      ...this.#resolvedWorkspacesConfigs,
+    ];
   }
 
   /**
@@ -1790,6 +1795,7 @@ export class Analyzer {
       packageJson,
       dependencySpecifier,
       parsedPackage,
+      scriptName.value,
     );
     if (!packageDirs.ok) {
       return packageDirs;
@@ -1825,6 +1831,7 @@ export class Analyzer {
     packageJson: PackageJson,
     dependencySpecifier: JsonAstNode<string>,
     parsedPackage: ParsedPackageWithRange,
+    scriptName: string,
   ): Promise<Result<string[], Failure>> {
     if (parsedPackage.kind === 'this') {
       return {ok: true, value: [contextScript.packageDir]};
@@ -1859,6 +1866,7 @@ export class Analyzer {
         contextScript,
         dependencySpecifier,
         parsedPackage,
+        scriptName,
       );
     }
     parsedPackage satisfies never;
@@ -1930,23 +1938,74 @@ export class Analyzer {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async #resolveWorkspacesPackages(
     packageJson: PackageJson,
     contextScript: ScriptReference,
     dependencySpecifier: JsonAstNode<string>,
     parsedPackage: ParsedPackageWithRange,
+    scriptName: string,
   ): Promise<Result<string[], Failure>> {
-    // TODO(aomarks) Support "workspacess".
-    return invalidSyntaxError(
-      `"workspaces" is not yet supported`,
-      contextScript,
-      packageJson.jsonFile,
-      {
-        offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
-        length: parsedPackage.range.length,
-      },
-    );
+    if (packageJson.workspaces.length === 0) {
+      return invalidSyntaxError(
+        `No workspaces found in package.json`,
+        contextScript,
+        packageJson.jsonFile,
+        {
+          offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+          length: parsedPackage.range.length,
+        },
+      );
+    }
+    this.#resolvedWorkspacesConfigs.push({
+      cwd: contextScript.packageDir,
+      patterns: packageJson.workspaces.map((pattern) =>
+        pathlib.posix.join(pattern, 'package.json'),
+      ),
+    });
+    const workspaceGlobResults = await glob(packageJson.workspaces, {
+      cwd: contextScript.packageDir,
+      includeDirectories: true,
+      followSymlinks: true,
+      expandDirectories: false,
+      throwIfOutsideCwd: false,
+    });
+    const matches: string[] = [];
+    for (const workspaceDir of workspaceGlobResults) {
+      const result = await this.getPackageJson(workspaceDir.path);
+      if (!result.ok) {
+        return result;
+      }
+      const packageJson = result.value;
+      for (const script of packageJson.scripts) {
+        if (script.name === scriptName) {
+          matches.push(workspaceDir.path);
+          break;
+        }
+      }
+    }
+    if (matches.length === 0) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: contextScript,
+          diagnostic: {
+            message: `No workspaces had a script called "${scriptName}"`,
+            severity: 'error',
+            location: {
+              file: packageJson.jsonFile,
+              range: {
+                offset:
+                  dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+                length: parsedPackage.range.length,
+              },
+            },
+          },
+        },
+      };
+    }
+    return {ok: true, value: matches};
   }
 }
 
