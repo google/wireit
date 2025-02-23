@@ -14,6 +14,7 @@ import {
 } from './util/package-json-reader.js';
 import {IS_WINDOWS} from './util/windows.js';
 
+import {createRequire} from 'module';
 import {
   parseDependency,
   type PackagePath,
@@ -42,6 +43,8 @@ import type {
 } from './util/ast.js';
 import {glob} from './util/glob.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
+
+const resolve = createRequire(import.meta.url).resolve;
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -1866,6 +1869,7 @@ export class Analyzer {
         contextScript,
         dependencySpecifier,
         parsedPackage,
+        scriptName,
       );
     }
     if (parsedPackage.kind === 'workspaces') {
@@ -1927,23 +1931,92 @@ export class Analyzer {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async #resolveNpmDependencyPackages(
     packageJson: PackageJson,
     contextScript: ScriptReference,
     dependencySpecifier: JsonAstNode<string>,
     parsedPackage: ParsedPackageWithRange,
+    scriptName: string,
   ): Promise<Result<string[], Failure>> {
-    // TODO(aomarks) Support "dependencies".
-    return invalidSyntaxError(
-      `"dependencies" is not yet supported`,
-      contextScript,
-      packageJson.jsonFile,
-      {
-        offset: dependencySpecifier.offset + 1 + parsedPackage.range.offset,
-        length: parsedPackage.range.length,
-      },
+    const localPackages = [];
+    for (const dep of [
+      ...packageJson.prodDependencies,
+      ...packageJson.devDependencies,
+    ]) {
+      let packageJsonPath;
+      try {
+        packageJsonPath = resolve(
+          pathlib.posix.join(dep.value, 'package.json'),
+          {
+            paths: [contextScript.packageDir],
+          },
+        );
+      } catch (e: unknown) {
+        const maybeError = e as {message?: string};
+        return invalidSyntaxError(
+          `Could not resolve dependency ${JSON.stringify(dep.value)}` +
+            ` relative to ${JSON.stringify(contextScript.packageDir)}.` +
+            ` Is it installed? ` +
+            ('message' in maybeError ? `: ${maybeError.message}` : String(e)),
+          contextScript,
+          packageJson.jsonFile,
+          {
+            offset: dep.offset,
+            length: dep.length,
+          },
+        );
+      }
+      const packagePath = pathlib.dirname(packageJsonPath);
+      const isInANodeModulesFolder = packagePath
+        .split(pathlib.sep)
+        .some((component) => component === 'node_modules');
+      if (!isInANodeModulesFolder) {
+        localPackages.push(packagePath);
+      }
+    }
+
+    const localPackageJsons = await Promise.all(
+      localPackages.map(
+        async (packagePath) =>
+          [packagePath, await this.getPackageJson(packagePath)] as const,
+      ),
     );
+
+    const withMatchingScript = [];
+    for (const [packagePath, packageJson] of localPackageJsons) {
+      if (!packageJson.ok) {
+        return packageJson;
+      }
+      for (const script of packageJson.value.scripts) {
+        if (script.name === scriptName) {
+          withMatchingScript.push(packagePath);
+          break;
+        }
+      }
+    }
+    if (withMatchingScript.length === 0) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: contextScript,
+          diagnostic: {
+            message: `No dependencies had a script called "${scriptName}"`,
+            severity: 'error',
+            location: {
+              file: packageJson.jsonFile,
+              range: {
+                offset:
+                  dependencySpecifier.offset + 1 + parsedPackage.range.offset,
+                length: parsedPackage.range.length,
+              },
+            },
+          },
+        },
+      };
+    }
+    return {ok: true, value: withMatchingScript};
   }
 
   async #resolveWorkspacesPackages(
