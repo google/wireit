@@ -40,6 +40,7 @@
     "test:codeactions": "wireit",
     "test:copy": "wireit",
     "test:delete": "wireit",
+    "test:dependencies": "wireit",
     "test:dependency-parser": "wireit",
     "test:diagnostic": "wireit",
     "test:errors-analysis": "wireit",
@@ -95,6 +96,7 @@
         "test:codeactions",
         "test:copy",
         "test:delete",
+        "test:dependencies",
         "test:dependency-parser",
         "test:diagnostic",
         "test:errors-analysis",
@@ -245,6 +247,23 @@
       "env": {
         "NODE_OPTIONS": "--enable-source-maps",
         "TEST_TIMEOUT": {
+          "external": true
+        }
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:dependencies": {
+      "command": "uvu lib/test \"^dependencies\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_TIMEOUT": {
+          "external": true
+        },
+        "SHOW_TEST_OUTPUT": {
           "external": true
         }
       },
