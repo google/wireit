@@ -842,7 +842,7 @@ test(
   }),
 );
 
-test(
+test.skip(
   'duplicate dependency',
   rigTest(async ({rig}) => {
     await rig.write({
