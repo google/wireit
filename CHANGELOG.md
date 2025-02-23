@@ -37,6 +37,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   (note that `\` escapes are _also_ required for JSON, hence the double
   escapes).
 
+### Added
+
+- Added `<this>` keyword for dependency specifiers. In the package position
+  (e.g. `"<this>#build"`), resolves to the current package. In the script
+  position (e.g. `"./foo:<this>"`), resolves to the name of the current script.
+
 ## [0.14.11] - 2025-02-07
 
 ### Changed
