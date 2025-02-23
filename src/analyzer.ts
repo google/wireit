@@ -14,6 +14,7 @@ import {
 } from './util/package-json-reader.js';
 import {IS_WINDOWS} from './util/windows.js';
 
+import {realpath} from 'fs/promises';
 import {createRequire} from 'module';
 import {
   parseDependency,
@@ -41,6 +42,7 @@ import type {
   NamedAstNode,
   ValueTypes,
 } from './util/ast.js';
+import {findPackageJson} from './util/find-package-json.js';
 import {glob} from './util/glob.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
 
@@ -1945,11 +1947,9 @@ export class Analyzer {
     ]) {
       let packageJsonPath;
       try {
-        packageJsonPath = resolve(
-          pathlib.posix.join(dep.value, 'package.json'),
-          {
-            paths: [contextScript.packageDir],
-          },
+        packageJsonPath = await findPackageJson(
+          dep.value,
+          contextScript.packageDir,
         );
       } catch (e: unknown) {
         const maybeError = e as {message?: string};
@@ -1966,7 +1966,7 @@ export class Analyzer {
           },
         );
       }
-      const packagePath = pathlib.dirname(packageJsonPath);
+      const packagePath = pathlib.dirname(await realpath(packageJsonPath));
       const isInANodeModulesFolder = packagePath
         .split(pathlib.sep)
         .some((component) => component === 'node_modules');
@@ -2016,6 +2016,7 @@ export class Analyzer {
         },
       };
     }
+    // console.log({contextScript, withMatchingScript});
     return {ok: true, value: withMatchingScript};
   }
 
@@ -2043,23 +2044,29 @@ export class Analyzer {
         pathlib.posix.join(pattern, 'package.json'),
       ),
     });
-    const workspaceGlobResults = await glob(packageJson.workspaces, {
-      cwd: contextScript.packageDir,
-      includeDirectories: true,
-      followSymlinks: true,
-      expandDirectories: false,
-      throwIfOutsideCwd: false,
-    });
+    const workspaceGlobResults = await glob(
+      packageJson.workspaces.map((pattern) =>
+        pathlib.posix.join(pattern, 'package.json'),
+      ),
+      {
+        cwd: contextScript.packageDir,
+        includeDirectories: true,
+        followSymlinks: true,
+        expandDirectories: false,
+        throwIfOutsideCwd: false,
+      },
+    );
     const matches: string[] = [];
-    for (const workspaceDir of workspaceGlobResults) {
-      const result = await this.getPackageJson(workspaceDir.path);
+    for (const workspacePackageJson of workspaceGlobResults) {
+      const workspaceDir = pathlib.dirname(workspacePackageJson.path);
+      const result = await this.getPackageJson(workspaceDir);
       if (!result.ok) {
         return result;
       }
       const packageJson = result.value;
       for (const script of packageJson.scripts) {
         if (script.name === scriptName) {
-          matches.push(workspaceDir.path);
+          matches.push(workspaceDir);
           break;
         }
       }
@@ -2086,6 +2093,7 @@ export class Analyzer {
         },
       };
     }
+    // console.log('workspaces', matches);
     return {ok: true, value: matches};
   }
 }
