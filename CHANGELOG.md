@@ -50,6 +50,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   current `package.json`). Ignores workspaces that don't have a matching script,
   but errors if there are zero matches.
 
+- Added `!` operator for dependency specifiers. Only valid as the very first
+  character in the specifier (e.g. `"!packages/foo"`). Inverts a match such that
+  it excludes, instead of includes, any matching packages. Order matters;
+  exclusions apply to packages from preceding specifiers, but not subsequent
+  ones.
+
 ## [0.14.11] - 2025-02-07
 
 ### Changed
