@@ -112,9 +112,14 @@ export class Watcher {
   #latestRootScriptConfig?: ScriptConfig;
 
   /**
-   * The file watcher for all package.json files relevant to this build graph.
+   * File watchers for all relevant configuration files and directories
+   * (package.json files, workspace patterns, etc.).
+   *
+   * Note these are separate from `inputFilesWatchers` because they are
+   * maintained at different timings (config files are maintained even in the
+   * case of errors).
    */
-  #configFilesWatcher?: FileWatcher;
+  readonly #configFileWatchers = new Map<string, FileWatcher>();
 
   /**
    * File watchers for the input files of all scripts in this build graph.
@@ -238,23 +243,31 @@ export class Watcher {
 
     // Set up watchers for all relevant config files even if there were errors
     // so that we'll try again when the user modifies a config file.
-    const configFiles = [...result.relevantConfigFilePaths];
-    // Order doesn't matter because we know we don't have any !negated patterns,
-    // but we're going to compare arrays exactly so the order should be
-    // deterministic.
-    configFiles.sort();
-    const oldWatcher = this.#configFilesWatcher;
-    if (!watchPathsEqual(configFiles, oldWatcher?.patterns)) {
-      this.#configFilesWatcher = makeWatcher(
-        configFiles,
-        '/',
-        this.#onConfigFileChanged,
-        true,
-        this.#watchOptions,
-      );
-      if (oldWatcher !== undefined) {
-        void oldWatcher[Symbol.asyncDispose]();
+    const staleConfigWatcherSignatures = new Set(
+      this.#configFileWatchers.keys(),
+    );
+    for (const globGroup of result.relevantConfigGlobGroups) {
+      const signature = JSON.stringify([
+        globGroup.cwd ?? null,
+        ...globGroup.patterns,
+      ]);
+      staleConfigWatcherSignatures.delete(signature);
+      const existingWatcher = this.#configFileWatchers.get(signature);
+      if (existingWatcher === undefined) {
+        const watcher = makeWatcher(
+          globGroup.patterns,
+          globGroup.cwd ?? '/',
+          this.#onConfigFileChanged,
+          true,
+          this.#watchOptions,
+        );
+        this.#configFileWatchers.set(signature, watcher);
       }
+    }
+    for (const signature of staleConfigWatcherSignatures) {
+      const watcher = this.#configFileWatchers.get(signature)!;
+      void watcher[Symbol.asyncDispose]();
+      this.#configFileWatchers.delete(signature);
     }
 
     if (!result.config.ok) {
@@ -447,7 +460,9 @@ export class Watcher {
   }
 
   #closeAllFileWatchers() {
-    void this.#configFilesWatcher?.[Symbol.asyncDispose]();
+    for (const value of this.#configFileWatchers.values()) {
+      void value[Symbol.asyncDispose]();
+    }
     for (const value of this.#inputFileWatchers.values()) {
       void value[Symbol.asyncDispose]();
     }

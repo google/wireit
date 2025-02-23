@@ -44,7 +44,20 @@ import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
-  relevantConfigFilePaths: Set<string>;
+
+  /**
+   * Allows `--watch` to notice changes to wireit configs, newly created
+   * workspaces, etc.
+   *
+   * Note that each group can contain gitignore-style `!` negations, which we
+   * must be careful to apply only within each group.
+   */
+  relevantConfigGlobGroups: GlobGroup[];
+}
+
+export interface GlobGroup {
+  cwd?: string;
+  patterns: string[];
 }
 
 /**
@@ -155,7 +168,7 @@ export class Analyzer {
   readonly #packageJsonReader;
   readonly #placeholders = new Map<ScriptReferenceString, PlaceholderInfo>();
   readonly #ongoingWorkPromises: Array<Promise<undefined>> = [];
-  readonly #relevantConfigFilePaths = new Set<string>();
+  readonly #accessedPackageJsonFiles = new Set<string>();
   readonly #agent: Agent;
   readonly #logger: Logger | undefined;
 
@@ -264,7 +277,7 @@ export class Analyzer {
       if (errors.size > 0) {
         return {
           config: {ok: false, error: [...errors]},
-          relevantConfigFilePaths: this.#relevantConfigFilePaths,
+          relevantConfigGlobGroups: this.#makeRelevantConfigGlobGroups(),
         };
       }
     }
@@ -285,14 +298,14 @@ export class Analyzer {
     if (!cycleResult.ok) {
       return {
         config: {ok: false, error: [cycleResult.error.dependencyFailure]},
-        relevantConfigFilePaths: this.#relevantConfigFilePaths,
+        relevantConfigGlobGroups: this.#makeRelevantConfigGlobGroups(),
       };
     }
     const validRootConfig = cycleResult.value;
     validRootConfig.extraArgs = extraArgs;
     return {
       config: {ok: true, value: validRootConfig},
-      relevantConfigFilePaths: this.#relevantConfigFilePaths,
+      relevantConfigGlobGroups: this.#makeRelevantConfigGlobGroups(),
     };
   }
 
@@ -348,8 +361,14 @@ export class Analyzer {
   }
 
   async getPackageJson(packageDir: string): Promise<Result<PackageJson>> {
-    this.#relevantConfigFilePaths.add(pathlib.join(packageDir, 'package.json'));
+    this.#accessedPackageJsonFiles.add(
+      pathlib.join(packageDir, 'package.json'),
+    );
     return this.#packageJsonReader.read(packageDir);
+  }
+
+  #makeRelevantConfigGlobGroups(): GlobGroup[] {
+    return [{patterns: [...this.#accessedPackageJsonFiles]}];
   }
 
   /**
