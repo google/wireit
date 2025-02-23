@@ -719,13 +719,15 @@ export class Analyzer {
       placeholder.failures.push(result.error);
       return {dependencies, encounteredError};
     }
-    // Error if the same dependency is declared multiple times. Duplicate
-    // dependencies aren't necessarily a serious problem (since we already
-    // prevent double-analysis here, and double-analysis in the Executor), but
-    // they may indicate that the user has made a mistake (e.g. maybe they
-    // meant a different dependency).
-    const uniqueDependencies = new Map<string, JsonAstNode>();
     const children = dependenciesAst.children ?? [];
+    const resolvedScripts = new Map<
+      string,
+      {
+        script: ScriptReference;
+        unresolved: JsonAstNode<string>;
+        cascade: boolean;
+      }
+    >();
     for (const maybeUnresolved of children) {
       // A dependency can be either a plain string, or an object with a "script"
       // property plus optional extra annotations.
@@ -829,119 +831,132 @@ export class Analyzer {
         placeholder.failures.push(result.error);
         continue;
       }
+      for (const script of result.value.scripts) {
+        const key = scriptReferenceToString(script);
+        if (result.value.inverted) {
+          resolvedScripts.delete(key);
+        } else {
+          resolvedScripts.set(key, {script, unresolved, cascade});
+        }
+      }
+    }
 
-      for (const resolved of result.value) {
-        const uniqueKey = scriptReferenceToString(resolved);
-        const duplicate = uniqueDependencies.get(uniqueKey);
-        if (duplicate !== undefined) {
-          encounteredError = true;
-          placeholder.failures.push({
-            type: 'failure',
-            reason: 'duplicate-dependency',
-            script: placeholder,
-            dependency: resolved,
-            diagnostic: {
-              severity: 'error',
-              message: `This dependency is listed multiple times`,
-              location: {
-                file: packageJson.jsonFile,
-                range: {
-                  offset: unresolved.offset,
-                  length: unresolved.length,
+    // Error if the same dependency is declared multiple times. Duplicate
+    // dependencies aren't necessarily a serious problem (since we already
+    // prevent double-analysis here, and double-analysis in the Executor), but
+    // they may indicate that the user has made a mistake (e.g. maybe they meant
+    // a different dependency).
+    const uniqueDependencies = new Map<string, JsonAstNode>();
+    for (const [
+      uniqueKey,
+      {script, unresolved, cascade},
+    ] of resolvedScripts.entries()) {
+      const duplicate = uniqueDependencies.get(uniqueKey);
+      if (duplicate !== undefined) {
+        encounteredError = true;
+        placeholder.failures.push({
+          type: 'failure',
+          reason: 'duplicate-dependency',
+          script: placeholder,
+          dependency: script,
+          diagnostic: {
+            severity: 'error',
+            message: `This dependency is listed multiple times`,
+            location: {
+              file: packageJson.jsonFile,
+              range: {
+                offset: unresolved.offset,
+                length: unresolved.length,
+              },
+            },
+            supplementalLocations: [
+              {
+                message: `The dependency was first listed here.`,
+                location: {
+                  file: packageJson.jsonFile,
+                  range: {
+                    offset: duplicate.offset,
+                    length: duplicate.length,
+                  },
                 },
               },
-              supplementalLocations: [
-                {
-                  message: `The dependency was first listed here.`,
+            ],
+          },
+        });
+      }
+      uniqueDependencies.set(uniqueKey, unresolved);
+      const placeHolderInfo = this.#getPlaceholder(script);
+      dependencies.push({
+        specifier: unresolved,
+        config: placeHolderInfo.placeholder,
+        cascade,
+      });
+      this.#ongoingWorkPromises.push(
+        (async () => {
+          await placeHolderInfo.upgradeComplete;
+          const failures = placeHolderInfo.placeholder.failures;
+          for (const failure of failures) {
+            if (failure.reason === 'script-not-found') {
+              const hasColon = unresolved.value.includes(':');
+              let offset;
+              let length;
+              if (!hasColon || script.packageDir === placeholder.packageDir) {
+                offset = unresolved.offset;
+                length = unresolved.length;
+              } else {
+                // Skip past the colon
+                const colonOffsetInString = packageJson.jsonFile.contents
+                  .slice(unresolved.offset)
+                  .indexOf(':');
+                offset = unresolved.offset + colonOffsetInString + 1;
+                length = unresolved.length - colonOffsetInString - 2;
+              }
+              placeholder.failures.push({
+                type: 'failure',
+                reason: 'dependency-on-missing-script',
+                script: placeholder,
+                supercedes: failure,
+                diagnostic: {
+                  severity: 'error',
+                  message: `Cannot find script named ${JSON.stringify(
+                    script.name,
+                  )} in package "${script.packageDir}"`,
                   location: {
                     file: packageJson.jsonFile,
-                    range: {
-                      offset: duplicate.offset,
-                      length: duplicate.length,
-                    },
+                    range: {offset, length},
                   },
                 },
-              ],
-            },
-          });
-        }
-        uniqueDependencies.set(uniqueKey, unresolved);
-        const placeHolderInfo = this.#getPlaceholder(resolved);
-        dependencies.push({
-          specifier: unresolved,
-          config: placeHolderInfo.placeholder,
-          cascade,
-        });
-        this.#ongoingWorkPromises.push(
-          (async () => {
-            await placeHolderInfo.upgradeComplete;
-            const failures = placeHolderInfo.placeholder.failures;
-            for (const failure of failures) {
-              if (failure.reason === 'script-not-found') {
-                const hasColon = unresolved.value.includes(':');
-                let offset;
-                let length;
-                if (
-                  !hasColon ||
-                  resolved.packageDir === placeholder.packageDir
-                ) {
-                  offset = unresolved.offset;
-                  length = unresolved.length;
-                } else {
-                  // Skip past the colon
-                  const colonOffsetInString = packageJson.jsonFile.contents
-                    .slice(unresolved.offset)
-                    .indexOf(':');
-                  offset = unresolved.offset + colonOffsetInString + 1;
-                  length = unresolved.length - colonOffsetInString - 2;
-                }
-                placeholder.failures.push({
-                  type: 'failure',
-                  reason: 'dependency-on-missing-script',
-                  script: placeholder,
-                  supercedes: failure,
-                  diagnostic: {
-                    severity: 'error',
-                    message: `Cannot find script named ${JSON.stringify(
-                      resolved.name,
-                    )} in package "${resolved.packageDir}"`,
-                    location: {
-                      file: packageJson.jsonFile,
-                      range: {offset, length},
-                    },
-                  },
-                });
-              } else if (failure.reason === 'missing-package-json') {
-                // Skip the opening "
-                const offset = unresolved.offset + 1;
-                // Take everything up to the first colon, but look in
-                // the original source, to avoid getting confused by escape
-                // sequences, which have a different length before and after
-                // encoding.
-                const length = packageJson.jsonFile.contents
-                  .slice(offset)
-                  .indexOf(':');
-                const range = {offset, length};
-                placeholder.failures.push({
-                  type: 'failure',
-                  reason: 'dependency-on-missing-package-json',
-                  script: placeholder,
-                  supercedes: failure,
-                  diagnostic: {
-                    severity: 'error',
-                    message: `package.json file missing: "${pathlib.join(
-                      resolved.packageDir,
-                      'package.json',
-                    )}"`,
-                    location: {file: packageJson.jsonFile, range},
-                  },
-                });
-              }
+              });
+            } else if (failure.reason === 'missing-package-json') {
+              // Skip the opening "
+              const offset = unresolved.offset + 1;
+              // Take everything up to the first colon, but look in
+              // the original source, to avoid getting confused by escape
+              // sequences, which have a different length before and after
+              // encoding.
+              const length = packageJson.jsonFile.contents
+                .slice(offset)
+                .indexOf(':');
+              const range = {offset, length};
+              placeholder.failures.push({
+                type: 'failure',
+                reason: 'dependency-on-missing-package-json',
+                script: placeholder,
+                supercedes: failure,
+                diagnostic: {
+                  severity: 'error',
+                  message: `package.json file missing: "${pathlib.join(
+                    script.packageDir,
+                    'package.json',
+                  )}"`,
+                  location: {file: packageJson.jsonFile, range},
+                },
+              });
             }
-            return undefined;
-          })(),
-        );
-      }
+          }
+          return undefined;
+        })(),
+      );
     }
     return {dependencies, encounteredError};
   }
@@ -1741,7 +1756,7 @@ export class Analyzer {
     packageJson: PackageJson,
     contextScript: ScriptReference,
     dependencySpecifier: JsonAstNode<string>,
-  ): Promise<Result<Array<ScriptReference>, Failure>> {
+  ): Promise<Result<{inverted: boolean; scripts: ScriptReference[]}, Failure>> {
     const parsed = parseDependency(dependencySpecifier.value);
     if (!parsed.ok) {
       return {
@@ -1775,16 +1790,6 @@ export class Analyzer {
       inverted,
     } = parsed.value;
 
-    if (inverted) {
-      // TODO(aomarks) Support inversion.
-      return invalidSyntaxError(
-        'Dependency inversion operator "!" is not yet supported',
-        contextScript,
-        packageJson.jsonFile,
-        {offset: dependencySpecifier.offset, length: 1},
-      );
-    }
-
     const scriptName = this.#resolveScriptName(parsedScript, contextScript);
     if (!scriptName.ok) {
       return scriptName;
@@ -1803,10 +1808,13 @@ export class Analyzer {
 
     return {
       ok: true,
-      value: packageDirs.value.map((packageDir) => ({
-        packageDir,
-        name: scriptName.value,
-      })),
+      value: {
+        inverted,
+        scripts: packageDirs.value.map((packageDir) => ({
+          packageDir,
+          name: scriptName.value,
+        })),
+      },
     };
   }
 
