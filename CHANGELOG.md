@@ -43,6 +43,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   (e.g. `"<this>#build"`), resolves to the current package. In the script
   position (e.g. `"./foo:<this>"`), resolves to the name of the current script.
 
+- Added `<workspaces>` keyword for dependency specifiers. Only valid in the
+  package position (e.g. `"<workspaces>:build"`). Resolves to all [npm
+  workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces) of the current
+  package (i.e. all packages that are matched by the `"workspaces"` array of the
+  current `package.json`). Ignores workspaces that don't have a matching script,
+  but errors if there are zero matches.
+
 ## [0.14.11] - 2025-02-07
 
 ### Changed
