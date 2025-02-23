@@ -54,6 +54,8 @@ export class PackageJson {
   readonly #fileAstNode: JsonAstNode;
   readonly #scripts: Map<string, ScriptSyntaxInfo> = new Map();
   readonly #workspaces: string[] = [];
+  readonly devDependencies: Array<JsonAstNode<string>>;
+  readonly prodDependencies: Array<JsonAstNode<string>>;
   readonly failures: readonly Failure[];
   readonly scriptsSection: NamedAstNode | undefined = undefined;
   readonly wireitSection: NamedAstNode | undefined = undefined;
@@ -65,6 +67,8 @@ export class PackageJson {
     this.scriptsSection = this.#analyzeScriptsSection(failures);
     this.wireitSection = this.#analyzeWireitSection(failures);
     this.#analyzeWorkspacesSection(failures);
+    this.prodDependencies = this.#analyzeDependencies(failures, true);
+    this.devDependencies = this.#analyzeDependencies(failures, false);
     this.failures = failures;
   }
 
@@ -282,6 +286,56 @@ export class PackageJson {
         });
       }
     }
+  }
+
+  #analyzeDependencies(
+    failures: Failure[],
+    dev: boolean,
+  ): Array<JsonAstNode<string>> {
+    const prodDepsResult = findNamedNodeAtLocation(
+      this.#fileAstNode,
+      [dev ? 'devDependencies' : 'dependencies'],
+      this.jsonFile,
+    );
+    if (!prodDepsResult.ok) {
+      failures.push(prodDepsResult.error);
+      return [];
+    }
+    const prodDeps = prodDepsResult.value;
+    if (prodDeps === undefined) {
+      return [];
+    }
+    const fail = failUnlessJsonObject(prodDeps, this.jsonFile);
+    if (fail !== undefined) {
+      failures.push(fail);
+      return [];
+    }
+    const results = [];
+    for (const child of prodDeps.children ?? []) {
+      if (child.type !== 'property') {
+        continue;
+      }
+      if (child.children === undefined) {
+        continue;
+      }
+      const nameAndValueResult = failUnlessKeyValue(
+        child,
+        child.children,
+        this.jsonFile,
+      );
+      if (!nameAndValueResult.ok) {
+        failures.push(nameAndValueResult.error);
+        continue;
+      }
+      const [rawName] = nameAndValueResult.value;
+      const nameResult = failUnlessNonBlankString(rawName, this.jsonFile);
+      if (!nameResult.ok) {
+        failures.push(nameResult.error);
+        continue;
+      }
+      results.push(nameResult.value);
+    }
+    return results;
   }
 }
 
