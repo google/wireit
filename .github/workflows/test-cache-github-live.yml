@@ -1,0 +1,29 @@
+name: Live GitHub Actions Cache Test
+
+on: [push, pull_request]
+
+jobs:
+  tests:
+    strategy:
+      matrix:
+        include:
+          - node: 20 # LTS
+            os: ubuntu-22.04
+
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      WIREIT_LOGGER: 'quiet-ci'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - uses: google/wireit@setup-github-actions-caching/v2
+      - run: npm ci
+      - run: npm run test:cache-github-live
