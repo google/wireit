@@ -34,7 +34,7 @@
     "test:analysis": "wireit",
     "test:basic": "wireit",
     "test:cache-github": "wireit",
-    "test:cache-github-live": "wireit",
+    "test:cache-github-live": "uvu lib/test \"^cache-github-live\\.test\\.js$\"",
     "test:cache-local": "wireit",
     "test:clean": "wireit",
     "test:cli-options": "wireit",
@@ -149,17 +149,6 @@
     },
     "test:cache-github": {
       "command": "uvu lib/test \"^cache-github\\.test\\.js$\"",
-      "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
-      },
-      "dependencies": [
-        "build"
-      ],
-      "files": [],
-      "output": []
-    },
-    "test:cache-github-live": {
-      "command": "uvu lib/test \"^cache-github-live\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
