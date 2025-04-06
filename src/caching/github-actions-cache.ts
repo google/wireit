@@ -387,7 +387,7 @@ export class GitHubActionsCache implements Cache {
    */
   async #commit(
     script: ScriptReference,
-    uploadUrl: number,
+    uploadUrl: string,
     tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(
