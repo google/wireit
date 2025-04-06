@@ -200,7 +200,10 @@ export class GitHubActionsCache implements Cache {
     url.searchParams.set('keys', key);
     url.searchParams.set('version', version);
 
-    using requestResult = this.#request(url, {method: 'POST'});
+    using requestResult = this.#request(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+    });
     const {req, resPromise} = requestResult;
     req.end();
     const result = await resPromise;
