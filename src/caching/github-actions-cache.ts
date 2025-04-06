@@ -197,14 +197,19 @@ export class GitHubActionsCache implements Cache {
       `/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL`,
       this.#baseUrl,
     );
-    url.searchParams.set('keys', key);
-    url.searchParams.set('version', version);
-
+    // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L246
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L101C1-L126C2
+    const data = {key, restoreKeys: [], version};
+    const dataBuffer = Buffer.from(JSON.stringify(data), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': dataBuffer.length,
+      },
     });
     const {req, resPromise} = requestResult;
+    req.write(dataBuffer);
     req.end();
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
