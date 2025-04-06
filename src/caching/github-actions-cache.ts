@@ -778,7 +778,9 @@ function readBody(res: http.IncomingMessage): Promise<string> {
 async function makeTempDir(
   script: ScriptReference,
 ): Promise<{path: string} & AsyncDisposable> {
-  const path = await fs.mkdtemp(pathlib.join(getScriptDataDir(script), 'temp'));
+  const prefix = pathlib.join(getScriptDataDir(script), 'temp');
+  await fs.mkdir(prefix, {recursive: true});
+  const path = await fs.mkdtemp(prefix);
   return {
     path,
     async [Symbol.asyncDispose]() {
