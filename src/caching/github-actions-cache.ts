@@ -350,6 +350,7 @@ export class GitHubActionsCache implements Cache {
           headers: {
             'content-type': 'application/octet-stream',
             'content-range': `bytes ${start}-${end}/*`,
+            authorization: undefined,
           },
         };
         using requestResult = this.#request(url, opts);
