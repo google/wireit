@@ -346,7 +346,7 @@ export class GitHubActionsCache implements Cache {
         });
 
         const opts = {
-          method: 'PATCH',
+          method: 'PUT',
           headers: {
             'content-type': 'application/octet-stream',
             'content-range': `bytes ${start}-${end}/*`,
