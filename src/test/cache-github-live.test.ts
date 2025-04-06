@@ -10,6 +10,7 @@ import {GitHubActionsCache} from '../caching/github-actions-cache.js';
 import {Fingerprint, type FingerprintString} from '../fingerprint.js';
 import {Console} from '../logging/logger.js';
 import {SimpleLogger} from '../logging/simple-logger.js';
+import {rigTest} from './util/rig-test.js';
 
 test('env vars look like we expect', () => {
   for (const [key, val] of Object.entries(process.env)) {
@@ -23,41 +24,56 @@ test('env vars look like we expect', () => {
   }
 });
 
-test('can cache something', async () => {
-  const cacheResult = await GitHubActionsCache.create(
-    new SimpleLogger('.', new Console(process.stderr, process.stderr)),
-  );
-  assert.ok(cacheResult.ok);
-  const cache = cacheResult.value;
-  const script = {name: 'test', packageDir: '.'};
-  const fingerprint = Fingerprint.fromString(
-    `{"random":${Math.random()}}` as FingerprintString,
-  );
+test(
+  'can cache something',
+  rigTest(async ({rig}) => {
+    const cacheResult = await GitHubActionsCache.create(
+      new SimpleLogger('.', new Console(process.stderr, process.stderr)),
+    );
+    assert.ok(cacheResult.ok);
+    const cache = cacheResult.value;
 
-  const get1 = await cache.get(script, fingerprint);
-  assert.is(get1, undefined);
+    const script = {name: 'test', packageDir: rig.temp};
+    const fingerprint = Fingerprint.fromString(
+      // Note this isn't actually a valid fingerprint JSON string, but it
+      // doesn't matter, it is hashed without validation.
+      `{"test":${Math.random()}}` as FingerprintString,
+    );
 
-  const set1 = await cache.set(script, fingerprint, [
-    {
-      _AbsoluteEntryBrand_: true as never,
-      name: import.meta.filename,
-      path: import.meta.filename,
-      dirent: {
-        name: import.meta.filename,
-        isBlockDevice: () => false,
-        isCharacterDevice: () => false,
-        isDirectory: () => false,
-        isFIFO: () => false,
-        isFile: () => true,
-        isSocket: () => false,
-        isSymbolicLink: () => false,
+    const get1 = await cache.get(script, fingerprint);
+    assert.is(get1, undefined);
+
+    const filename = 'test';
+    const content = 'This is a test file';
+    await rig.write(filename, content);
+    const set1 = await cache.set(script, fingerprint, [
+      {
+        _AbsoluteEntryBrand_: true as never,
+        name: filename,
+        path: rig.resolve(filename),
+        dirent: {
+          name: filename,
+          isBlockDevice: () => false,
+          isCharacterDevice: () => false,
+          isDirectory: () => false,
+          isFIFO: () => false,
+          isFile: () => true,
+          isSocket: () => false,
+          isSymbolicLink: () => false,
+        },
       },
-    },
-  ]);
-  assert.is(set1, true);
+    ]);
+    assert.is(set1, true);
 
-  const get2 = await cache.get(script, fingerprint);
-  assert.ok(get2);
-});
+    const get2 = await cache.get(script, fingerprint);
+    assert.ok(get2);
+
+    await rig.delete(filename);
+    assert.not(await rig.exists('test'));
+    await get2.apply();
+    assert.ok(await rig.exists('test'));
+    assert.equal(await rig.read('test'), content);
+  }),
+);
 
 test.run();
