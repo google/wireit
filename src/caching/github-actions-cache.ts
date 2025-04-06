@@ -220,7 +220,7 @@ export class GitHubActionsCache implements Cache {
 
     if (isOk(response)) {
       const body = await readBody(response);
-      console.log({body});
+      console.log('GET RESULT', body);
       const {signed_download_url: archiveLocation} = JSON.parse(body) as {
         ok: boolean;
         signed_download_url: string;
@@ -287,7 +287,7 @@ export class GitHubActionsCache implements Cache {
       });
       return false;
     }
-    const id = await this.#reserveCacheEntry(
+    const uploadUrl = await this.#reserveCacheEntry(
       script,
       this.#computeCacheKey(script),
       this.#computeVersion(fingerprint),
@@ -298,13 +298,13 @@ export class GitHubActionsCache implements Cache {
     // parallel with the same scripts, because there is a window of time between
     // calling "get" and "set" on the cache in which another worker could have
     // reserved the entry before us. Non fatal, just don't save.
-    if (id === undefined) {
+    if (uploadUrl === undefined) {
       return false;
     }
-    if (!(await this.#upload(script, id, tarballPath, tarballBytes))) {
+    if (!(await this.#upload(script, uploadUrl, tarballPath, tarballBytes))) {
       return false;
     }
-    if (!(await this.#commit(script, id, tarballBytes))) {
+    if (!(await this.#commit(script, uploadUrl, tarballBytes))) {
       return false;
     }
     return true;
@@ -316,11 +316,11 @@ export class GitHubActionsCache implements Cache {
    */
   async #upload(
     script: ScriptReference,
-    id: number,
+    uploadUrl: string,
     tarballPath: string,
     tarballBytes: number,
   ): Promise<boolean> {
-    const url = new URL(`_apis/artifactcache/caches/${id}`, this.#baseUrl);
+    const url = new URL(uploadUrl, this.#baseUrl);
     // Reference:
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     const maxChunkSize = 32 * 1024 * 1024;
@@ -387,11 +387,12 @@ export class GitHubActionsCache implements Cache {
    */
   async #commit(
     script: ScriptReference,
-    id: number,
+    uploadUrl: number,
     tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(
-      `_apis/artifactcache/caches/${String(id)}`,
+      // TODO(aomarks) Definitely wrong.
+      uploadUrl,
       this.#baseUrl,
     );
     const reqBody = JSON.stringify({
@@ -593,7 +594,7 @@ export class GitHubActionsCache implements Cache {
     key: string,
     version: string,
     _cacheSize: number,
-  ): Promise<number | undefined> {
+  ): Promise<string | undefined> {
     // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
     const url = new URL(
       '/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
@@ -625,14 +626,15 @@ export class GitHubActionsCache implements Cache {
 
     if (isOk(response)) {
       const responseBody = await readBody(response);
-      console.log(responseBody);
+      console.log('RESERVE RESULT', responseBody);
       const resData = JSON.parse(responseBody) as {
-        cacheId: number;
+        signed_upload_url: string;
       };
-      return resData.cacheId;
+      return resData.signed_upload_url;
     }
 
     if (response.statusCode === /* Conflict */ 409) {
+      // TODO(aomarks) How are conflicts returned in the v2 API?
       return undefined;
     }
 
