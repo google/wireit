@@ -448,9 +448,7 @@ export class GitHubActionsCache implements Cache {
     return request(url, {
       ...options,
       headers: {
-        // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
-        // TODO(aomarks) What's the right new accept for v2?
-        accept: 'application/json;api-version=6.0-preview.1',
+        accept: 'application/json',
         // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/http-client/src/auth.ts#L46
         authorization: `Bearer ${this.#authToken}`,
         ...options?.headers,
