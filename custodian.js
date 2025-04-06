@@ -19,6 +19,9 @@ const response = JSON.stringify({
       ACTIONS_CACHE_URL: process.env.ACTIONS_CACHE_URL,
       // A secret token for authenticating to the GitHub Actions cache service.
       ACTIONS_RUNTIME_TOKEN: process.env.ACTIONS_RUNTIME_TOKEN,
+      ACTIONS_CACHE_SERVICE_V2: process.env.ACTIONS_CACHE_SERVICE_V2,
+      ACTIONS_RESULTS_URL: process.env.ACTIONS_RESULTS_URL,
+      GITHUB_SERVER_URL: process.env.GITHUB_SERVER_URL,
     },
   },
 });
