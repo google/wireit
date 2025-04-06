@@ -86,7 +86,7 @@ export class GitHubActionsCache implements Cache {
     let result: {
       caching: {
         github: {
-          ACTIONS_CACHE_URL: string;
+          ACTIONS_RESULTS_URL: string;
           ACTIONS_RUNTIME_TOKEN: string;
         };
       };
@@ -115,7 +115,7 @@ export class GitHubActionsCache implements Cache {
       ok: true,
       value: new GitHubActionsCache(
         logger,
-        result.caching.github.ACTIONS_CACHE_URL,
+        result.caching.github.ACTIONS_RESULTS_URL,
         result.caching.github.ACTIONS_RUNTIME_TOKEN,
       ),
     };
