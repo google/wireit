@@ -33,26 +33,31 @@ test('can cache something', async () => {
   const fingerprint = Fingerprint.fromString(
     `{"random":${Math.random()}}` as FingerprintString,
   );
-  const result = await cache.get(script, fingerprint);
-  assert.equal(result, undefined);
 
-  //   const setResult = await cache.set(script, fingerprint, [
-  //     {
-  //       _AbsoluteEntryBrand_: true as never,
-  //       name: import.meta.filename,
-  //       path: import.meta.filename,
-  //       dirent: {
-  //         name: import.meta.filename,
-  //         isBlockDevice: () => false,
-  //         isCharacterDevice: () => false,
-  //         isDirectory: () => false,
-  //         isFIFO: () => false,
-  //         isFile: () => true,
-  //         isSocket: () => false,
-  //         isSymbolicLink: () => false,
-  //       },
-  //     },
-  //   ]);
+  const get1 = await cache.get(script, fingerprint);
+  assert.is(get1, undefined);
+
+  const set1 = await cache.set(script, fingerprint, [
+    {
+      _AbsoluteEntryBrand_: true as never,
+      name: import.meta.filename,
+      path: import.meta.filename,
+      dirent: {
+        name: import.meta.filename,
+        isBlockDevice: () => false,
+        isCharacterDevice: () => false,
+        isDirectory: () => false,
+        isFIFO: () => false,
+        isFile: () => true,
+        isSocket: () => false,
+        isSymbolicLink: () => false,
+      },
+    },
+  ]);
+  assert.is(set1, true);
+
+  const get2 = await cache.get(script, fingerprint);
+  assert.ok(get2);
 });
 
 test.run();
