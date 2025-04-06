@@ -4,27 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as pathlib from 'path';
-import * as unbudgetedFs from 'fs/promises';
-import * as fs from '../util/fs.js';
-import * as https from 'https';
-import {createHash} from 'crypto';
-import {scriptReferenceToString} from '../config.js';
-import {getScriptDataDir} from '../util/script-data-dir.js';
-import '../util/dispose.js';
-import {fileBudget} from '../util/fs.js';
 import {execFile} from 'child_process';
-import '../util/dispose.js';
+import {createHash} from 'crypto';
+import * as unbudgetedFs from 'fs/promises';
+import * as https from 'https';
+import * as pathlib from 'path';
 import {inspect} from 'util';
+import {scriptReferenceToString} from '../config.js';
+import '../util/dispose.js';
+import * as fs from '../util/fs.js';
+import {fileBudget} from '../util/fs.js';
+import {getScriptDataDir} from '../util/script-data-dir.js';
 
 import type * as http from 'http';
-import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../config.js';
+import type {Result} from '../error.js';
+import type {InvalidUsage, UnknownErrorThrown} from '../event.js';
 import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
-import type {Result} from '../error.js';
-import type {InvalidUsage, UnknownErrorThrown} from '../event.js';
+import type {Cache, CacheHit} from './cache.js';
 
 /**
  * Caches script output to the GitHub Actions caching service.
@@ -111,6 +110,7 @@ export class GitHubActionsCache implements Cache {
         },
       };
     }
+    console.log(`CUSTODIAN RESULT:`, JSON.stringify(result, null, 2));
     return {
       ok: true,
       value: new GitHubActionsCache(
