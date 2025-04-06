@@ -350,6 +350,7 @@ export class GitHubActionsCache implements Cache {
           headers: {
             'content-type': 'application/octet-stream',
             'content-range': `bytes ${start}-${end}/*`,
+            'x-ms-blob-type': 'BlockBlob',
             authorization: undefined,
           },
         };
