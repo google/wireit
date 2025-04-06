@@ -72,7 +72,9 @@ test(
     assert.not(await rig.exists('test'));
     await get2.apply();
     assert.ok(await rig.exists('test'));
-    assert.equal(await rig.read('test'), content);
+    const actual = await rig.read('test');
+    console.log({actual});
+    assert.equal(actual, content);
   }),
 );
 
