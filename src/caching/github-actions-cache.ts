@@ -349,7 +349,7 @@ export class GitHubActionsCache implements Cache {
           method: 'PUT',
           headers: {
             'content-type': 'application/octet-stream',
-            'content-range': `bytes ${start}-${end}/*`,
+            'content-length': `${chunkSize}`,
             'x-ms-blob-type': 'BlockBlob',
             authorization: undefined,
           },
