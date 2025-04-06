@@ -218,7 +218,7 @@ export class GitHubActionsCache implements Cache {
     }
 
     throw new Error(
-      `GitHub Cache check HTTP ${String(response.statusCode)} error: ` +
+      `GitHub Cache check HTTP ${String(response.statusCode)} error ${url}: ` +
         (await readBody(response)),
     );
   }
