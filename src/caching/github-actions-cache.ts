@@ -194,23 +194,23 @@ export class GitHubActionsCache implements Cache {
     const version = this.#computeVersion(fingerprint);
     const key = this.#computeCacheKey(script);
     const url = new URL(
-      `/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL`,
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L91
+      '/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL',
       this.#baseUrl,
     );
     // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L246
     // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L101C1-L126C2
-    const data = {key, restoreKeys: [], version};
-    const dataBuffer = Buffer.from(JSON.stringify(data), 'utf8');
+    const body = {key, restoreKeys: [], version};
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': dataBuffer.length,
+        'Content-Length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.write(dataBuffer);
-    req.end();
+    req.end(bodyBuffer);
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
       return undefined;
@@ -592,22 +592,30 @@ export class GitHubActionsCache implements Cache {
     script: ScriptReference,
     key: string,
     version: string,
-    cacheSize: number,
+    _cacheSize: number,
   ): Promise<number | undefined> {
-    const url = new URL('_apis/artifactcache/caches', this.#baseUrl);
-    const reqBody = JSON.stringify({
+    // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
+    const url = new URL(
+      '/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
+      this.#baseUrl,
+    );
+    // See
+    // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L527
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L19
+    const body = {
       key,
       version,
-      cacheSize,
-    });
+    };
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'content-length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.end(reqBody);
+    req.end(bodyBuffer);
 
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
@@ -616,7 +624,9 @@ export class GitHubActionsCache implements Cache {
     const response = result.value;
 
     if (isOk(response)) {
-      const resData = JSON.parse(await readBody(response)) as {
+      const responseBody = await readBody(response);
+      console.log(responseBody);
+      const resData = JSON.parse(responseBody) as {
         cacheId: number;
       };
       return resData.cacheId;
