@@ -750,6 +750,7 @@ function request(
   let req!: http.ClientRequest;
   const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
     (resolve) => {
+      console.log('REQUEST', {url, opts});
       req = https.request(url, opts, (value) => {
         resolve({ok: true, value});
       });
