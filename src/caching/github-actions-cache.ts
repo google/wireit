@@ -350,7 +350,6 @@ export class GitHubActionsCache implements Cache {
           headers: {
             'content-type': 'application/octet-stream',
             'content-range': `bytes ${start}-${end}/*`,
-            authorization: undefined,
           },
         };
         using requestResult = this.#request(url, opts);
@@ -742,6 +741,12 @@ function request(
       ...options?.headers,
     },
   };
+  for (const [key, val] of Object.entries(opts.headers)) {
+    if (!val) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete (opts.headers as Record<string, unknown>)[key];
+    }
+  }
   let req!: http.ClientRequest;
   const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
     (resolve) => {
