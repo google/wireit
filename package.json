@@ -34,7 +34,7 @@
     "test:analysis": "wireit",
     "test:basic": "wireit",
     "test:cache-github": "wireit",
-    "test:cache-github-live": "NODE_OPTIONS=--enable-source-maps; uvu lib/test \"^cache-github-live\\.test\\.js$\"",
+    "test:cache-github-live": "NODE_OPTIONS=--enable-source-maps uvu lib/test \"^cache-github-live\\.test\\.js$\"",
     "test:cache-local": "wireit",
     "test:clean": "wireit",
     "test:cli-options": "wireit",
