@@ -70,7 +70,7 @@ test(
 
     await rig.delete(filename);
     assert.not(await rig.exists('test'));
-    await get2.apply();
+    // await get2.apply();
     assert.ok(await rig.exists('test'));
     const actual = await rig.read('test');
     console.log({actual});
