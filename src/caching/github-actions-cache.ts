@@ -217,17 +217,16 @@ export class GitHubActionsCache implements Cache {
     }
     const response = result.value;
 
-    console.log({code: response.statusCode});
-    if (response.statusCode === /* No Content */ 204) {
-      return undefined;
-    }
-
     if (isOk(response)) {
       const body = await readBody(response);
-      console.log({body});
-      const {archiveLocation} = JSON.parse(body) as {
-        archiveLocation: string;
+      const {signed_download_url: archiveLocation} = JSON.parse(body) as {
+        ok: boolean;
+        signed_download_url: string;
+        matched_key: string;
       };
+      if (!archiveLocation) {
+        return undefined;
+      }
       return new GitHubActionsCacheHit(script, archiveLocation, this.#logger);
     }
 
