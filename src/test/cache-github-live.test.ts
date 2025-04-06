@@ -13,7 +13,11 @@ import {SimpleLogger} from '../logging/simple-logger.js';
 
 test('env vars look like we expect', () => {
   for (const [key, val] of Object.entries(process.env)) {
-    if (key.startsWith('GITHUB_')) {
+    if (
+      key.startsWith('GITHUB_') ||
+      key.startsWith('ACTIONS_') ||
+      key.startsWith('WIREIT_')
+    ) {
       console.log(`${key}=${val}`);
     }
   }
