@@ -194,7 +194,7 @@ export class GitHubActionsCache implements Cache {
     const version = this.#computeVersion(fingerprint);
     const key = this.#computeCacheKey(script);
     const url = new URL(
-      `/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry`,
+      `/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL`,
       this.#baseUrl,
     );
     url.searchParams.set('keys', key);
