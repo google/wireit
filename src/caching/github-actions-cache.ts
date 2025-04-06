@@ -287,10 +287,12 @@ export class GitHubActionsCache implements Cache {
       });
       return false;
     }
+    const key = this.#computeCacheKey(script);
+    const version = this.#computeVersion(fingerprint);
     const uploadUrl = await this.#reserveCacheEntry(
       script,
-      this.#computeCacheKey(script),
-      this.#computeVersion(fingerprint),
+      key,
+      version,
       tarballBytes,
     );
     // It's likely that we'll occasionally fail to reserve an entry and get
@@ -304,7 +306,7 @@ export class GitHubActionsCache implements Cache {
     if (!(await this.#upload(script, uploadUrl, tarballPath, tarballBytes))) {
       return false;
     }
-    if (!(await this.#commit(script, uploadUrl, tarballBytes))) {
+    if (!(await this.#commit(script, key, version, tarballBytes))) {
       return false;
     }
     return true;
@@ -390,25 +392,34 @@ export class GitHubActionsCache implements Cache {
    */
   async #commit(
     script: ScriptReference,
-    uploadUrl: string,
+    key: string,
+    version: string,
     tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(
-      // TODO(aomarks) Definitely wrong.
-      uploadUrl,
+      // See
+      // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L132
+      `/twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload`,
       this.#baseUrl,
     );
-    const reqBody = JSON.stringify({
-      size: tarballBytes,
-    });
+    // See
+    // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L555
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L57
+    const body = {
+      key,
+      version,
+      sizeBytes: tarballBytes,
+    };
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'content-length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.end(reqBody);
+    req.end(bodyBuffer);
 
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
@@ -438,6 +449,7 @@ export class GitHubActionsCache implements Cache {
       ...options,
       headers: {
         // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
+        // TODO(aomarks) What's the right new accept for v2?
         accept: 'application/json;api-version=6.0-preview.1',
         // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/http-client/src/auth.ts#L46
         authorization: `Bearer ${this.#authToken}`,
@@ -598,8 +610,8 @@ export class GitHubActionsCache implements Cache {
     version: string,
     _cacheSize: number,
   ): Promise<string | undefined> {
-    // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
     const url = new URL(
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
       '/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
       this.#baseUrl,
     );
