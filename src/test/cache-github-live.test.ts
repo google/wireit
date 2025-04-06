@@ -44,7 +44,7 @@ test(
     assert.is(get1, undefined);
 
     const filename = 'test';
-    const content = 'This is a test file';
+    const content = 'This is a test file!';
     await rig.write(filename, content);
     const set1 = await cache.set(script, fingerprint, [
       {
@@ -75,6 +75,9 @@ test(
     const actual = await rig.read('test');
     console.log({actual});
     assert.equal(actual, content);
+
+    // TODO(aomarks) Test >100MB file because that will require some different
+    // Azure upload code.
   }),
 );
 
