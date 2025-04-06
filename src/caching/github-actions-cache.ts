@@ -320,7 +320,7 @@ export class GitHubActionsCache implements Cache {
     tarballPath: string,
     tarballBytes: number,
   ): Promise<boolean> {
-    const url = new URL(uploadUrl, this.#baseUrl);
+    const url = new URL(uploadUrl);
     // Reference:
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     const maxChunkSize = 32 * 1024 * 1024;
@@ -330,6 +330,7 @@ export class GitHubActionsCache implements Cache {
     const tarballHandle = await unbudgetedFs.open(tarballPath, 'r');
     let offset = 0;
     try {
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/internal/uploadUtils.ts#L132
       // TODO(aomarks) Chunks could be uploaded in parallel.
       while (offset < tarballBytes) {
         const chunkSize = Math.min(tarballBytes - offset, maxChunkSize);
@@ -349,6 +350,7 @@ export class GitHubActionsCache implements Cache {
           headers: {
             'content-type': 'application/octet-stream',
             'content-range': `bytes ${start}-${end}/*`,
+            authorization: undefined,
           },
         };
         using requestResult = this.#request(url, opts);
