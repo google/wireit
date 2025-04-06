@@ -41,7 +41,7 @@ test(
     );
 
     const get1 = await cache.get(script, fingerprint);
-    assert.is(get1, undefined);
+    assert.equal(get1, '{}');
 
     const filename = 'test';
     const content = 'This is a test file';
