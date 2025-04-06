@@ -216,9 +216,11 @@ export class GitHubActionsCache implements Cache {
       return undefined;
     }
     const response = result.value;
+    console.log({statusCode: response.statusCode});
 
     if (isOk(response)) {
       const body = await readBody(response);
+      console.log({body});
       const {signed_download_url: archiveLocation} = JSON.parse(body) as {
         ok: boolean;
         signed_download_url: string;
