@@ -26,4 +26,5 @@ jobs:
 
       - uses: google/wireit@setup-github-actions-caching/v2
       - run: npm ci
+      - run: npm run build
       - run: npm run test:cache-github-live
