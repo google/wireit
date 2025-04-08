@@ -45,7 +45,7 @@ test(
     assert.is(get1, undefined);
 
     const filename = 'test';
-    const content = randomBytes(200 * 1024 ** 2);
+    const content = randomBytes(200 * 1024 * 1024);
     await rig.write(filename, content);
     const set1 = await cache.set(script, fingerprint, [
       {
