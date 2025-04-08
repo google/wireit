@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {randomBytes} from 'node:crypto';
+import {pseudoRandomBytes} from 'node:crypto';
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {GitHubActionsCache} from '../caching/github-actions-cache.js';
@@ -45,7 +45,7 @@ test(
     assert.is(get1, undefined);
 
     const filename = 'test';
-    const content = randomBytes(200 * 1024 * 1024);
+    const content = pseudoRandomBytes(200 * 1024 * 1024);
     await rig.write(filename, content);
     const set1 = await cache.set(script, fingerprint, [
       {
