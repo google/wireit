@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {randomBytes} from 'node:crypto';
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {GitHubActionsCache} from '../caching/github-actions-cache.js';
@@ -44,7 +45,7 @@ test(
     assert.is(get1, undefined);
 
     const filename = 'test';
-    const content = 'This is a test file!';
+    const content = randomBytes(200 * 1024 ** 2);
     await rig.write(filename, content);
     const set1 = await cache.set(script, fingerprint, [
       {
@@ -72,7 +73,7 @@ test(
     assert.not(await rig.exists('test'));
     await get2.apply();
     assert.ok(await rig.exists('test'));
-    const actual = await rig.read('test');
+    const actual = await rig.readBytes('test');
     console.log({actual});
     assert.equal(actual, content);
 

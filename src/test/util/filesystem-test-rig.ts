@@ -131,11 +131,19 @@ export class FilesystemTestRig {
   }
 
   /**
-   * Read a file from the temporary filesystem.
+   * Read a file from the temporary filesystem as UTF8.
    */
   async read(filename: string): Promise<string> {
     this._assertState('running');
     return fs.readFile(this.resolve(filename), 'utf8');
+  }
+
+  /**
+   * Read a file from the temporary filesystem as bytes.
+   */
+  async readBytes(filename: string): Promise<Buffer<ArrayBufferLike>> {
+    this._assertState('running');
+    return fs.readFile(this.resolve(filename));
   }
 
   /**
