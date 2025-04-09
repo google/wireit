@@ -87,6 +87,55 @@ export const registerCommonCacheTests = (
   );
 
   test(
+    'caches large files',
+    rigTest(async ({rig}) => {
+      const cmdA = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: [],
+              output: ['big/*.rand'],
+            },
+          },
+        },
+      });
+
+      {
+        const exec = rig.exec('npm run a');
+        const inv = await cmdA.nextInvocation();
+        await rig.writeRandomFile('big/foo.rand', 33); // MiB
+        await rig.writeRandomFile('big/bar.rand', 129);
+        inv.exit(0);
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+      }
+
+      const expectedFoo = await rig.readBytes('big/foo.rand');
+      const expectedBar = await rig.readBytes('big/bar.rand');
+      await rig.delete('big/');
+      assert.not(await rig.exists('big/foo.rand'));
+      assert.not(await rig.exists('big/bar.rand'));
+
+      {
+        const exec = rig.exec('npm run a');
+        const res = await exec.exit;
+        assert.equal(res.code, 0);
+        assert.equal(cmdA.numInvocations, 1);
+        assert.ok(await rig.exists('big/foo.rand'));
+        assert.ok(await rig.exists('big/bar.rand'));
+        assert.equal(await rig.readBytes('big/foo.rand'), expectedFoo);
+        assert.equal(await rig.readBytes('big/bar.rand'), expectedBar);
+      }
+    }),
+  );
+
+  test(
     'caching follows glob patterns',
     rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();

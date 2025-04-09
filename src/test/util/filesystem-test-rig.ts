@@ -9,6 +9,7 @@ import * as pathlib from 'path';
 import {fileURLToPath} from 'url';
 import {gracefulFs} from './graceful-fs.js';
 
+import {randomBytes} from 'crypto';
 import type {Stats} from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -118,6 +119,21 @@ export class FilesystemTestRig {
         ),
       );
     }
+  }
+
+  async writeRandomFile(filepath: string, mibibytes: number): Promise<void> {
+    this._assertState('running');
+    const absolute = pathlib.resolve(this.temp, filepath);
+    await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
+    const fd = await fs.open(absolute, 'w');
+    const total = mibibytes * 1024 * 1024;
+    const batch = 1024;
+    for (let offset = 0; offset < total; offset += batch) {
+      const size = Math.min(batch, total - offset);
+      const buffer = randomBytes(size);
+      await fd.write(buffer, 0, size, offset);
+    }
+    await fd.close();
   }
 
   /**
