@@ -394,7 +394,7 @@ export class GitHubActionsCache implements Cache {
       const doneXmlBody = Buffer.from(
         `<?xml version="1.0" encoding="utf-8"?>
 <BlockList>
-${blockIds.map((blockId) => `  <Committed>${blockId}</Committed>`).join('\n')}
+${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n')}
 </BlockList>
 `,
         'utf8',
