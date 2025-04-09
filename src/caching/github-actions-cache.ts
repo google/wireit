@@ -195,12 +195,12 @@ export class GitHubActionsCache implements Cache {
     const key = this.#computeCacheKey(script);
     const url = new URL(
       // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L91
-      '/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL',
+      'twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL',
       this.#baseUrl,
     );
     // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L246
     // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L101C1-L126C2
-    const body = {key, restoreKeys: [], version};
+    const body = {key, version};
     const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
@@ -437,7 +437,7 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
     const url = new URL(
       // See
       // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L132
-      `/twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload`,
+      `twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload`,
       this.#baseUrl,
     );
     // See
@@ -648,7 +648,7 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
   ): Promise<string | undefined> {
     const url = new URL(
       // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
-      '/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
+      'twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
       this.#baseUrl,
     );
     // See

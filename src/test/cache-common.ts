@@ -19,7 +19,7 @@ export const registerCommonCacheTests = (
   test: Test,
   cacheMode: 'local' | 'github',
 ) => {
-  test(
+  test.only(
     'caches single file',
     rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();

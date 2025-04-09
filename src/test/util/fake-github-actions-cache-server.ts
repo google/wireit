@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as https from 'https';
 import type * as http from 'http';
+import * as https from 'https';
 
 /**
- * Numeric ID for a cache entry.
+ * String ID for a cache entry.
  */
-type EntryId = number & {
+type EntryId = string & {
   __EntryIdBrand__: never;
 };
 
@@ -30,15 +30,9 @@ type KeyAndVersion = string & {
 };
 
 interface CacheEntry {
-  chunks: ChunkRange[];
+  chunks: Map<string, Buffer>;
   commited: boolean;
   tarballId: TarballId;
-}
-
-interface ChunkRange {
-  start: number;
-  end: number;
-  buffer: Buffer;
 }
 
 const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
@@ -46,8 +40,7 @@ const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
 
 type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
 
-// https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
-const JSON_RESPONSE_TYPE = 'application/json;api-version=6.0-preview.1';
+const JSON_RESPONSE_TYPE = 'application/json';
 
 /**
  * A fake version of the GitHub Actions cache server.
@@ -215,21 +208,13 @@ export class FakeGitHubActionsCacheServer {
     request: http.IncomingMessage,
     response: http.ServerResponse,
   ): boolean {
-    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L67
-    const expected = 'actions/cache';
-    const actual = request.headers['user-agent'];
-    if (actual !== expected) {
-      // The real server might not be this strict, but we want to be sure we're
-      // acting just like the official client library.
-      this.#respond(
-        response,
-        /* Bad Request */ 400,
-        `Expected user-agent ${JSON.stringify(expected)}. ` +
-          `Got ${JSON.stringify(actual)}.`,
-      );
-      return false;
-    }
-    return true;
+    return this.#checkHeader(
+      request,
+      response,
+      'user-agent',
+      // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L67
+      'actions/cache',
+    );
   }
 
   #checkContentType(
@@ -237,19 +222,7 @@ export class FakeGitHubActionsCacheServer {
     response: http.ServerResponse,
     expected: string | undefined,
   ): boolean {
-    const actual = request.headers['content-type'];
-    if (actual !== expected) {
-      // The real server might not be this strict, but we want to be sure we're
-      // acting just like the official client library.
-      this.#respond(
-        response,
-        /* Bad Request */ 400,
-        `Expected content-type ${JSON.stringify(expected)}. ` +
-          `Got ${JSON.stringify(actual)}.`,
-      );
-      return false;
-    }
-    return true;
+    return this.#checkHeader(request, response, 'content-type', expected);
   }
 
   #checkAccept(
@@ -257,14 +230,21 @@ export class FakeGitHubActionsCacheServer {
     response: http.ServerResponse,
     expected: string | undefined,
   ): boolean {
-    const actual = request.headers['accept'];
+    return this.#checkHeader(request, response, 'accept', expected);
+  }
+
+  #checkHeader(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    header: string,
+    expected: string | undefined,
+  ): boolean {
+    const actual = request.headers[header];
     if (actual !== expected) {
-      // The real server might not be this strict, but we want to be sure we're
-      // acting just like the official client library.
       this.#respond(
         response,
         /* Bad Request */ 400,
-        `Expected accept ${JSON.stringify(expected)}. ` +
+        `Expected ${header} ${JSON.stringify(expected)}. ` +
           `Got ${JSON.stringify(actual)}.`,
       );
       return false;
@@ -291,22 +271,33 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    if (api === '_apis/artifactcache/cache' && request.method === 'GET') {
-      return this.#check(request, response, url);
+    console.log('SERVER', {api});
+    if (
+      api ===
+        'twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL' &&
+      request.method === 'POST'
+    ) {
+      return void this.#check(request, response);
     }
 
-    if (api === '_apis/artifactcache/caches' && request.method === 'POST') {
+    if (
+      api ===
+        'twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry' &&
+      request.method === 'POST'
+    ) {
       return void this.#reserve(request, response);
     }
 
-    if (api.startsWith('_apis/artifactcache/caches/')) {
-      const tail = api.slice('_apis/artifactcache/caches/'.length);
-      if (request.method === 'PATCH') {
-        return void this.#upload(request, response, tail);
-      }
-      if (request.method === 'POST') {
-        return void this.#commit(request, response, tail);
-      }
+    if (api === 'blobs' && request.method === 'PUT') {
+      return void this.#upload(request, response, url);
+    }
+
+    if (
+      api ===
+        'twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload' &&
+      request.method === 'POST'
+    ) {
+      return void this.#commit(request, response);
     }
 
     if (api.startsWith('tarballs/') && request.method === 'GET') {
@@ -324,11 +315,10 @@ export class FakeGitHubActionsCacheServer {
    * version. If so, returns a URL which can be used to download the tarball. If
    * not, returns a 204 "No Content" response.
    */
-  #check(
+  async #check(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    url: URL,
-  ): void {
+  ): Promise<void> {
     this.metrics.check++;
     if (this.#maybeServeForcedError(response, 'check')) {
       return;
@@ -336,42 +326,47 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAuthorization(request, response)) {
       return;
     }
-    if (!this.#checkContentType(request, response, undefined)) {
+    if (!this.#checkContentType(request, response, 'application/json')) {
       return;
     }
     if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
 
-    const keys = url.searchParams.get('keys');
-    if (!keys) {
-      return this.#respond(response, 400, 'Missing "keys" query parameter');
+    const json = await this.#readBody(request);
+    const {key, version} = JSON.parse(json.toString()) as Partial<{
+      key: string;
+      version: string;
+    }>;
+    console.log({key, version});
+
+    if (!key) {
+      return this.#respond(response, 400, 'Missing "key" property');
     }
-    const version = url.searchParams.get('version');
     if (!version) {
-      return this.#respond(response, 400, 'Missing "version" query parameter');
-    }
-    if (keys.includes(',')) {
-      // The real server supports multiple comma-delimited keys, where the first
-      // that exists is returned. However, we don't use this feature in Wireit,
-      // so we don't bother implementing it in this fake.
-      return this.#respond(
-        response,
-        /* Not Implemented */ 501,
-        'Fake does not support multiple keys',
-      );
+      return this.#respond(response, 400, 'Missing "version" property');
     }
 
-    const keyAndVersion = encodeKeyAndVersion(keys, version);
+    const keyAndVersion = encodeKeyAndVersion(key, version);
     const entryId = this.#keyAndVersionToEntryId.get(keyAndVersion);
     if (entryId === undefined) {
-      return this.#respond(response, /* No Content */ 204);
+      return this.#respond(
+        response,
+        200,
+        JSON.stringify({
+          ok: true,
+          signed_download_url: '',
+          matched_key: '',
+        }),
+      );
     }
     const entry = this.#entryIdToEntry.get(entryId);
     if (entry === undefined) {
+      // TODO(aomarks) Not actually sure how the server responds here since v2.
       return this.#respond(response, 500, 'Entry missing for id');
     }
     if (!entry.commited) {
+      // TODO(aomarks) Not actually sure how the server responds here since v2.
       return this.#respond(response, /* No Content */ 204);
     }
 
@@ -379,8 +374,9 @@ export class FakeGitHubActionsCacheServer {
       response,
       200,
       JSON.stringify({
-        archiveLocation: `${this.#url.href}tarballs/${entry.tarballId}`,
-        cacheKey: keys,
+        ok: true,
+        signed_download_url: `${this.#url.href}tarballs/${entry.tarballId}`,
+        matched_key: key,
       }),
     );
   }
@@ -396,6 +392,7 @@ export class FakeGitHubActionsCacheServer {
     request: http.IncomingMessage,
     response: http.ServerResponse,
   ): Promise<void> {
+    console.log('REEEEEESERVE');
     this.metrics.reserve++;
     if (this.#maybeServeForcedError(response, 'reserve')) {
       return;
@@ -419,19 +416,23 @@ export class FakeGitHubActionsCacheServer {
     if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
       return this.#respond(response, /* Conflict */ 409);
     }
-    const entryId = this.#nextEntryId++ as EntryId;
+    const entryId = String(this.#nextEntryId++) as EntryId;
     const tarballId = String(Math.random()).slice(2) as TarballId;
     this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
     this.#tarballIdToEntryId.set(tarballId, entryId);
     this.#entryIdToEntry.set(entryId, {
-      chunks: [],
+      chunks: new Map(),
       commited: false,
       tarballId,
     });
+    const uploadUrl = new URL('blobs', this.#url);
+    uploadUrl.searchParams.set('skoid', String(entryId));
     this.#respond(
       response,
       /* Created */ 201,
-      JSON.stringify({cacheId: entryId}),
+      JSON.stringify({
+        signed_upload_url: uploadUrl.href,
+      }),
     );
   }
 
@@ -444,14 +445,15 @@ export class FakeGitHubActionsCacheServer {
   async #upload(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    idStr: string,
+    url: URL,
   ): Promise<void> {
+    console.log('UPLOAAAAAD', {url});
     this.metrics.upload++;
     if (this.#maybeServeForcedError(response, 'upload')) {
       return;
     }
-    if (!this.#checkAuthorization(request, response)) {
-      return;
+    if (request.headers.authorization !== undefined) {
+      this.#respond(response, /* Bad Request */ 400);
     }
     if (
       !this.#checkContentType(request, response, 'application/octet-stream')
@@ -461,56 +463,26 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
       return;
     }
-    const expectedTransferEncoding = 'chunked';
-    const actualTransferEncoding = request.headers['transfer-encoding'];
-    if (actualTransferEncoding !== 'chunked') {
-      return this.#respond(
-        response,
-        /* Bad Request */ 400,
-        `Expected transfer-encoding ${JSON.stringify(
-          expectedTransferEncoding,
-        )}. ` + `Got ${String(actualTransferEncoding)}.`,
-      );
+
+    const id = url.searchParams.get('skoid') as EntryId;
+    if (!id) {
+      return this.#respond(response, 400, 'Missing skoid parameter');
+    }
+    const blockId = url.searchParams.get('blockid');
+    if (!blockId) {
+      return this.#respond(response, 400, 'Missing blockid parameter');
+    }
+    if (url.searchParams.get('comp') !== 'block') {
+      return this.#respond(response, 400, 'Missing comp=block parameter');
     }
 
-    if (idStr.match(/\d+/) === null) {
-      return this.#respond(response, 400, 'Cache ID was not an integer');
-    }
-    const id = Number(idStr) as EntryId;
     const entry = this.#entryIdToEntry.get(id);
     if (entry === undefined) {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
-    const contentRange = request.headers['content-range'] ?? '';
-    const parsedContentRange = contentRange.match(/^bytes (\d+)-(\d+)\/\*$/);
-    if (parsedContentRange === null) {
-      return this.#respond(
-        response,
-        400,
-        'Missing or invalid Content-Range header',
-      );
-    }
-    const start = Number(parsedContentRange[1]);
-    const end = Number(parsedContentRange[2]);
-    const expectedLength = end - start + 1;
-
-    // The real server might not be this strict, but we should make sure we
-    // aren't sending larger chunks than the official client library does.
-    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
-    if (expectedLength > 32 * 1024 * 1024) {
-      return this.#respond(response, 400, 'Upload chunk was > 32MB');
-    }
-
-    const buffer = await this.#readBody(request);
-    if (buffer.length !== expectedLength) {
-      return this.#respond(
-        response,
-        400,
-        'Chunk length did not match Content-Range header',
-      );
-    }
-    entry.chunks.push({start, end, buffer});
+    const data = await this.#readBody(request);
+    entry.chunks.set(blockId, data);
     this.#respond(response, /* No Content */ 204);
   }
 
@@ -523,7 +495,6 @@ export class FakeGitHubActionsCacheServer {
   async #commit(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    idStr: string,
   ): Promise<void> {
     this.metrics.commit++;
     if (this.#maybeServeForcedError(response, 'commit')) {
@@ -539,48 +510,51 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    if (idStr.match(/\d+/) === null) {
-      return this.#respond(response, 400, 'Cache ID was not an integer');
-    }
+    const json = await this.#readBody(request);
+    const data = JSON.parse(json.toString()) as {
+      key: string;
+      version: string;
+      sizeBytes: number;
+    };
 
-    const id = Number(idStr) as EntryId;
-    const entry = this.#entryIdToEntry.get(id);
+    console.log('PPPPPPPPPPPPP', this.#entryIdToEntry);
+    const entry = this.#entryIdToEntry.get(data.key as EntryId);
     if (entry === undefined) {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
-    // Sort the chunks according to range and validate that there are no missing
-    // or overlapping chunks.
-    entry.chunks.sort((a, b) => a.start - b.start);
-    let expectedNextStart = 0;
-    let totalLength = 0;
-    for (const chunk of entry.chunks) {
-      if (chunk.start !== expectedNextStart) {
-        return this.#respond(
-          response,
-          400,
-          'Cache entry chunks were not contiguous',
-        );
-      }
-      expectedNextStart = chunk.end + 1;
-      totalLength += chunk.buffer.length;
-    }
+    // // Sort the chunks according to range and validate that there are no missing
+    // // or overlapping chunks.
+    // entry.chunks.sort((a, b) => a.start - b.start);
+    // let expectedNextStart = 0;
+    // let totalLength = 0;
+    // for (const chunk of entry.chunks) {
+    //   if (chunk.start !== expectedNextStart) {
+    //     return this.#respond(
+    //       response,
+    //       400,
+    //       'Cache entry chunks were not contiguous',
+    //     );
+    //   }
+    //   expectedNextStart = chunk.end + 1;
+    //   totalLength += chunk.buffer.length;
+    // }
 
     // Validate against the expected total length from this request.
-    const json = await this.#readBody(request);
-    const data = JSON.parse(json.toString()) as {
-      size: number;
-    };
-    const expectedLength = data.size;
-    if (totalLength !== expectedLength) {
-      return this.#respond(
-        response,
-        400,
-        'Cache entry did not match expected length',
-      );
-    }
+    // const json = await this.#readBody(request);
+    // const data = JSON.parse(json.toString()) as {
+    //   size: number;
+    // };
+    // const expectedLength = data.size;
+    // if (totalLength !== expectedLength) {
+    //   return this.#respond(
+    //     response,
+    //     400,
+    //     'Cache entry did not match expected length',
+    //   );
+    // }
 
-    entry.commited = true;
+    // entry.commited = true;
     this.#respond(response, /* No Content */ 204);
   }
 
@@ -624,14 +598,14 @@ export class FakeGitHubActionsCacheServer {
     }
 
     response.statusCode = 200;
-    const contentLength = entry.chunks.reduce(
-      (sum, chunk) => sum + chunk.buffer.length,
-      0,
-    );
-    response.setHeader('Content-Length', contentLength);
-    for (const chunk of entry.chunks) {
-      response.write(chunk.buffer);
-    }
+    // const contentLength = entry.chunks.reduce(
+    //   (sum, chunk) => sum + chunk.buffer.length,
+    //   0,
+    // );
+    // response.setHeader('Content-Length', contentLength);
+    // for (const chunk of entry.chunks) {
+    //   response.write(chunk.buffer);
+    // }
     response.end();
   }
 }
