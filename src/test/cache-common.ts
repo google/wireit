@@ -17,7 +17,7 @@ import type {Test} from 'uvu';
  */
 export const registerCommonCacheTests = (
   test: Test,
-  cacheMode: 'local' | 'github' | 'github-live',
+  cacheMode: 'local' | 'github',
 ) => {
   test(
     'caches single file',
