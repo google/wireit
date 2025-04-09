@@ -72,6 +72,9 @@ test(
     ]);
     assert.is(set1, true);
 
+    console.log('Waiting 5 seconds');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     const get2 = await cache.get(script, fingerprint);
     assert.ok(get2);
 

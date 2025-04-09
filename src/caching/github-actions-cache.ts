@@ -399,7 +399,7 @@ ${blockIds.map((blockId) => `  <Committed>${blockId}</Committed>`).join('\n')}
 `,
         'utf8',
       );
-      console.log({doneXmlBody});
+      console.log(doneXmlBody.toString('utf8'));
       using requestResult = this.#request(doneUrl, {
         method: 'PUT',
         headers: {
