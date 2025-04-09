@@ -20,6 +20,11 @@ test.before.each(async (ctx) => {
     ctx.rig.env = {
       ...ctx.rig.env,
       WIREIT_CACHE: 'github',
+      // We're testing against the actual production GitHub API, so we must pass
+      // down access to the real credentials (normally our test rig strips any
+      // WIREIT_ variables).
+      WIREIT_CACHE_GITHUB_CUSTODIAN_PORT:
+        process.env.WIREIT_CACHE_GITHUB_CUSTODIAN_PORT,
     };
     await ctx.rig.setup();
   } catch (error) {
