@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as assert from 'uvu/assert';
 import * as pathlib from 'path';
-import {rigTest} from './util/rig-test.js';
 import {sep} from 'path';
+import * as assert from 'uvu/assert';
 import {checkScriptOutput} from './util/check-script-output.js';
+import {rigTest} from './util/rig-test.js';
 
 import type {Test} from 'uvu';
 
@@ -17,7 +17,7 @@ import type {Test} from 'uvu';
  */
 export const registerCommonCacheTests = (
   test: Test,
-  cacheMode: 'local' | 'github',
+  cacheMode: 'local' | 'github' | 'github-live',
 ) => {
   test(
     'caches single file',

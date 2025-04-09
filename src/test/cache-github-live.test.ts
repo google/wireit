@@ -4,91 +4,102 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {randomFillSync} from 'node:crypto';
-import {test} from 'uvu';
+import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import {GitHubActionsCache} from '../caching/github-actions-cache.js';
-import {Fingerprint, type FingerprintString} from '../fingerprint.js';
-import {Console} from '../logging/logger.js';
-import {SimpleLogger} from '../logging/simple-logger.js';
+import {registerCommonCacheTests} from './cache-common.js';
 import {rigTest} from './util/rig-test.js';
+import {WireitTestRig} from './util/test-rig.js';
 
-test('env vars look like we expect', () => {
-  for (const [key, val] of Object.entries(process.env)) {
-    if (
-      key.startsWith('GITHUB_') ||
-      key.startsWith('ACTIONS_') ||
-      key.startsWith('WIREIT_')
-    ) {
-      console.log(`${key}=${val}`);
-    }
+const test = suite<{
+  rig: WireitTestRig;
+}>();
+
+test.before.each(async (ctx) => {
+  try {
+    ctx.rig = new WireitTestRig();
+    ctx.rig.env = {
+      ...ctx.rig.env,
+      WIREIT_CACHE: 'github',
+    };
+    await ctx.rig.setup();
+  } catch (error) {
+    // Uvu has a bug where it silently ignores failures in before and after,
+    // see https://github.com/lukeed/uvu/issues/191.
+    console.error('uvu before error', error);
+    process.exit(1);
   }
 });
 
+test.after.each(async (ctx) => {
+  try {
+    await ctx.rig.cleanup();
+  } catch (error) {
+    // Uvu has a bug where it silently ignores failures in before and after,
+    // see https://github.com/lukeed/uvu/issues/191.
+    console.error('uvu after error', error);
+    process.exit(1);
+  }
+});
+
+registerCommonCacheTests(test, 'github-live');
+
 test(
-  'can cache something',
+  'cache key affected by ImageOS environment variable',
   rigTest(async ({rig}) => {
-    const cacheResult = await GitHubActionsCache.create(
-      new SimpleLogger('.', new Console(process.stderr, process.stderr)),
-    );
-    assert.ok(cacheResult.ok);
-    const cache = cacheResult.value;
-
-    const script = {name: 'test', packageDir: rig.temp};
-    const fingerprint = Fingerprint.fromString(
-      // Note this isn't actually a valid fingerprint JSON string, but it
-      // doesn't matter, it is hashed without validation.
-      `{"test":${Math.random()}}` as FingerprintString,
-    );
-
-    const get1 = await cache.get(script, fingerprint);
-    assert.is(get1, undefined);
-
-    const filename = 'test';
-
-    const content = Buffer.alloc(200 * 1024 * 1024);
-    const chunkSize = 10 * 1024 * 1024;
-    for (let i = 0; i < content.length; i += chunkSize) {
-      randomFillSync(content, i, Math.min(chunkSize, content.length - i));
-    }
-    console.log('BEFORE', content.subarray(0, 64).toString('hex'));
-
-    await rig.write(filename, content);
-    const set1 = await cache.set(script, fingerprint, [
-      {
-        _AbsoluteEntryBrand_: true as never,
-        name: filename,
-        path: rig.resolve(filename),
-        dirent: {
-          name: filename,
-          isBlockDevice: () => false,
-          isCharacterDevice: () => false,
-          isDirectory: () => false,
-          isFIFO: () => false,
-          isFile: () => true,
-          isSocket: () => false,
-          isSymbolicLink: () => false,
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
         },
       },
-    ]);
-    assert.is(set1, true);
+      input: 'v0',
+    });
 
-    console.log('Waiting 5 seconds');
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    // Initial run with input v0 and OS ubuntu18.
+    {
+      const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu18'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
 
-    const get2 = await cache.get(script, fingerprint);
-    assert.ok(get2);
+    // Input changed to v1. Run again.
+    {
+      await rig.write({input: 'v1'});
+      const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu18'}});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v1'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v1');
+    }
 
-    await rig.delete(filename);
-    assert.not(await rig.exists('test'));
-    await get2.apply();
-    assert.ok(await rig.exists('test'));
-    const actual = await rig.readBytes('test');
-    assert.equal(actual, content);
-    console.log('AFTER', actual.subarray(0, 64).toString('hex'));
-
-    // TODO(aomarks) Test >100MB file because that will require some different
-    // Azure upload code.
+    // Input changed back to v0, but OS is now ubuntu20. Output should not be
+    // cached, because we changed OS.
+    {
+      await rig.write({input: 'v0'});
+      const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu20'}});
+      const inv = await cmdA.nextInvocation();
+      assert.not(await rig.exists('output'));
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 3);
+    }
   }),
 );
 
