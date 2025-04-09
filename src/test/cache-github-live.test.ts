@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {pseudoRandomBytes} from 'node:crypto';
+import {randomFillSync} from 'node:crypto';
 import {test} from 'uvu';
 import * as assert from 'uvu/assert';
 import {GitHubActionsCache} from '../caching/github-actions-cache.js';
@@ -45,7 +45,13 @@ test(
     assert.is(get1, undefined);
 
     const filename = 'test';
-    const content = pseudoRandomBytes(200 * 1024 * 1024);
+
+    const content = Buffer.alloc(200 * 1024 * 1024);
+    const chunkSize = 10 * 1024 * 1024;
+    for (let i = 0; i < content.length; i += chunkSize) {
+      randomFillSync(content, i, Math.min(chunkSize, content.length - i));
+    }
+
     await rig.write(filename, content);
     const set1 = await cache.set(script, fingerprint, [
       {
@@ -74,7 +80,6 @@ test(
     await get2.apply();
     assert.ok(await rig.exists('test'));
     const actual = await rig.readBytes('test');
-    console.log({actual});
     assert.equal(actual, content);
 
     // TODO(aomarks) Test >100MB file because that will require some different

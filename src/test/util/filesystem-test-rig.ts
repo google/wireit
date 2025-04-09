@@ -79,9 +79,13 @@ export class FilesystemTestRig {
     if (typeof fileOrFiles === 'string') {
       const absolute = pathlib.resolve(this.temp, fileOrFiles);
       await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
-      const str =
-        typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-      await fs.writeFile(absolute, str, 'utf8');
+      if (typeof data === 'string') {
+        await fs.writeFile(absolute, data, 'utf8');
+      } else if (Buffer.isBuffer(data)) {
+        await fs.writeFile(absolute, data);
+      } else {
+        await fs.writeFile(absolute, JSON.stringify(data, null, 2), 'utf8');
+      }
     } else {
       await Promise.all(
         Object.entries(fileOrFiles).map(async ([relative, data]) =>
