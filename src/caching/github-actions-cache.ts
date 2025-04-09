@@ -552,7 +552,7 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
   }
 
   #computeCacheKey(script: ScriptReference): string {
-    return `wireit-${createHash('sha256')
+    return `TEST_wireit-${createHash('sha256')
       .update(scriptReferenceToString(script))
       .digest('hex')}`;
   }
