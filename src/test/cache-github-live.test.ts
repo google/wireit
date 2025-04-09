@@ -51,6 +51,7 @@ test(
     for (let i = 0; i < content.length; i += chunkSize) {
       randomFillSync(content, i, Math.min(chunkSize, content.length - i));
     }
+    console.log('BEFORE', content.subarray(0, 64).toString('hex'));
 
     await rig.write(filename, content);
     const set1 = await cache.set(script, fingerprint, [
@@ -84,6 +85,7 @@ test(
     assert.ok(await rig.exists('test'));
     const actual = await rig.readBytes('test');
     assert.equal(actual, content);
+    console.log('AFTER', actual.subarray(0, 64).toString('hex'));
 
     // TODO(aomarks) Test >100MB file because that will require some different
     // Azure upload code.
