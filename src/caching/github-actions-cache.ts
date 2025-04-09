@@ -334,6 +334,7 @@ export class GitHubActionsCache implements Cache {
       // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/internal/uploadUtils.ts#L132
       // TODO(aomarks) Chunks could be uploaded in parallel.
       const blockIds: string[] = [];
+      let blockIdx = 0;
       while (offset < tarballBytes) {
         const chunkSize = Math.min(tarballBytes - offset, maxChunkSize);
         const start = offset;
@@ -358,7 +359,11 @@ export class GitHubActionsCache implements Cache {
         };
         const chunkUrl = new URL(uploadUrl);
         chunkUrl.searchParams.set('comp', 'block');
-        const blockId = offset.toString(16);
+        // All block IDs must be the same length within a blob.
+        const blockId = Buffer.from(
+          blockIdx.toString(16).padStart(4, '0'),
+        ).toString('base64');
+        blockIdx++;
         blockIds.push(blockId);
         chunkUrl.searchParams.set('blockid', blockId);
         using requestResult = this.#request(chunkUrl, opts);
@@ -389,16 +394,12 @@ export class GitHubActionsCache implements Cache {
       const doneXmlBody = Buffer.from(
         `<?xml version="1.0" encoding="utf-8"?>
 <BlockList>
-${blockIds
-  .map(
-    (blockId) =>
-      `  <Committed>${Buffer.from(blockId).toString('base64')}</Committed>`,
-  )
-  .join('\n  ')}
+${blockIds.map((blockId) => `  <Committed>${blockId}</Committed>`).join('\n')}
 </BlockList>
 `,
         'utf8',
       );
+      console.log({doneXmlBody});
       using requestResult = this.#request(doneUrl, {
         method: 'PUT',
         headers: {
