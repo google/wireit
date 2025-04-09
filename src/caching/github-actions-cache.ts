@@ -413,6 +413,10 @@ ${blockIds.map((blockId) => `  <Committed>${blockId}</Committed>`).join('\n')}
       if (!this.#maybeHandleServiceDown(r, script)) {
         return false;
       }
+      let responseData = '';
+      r.value.on('data', (chunk: string) => (responseData += chunk));
+      await new Promise((resolve) => r.value.on('end', resolve));
+      console.log('DONE', r.value.statusCode, responseData);
       return true;
     } finally {
       await tarballHandle.close();
