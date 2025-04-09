@@ -322,7 +322,6 @@ export class GitHubActionsCache implements Cache {
     tarballPath: string,
     tarballBytes: number,
   ): Promise<boolean> {
-    const url = new URL(uploadUrl);
     // Reference:
     // https://learn.microsoft.com/en-us/rest/api/storageservices/append-block?tabs=microsoft-entra-id#remarks
     const maxChunkSize = 100 * 1024 * 1024;
@@ -334,6 +333,7 @@ export class GitHubActionsCache implements Cache {
     try {
       // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/internal/uploadUtils.ts#L132
       // TODO(aomarks) Chunks could be uploaded in parallel.
+      const blockIds: string[] = [];
       while (offset < tarballBytes) {
         const chunkSize = Math.min(tarballBytes - offset, maxChunkSize);
         const start = offset;
@@ -352,11 +352,16 @@ export class GitHubActionsCache implements Cache {
           headers: {
             'content-type': 'application/octet-stream',
             'content-length': `${chunkSize}`,
-            'x-ms-blob-type': 'AppendBlob',
+            'x-ms-blob-type': 'BlockBlob',
             authorization: undefined,
           },
         };
-        using requestResult = this.#request(url, opts);
+        const chunkUrl = new URL(uploadUrl);
+        chunkUrl.searchParams.set('comp', 'block');
+        const blockId = offset.toString(16);
+        blockIds.push(blockId);
+        chunkUrl.searchParams.set('blockid', blockId);
+        using requestResult = this.#request(chunkUrl, opts);
         const {req, resPromise} = requestResult;
         tarballChunkStream.pipe(req);
         tarballChunkStream.on('close', () => {
@@ -378,6 +383,34 @@ export class GitHubActionsCache implements Cache {
             )}`,
           );
         }
+      }
+      const doneUrl = new URL(uploadUrl);
+      doneUrl.searchParams.set('comp', 'blocklist');
+      const doneXmlBody = Buffer.from(
+        `<?xml version="1.0" encoding="utf-8"?>
+<BlockList>
+${blockIds
+  .map(
+    (blockId) =>
+      `  <Committed>${Buffer.from(blockId).toString('base64')}</Committed>`,
+  )
+  .join('\n  ')}
+</BlockList>
+`,
+        'utf8',
+      );
+      using requestResult = this.#request(doneUrl, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'text/plain; charset=UTF-8',
+          'content-length': `${doneXmlBody.length}`,
+          authorization: undefined,
+        },
+      });
+      requestResult.req.end(doneXmlBody);
+      const r = await requestResult.resPromise;
+      if (!this.#maybeHandleServiceDown(r, script)) {
+        return false;
       }
       return true;
     } finally {
