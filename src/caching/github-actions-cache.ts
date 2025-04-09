@@ -324,8 +324,8 @@ export class GitHubActionsCache implements Cache {
   ): Promise<boolean> {
     const url = new URL(uploadUrl);
     // Reference:
-    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
-    const maxChunkSize = 32 * 1024 * 1024;
+    // https://learn.microsoft.com/en-us/rest/api/storageservices/append-block?tabs=microsoft-entra-id#remarks
+    const maxChunkSize = 100 * 1024 * 1024;
     // TODO: update to TypeScript 5.2 and use the new `using` syntax for the
     // budget object.
     const reservation = await fileBudget.reserve();
@@ -352,7 +352,7 @@ export class GitHubActionsCache implements Cache {
           headers: {
             'content-type': 'application/octet-stream',
             'content-length': `${chunkSize}`,
-            'x-ms-blob-type': 'BlockBlob',
+            'x-ms-blob-type': 'AppendBlob',
             authorization: undefined,
           },
         };
