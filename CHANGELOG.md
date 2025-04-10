@@ -661,7 +661,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Initial release.
 
 [unreleased]: https://github.com/google/wireit/compare/v0.14.12...HEAD
-[0.14.11]: https://github.com/google/wireit/compare/v0.14.11...v0.14.12
+[0.14.12]: https://github.com/google/wireit/compare/v0.14.11...v0.14.12
 [0.14.11]: https://github.com/google/wireit/compare/v0.14.10...v0.14.11
 [0.14.10]: https://github.com/google/wireit/compare/v0.14.9...v0.14.10
 [0.14.9]: https://github.com/google/wireit/compare/v0.14.8...v0.14.9
