@@ -15,7 +15,9 @@ const response = JSON.stringify({
     // workflows like this one, but not to regular "run" steps, so we need to
     // serve them for subsequent Wireit processes.
     github: {
-      // URL for the GitHub Actions cache service.
+      // V2 URL for the GitHub Actions cache service.
+      ACTIONS_RESULTS_URL: process.env.ACTIONS_RESULTS_URL,
+      // V1 URL for the GitHub Actions cache service.
       ACTIONS_CACHE_URL: process.env.ACTIONS_CACHE_URL,
       // A secret token for authenticating to the GitHub Actions cache service.
       ACTIONS_RUNTIME_TOKEN: process.env.ACTIONS_RUNTIME_TOKEN,
