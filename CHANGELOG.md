@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## Unreleased
+
+### Fixed
+
+- Updated GitHub Actions caching to support its new v2 backend. See
+  [#1297](https://github.com/google/wireit/issues/1297) and
+  https://github.blog/changelog/2025-03-20-notification-of-upcoming-breaking-changes-in-github-actions/#decommissioned-cache-service-brownouts
+  for background.
 
 ## [0.14.11] - 2025-02-07
 
