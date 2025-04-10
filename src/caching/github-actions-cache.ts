@@ -717,6 +717,10 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
       };
       return resData.signed_upload_url;
     }
+    console.log('RESERVE', {
+      status: response.statusCode,
+      body: await readBody(response),
+    });
 
     if (response.statusCode === /* Conflict */ 409) {
       // TODO(aomarks) How are conflicts returned in the v2 API?
