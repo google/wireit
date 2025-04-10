@@ -33,7 +33,8 @@
     "test:local": "wireit",
     "test:analysis": "wireit",
     "test:basic": "wireit",
-    "test:cache-github": "wireit",
+    "test:cache-github-fake": "wireit",
+    "test:cache-github-real": "wireit",
     "test:cache-local": "wireit",
     "test:clean": "wireit",
     "test:cli-options": "wireit",
@@ -78,7 +79,7 @@
     },
     "test:headless": {
       "dependencies": [
-        "test:cache-github",
+        "test:cache-github-fake",
         "test:local"
       ]
     },
@@ -146,8 +147,20 @@
       "files": [],
       "output": []
     },
-    "test:cache-github": {
-      "command": "uvu lib/test \"^cache-github\\.test\\.js$\"",
+    "test:cache-github-fake": {
+      "command": "uvu lib/test \"^cache-github-fake\\.test\\.js$\"",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:cache-github-real": {
+      "#comment": "Only works on GitHub CI",
+      "command": "uvu lib/test \"^cache-github-real\\.test\\.js$\"",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
