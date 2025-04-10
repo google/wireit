@@ -13,7 +13,10 @@ import {suite} from 'uvu';
 import {fileURLToPath} from 'url';
 import {ExitResult, WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
-import {FakeGitHubActionsCacheServer} from './util/fake-github-actions-cache-server.js';
+import {
+  FakeGitHubActionsCacheServer,
+  type FakeGitHubActionsCacheServerMetrics,
+} from './util/fake-github-actions-cache-server.js';
 import {rigTest, DEFAULT_UVU_TIMEOUT} from './util/rig-test.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -195,12 +198,13 @@ test(
     }
     assert.equal(cmdA.numInvocations, n);
     assert.equal(server.metrics, {
-      check: n,
-      reserve: n,
-      upload: 1,
-      commit: 1,
-      download: 0,
-    });
+      getCacheEntry: n,
+      createCacheEntry: n,
+      putBlobBlock: 1,
+      putBlobBlockList: 1,
+      finalizeCacheEntry: 1,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
 
     // Delete the ".wireit" folder so that the next run won't be considered
     // fresh, and the "output" file so that we can be sure it gets restored from
@@ -212,12 +216,13 @@ test(
     assert.equal((await exec.exit).code, 0);
     assert.equal(cmdA.numInvocations, n);
     assert.equal(server.metrics, {
-      check: n + 1,
-      reserve: n,
-      upload: 1,
-      commit: 1,
-      download: 1,
-    });
+      getCacheEntry: n + 1,
+      createCacheEntry: n,
+      putBlobBlock: 1,
+      putBlobBlockList: 1,
+      finalizeCacheEntry: 1,
+      getBlob: 1,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
   }),
 );
 
@@ -259,15 +264,16 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
       await rig.write('input', 'cached');
       assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
-        check: 2,
-        reserve: 2,
-        upload: 2,
-        commit: 2,
-        download: 0,
-      });
+        getCacheEntry: 2,
+        createCacheEntry: 2,
+        putBlobBlock: 2,
+        putBlobBlockList: 2,
+        finalizeCacheEntry: 2,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
 
       // Check API
-      server.forceErrorOnNextRequest('check', code);
+      server.forceErrorOnNextRequest('getCacheEntry', code);
       server.resetMetrics();
       await rig.write('input', '0');
       assertSuccess(await rig.exec('npm run a').exit);
@@ -275,64 +281,69 @@ for (const code of [429, 503, 'ECONNRESET'] as const) {
         // Note that because we turn off GitHub Actions Caching after the first
         // rate limit error, "b" fails and then "a" skips, so this count is 1
         // instead of 2.
-        check: 1,
-        reserve: 0,
-        upload: 0,
-        commit: 0,
-        download: 0,
-      });
+        getCacheEntry: 1,
+        createCacheEntry: 0,
+        putBlobBlock: 0,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
 
       // Reserve API
-      server.forceErrorOnNextRequest('reserve', code);
+      server.forceErrorOnNextRequest('createCacheEntry', code);
       server.resetMetrics();
       await rig.write('input', '1');
       assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
-        check: 1,
-        reserve: 1,
-        upload: 0,
-        commit: 0,
-        download: 0,
-      });
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        putBlobBlock: 0,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
 
       // Upload API
-      server.forceErrorOnNextRequest('upload', code);
+      server.forceErrorOnNextRequest('putBlobBlock', code);
       server.resetMetrics();
       await rig.write('input', '2');
       assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
-        check: 1,
-        reserve: 1,
-        upload: 1,
-        commit: 0,
-        download: 0,
-      });
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
 
       // Commit API
-      server.forceErrorOnNextRequest('commit', code);
+      server.forceErrorOnNextRequest('finalizeCacheEntry', code);
       server.resetMetrics();
       await rig.write('input', '3');
       assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
-        check: 1,
-        reserve: 1,
-        upload: 1,
-        commit: 1,
-        download: 0,
-      });
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
 
       // Download API
-      server.forceErrorOnNextRequest('download', code);
+      server.forceErrorOnNextRequest('getBlob', code);
       server.resetMetrics();
       await rig.write('input', 'cached');
       assertSuccess(await rig.exec('npm run a').exit);
       assert.equal(server.metrics, {
-        check: 2,
-        reserve: 0,
-        upload: 0,
-        commit: 0,
-        download: 2,
-      });
+        getCacheEntry: 2,
+        createCacheEntry: 0,
+        putBlobBlock: 0,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 2,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
     }),
   );
 }
@@ -389,14 +400,15 @@ test(
         assert.equal((await exec.exit).code, 0);
         assert.equal(cmdA.numInvocations, 1);
         assert.equal(server.metrics, {
-          check: 1,
-          reserve: 1,
+          getCacheEntry: 1,
+          createCacheEntry: 1,
           // Since we had a file that was larger than the maximum chunk size, we
           // should have 2 upload requests.
-          upload: 2,
-          commit: 1,
-          download: 0,
-        });
+          putBlobBlock: 2,
+          putBlobBlockList: 1,
+          finalizeCacheEntry: 1,
+          getBlob: 0,
+        } satisfies FakeGitHubActionsCacheServerMetrics);
       }
 
       // Invalidate cache by changing input.
@@ -412,12 +424,13 @@ test(
         assert.equal((await exec.exit).code, 0);
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(server.metrics, {
-          check: 1,
-          reserve: 1,
-          upload: 1,
-          commit: 1,
-          download: 0,
-        });
+          getCacheEntry: 1,
+          createCacheEntry: 1,
+          putBlobBlock: 1,
+          putBlobBlockList: 1,
+          finalizeCacheEntry: 1,
+          getBlob: 0,
+        } satisfies FakeGitHubActionsCacheServerMetrics);
       }
 
       // Change input back to v0. The large file should be restored from cache.
@@ -430,12 +443,13 @@ test(
         assert.equal((await exec.exit).code, 0);
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(server.metrics, {
-          check: 1,
-          reserve: 0,
-          upload: 0,
-          commit: 0,
-          download: 1,
-        });
+          getCacheEntry: 1,
+          createCacheEntry: 0,
+          putBlobBlock: 0,
+          putBlobBlockList: 0,
+          finalizeCacheEntry: 0,
+          getBlob: 1,
+        } satisfies FakeGitHubActionsCacheServerMetrics);
         assert.equal(await rig.read('output'), fileContent);
       }
     },

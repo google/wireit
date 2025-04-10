@@ -178,7 +178,7 @@ test(
 );
 
 test(
-  'github caching without ACTIONS_CACHE_URL',
+  'github caching without ACTIONS_RESULTS_URL',
   rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
@@ -196,7 +196,7 @@ test(
     const result = rig.exec('npm run main', {
       env: {
         WIREIT_CACHE: 'github',
-        ACTIONS_CACHE_URL: undefined,
+        ACTIONS_RESULTS_URL: undefined,
         ACTIONS_RUNTIME_TOKEN: 'token',
       },
     });
@@ -206,13 +206,13 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: The ACTIONS_CACHE_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim(),
+❌ [main] Invalid usage: The ACTIONS_RESULTS_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim(),
     );
   }),
 );
 
 test(
-  'github caching but ACTIONS_CACHE_URL does not end in slash',
+  'github caching but ACTIONS_RESULTS_URL does not end in slash',
   rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
     await rig.write({
@@ -230,7 +230,7 @@ test(
     const result = rig.exec('npm run main', {
       env: {
         WIREIT_CACHE: 'github',
-        ACTIONS_CACHE_URL: 'http://example.com',
+        ACTIONS_RESULTS_URL: 'http://example.com',
         ACTIONS_RUNTIME_TOKEN: 'token',
       },
     });
@@ -240,7 +240,7 @@ test(
     assert.match(
       done.stderr,
       `
-❌ [main] Invalid usage: The ACTIONS_CACHE_URL must end in a forward-slash, got "http://example.com".`.trim(),
+❌ [main] Invalid usage: The ACTIONS_RESULTS_URL must end in a forward-slash, got "http://example.com".`.trim(),
     );
   }),
 );
@@ -264,7 +264,7 @@ test(
     const result = rig.exec('npm run main', {
       env: {
         WIREIT_CACHE: 'github',
-        ACTIONS_CACHE_URL: 'http://example.com/',
+        ACTIONS_RESULTS_URL: 'http://example.com/',
         ACTIONS_RUNTIME_TOKEN: undefined,
       },
     });

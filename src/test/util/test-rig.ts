@@ -184,6 +184,7 @@ export class WireitTestRig
       WIREIT_PARALLEL: '10',
       // Unset GitHub Actions caching environment variables that are set when we
       // are running these tests in CI using the v1 version of the action.
+      ACTIONS_RESULTS_URL: undefined,
       ACTIONS_CACHE_URL: undefined,
       ACTIONS_RUNTIME_TOKEN: undefined,
       // In npm 6 (which ships with Node 14), "npm run" only includes the

@@ -989,8 +989,11 @@ export const registerCommonCacheTests = (
       const res = await exec.exit;
       assert.equal(res.code, 1);
       checkScriptOutput(
-        res.stderr,
-        `${cacheMode === 'github' ? '⚠️ Please upgrade to google/wireit@setup-github-cache/v2. In the future, Wireit caching for this project will stop working.\n' : ''}
+        res.stderr.replace(
+          '⚠️ Please upgrade to google/wireit@setup-github-cache/v2. In the future, Wireit caching for this project will stop working.',
+          '',
+        ),
+        `
 ❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(
           pathlib.join(rig.temp, 'outside'),
         )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
