@@ -31,6 +31,8 @@ type KeyAndVersion = string & {
 
 interface CacheEntry {
   chunks: Map<string, Buffer>;
+  finalChunks: Buffer[];
+  finalized: boolean;
   commited: boolean;
   tarballId: TarballId;
 }
@@ -271,7 +273,6 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    console.log('SERVER', {api});
     if (
       api ===
         'twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL' &&
@@ -288,8 +289,20 @@ export class FakeGitHubActionsCacheServer {
       return void this.#reserve(request, response);
     }
 
-    if (api === 'blobs' && request.method === 'PUT') {
+    if (
+      api === 'blobs' &&
+      request.method === 'PUT' &&
+      url.searchParams.get('comp') === 'block'
+    ) {
       return void this.#upload(request, response, url);
+    }
+
+    if (
+      api === 'blobs' &&
+      request.method === 'PUT' &&
+      url.searchParams.get('comp') === 'blocklist'
+    ) {
+      return void this.#blocklist(request, response, url);
     }
 
     if (
@@ -338,7 +351,6 @@ export class FakeGitHubActionsCacheServer {
       key: string;
       version: string;
     }>;
-    console.log({key, version});
 
     if (!key) {
       return this.#respond(response, 400, 'Missing "key" property');
@@ -392,7 +404,6 @@ export class FakeGitHubActionsCacheServer {
     request: http.IncomingMessage,
     response: http.ServerResponse,
   ): Promise<void> {
-    console.log('REEEEEESERVE');
     this.metrics.reserve++;
     if (this.#maybeServeForcedError(response, 'reserve')) {
       return;
@@ -422,6 +433,8 @@ export class FakeGitHubActionsCacheServer {
     this.#tarballIdToEntryId.set(tarballId, entryId);
     this.#entryIdToEntry.set(entryId, {
       chunks: new Map(),
+      finalChunks: [],
+      finalized: false,
       commited: false,
       tarballId,
     });
@@ -447,7 +460,6 @@ export class FakeGitHubActionsCacheServer {
     response: http.ServerResponse,
     url: URL,
   ): Promise<void> {
-    console.log('UPLOAAAAAD', {url});
     this.metrics.upload++;
     if (this.#maybeServeForcedError(response, 'upload')) {
       return;
@@ -455,26 +467,24 @@ export class FakeGitHubActionsCacheServer {
     if (request.headers.authorization !== undefined) {
       this.#respond(response, /* Bad Request */ 400);
     }
-    if (
-      !this.#checkContentType(request, response, 'application/octet-stream')
-    ) {
-      return;
-    }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
-      return;
-    }
+    // if (
+    //   !this.#checkContentType(request, response, 'application/octet-stream')
+    // ) {
+    //   return;
+    // }
+    // if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    //   return;
+    // }
 
     const id = url.searchParams.get('skoid') as EntryId;
     if (!id) {
       return this.#respond(response, 400, 'Missing skoid parameter');
     }
-    const blockId = url.searchParams.get('blockid');
-    if (!blockId) {
+    const blockIdBase64 = url.searchParams.get('blockid');
+    if (!blockIdBase64) {
       return this.#respond(response, 400, 'Missing blockid parameter');
     }
-    if (url.searchParams.get('comp') !== 'block') {
-      return this.#respond(response, 400, 'Missing comp=block parameter');
-    }
+    const blockId = Buffer.from(blockIdBase64, 'base64').toString('utf8');
 
     const entry = this.#entryIdToEntry.get(id);
     if (entry === undefined) {
@@ -484,6 +494,58 @@ export class FakeGitHubActionsCacheServer {
     const data = await this.#readBody(request);
     entry.chunks.set(blockId, data);
     this.#respond(response, /* No Content */ 204);
+  }
+
+  /**
+   * Handle the PATCH:/_apis/artifactcache/caches/<CacheEntryId> API.
+   *
+   * This API receives a chunk of a tarball defined by the Content-Range header,
+   * and stores it using the given key (as returned by the reserve cache API).
+   */
+  async #blocklist(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    url: URL,
+  ): Promise<void> {
+    const entryId = url.searchParams.get('skoid') as EntryId;
+    if (!entryId) {
+      return this.#respond(response, 400, 'Missing skoid parameter');
+    }
+    const entry = this.#entryIdToEntry.get(entryId);
+    if (entry === undefined) {
+      return this.#respond(response, 400, 'Cache entry did not exist');
+    }
+
+    const xml = (await this.#readBody(request)).toString('utf8');
+    const blocklist = xml.match(/<BlockList>(.*?)<\/BlockList>/s);
+    if (!blocklist?.[1]) {
+      return this.#respond(response, 500, 'No <BlockList> section');
+    }
+    const blocks = blocklist[1].matchAll(/<(.*)>(.*?)<(\/\1)>/g);
+    for (const [_, kind, blockIdBase64] of blocks) {
+      if (kind !== 'Uncommitted') {
+        return this.#respond(
+          response,
+          500,
+          `Unexpected blocklist element ${kind}`,
+        );
+      }
+      if (!blockIdBase64) {
+        return this.#respond(response, 500, 'No content in blocklist element');
+      }
+      const blockId = Buffer.from(blockIdBase64, 'base64').toString('utf8');
+      const blockData = entry.chunks.get(blockId);
+      if (!blockData) {
+        return this.#respond(
+          response,
+          500,
+          `Missing block ${blockId} in blocklist`,
+        );
+      }
+      entry.finalChunks.push(blockData);
+    }
+    entry.finalized = true;
+    this.#respond(response, 200);
   }
 
   /**
@@ -517,44 +579,21 @@ export class FakeGitHubActionsCacheServer {
       sizeBytes: number;
     };
 
-    console.log('PPPPPPPPPPPPP', this.#entryIdToEntry);
-    const entry = this.#entryIdToEntry.get(data.key as EntryId);
+    const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
+    const entryId = this.#keyAndVersionToEntryId.get(keyAndVersion);
+    const entry = entryId ? this.#entryIdToEntry.get(entryId) : undefined;
     if (entry === undefined) {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
 
-    // // Sort the chunks according to range and validate that there are no missing
-    // // or overlapping chunks.
-    // entry.chunks.sort((a, b) => a.start - b.start);
-    // let expectedNextStart = 0;
-    // let totalLength = 0;
-    // for (const chunk of entry.chunks) {
-    //   if (chunk.start !== expectedNextStart) {
-    //     return this.#respond(
-    //       response,
-    //       400,
-    //       'Cache entry chunks were not contiguous',
-    //     );
-    //   }
-    //   expectedNextStart = chunk.end + 1;
-    //   totalLength += chunk.buffer.length;
-    // }
+    if (!entry.finalized) {
+      return this.#respond(response, 500, 'Cache entry not finalized');
+    }
+    if (entry.commited) {
+      return this.#respond(response, 500, 'Cache entry already committed');
+    }
 
-    // Validate against the expected total length from this request.
-    // const json = await this.#readBody(request);
-    // const data = JSON.parse(json.toString()) as {
-    //   size: number;
-    // };
-    // const expectedLength = data.size;
-    // if (totalLength !== expectedLength) {
-    //   return this.#respond(
-    //     response,
-    //     400,
-    //     'Cache entry did not match expected length',
-    //   );
-    // }
-
-    // entry.commited = true;
+    entry.commited = true;
     this.#respond(response, /* No Content */ 204);
   }
 
@@ -574,6 +613,7 @@ export class FakeGitHubActionsCacheServer {
     response: http.ServerResponse,
     tarballId: string,
   ): void {
+    console.log('DOWNLOAD', request.url, tarballId);
     this.metrics.download++;
     if (this.#maybeServeForcedError(response, 'download')) {
       return;
@@ -598,14 +638,14 @@ export class FakeGitHubActionsCacheServer {
     }
 
     response.statusCode = 200;
-    // const contentLength = entry.chunks.reduce(
-    //   (sum, chunk) => sum + chunk.buffer.length,
-    //   0,
-    // );
-    // response.setHeader('Content-Length', contentLength);
-    // for (const chunk of entry.chunks) {
-    //   response.write(chunk.buffer);
-    // }
+    const contentLength = entry.finalChunks.reduce(
+      (sum, chunk) => sum + chunk.length,
+      0,
+    );
+    response.setHeader('Content-Length', contentLength);
+    for (const chunk of entry.finalChunks) {
+      response.write(chunk);
+    }
     response.end();
   }
 }

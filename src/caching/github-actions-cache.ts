@@ -110,7 +110,6 @@ export class GitHubActionsCache implements Cache {
         },
       };
     }
-    console.log(`CUSTODIAN RESULT:`, JSON.stringify(result, null, 2));
     return {
       ok: true,
       value: new GitHubActionsCache(
@@ -216,11 +215,10 @@ export class GitHubActionsCache implements Cache {
       return undefined;
     }
     const response = result.value;
-    console.log({statusCode: response.statusCode});
 
     if (isOk(response)) {
       const body = await readBody(response);
-      console.log('GET RESULT', body);
+      // console.log({body});
       const {signed_download_url: archiveLocation} = JSON.parse(body) as {
         ok: boolean;
         signed_download_url: string;
@@ -324,7 +322,7 @@ export class GitHubActionsCache implements Cache {
   ): Promise<boolean> {
     // Reference:
     // https://learn.microsoft.com/en-us/rest/api/storageservices/append-block?tabs=microsoft-entra-id#remarks
-    const maxChunkSize = 100 * 1024 * 1024;
+    const maxChunkSize = 32 * 1024 * 1024;
     // TODO: update to TypeScript 5.2 and use the new `using` syntax for the
     // budget object.
     const reservation = await fileBudget.reserve();
@@ -399,7 +397,6 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
 `,
         'utf8',
       );
-      console.log(doneXmlBody.toString('utf8'));
       using requestResult = this.#request(doneUrl, {
         method: 'PUT',
         headers: {
@@ -416,7 +413,6 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
       let responseData = '';
       r.value.on('data', (chunk: string) => (responseData += chunk));
       await new Promise((resolve) => r.value.on('end', resolve));
-      console.log('DONE', r.value.statusCode, responseData);
       return true;
     } finally {
       await tarballHandle.close();
@@ -677,7 +673,6 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
 
     if (isOk(response)) {
       const responseBody = await readBody(response);
-      console.log('RESERVE RESULT', responseBody);
       const resData = JSON.parse(responseBody) as {
         signed_upload_url: string;
       };
@@ -800,7 +795,7 @@ function request(
   let req!: http.ClientRequest;
   const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
     (resolve) => {
-      console.log('REQUEST', {url, opts});
+      // console.log('REQUEST', {url, opts});
       req = https.request(url, opts, (value) => {
         resolve({ok: true, value});
       });

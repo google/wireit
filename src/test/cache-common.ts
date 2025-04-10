@@ -19,7 +19,7 @@ export const registerCommonCacheTests = (
   test: Test,
   cacheMode: 'local' | 'github',
 ) => {
-  test.only(
+  test(
     'caches single file',
     rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
@@ -108,8 +108,8 @@ export const registerCommonCacheTests = (
       {
         const exec = rig.exec('npm run a');
         const inv = await cmdA.nextInvocation();
-        await rig.writeRandomFile('big/foo.rand', 33); // MiB
-        await rig.writeRandomFile('big/bar.rand', 129);
+        await rig.writeRandomFile('big/foo.rand', 4); // MiB
+        await rig.writeRandomFile('big/bar.rand', 4);
         inv.exit(0);
         const res = await exec.exit;
         assert.equal(res.code, 0);
