@@ -5,8 +5,9 @@
  */
 
 import * as assert from 'uvu/assert';
+import * as crypto from 'node:crypto';
 import * as pathlib from 'path';
-import {rigTest} from './util/rig-test.js';
+import {DEFAULT_UVU_TIMEOUT, rigTest} from './util/rig-test.js';
 import {sep} from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
@@ -84,6 +85,68 @@ export const registerCommonCacheTests = (
         assert.equal(await rig.read('output'), 'v1');
       }
     }),
+  );
+
+  test(
+    'caches large file',
+    rigTest(
+      async ({rig}) => {
+        const cmdA = await rig.newCommand();
+
+        await rig.write({
+          'package.json': {
+            scripts: {
+              a: 'wireit',
+            },
+            wireit: {
+              a: {
+                command: cmdA.command,
+                files: ['input'],
+                output: ['output'],
+              },
+            },
+          },
+        });
+
+        const MB = 1024 * 1024;
+        const totalBytes = 48 * MB;
+        // Note we need random data so that our compression ratio is bad so that
+        // the compressed tarball is actually about the size we want to test.
+        const fileContent = crypto.randomBytes(totalBytes).toString();
+
+        // On the initial run a large file is created and should be cached.
+        {
+          await rig.write('input', 'v0');
+          const exec = rig.exec('npm run a');
+          const inv = await cmdA.nextInvocation();
+          await rig.write('output', fileContent);
+          inv.exit(0);
+          assert.equal((await exec.exit).code, 0);
+          assert.equal(cmdA.numInvocations, 1);
+        }
+
+        // Invalidate cache by changing input.
+        {
+          await rig.write('input', 'v1');
+          const exec = rig.exec('npm run a');
+          const inv = await cmdA.nextInvocation();
+          assert.not(await rig.exists('output'));
+          inv.exit(0);
+          assert.equal((await exec.exit).code, 0);
+          assert.equal(cmdA.numInvocations, 2);
+        }
+
+        // Change input back to v0. The large file should be restored from cache.
+        {
+          await rig.write('input', 'v0');
+          const exec = rig.exec('npm run a');
+          assert.equal((await exec.exit).code, 0);
+          assert.equal(cmdA.numInvocations, 2);
+          assert.equal(await rig.read('output'), fileContent);
+        }
+      },
+      {ms: Math.max(DEFAULT_UVU_TIMEOUT, 30_000)},
+    ),
   );
 
   test(
