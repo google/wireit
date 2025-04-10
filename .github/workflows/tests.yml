@@ -54,10 +54,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      # TODO(aomarks) Switch back to the regular reference after the tag is
-      # updated.
-      # - uses: google/wireit@setup-github-actions-caching/v2
-      - uses: google/wireit@gh-cache-real-action
+      - uses: google/wireit@setup-github-actions-caching/v2
 
       - run: npm ci
 
