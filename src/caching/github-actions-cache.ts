@@ -199,8 +199,8 @@ export class GitHubActionsCache implements Cache {
     );
     // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L246
     // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L101C1-L126C2
-    const body = {key, version};
-    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
+    const requestBody = {key, version};
+    const bodyBuffer = Buffer.from(JSON.stringify(requestBody), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
@@ -217,9 +217,17 @@ export class GitHubActionsCache implements Cache {
     const response = result.value;
 
     if (isOk(response)) {
-      const body = await readBody(response);
+      const responseBody = await readBody(response);
+      console.log('PROBE get', {
+        url,
+        requestBody,
+        responseBody,
+        status: response.statusCode,
+      });
       // console.log({body});
-      const {signed_download_url: archiveLocation} = JSON.parse(body) as {
+      const {signed_download_url: archiveLocation} = JSON.parse(
+        responseBody,
+      ) as {
         ok: boolean;
         signed_download_url: string;
         matched_key: string;
@@ -376,6 +384,12 @@ export class GitHubActionsCache implements Cache {
           return false;
         }
         const response = result.value;
+        console.log('PROBE UPLOAD BLOCK', {
+          chunkUrl,
+          opts,
+          status: response.statusCode,
+          responseBody: await readBody(response),
+        });
 
         if (!isOk(response)) {
           throw new Error(
@@ -413,6 +427,11 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
       let responseData = '';
       r.value.on('data', (chunk: string) => (responseData += chunk));
       await new Promise((resolve) => r.value.on('end', resolve));
+      console.log('PROBE FINALIZE BLOB', {
+        doneUrl,
+        status: r.value.statusCode,
+        responseData,
+      });
       return true;
     } finally {
       await tarballHandle.close();
@@ -468,6 +487,12 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
         )} error: ${await readBody(response)}`,
       );
     }
+
+    console.log('PROBE FINALIZE ENTRY', {
+      url,
+      status: response.statusCode,
+      responseBody: await readBody(response),
+    });
 
     return true;
   }
@@ -673,6 +698,12 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
 
     if (isOk(response)) {
       const responseBody = await readBody(response);
+      console.log('PROBE reserve', {
+        url,
+        body,
+        responseBody,
+        status: response.statusCode,
+      });
       const resData = JSON.parse(responseBody) as {
         signed_upload_url: string;
       };
