@@ -56,6 +56,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   exclusions apply to packages from preceding specifiers, but not subsequent
   ones.
 
+## [0.14.12] - 2025-04-10
+
+### Fixed
+
+- Updated GitHub Actions caching to support its new v2 backend. See
+  [#1297](https://github.com/google/wireit/issues/1297) and
+  https://github.blog/changelog/2025-03-20-notification-of-upcoming-breaking-changes-in-github-actions/#decommissioned-cache-service-brownouts
+  for background.
+
 ## [0.14.11] - 2025-02-07
 
 ### Changed
@@ -699,7 +708,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Initial release.
 
-[unreleased]: https://github.com/google/wireit/compare/v0.14.11...HEAD
+[unreleased]: https://github.com/google/wireit/compare/v0.14.12...HEAD
+[0.14.11]: https://github.com/google/wireit/compare/v0.14.11...v0.14.12
 [0.14.11]: https://github.com/google/wireit/compare/v0.14.10...v0.14.11
 [0.14.10]: https://github.com/google/wireit/compare/v0.14.9...v0.14.10
 [0.14.9]: https://github.com/google/wireit/compare/v0.14.8...v0.14.9

@@ -15,10 +15,10 @@ type EntryId = number & {
 };
 
 /**
- * Random ID for a tarball on the CDN.
+ * Random ID for a blob on the CDN.
  */
-type TarballId = string & {
-  __TarballIdBrand__: never;
+type BlobId = string & {
+  __BlobIdBrand__: never;
 };
 
 /**
@@ -30,24 +30,31 @@ type KeyAndVersion = string & {
 };
 
 interface CacheEntry {
-  chunks: ChunkRange[];
-  commited: boolean;
-  tarballId: TarballId;
-}
-
-interface ChunkRange {
-  start: number;
-  end: number;
-  buffer: Buffer;
+  blocks: Map<string, Buffer>;
+  blockList: string[];
+  finalized: boolean;
+  blobId: BlobId;
 }
 
 const encodeKeyAndVersion = (key: string, version: string): KeyAndVersion =>
   `${key}:${version}` as KeyAndVersion;
 
-type ApiName = 'check' | 'reserve' | 'upload' | 'commit' | 'download';
+type ApiName =
+  | 'getCacheEntry'
+  | 'createCacheEntry'
+  | 'putBlobBlock'
+  | 'putBlobBlockList'
+  | 'finalizeCacheEntry'
+  | 'getBlob';
 
-// https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
-const JSON_RESPONSE_TYPE = 'application/json;api-version=6.0-preview.1';
+export type FakeGitHubActionsCacheServerMetrics = {
+  getCacheEntry: number;
+  createCacheEntry: number;
+  putBlobBlock: number;
+  putBlobBlockList: number;
+  finalizeCacheEntry: number;
+  getBlob: number;
+};
 
 /**
  * A fake version of the GitHub Actions cache server.
@@ -64,24 +71,27 @@ const JSON_RESPONSE_TYPE = 'application/json;api-version=6.0-preview.1';
  * - Client asks server to check if a cache entry exists for the given
  *   key+version.
  *   - If exists:
- *     - Server returns a URL of a tarball at a CDN.
+ *     - Server returns a URL of a tarball as an Azure Storage blob.
  *     - Client downloads tarball and unpacks it.
  *     - <STOP>
  *   - If not exists:
- *     - Server returns "204 No Content" status.
+ *     - Server returns { ok: false }
  *
- * - Client asks server to reserve a cache entry for a given key+version.
- *   - If entry was already reserved:
+ * - Client asks server to create a cache entry for a given key+version.
+ *   - If entry was already created:
  *     - Server returns a "409 Conflict" status.
  *     - <STOP>
  *   - If not already exists:
- *     - Server returns a new unique numeric cache entry ID.
+ *     - Server returns a blob upload URL.
  *
- * - Client sends 1 or more "upload" requests to endpoint containing chunks of
- *   the tarball.
+ * - Client sends 1 or more "Put Block" requests to blob URL containing blocks
+ *   of the tarball.
  *
- * - Client sends "commit" request to indicate that all tarball chunks have been
- *   sent.
+ * - Client sends "Put Block List" request to blob URL containing the final
+ *   ordered list of block IDs to commit.
+ *
+ * - Client sends "finalize" request to indicate that the blob is ready to be
+ *   served as a hit.
  */
 export class FakeGitHubActionsCacheServer {
   readonly #server: http.Server;
@@ -97,19 +107,13 @@ export class FakeGitHubActionsCacheServer {
    * Counters for how many times each endpoint was hit in the lifetime of this
    * fake instance.
    */
-  metrics!: {
-    check: number;
-    reserve: number;
-    upload: number;
-    commit: number;
-    download: number;
-  };
+  metrics!: FakeGitHubActionsCacheServerMetrics;
 
   #nextEntryId = 0;
   #forcedErrors = new Map<ApiName, number | 'ECONNRESET'>();
   readonly #entryIdToEntry = new Map<EntryId, CacheEntry>();
   readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
-  readonly #tarballIdToEntryId = new Map<TarballId, EntryId>();
+  readonly #blobIdToEntryId = new Map<BlobId, EntryId>();
 
   constructor(authToken: string, tlsCert: {cert: string; key: string}) {
     this.#authToken = authToken;
@@ -119,11 +123,12 @@ export class FakeGitHubActionsCacheServer {
 
   resetMetrics(): void {
     this.metrics = {
-      check: 0,
-      reserve: 0,
-      upload: 0,
-      commit: 0,
-      download: 0,
+      getCacheEntry: 0,
+      createCacheEntry: 0,
+      putBlobBlock: 0,
+      putBlobBlockList: 0,
+      finalizeCacheEntry: 0,
+      getBlob: 0,
     };
   }
 
@@ -272,6 +277,25 @@ export class FakeGitHubActionsCacheServer {
     return true;
   }
 
+  #checkHeader(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    header: string,
+    expected: string | undefined,
+  ): boolean {
+    const actual = request.headers[header];
+    if (actual !== expected) {
+      this.#respond(
+        response,
+        /* Bad Request */ 400,
+        `Expected ${header} ${JSON.stringify(expected)}. ` +
+          `Got ${JSON.stringify(actual)}.`,
+      );
+      return false;
+    }
+    return true;
+  }
+
   #route = (
     request: http.IncomingMessage,
     response: http.ServerResponse,
@@ -291,113 +315,61 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    if (api === '_apis/artifactcache/cache' && request.method === 'GET') {
-      return this.#check(request, response, url);
+    if (
+      api ===
+        'twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL' &&
+      request.method === 'POST'
+    ) {
+      return void this.#getCacheEntry(request, response);
     }
 
-    if (api === '_apis/artifactcache/caches' && request.method === 'POST') {
-      return void this.#reserve(request, response);
+    if (
+      api ===
+        'twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry' &&
+      request.method === 'POST'
+    ) {
+      return void this.#createCacheEntry(request, response);
     }
 
-    if (api.startsWith('_apis/artifactcache/caches/')) {
-      const tail = api.slice('_apis/artifactcache/caches/'.length);
-      if (request.method === 'PATCH') {
-        return void this.#upload(request, response, tail);
+    if (
+      api ===
+        'twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload' &&
+      request.method === 'POST'
+    ) {
+      return void this.#finalizeCacheEntry(request, response);
+    }
+
+    if (api.startsWith('blob/')) {
+      const tail = api.slice('blob/'.length);
+      if (request.method === 'PUT') {
+        // In the Azure Storage API, "comp" seems to stand for "component", and it
+        // means something like "operation".
+        const comp = url.searchParams.get('comp');
+        if (comp === 'block') {
+          return void this.#putBlobBlock(request, response, tail, url);
+        }
+        if (comp === 'blocklist') {
+          return void this.#putBlobBlockList(request, response, tail);
+        }
+      } else if (request.method === 'GET') {
+        return this.#getBlob(request, response, tail);
       }
-      if (request.method === 'POST') {
-        return void this.#commit(request, response, tail);
-      }
-    }
-
-    if (api.startsWith('tarballs/') && request.method === 'GET') {
-      const tail = api.slice('tarballs/'.length);
-      return this.#download(request, response, tail);
     }
 
     this.#respond(response, 404);
   };
 
   /**
-   * Handle the GET:/_apis/artifactcache/cache API.
-   *
-   * This API checks if a (committed) cache entry exists for the given key +
+   * This API checks if a (finalized) cache entry exists for the given key +
    * version. If so, returns a URL which can be used to download the tarball. If
-   * not, returns a 204 "No Content" response.
+   * not, returns { ok: false }.
    */
-  #check(
-    request: http.IncomingMessage,
-    response: http.ServerResponse,
-    url: URL,
-  ): void {
-    this.metrics.check++;
-    if (this.#maybeServeForcedError(response, 'check')) {
-      return;
-    }
-    if (!this.#checkAuthorization(request, response)) {
-      return;
-    }
-    if (!this.#checkContentType(request, response, undefined)) {
-      return;
-    }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
-      return;
-    }
-
-    const keys = url.searchParams.get('keys');
-    if (!keys) {
-      return this.#respond(response, 400, 'Missing "keys" query parameter');
-    }
-    const version = url.searchParams.get('version');
-    if (!version) {
-      return this.#respond(response, 400, 'Missing "version" query parameter');
-    }
-    if (keys.includes(',')) {
-      // The real server supports multiple comma-delimited keys, where the first
-      // that exists is returned. However, we don't use this feature in Wireit,
-      // so we don't bother implementing it in this fake.
-      return this.#respond(
-        response,
-        /* Not Implemented */ 501,
-        'Fake does not support multiple keys',
-      );
-    }
-
-    const keyAndVersion = encodeKeyAndVersion(keys, version);
-    const entryId = this.#keyAndVersionToEntryId.get(keyAndVersion);
-    if (entryId === undefined) {
-      return this.#respond(response, /* No Content */ 204);
-    }
-    const entry = this.#entryIdToEntry.get(entryId);
-    if (entry === undefined) {
-      return this.#respond(response, 500, 'Entry missing for id');
-    }
-    if (!entry.commited) {
-      return this.#respond(response, /* No Content */ 204);
-    }
-
-    this.#respond(
-      response,
-      200,
-      JSON.stringify({
-        archiveLocation: `${this.#url.href}tarballs/${entry.tarballId}`,
-        cacheKey: keys,
-      }),
-    );
-  }
-
-  /**
-   * Handle the POST:/_apis/artifactcache/caches API.
-   *
-   * This API checks if a cache entry has already been reserved for the given
-   * key + version. If so, returns a "409 Conflict" response. If not, returns a
-   * new unique cache ID which can be used to upload the tarball.
-   */
-  async #reserve(
+  async #getCacheEntry(
     request: http.IncomingMessage,
     response: http.ServerResponse,
   ): Promise<void> {
-    this.metrics.reserve++;
-    if (this.#maybeServeForcedError(response, 'reserve')) {
+    this.metrics.getCacheEntry++;
+    if (this.#maybeServeForcedError(response, 'getCacheEntry')) {
       return;
     }
     if (!this.#checkAuthorization(request, response)) {
@@ -406,7 +378,74 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkContentType(request, response, 'application/json')) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this.#checkAccept(request, response, 'application/json')) {
+      return;
+    }
+
+    const json = await this.#readBody(request);
+    const data = JSON.parse(json.toString()) as {
+      key: string;
+      version: string;
+    };
+
+    if (!data.key) {
+      return this.#respond(response, 400, 'Missing "key" property');
+    }
+    if (!data.version) {
+      return this.#respond(response, 400, 'Missing "version" property');
+    }
+
+    const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
+    const entryId = this.#keyAndVersionToEntryId.get(keyAndVersion);
+    if (entryId === undefined) {
+      return this.#respond(
+        response,
+        200,
+        JSON.stringify({ok: false, signed_download_url: ''}),
+      );
+    }
+    const entry = this.#entryIdToEntry.get(entryId);
+    if (entry === undefined) {
+      return this.#respond(response, 500, 'Entry missing for id');
+    }
+    if (!entry.finalized) {
+      return this.#respond(
+        response,
+        200,
+        JSON.stringify({ok: false, signed_download_url: ''}),
+      );
+    }
+
+    return this.#respond(
+      response,
+      200,
+      JSON.stringify({
+        ok: true,
+        signed_download_url: `${this.#url.href}blob/${entry.blobId}`,
+      }),
+    );
+  }
+
+  /**
+   * This API checks if a cache entry has already been created for the given
+   * key + version. If so, returns a "409 Conflict" response. If not, returns a
+   * new URL which can be used to upload the tarball.
+   */
+  async #createCacheEntry(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ): Promise<void> {
+    this.metrics.createCacheEntry++;
+    if (this.#maybeServeForcedError(response, 'createCacheEntry')) {
+      return;
+    }
+    if (!this.#checkAuthorization(request, response)) {
+      return;
+    }
+    if (!this.#checkContentType(request, response, 'application/json')) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, 'application/json')) {
       return;
     }
 
@@ -417,40 +456,51 @@ export class FakeGitHubActionsCacheServer {
     };
     const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
     if (this.#keyAndVersionToEntryId.has(keyAndVersion)) {
-      return this.#respond(response, /* Conflict */ 409);
+      return this.#respond(
+        response,
+        /* Conflict */ 409,
+        JSON.stringify({
+          code: 'already_exists',
+          msg: 'cache entry with the same key, version, and scope already exists',
+        }),
+      );
     }
     const entryId = this.#nextEntryId++ as EntryId;
-    const tarballId = String(Math.random()).slice(2) as TarballId;
+    const blobId = String(Math.random()).slice(2) as BlobId;
     this.#keyAndVersionToEntryId.set(keyAndVersion, entryId);
-    this.#tarballIdToEntryId.set(tarballId, entryId);
+    this.#blobIdToEntryId.set(blobId, entryId);
     this.#entryIdToEntry.set(entryId, {
-      chunks: [],
-      commited: false,
-      tarballId,
+      blocks: new Map(),
+      blockList: [],
+      finalized: false,
+      blobId: blobId,
     });
     this.#respond(
       response,
-      /* Created */ 201,
-      JSON.stringify({cacheId: entryId}),
+      200,
+      JSON.stringify({
+        ok: true,
+        signed_upload_url: new URL(`blob/${blobId}`, this.#url),
+      }),
     );
   }
 
   /**
-   * Handle the PATCH:/_apis/artifactcache/caches/<CacheEntryId> API.
-   *
-   * This API receives a chunk of a tarball defined by the Content-Range header,
-   * and stores it using the given key (as returned by the reserve cache API).
+   * Writes a block to a blob.
+   * https://learn.microsoft.com/en-us/rest/api/storageservices/put-block
    */
-  async #upload(
+  async #putBlobBlock(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    idStr: string,
+    blobId: string,
+    url: URL,
   ): Promise<void> {
-    this.metrics.upload++;
-    if (this.#maybeServeForcedError(response, 'upload')) {
+    this.metrics.putBlobBlock++;
+    if (this.#maybeServeForcedError(response, 'putBlobBlock')) {
       return;
     }
-    if (!this.#checkAuthorization(request, response)) {
+    // The blob URLs are self-signed.
+    if (!this.#checkHeader(request, response, 'Authorization', undefined)) {
       return;
     }
     if (
@@ -458,42 +508,27 @@ export class FakeGitHubActionsCacheServer {
     ) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this.#checkAccept(request, response, 'application/json')) {
       return;
     }
-    const expectedTransferEncoding = 'chunked';
-    const actualTransferEncoding = request.headers['transfer-encoding'];
-    if (actualTransferEncoding !== 'chunked') {
-      return this.#respond(
-        response,
-        /* Bad Request */ 400,
-        `Expected transfer-encoding ${JSON.stringify(
-          expectedTransferEncoding,
-        )}. ` + `Got ${String(actualTransferEncoding)}.`,
-      );
+    if (!this.#checkHeader(request, response, 'x-ms-blob-type', 'BlockBlob')) {
+      return;
     }
-
-    if (idStr.match(/\d+/) === null) {
-      return this.#respond(response, 400, 'Cache ID was not an integer');
-    }
-    const id = Number(idStr) as EntryId;
-    const entry = this.#entryIdToEntry.get(id);
-    if (entry === undefined) {
+    const entryId = this.#blobIdToEntryId.get(blobId as BlobId);
+    if (entryId === undefined) {
       return this.#respond(response, 400, 'Cache entry did not exist');
     }
-
-    const contentRange = request.headers['content-range'] ?? '';
-    const parsedContentRange = contentRange.match(/^bytes (\d+)-(\d+)\/\*$/);
-    if (parsedContentRange === null) {
-      return this.#respond(
-        response,
-        400,
-        'Missing or invalid Content-Range header',
-      );
+    const entry = this.#entryIdToEntry.get(entryId);
+    if (entry === undefined) {
+      return this.#respond(response, 500, 'Cache entry did not exist');
     }
-    const start = Number(parsedContentRange[1]);
-    const end = Number(parsedContentRange[2]);
-    const expectedLength = end - start + 1;
+    const blockIdBase64 = url.searchParams.get('blockid');
+    if (!blockIdBase64) {
+      return this.#respond(response, 400, 'Missing blockid parameter');
+    }
+    const blockId = Buffer.from(blockIdBase64, 'base64').toString();
+
+    const expectedLength = Number(request.headers['content-length']);
 
     // The real server might not be this strict, but we should make sure we
     // aren't sending larger chunks than the official client library does.
@@ -507,26 +542,81 @@ export class FakeGitHubActionsCacheServer {
       return this.#respond(
         response,
         400,
-        'Chunk length did not match Content-Range header',
+        'Block length did not match Content-Length header',
       );
     }
-    entry.chunks.push({start, end, buffer});
-    this.#respond(response, /* No Content */ 204);
+    entry.blocks.set(blockId, buffer);
+    this.#respond(response, /* Created */ 201);
   }
 
   /**
-   * Handle the POST:/_apis/artifactcache/caches/<CacheEntryId> API.
-   *
-   * This API marks an uploaded tarball (which can be sent in multiple chunks)
-   * as complete.
+   * Commits an ordered block list to a blob.
+   * https://learn.microsoft.com/en-us/rest/api/storageservices/put-block-list
    */
-  async #commit(
+  async #putBlobBlockList(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    idStr: string,
+    blobId: string,
   ): Promise<void> {
-    this.metrics.commit++;
-    if (this.#maybeServeForcedError(response, 'commit')) {
+    this.metrics.putBlobBlockList++;
+    if (this.#maybeServeForcedError(response, 'putBlobBlockList')) {
+      return;
+    }
+    // The blob URLs are self-signed.
+    if (!this.#checkHeader(request, response, 'Authorization', undefined)) {
+      return;
+    }
+    if (
+      !this.#checkContentType(request, response, 'text/plain; charset=UTF-8')
+    ) {
+      return;
+    }
+    if (!this.#checkAccept(request, response, 'application/json')) {
+      return;
+    }
+    const entryId = this.#blobIdToEntryId.get(blobId as BlobId);
+    if (entryId === undefined) {
+      return this.#respond(response, 400, 'Cache entry did not exist');
+    }
+    const entry = this.#entryIdToEntry.get(entryId);
+    if (entry === undefined) {
+      return this.#respond(response, 500, 'Cache entry did not exist');
+    }
+    if (entry.blockList.length > 0) {
+      return this.#respond(response, 500, 'Block list already exists');
+    }
+
+    const xml = (await this.#readBody(request)).toString();
+    const blockList = xml.match(/<BlockList>(.*?)<\/BlockList>/s);
+    if (!blockList?.[1]) {
+      return this.#respond(response, 500, 'No <BlockList> section');
+    }
+    const blocks = blockList[1].matchAll(/<(.*)>(.*?)<(\/\1)>/g);
+    for (const [_, kind, base64BlockId] of blocks) {
+      if (kind !== 'Uncommitted') {
+        return this.#respond(response, 500, `Unexpected <${kind}>`);
+      }
+      if (!base64BlockId) {
+        return this.#respond(response, 500, 'Empty <Uncommitted>');
+      }
+      const blockId = Buffer.from(base64BlockId, 'base64').toString();
+      if (!entry.blocks.has(blockId)) {
+        return this.#respond(response, 500, `Block ${blockId} does not exist`);
+      }
+      entry.blockList.push(blockId);
+    }
+    this.#respond(response, /* Created */ 201);
+  }
+
+  /**
+   * This API marks a cache entry as finalized.
+   */
+  async #finalizeCacheEntry(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ): Promise<void> {
+    this.metrics.finalizeCacheEntry++;
+    if (this.#maybeServeForcedError(response, 'finalizeCacheEntry')) {
       return;
     }
     if (!this.#checkAuthorization(request, response)) {
@@ -535,58 +625,40 @@ export class FakeGitHubActionsCacheServer {
     if (!this.#checkContentType(request, response, 'application/json')) {
       return;
     }
-    if (!this.#checkAccept(request, response, JSON_RESPONSE_TYPE)) {
+    if (!this.#checkAccept(request, response, 'application/json')) {
       return;
     }
 
-    if (idStr.match(/\d+/) === null) {
-      return this.#respond(response, 400, 'Cache ID was not an integer');
-    }
-
-    const id = Number(idStr) as EntryId;
-    const entry = this.#entryIdToEntry.get(id);
-    if (entry === undefined) {
-      return this.#respond(response, 400, 'Cache entry did not exist');
-    }
-
-    // Sort the chunks according to range and validate that there are no missing
-    // or overlapping chunks.
-    entry.chunks.sort((a, b) => a.start - b.start);
-    let expectedNextStart = 0;
-    let totalLength = 0;
-    for (const chunk of entry.chunks) {
-      if (chunk.start !== expectedNextStart) {
-        return this.#respond(
-          response,
-          400,
-          'Cache entry chunks were not contiguous',
-        );
-      }
-      expectedNextStart = chunk.end + 1;
-      totalLength += chunk.buffer.length;
-    }
-
-    // Validate against the expected total length from this request.
     const json = await this.#readBody(request);
     const data = JSON.parse(json.toString()) as {
-      size: number;
+      key: string;
+      version: string;
+      sizeBytes: number;
     };
-    const expectedLength = data.size;
-    if (totalLength !== expectedLength) {
-      return this.#respond(
-        response,
-        400,
-        'Cache entry did not match expected length',
-      );
+    if (!data.key) {
+      return this.#respond(response, 400, 'Missing "key" property');
+    }
+    if (!data.version) {
+      return this.#respond(response, 400, 'Missing "version" property');
+    }
+    if (data.sizeBytes == null) {
+      return this.#respond(response, 400, 'Missing "sizeBytes" property');
+    }
+    const keyAndVersion = encodeKeyAndVersion(data.key, data.version);
+    const entryId = this.#keyAndVersionToEntryId.get(keyAndVersion);
+    if (entryId === undefined) {
+      return this.#respond(response, 400, 'Cache entry did not exist');
+    }
+    const entry = this.#entryIdToEntry.get(entryId);
+    if (entry === undefined) {
+      return this.#respond(response, 500, 'Cache entry did not exist');
     }
 
-    entry.commited = true;
-    this.#respond(response, /* No Content */ 204);
+    entry.finalized = true;
+    this.#respond(response, 200, JSON.stringify({ok: true}));
   }
 
   /**
-   * Handle the GET:/tarballs/<TarballId> API.
-   *
    * This API returns the cached tarball for the given key.
    *
    * In reality, tarball URLs are on a different CDN server to the cache API
@@ -595,13 +667,13 @@ export class FakeGitHubActionsCacheServer {
    * Note this API is not authenticated. Instead, the tarball URL is
    * unguessable.
    */
-  #download(
+  #getBlob(
     request: http.IncomingMessage,
     response: http.ServerResponse,
-    tarballId: string,
+    blobId: string,
   ): void {
-    this.metrics.download++;
-    if (this.#maybeServeForcedError(response, 'download')) {
+    this.metrics.getBlob++;
+    if (this.#maybeServeForcedError(response, 'getBlob')) {
       return;
     }
     if (!this.#checkContentType(request, response, undefined)) {
@@ -611,26 +683,32 @@ export class FakeGitHubActionsCacheServer {
       return;
     }
 
-    const id = this.#tarballIdToEntryId.get(tarballId as TarballId);
-    if (id === undefined) {
-      return this.#respond(response, 404, 'Tarball does not exist');
+    const entryId = this.#blobIdToEntryId.get(blobId as BlobId);
+    if (entryId === undefined) {
+      return this.#respond(response, 404, 'Cache entry does not exist');
     }
-    const entry = this.#entryIdToEntry.get(id);
+    const entry = this.#entryIdToEntry.get(entryId);
     if (entry === undefined) {
-      return this.#respond(response, 500, 'Entry did not exist');
+      return this.#respond(response, 500, 'Cache entry did not exist');
     }
-    if (!entry.commited) {
-      return this.#respond(response, 404, 'Tarball not committed');
+    if (!entry.finalized) {
+      return this.#respond(response, 404, 'Cache entry not finalized');
     }
 
+    const orderedBlocks = entry.blockList.map((blockId) =>
+      entry.blocks.get(blockId),
+    );
+    if (orderedBlocks.some((block) => !block)) {
+      return this.#respond(response, 500, 'Block missing from block list');
+    }
     response.statusCode = 200;
-    const contentLength = entry.chunks.reduce(
-      (sum, chunk) => sum + chunk.buffer.length,
+    const contentLength = orderedBlocks.reduce(
+      (sum, block) => sum + (block?.length ?? 0),
       0,
     );
     response.setHeader('Content-Length', contentLength);
-    for (const chunk of entry.chunks) {
-      response.write(chunk.buffer);
+    for (const block of orderedBlocks) {
+      response.write(block);
     }
     response.end();
   }
