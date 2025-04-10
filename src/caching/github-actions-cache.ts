@@ -301,6 +301,14 @@ export class GitHubActionsCache implements Cache {
       version,
       tarballBytes,
     );
+    console.log('TRYING AGAINN');
+    const uploadUrl2 = await this.#reserveCacheEntry(
+      script,
+      key,
+      version,
+      tarballBytes,
+    );
+    console.log({uploadUrl2});
     // It's likely that we'll occasionally fail to reserve an entry and get
     // undefined here, especially when running multiple GitHub Action jobs in
     // parallel with the same scripts, because there is a window of time between
