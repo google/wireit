@@ -60,7 +60,7 @@ test.before.each(async (ctx) => {
     ctx.rig.env = {
       ...ctx.rig.env,
       WIREIT_CACHE: 'github',
-      ACTIONS_CACHE_URL: actionsCacheUrl,
+      ACTIONS_RESULTS_URL: actionsCacheUrl,
       ACTIONS_RUNTIME_TOKEN: authToken,
       RUNNER_TEMP: pathlib.join(ctx.rig.temp, 'github-cache-temp'),
       // Tell Node to trust our self-signed certificate for HTTPS.

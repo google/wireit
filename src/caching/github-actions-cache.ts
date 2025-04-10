@@ -62,7 +62,8 @@ export class GitHubActionsCache implements Cache {
     if (custodianPort === undefined) {
       if (
         process.env['ACTIONS_RUNTIME_TOKEN'] !== undefined ||
-        process.env['ACTIONS_CACHE_URL'] !== undefined
+        process.env['ACTIONS_CACHE_URL'] !== undefined ||
+        process.env['ACTIONS_RESULTS_URL'] !== undefined
       ) {
         console.warn(
           '⚠️ Please upgrade to google/wireit@setup-github-cache/v2. ' +
@@ -87,7 +88,7 @@ export class GitHubActionsCache implements Cache {
     let result: {
       caching: {
         github: {
-          ACTIONS_CACHE_URL: string;
+          ACTIONS_RESULTS_URL?: string;
           ACTIONS_RUNTIME_TOKEN: string;
         };
       };
@@ -111,11 +112,23 @@ export class GitHubActionsCache implements Cache {
         },
       };
     }
+    if (!result.caching.github.ACTIONS_RESULTS_URL) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-usage',
+          message:
+            'No ACTIONS_RESULTS_URL was returned by the custodian.' +
+            ' Ensure you are using at least version 2.0.3.',
+        },
+      };
+    }
     return {
       ok: true,
       value: new GitHubActionsCache(
         logger,
-        result.caching.github.ACTIONS_CACHE_URL,
+        result.caching.github.ACTIONS_RESULTS_URL,
         result.caching.github.ACTIONS_RUNTIME_TOKEN,
       ),
     };
@@ -124,14 +137,14 @@ export class GitHubActionsCache implements Cache {
   static #deprecatedCreate(
     logger: Logger,
   ): Result<GitHubActionsCache, Omit<InvalidUsage, 'script'>> {
-    // The ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN environment variables are
+    // The ACTIONS_RESULTS_URL and ACTIONS_RUNTIME_TOKEN environment variables are
     // automatically provided to GitHub Actions re-usable workflows. However,
     // they are _not_ provided to regular "run" scripts. For this reason, we
     // re-export those variables so that all "run" scripts can access them using
     // the "google/wireit@setup-github-actions-caching/v1" re-usable workflow.
     //
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L38
-    const baseUrl = process.env['ACTIONS_CACHE_URL'];
+    const baseUrl = process.env['ACTIONS_RESULTS_URL'];
     if (!baseUrl) {
       return {
         ok: false,
@@ -139,7 +152,7 @@ export class GitHubActionsCache implements Cache {
           type: 'failure',
           reason: 'invalid-usage',
           message:
-            'The ACTIONS_CACHE_URL variable was not set, but is required when ' +
+            'The ACTIONS_RESULTS_URL variable was not set, but is required when ' +
             'WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 ' +
             'action to automatically set environment variables.',
         },
@@ -154,7 +167,7 @@ export class GitHubActionsCache implements Cache {
         error: {
           type: 'failure',
           reason: 'invalid-usage',
-          message: `The ACTIONS_CACHE_URL must end in a forward-slash, got ${JSON.stringify(
+          message: `The ACTIONS_RESULTS_URL must end in a forward-slash, got ${JSON.stringify(
             baseUrl,
           )}.`,
         },
@@ -193,27 +206,41 @@ export class GitHubActionsCache implements Cache {
 
     const version = this.#computeVersion(fingerprint);
     const key = this.#computeCacheKey(script);
-    const url = new URL('_apis/artifactcache/cache', this.#baseUrl);
-    url.searchParams.set('keys', key);
-    url.searchParams.set('version', version);
-
-    using requestResult = this.#request(url);
+    const url = new URL(
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L91
+      'twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL',
+      this.#baseUrl,
+    );
+    // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L246
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L101C1-L126C2
+    const requestBody = {key, version};
+    const bodyBuffer = Buffer.from(JSON.stringify(requestBody), 'utf8');
+    using requestResult = this.#request(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': bodyBuffer.length,
+      },
+    });
     const {req, resPromise} = requestResult;
-    req.end();
+    req.end(bodyBuffer);
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
       return undefined;
     }
     const response = result.value;
 
-    if (response.statusCode === /* No Content */ 204) {
-      return undefined;
-    }
-
     if (isOk(response)) {
-      const {archiveLocation} = JSON.parse(await readBody(response)) as {
-        archiveLocation: string;
+      const {signed_download_url: archiveLocation} = JSON.parse(
+        await readBody(response),
+      ) as {
+        ok: boolean;
+        signed_download_url: string;
+        matched_key: string;
       };
+      if (!archiveLocation) {
+        return undefined;
+      }
       return new GitHubActionsCacheHit(script, archiveLocation, this.#logger);
     }
 
@@ -272,24 +299,21 @@ export class GitHubActionsCache implements Cache {
       });
       return false;
     }
-    const id = await this.#reserveCacheEntry(
-      script,
-      this.#computeCacheKey(script),
-      this.#computeVersion(fingerprint),
-      tarballBytes,
-    );
+    const key = this.#computeCacheKey(script);
+    const version = this.#computeVersion(fingerprint);
+    const blobUrl = await this.#createCacheEntry(script, key, version);
     // It's likely that we'll occasionally fail to reserve an entry and get
     // undefined here, especially when running multiple GitHub Action jobs in
     // parallel with the same scripts, because there is a window of time between
     // calling "get" and "set" on the cache in which another worker could have
     // reserved the entry before us. Non fatal, just don't save.
-    if (id === undefined) {
+    if (blobUrl === undefined) {
       return false;
     }
-    if (!(await this.#upload(script, id, tarballPath, tarballBytes))) {
+    if (!(await this.#upload(script, blobUrl, tarballPath, tarballBytes))) {
       return false;
     }
-    if (!(await this.#commit(script, id, tarballBytes))) {
+    if (!(await this.#finalize(script, key, version, tarballBytes))) {
       return false;
     }
     return true;
@@ -301,11 +325,10 @@ export class GitHubActionsCache implements Cache {
    */
   async #upload(
     script: ScriptReference,
-    id: number,
+    blobUrl: string,
     tarballPath: string,
     tarballBytes: number,
   ): Promise<boolean> {
-    const url = new URL(`_apis/artifactcache/caches/${id}`, this.#baseUrl);
     // Reference:
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     const maxChunkSize = 32 * 1024 * 1024;
@@ -315,7 +338,10 @@ export class GitHubActionsCache implements Cache {
     const tarballHandle = await unbudgetedFs.open(tarballPath, 'r');
     let offset = 0;
     try {
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/internal/uploadUtils.ts#L132
       // TODO(aomarks) Chunks could be uploaded in parallel.
+      const blockIds: string[] = [];
+      let blockIdx = 0;
       while (offset < tarballBytes) {
         const chunkSize = Math.min(tarballBytes - offset, maxChunkSize);
         const start = offset;
@@ -330,13 +356,24 @@ export class GitHubActionsCache implements Cache {
         });
 
         const opts = {
-          method: 'PATCH',
+          method: 'PUT',
           headers: {
             'content-type': 'application/octet-stream',
-            'content-range': `bytes ${start}-${end}/*`,
+            'content-length': `${chunkSize}`,
+            'x-ms-blob-type': 'BlockBlob',
+            authorization: undefined,
           },
         };
-        using requestResult = this.#request(url, opts);
+        const putBlockUrl = new URL(blobUrl);
+        putBlockUrl.searchParams.set('comp', 'block');
+        // All block IDs must be the same length within a blob.
+        const blockId = Buffer.from(
+          blockIdx.toString(16).padStart(4, '0'),
+        ).toString('base64');
+        blockIdx++;
+        blockIds.push(blockId);
+        putBlockUrl.searchParams.set('blockid', blockId);
+        using requestResult = this.#request(putBlockUrl, opts);
         const {req, resPromise} = requestResult;
         tarballChunkStream.pipe(req);
         tarballChunkStream.on('close', () => {
@@ -359,6 +396,36 @@ export class GitHubActionsCache implements Cache {
           );
         }
       }
+      const putBlockListUrl = new URL(blobUrl);
+      putBlockListUrl.searchParams.set('comp', 'blocklist');
+      const doneXmlBody = Buffer.from(
+        `<?xml version="1.0" encoding="utf-8"?>
+<BlockList>
+${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n')}
+</BlockList>
+`,
+        'utf8',
+      );
+      using requestResult = this.#request(putBlockListUrl, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'text/plain; charset=UTF-8',
+          'content-length': `${doneXmlBody.length}`,
+          authorization: undefined,
+        },
+      });
+      requestResult.req.end(doneXmlBody);
+      const r = await requestResult.resPromise;
+      if (!this.#maybeHandleServiceDown(r, script)) {
+        return false;
+      }
+      if (!isOk(r.value)) {
+        throw new Error(
+          `GitHub Cache finalize HTTP ${String(
+            r.value.statusCode,
+          )} error: ${await readBody(r.value)}`,
+        );
+      }
       return true;
     } finally {
       await tarballHandle.close();
@@ -370,26 +437,36 @@ export class GitHubActionsCache implements Cache {
    * @returns True if we committed, false if we gave up due to a rate limit error.
    * @throws If an unexpected HTTP error occured.
    */
-  async #commit(
+  async #finalize(
     script: ScriptReference,
-    id: number,
+    key: string,
+    version: string,
     tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(
-      `_apis/artifactcache/caches/${String(id)}`,
+      // See
+      // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L132
+      `twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload`,
       this.#baseUrl,
     );
-    const reqBody = JSON.stringify({
-      size: tarballBytes,
-    });
+    // See
+    // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L555
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L57
+    const body = {
+      key,
+      version,
+      sizeBytes: tarballBytes,
+    };
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'content-length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.end(reqBody);
+    req.end(bodyBuffer);
 
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
@@ -418,8 +495,7 @@ export class GitHubActionsCache implements Cache {
     return request(url, {
       ...options,
       headers: {
-        // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
-        accept: 'application/json;api-version=6.0-preview.1',
+        accept: 'application/json',
         // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/http-client/src/auth.ts#L46
         authorization: `Bearer ${this.#authToken}`,
         ...options?.headers,
@@ -573,26 +649,33 @@ export class GitHubActionsCache implements Cache {
    * undefined if the cache entry was already reserved, or a rate limit error
    * occured.
    */
-  async #reserveCacheEntry(
+  async #createCacheEntry(
     script: ScriptReference,
     key: string,
     version: string,
-    cacheSize: number,
-  ): Promise<number | undefined> {
-    const url = new URL('_apis/artifactcache/caches', this.#baseUrl);
-    const reqBody = JSON.stringify({
+  ): Promise<string | undefined> {
+    const url = new URL(
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
+      'twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
+      this.#baseUrl,
+    );
+    // See
+    // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L527
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L19
+    const body = {
       key,
       version,
-      cacheSize,
-    });
+    };
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'content-length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.end(reqBody);
+    req.end(bodyBuffer);
 
     const result = await resPromise;
     if (!this.#maybeHandleServiceDown(result, script)) {
@@ -602,9 +685,9 @@ export class GitHubActionsCache implements Cache {
 
     if (isOk(response)) {
       const resData = JSON.parse(await readBody(response)) as {
-        cacheId: number;
+        signed_upload_url: string;
       };
-      return resData.cacheId;
+      return resData.signed_upload_url;
     }
 
     if (response.statusCode === /* Conflict */ 409) {
@@ -713,6 +796,12 @@ function request(
       ...options?.headers,
     },
   };
+  for (const [key, val] of Object.entries(opts.headers)) {
+    if (!val) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete (opts.headers as Record<string, unknown>)[key];
+    }
+  }
   let req!: http.ClientRequest;
   const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
     (resolve) => {
