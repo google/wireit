@@ -14,14 +14,20 @@ import {
 } from './util/package-json-reader.js';
 import {IS_WINDOWS} from './util/windows.js';
 
+import {parseDependency} from './analysis/dependency-parser.js';
 import type {Agent} from './cli-options.js';
 import type {
   ScriptConfig,
   ScriptReference,
   ScriptReferenceString,
 } from './config.js';
-import type {Diagnostic, MessageLocation, Result} from './error.js';
-import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
+import type {Diagnostic, MessageLocation, Range, Result} from './error.js';
+import type {
+  Cycle,
+  DependencyOnMissingPackageJson,
+  Failure,
+  InvalidConfigSyntax,
+} from './event.js';
 import {Logger} from './logging/logger.js';
 import type {
   ArrayNode,
@@ -1708,109 +1714,115 @@ export class Analyzer {
     context: ScriptReference,
     referencingFile: JsonFile,
   ): Result<Array<ScriptReference>, Failure> {
-    // TODO(aomarks) Implement $WORKSPACES syntax.
-    if (dependency.value.startsWith('.')) {
-      // TODO(aomarks) It is technically valid for an npm script to start with a
-      // ".". We should support that edge case with backslash escaping.
-      const result = this.#resolveCrossPackageDependency(
-        dependency,
+    const parsed = parseDependency(dependency.value);
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-config-syntax',
+          script: context,
+          diagnostic: {
+            ...parsed.error,
+            location: {
+              // The parser doesn't know about the file, add that to the
+              // diagnostic.
+              file: referencingFile,
+              range: {
+                offset:
+                  dependency.offset + 1 + parsed.error.location.range.offset,
+                length: parsed.error.location.range.length,
+              },
+            },
+          },
+        },
+      };
+    }
+
+    const {package: pkg, script, inverted} = parsed.value;
+
+    if (inverted) {
+      // TODO(aomarks) Support inversion.
+      return invalidSyntaxError(
+        'Dependency inversion operator "!" is not yet supported',
         context,
         referencingFile,
+        {offset: dependency.offset, length: 1},
       );
-      if (!result.ok) {
-        return result;
-      }
-      return {ok: true, value: [result.value]};
     }
-    return {
-      ok: true,
-      value: [{packageDir: context.packageDir, name: dependency.value}],
-    };
-  }
 
-  /**
-   * Resolve a cross-package dependency (e.g. "../other-package:build").
-   * Cross-package dependencies always start with a ".".
-   */
-  #resolveCrossPackageDependency(
-    dependency: JsonAstNode<string>,
-    context: ScriptReference,
-    referencingFile: JsonFile,
-  ): Result<ScriptReference, Failure> {
-    // TODO(aomarks) On some file systems, it is valid to have a ":" in a file
-    // path. We should support that edge case with backslash escaping.
-    const firstColonIdx = dependency.value.indexOf(':');
-    if (firstColonIdx === -1) {
-      return {
-        ok: false,
-        error: {
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: context,
-          diagnostic: {
-            severity: 'error',
-            message:
-              `Cross-package dependency must use syntax ` +
-              `"<relative-path>:<script-name>", ` +
-              `but there's no ":" character in "${dependency.value}".`,
-            location: {
-              file: referencingFile,
-              range: {offset: dependency.offset, length: dependency.length},
-            },
+    let packageDir: string;
+    if (pkg.kind === 'this') {
+      packageDir = context.packageDir;
+    } else if (pkg.kind === 'path') {
+      packageDir = pathlib.resolve(context.packageDir, pkg.path);
+      if (packageDir === context.packageDir) {
+        return invalidSyntaxError(
+          `Cross-package dependency "${dependency.value}" ` +
+            `resolved to the same package.`,
+          context,
+          referencingFile,
+          {
+            offset: dependency.offset + 1 + pkg.range.offset,
+            length: pkg.range.length,
           },
+        );
+      }
+    } else if (pkg.kind === 'npm') {
+      // TODO(aomarks) Support npm resolution.
+      return invalidSyntaxError(
+        'NPM packages are not yet supported',
+        context,
+        referencingFile,
+        {
+          offset: dependency.offset + 1 + pkg.range.offset,
+          length: pkg.range.length,
         },
-      };
-    }
-    const scriptName = dependency.value.slice(firstColonIdx + 1);
-    if (!scriptName) {
-      return {
-        ok: false,
-        error: {
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: context,
-          diagnostic: {
-            severity: 'error',
-            message:
-              `Cross-package dependency must use syntax ` +
-              `"<relative-path>:<script-name>", ` +
-              `but there's no script name in "${dependency.value}".`,
-            location: {
-              file: referencingFile,
-              range: {offset: dependency.offset, length: dependency.length},
-            },
-          },
+      );
+    } else if (pkg.kind === 'dependencies') {
+      // TODO(aomarks) Support "dependencies".
+      return invalidSyntaxError(
+        `"dependencies" is not yet supported`,
+        context,
+        referencingFile,
+        {
+          offset: dependency.offset + 1 + pkg.range.offset,
+          length: pkg.range.length,
         },
-      };
-    }
-    const relativePackageDir = dependency.value.slice(0, firstColonIdx);
-    const absolutePackageDir = pathlib.resolve(
-      context.packageDir,
-      relativePackageDir,
-    );
-    if (absolutePackageDir === context.packageDir) {
-      return {
-        ok: false,
-        error: {
-          type: 'failure',
-          reason: 'invalid-config-syntax',
-          script: context,
-          diagnostic: {
-            severity: 'error',
-            message:
-              `Cross-package dependency "${dependency.value}" ` +
-              `resolved to the same package.`,
-            location: {
-              file: referencingFile,
-              range: {offset: dependency.offset, length: dependency.length},
-            },
-          },
+      );
+    } else if (pkg.kind === 'workspaces') {
+      // TODO(aomarks) Support "workspacess".
+      return invalidSyntaxError(
+        `"workspaces" is not yet supported`,
+        context,
+        referencingFile,
+        {
+          offset: dependency.offset + 1 + pkg.range.offset,
+          length: pkg.range.length,
         },
-      };
+      );
+    } else {
+      pkg satisfies never;
+      throw new Error(
+        `Unexpected parsed package format: ${JSON.stringify(pkg)}`,
+      );
     }
+
+    let scriptName: string;
+    if (script.kind === 'name') {
+      scriptName = script.name;
+    } else if (script.kind === 'this') {
+      scriptName = context.name;
+    } else {
+      script satisfies never;
+      throw new Error(
+        `Unexpected parsed script format: ${JSON.stringify(script)}`,
+      );
+    }
+
     return {
       ok: true,
-      value: {packageDir: absolutePackageDir, name: scriptName},
+      value: [{packageDir, name: scriptName}],
     };
   }
 }
@@ -1967,3 +1979,22 @@ export const failUnlessKeyValue = (
   }
   return {ok: true, value: [rawName, rawValue]};
 };
+
+const invalidSyntaxError = (
+  message: string,
+  script: ScriptReference,
+  file: JsonFile,
+  range: Range,
+): {ok: false; error: InvalidConfigSyntax} => ({
+  ok: false,
+  error: {
+    type: 'failure',
+    reason: 'invalid-config-syntax',
+    script,
+    diagnostic: {
+      message,
+      severity: 'error',
+      location: {file, range},
+    },
+  },
+});

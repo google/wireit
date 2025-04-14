@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as pathlib from 'path';
 import {suite} from 'uvu';
 import * as assert from 'uvu/assert';
-import * as pathlib from 'path';
-import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {checkScriptOutput} from './util/check-script-output.js';
+import {rigTest} from './util/rig-test.js';
 
 const test = suite<object>();
 
@@ -774,6 +774,7 @@ test(
     );
   }),
 );
+
 test(
   'missing cross package dependency with complicated escaped names',
   rigTest(async ({rig}) => {
@@ -788,7 +789,7 @@ test(
         },
         wireit: {
           a: {
-            dependencies: ['./ch\t\\ ild:mis\t\\ sing'],
+            dependencies: ['./ch\t\\\\ ild:mis\t\\\\ sing'],
           },
         },
       },
@@ -802,11 +803,11 @@ test(
     checkScriptOutput(
       done.stderr,
       String.raw`
-❌ package.json:8:23 Cannot find script named "mis\t\\ sing" in package "${rig.resolve(
+❌ package.json:8:25 Cannot find script named "mis\t\\ sing" in package "${rig.resolve(
         'ch\t\\ ild',
       )}"
-            "./ch\t\\ ild:mis\t\\ sing"
-                          ~~~~~~~~~~~~`,
+            "./ch\t\\\\ ild:mis\t\\\\ sing"
+                            ~~~~~~~~~~~~~~`,
     );
   }),
 );
@@ -821,7 +822,7 @@ test(
         },
         wireit: {
           a: {
-            dependencies: ['../b\t\\ ar:b'],
+            dependencies: ['../b\t\\\\ ar:b'],
           },
         },
       },
@@ -835,8 +836,8 @@ test(
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
         'b\t\\ ar/package.json',
       )}"
-            "../b\t\\ ar:b"
-             ~~~~~~~~~~~`,
+            "../b\t\\\\ ar:b"
+             ~~~~~~~~~~~~~`,
     );
   }),
 );
@@ -1012,9 +1013,9 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no ":" character in "../foo".
+❌ package.json:8:10 Cross-package dependency must use syntax "<relative-path>#<script-name>", but there's no "#" character in "../foo".
             "../foo"
-            ~~~~~~~~
+             ~~~~~~
 `,
     );
   }),
@@ -1041,9 +1042,9 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:8:9 Cross-package dependency must use syntax "<relative-path>:<script-name>", but there's no script name in "../foo:".
+❌ package.json:8:10 Cross-package dependency must use syntax "<relative-path>#<script-name>", but there's no script name in "../foo:".
             "../foo:"
-            ~~~~~~~~~
+             ~~~~~~~
 `,
     );
   }),
@@ -1070,9 +1071,9 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:8:9 Cross-package dependency ".:b" resolved to the same package.
+❌ package.json:8:10 Cross-package dependency ".:b" resolved to the same package.
             ".:b"
-            ~~~~~
+             ~
 `,
     );
   }),
@@ -1099,9 +1100,9 @@ test(
     checkScriptOutput(
       done.stderr,
       `
-❌ package.json:8:9 Cross-package dependency "../foo:b" resolved to the same package.
+❌ package.json:8:10 Cross-package dependency "../foo:b" resolved to the same package.
             "../foo:b"
-            ~~~~~~~~~~
+             ~~~~~~
 `,
     );
   }),
