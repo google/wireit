@@ -1,0 +1,33 @@
+name: Test real GitHub Actions cache service
+
+on:
+  schedule:
+    - cron: '14 7 * * *' # 6:07AM PST / 7:07AM PDT
+
+jobs:
+  tests:
+    strategy:
+      matrix:
+        include:
+          - node: 20 # LTS
+            os: ubuntu-22.04
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      WIREIT_LOGGER: 'quiet-ci'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # Note we intentionally don't enable Wireit caching for this workflow,
+      # because we're looking for problems coming from the real production
+      # GitHub Actions cache service, which is independent of any of our files.
+      # - uses: google/wireit@setup-github-actions-caching/v2
+
+      - run: npm ci
+      - run: npm run test:cache-github-real
