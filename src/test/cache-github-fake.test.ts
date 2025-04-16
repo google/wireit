@@ -234,9 +234,118 @@ function assertSuccess(exitResult: ExitResult) {
   }
 }
 
-for (const code of [429, 503, 'ECONNRESET'] as const) {
+test(
+  `gracefully handles 409 conflict on set()`,
+  rigTest(async ({rig, server}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: [],
+            dependencies: ['b'],
+          },
+          b: {
+            command: cmdB.command,
+            files: ['input'],
+            output: [],
+          },
+        },
+      },
+      input: 'foo',
+    });
+
+    server.forceErrorOnNextRequest('createCacheEntry', 409);
+    const exec = rig.exec('npm run a');
+    (await cmdB.nextInvocation()).exit(0);
+    (await cmdA.nextInvocation()).exit(0);
+    assertSuccess(await exec.exit);
+    assert.equal(server.metrics, {
+      // Both scripts should check for and then try to reserve a cache entry ...
+      getCacheEntry: 2,
+      createCacheEntry: 2,
+      // ... but since the first one will fail to reserve with a 409, only the
+      // second one will actually finish uploading its entry.
+      putBlobBlock: 1,
+      putBlobBlockList: 1,
+      finalizeCacheEntry: 1,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdA.numInvocations, 1);
+  }),
+);
+
+const randomInt = (minIncl: number, maxExcl: number) =>
+  minIncl + Math.floor(Math.random() * (maxExcl - minIncl));
+
+for (const code of [
+  'ECONNRESET',
+  (() => {
+    while (true) {
+      const status = randomInt(400, 500);
+      if (status !== /* Conflict has special meaning (see above test) */ 409) {
+        return status;
+      }
+    }
+  })(),
+  randomInt(500, 600),
+] as const) {
   test(
-    `recovers from ${code} error`,
+    `recovers from ${code} error within get()`,
+    rigTest(async ({rig, server}) => {
+      const cmdA = await rig.newCommand();
+      const cmdB = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            a: 'wireit',
+            b: 'wireit',
+          },
+          wireit: {
+            a: {
+              command: cmdA.command,
+              files: ['input'],
+              output: [],
+              dependencies: ['b'],
+            },
+            b: {
+              command: cmdB.command,
+              files: ['input'],
+              output: [],
+            },
+          },
+        },
+        input: 'foo',
+      });
+
+      server.forceErrorOnNextRequest('getCacheEntry', code);
+      const exec = rig.exec('npm run a');
+      (await cmdB.nextInvocation()).exit(0);
+      (await cmdA.nextInvocation()).exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(server.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 0,
+        putBlobBlock: 0,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(cmdA.numInvocations, 1);
+    }),
+  );
+
+  test(
+    `recovers from ${code} error within set()`,
     rigTest(async ({rig, server}) => {
       await rig.write({
         'package.json': {

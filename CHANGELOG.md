@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## Unreleased -->
+## Unreleased
+
+- HTTP errors from the GitHub Actions cache service are no longer ever fatal,
+  and should always continue gracefully with GitHub Actions caching temporarily
+  disabled (previously only network errors and HTTP 429/503 errors failed
+  gracefully).
 
 ## [0.14.12] - 2025-04-10
 

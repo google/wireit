@@ -27,7 +27,7 @@ import type {Result} from '../error.js';
 import type {InvalidUsage, UnknownErrorThrown} from '../event.js';
 
 /**
- * Caches script output to the GitHub Actions caching service.
+ * Caches script output to the GitHub Actions cache service.
  */
 export class GitHubActionsCache implements Cache {
   readonly #baseUrl: string;
@@ -504,59 +504,66 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
   }
 
   /**
-   * If we received an error that indicates something is wrong with the GitHub
-   * Actions service that is not our fault, log an error and return false.
-   * Otherwise return true.
+   * If we received a network or HTTP error from the given HTTP request, set the
+   * global flag to indicate that GitHub Actions Caching is down (it's a class
+   * property, but this class should be a global singleton),  log an error
+   * (possibly asynchronously), and return false. If the request was OK, just
+   * return true.
    */
   #maybeHandleServiceDown(
     res: Result<http.IncomingMessage, Error>,
     script: ScriptReference,
   ): res is {ok: true; value: http.IncomingMessage} {
+    const status = res.ok ? res.value.statusCode : null;
+    if (res.ok && status != null && status >= 200 && status <= 299) {
+      return true;
+    }
+
+    if (this.#serviceIsDown) {
+      // Reduce noise; just whatever the first error was is OK.
+      //
+      // Note that this cache can be accessed concurrently, so even though we
+      // stop making HTTP requests after setting this flag, there could be >1
+      // pending requests out at the same time before the first error is
+      // detected.
+      return false;
+    }
+    this.#serviceIsDown = true;
+
     if (!res.ok) {
-      if (!this.#serviceIsDown) {
+      this.#logger.log({
+        script,
+        type: 'info',
+        detail: 'cache-info',
+        message:
+          `Network error from GitHub Actions cache service.` +
+          ` GitHub Actions caching has been temporarily disabled.` +
+          ` Detail:\n\n${res.error}`,
+      });
+    } else {
+      void (async () => {
+        const body = await readBody(res.value).catch(() => '');
+        if (this.#serviceIsDown) {
+          return;
+        }
+        const message =
+          status === 429
+            ? `Hit GitHub Actions cache service rate limit`
+            : status === 503
+              ? `GitHub Actions cache service is temporarily unavailable`
+              : `Unexpected HTTP ${status} error from GitHub Actions cache service`;
         this.#logger.log({
           script,
           type: 'info',
           detail: 'cache-info',
           message:
-            `Connection error from GitHub Actions service, caching disabled. ` +
-            'Detail: ' +
-            ('code' in res.error
-              ? `${(res.error as Error & {code: string}).code} `
-              : '') +
-            res.error.message,
+            `${message}.` +
+            ` GitHub Actions caching has been temporarily disabled.` +
+            ` Detail:\n\nHTTP ${status}: ${body}`,
         });
-      }
-    } else {
-      switch (res.value.statusCode) {
-        case /* Too Many Requests */ 429: {
-          if (!this.#serviceIsDown) {
-            this.#logger.log({
-              script,
-              type: 'info',
-              detail: 'cache-info',
-              message: `Hit GitHub Actions cache rate limit, caching disabled.`,
-            });
-          }
-          break;
-        }
-        case /* Service Unavailable */ 503: {
-          if (!this.#serviceIsDown) {
-            this.#logger.log({
-              script,
-              type: 'info',
-              detail: 'cache-info',
-              message: `GitHub Actions service is unavailable, caching disabled.`,
-            });
-          }
-          break;
-        }
-        default: {
-          return true;
-        }
-      }
+      })();
     }
-    this.#serviceIsDown = true;
+
     return false;
   }
 
@@ -678,6 +685,11 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
     req.end(bodyBuffer);
 
     const result = await resPromise;
+    if (result.ok && result.value.statusCode === /* Conflict */ 409) {
+      // We must have been racing with another concurrent process running the
+      // same script.
+      return undefined;
+    }
     if (!this.#maybeHandleServiceDown(result, script)) {
       return undefined;
     }
@@ -688,10 +700,6 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
         signed_upload_url: string;
       };
       return resData.signed_upload_url;
-    }
-
-    if (response.statusCode === /* Conflict */ 409) {
-      return undefined;
     }
 
     throw new Error(
