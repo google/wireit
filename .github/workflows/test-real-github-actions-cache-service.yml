@@ -24,10 +24,16 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      # Note we intentionally don't enable Wireit caching for this workflow,
-      # because we're looking for problems coming from the real production
-      # GitHub Actions cache service, which is independent of any of our files.
-      # - uses: google/wireit@setup-github-actions-caching/v2
+      # The goal here is to always run the full caching test suite against the
+      # live GitHub Actions Cache service, even if none of our code has changed,
+      # in case something changed on the backend.
+      #
+      # So, slightly confusingly, although we disable caching of the top-level
+      # test script below, we do need the runner environment set up to allow
+      # GitHub caching.
+      - uses: google/wireit@setup-github-actions-caching/v2
 
       - run: npm ci
       - run: npm run test:cache-github-real
+        env:
+          WIREIT_CACHE: none
