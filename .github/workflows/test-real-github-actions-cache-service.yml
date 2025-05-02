@@ -3,6 +3,7 @@ name: Test real GitHub Actions cache service
 on:
   schedule:
     - cron: '14 7 * * *' # 6:07AM PST / 7:07AM PDT
+  workflow_dispatch:
 
 jobs:
   tests:
