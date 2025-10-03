@@ -448,7 +448,7 @@
     "bracketSpacing": false
   },
   "dependencies": {
-    "brace-expansion": "^4.0.0",
+    "brace-expansion": "^4.0.1",
     "chokidar": "^3.5.3",
     "fast-glob": "^3.2.11",
     "jsonc-parser": "^3.0.0",
