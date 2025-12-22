@@ -120,8 +120,7 @@
       "command": "eslint --color --cache --cache-location .eslintcache .",
       "files": [
         "eslint.config.js",
-        "bin/*.js",
-        "website/*.{js,cjs}"
+        "bin/*.js"
       ],
       "output": []
     },
@@ -455,7 +454,6 @@
     "proper-lockfile": "^4.1.2"
   },
   "workspaces": [
-    "vscode-extension",
-    "website"
+    "vscode-extension"
   ]
 }
