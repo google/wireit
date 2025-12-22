@@ -13,6 +13,21 @@ updates:
       # lowest supported versions of Node APIs.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-patch-days: 7
+      semver-minor-days: 14
+      semver-major-days: 21
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - 'minor'
+          - 'patch'
+        exclude-patterns:
+          # TypeScript doesn't really follow semver.
+          - typescript
 
   - package-ecosystem: 'github-actions'
     # Workflow files stored in the
@@ -20,3 +35,5 @@ updates:
     directory: '/'
     schedule:
       interval: 'daily'
+    cooldown:
+      default-days: 7
