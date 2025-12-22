@@ -27,34 +27,44 @@ jobs:
           #   on Linux/Mac/Windows (Oldest)
           - node: 18
             os: ubuntu-22.04
+            os-name: Linux
           - node: 18
             os: macos-14
+            os-name: Mac
           - node: 18
             os: windows-2022
+            os-name: Windows
 
           # Node LTS (All Active & Maintenance)
           #   on Linux (Latest)
           - node: 20
             os: ubuntu-24.04
+            os-name: Linux
           - node: 22
             os: ubuntu-24.04
+            os-name: Linux
           - node: 24
             os: ubuntu-24.04
+            os-name: Linux
 
           # Node Current
           #   on Linux/Mac/Windows (Latest)
           - node: 25
             os: ubuntu-24.04
+            os-name: Linux
           - node: 25
             os: macos-26
+            os-name: Mac
           - node: 25
             os: windows-2025
+            os-name: Windows
 
       # Allow all matrix configurations to complete, instead of cancelling as
       # soon as one fails. Useful because we often have different kinds of
       # failures depending on the OS.
       fail-fast: false
 
+    name: 'Node ${{ matrix.node}} / ${{ matrix.os-name }}'
     # Sometimes windows is far slower than the other OSs. Give it enough
     # time to complete if it's going to.
     timeout-minutes: 40
