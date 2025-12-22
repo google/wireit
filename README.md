@@ -385,10 +385,10 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 18
+          node-version: 24
           cache: npm
 
       # Set up GitHub Actions caching for Wireit.
@@ -935,7 +935,7 @@ cache](#caching).
 - The environment variable values configured in `env`.
 - The system platform (e.g. `linux`, `win32`).
 - The system CPU architecture (e.g. `x64`).
-- The system Node version (e.g. `20.11.1`).
+- The system Node version (e.g. `24.11.1`).
 - The fingerprint of all transitive dependencies, unless `cascade` is set to
   `false`.
 
@@ -948,9 +948,7 @@ input also affects the fingerprint:
 
 Wireit is supported on Linux, macOS, and Windows.
 
-Wireit is supported on Node Current (22), Active LTS (20), and Maintenance LTS
-(18). See [Node releases](https://nodejs.org/en/about/releases/) for the
-schedule.
+Wireit is supported on Node 18+.
 
 Wireit scripts can be launched via `npm`, `node --run`, `pnpm`, and `yarn`.
 
