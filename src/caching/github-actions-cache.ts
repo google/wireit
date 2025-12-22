@@ -487,7 +487,9 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
 
   #request(
     url: URL,
-    options?: http.RequestOptions,
+    options?: Omit<http.RequestOptions, 'headers'> & {
+      headers: http.OutgoingHttpHeaders;
+    },
   ): {
     req: http.ClientRequest;
     resPromise: Promise<Result<http.IncomingMessage, Error>>;
@@ -791,7 +793,9 @@ class GitHubActionsCacheHit implements CacheHit {
 
 function request(
   url: URL | string,
-  options?: http.RequestOptions,
+  options?: Omit<http.RequestOptions, 'headers'> & {
+    headers: http.OutgoingHttpHeaders;
+  },
 ): {
   req: http.ClientRequest;
   resPromise: Promise<Result<http.IncomingMessage, Error>>;

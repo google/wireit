@@ -93,9 +93,7 @@ type ServiceState =
   | {id: 'detached'};
 
 function unknownState(state: never) {
-  return new Error(
-    `Unknown service state ${String((state as ServiceState).id)}`,
-  );
+  return new Error(`Unknown service state ${(state as ServiceState).id}`);
 }
 
 function unexpectedState(state: ServiceState) {
