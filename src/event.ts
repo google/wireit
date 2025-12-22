@@ -36,8 +36,9 @@ interface EventBase<T extends PackageReference = ScriptReference> {
  */
 export type Success = ExitZero | NoCommand | Fresh | Cached;
 
-interface SuccessBase<T extends PackageReference = ScriptReference>
-  extends EventBase<T> {
+interface SuccessBase<
+  T extends PackageReference = ScriptReference,
+> extends EventBase<T> {
   type: 'success';
 }
 
@@ -104,8 +105,9 @@ export type Failure =
   | InputFileDeletedUnexpectedly
   | OutputFileDeletedUnexpectedly;
 
-interface ErrorBase<T extends PackageReference = ScriptReference>
-  extends EventBase<T> {
+interface ErrorBase<
+  T extends PackageReference = ScriptReference,
+> extends EventBase<T> {
   type: 'failure';
   logged?: true;
 }
@@ -383,8 +385,9 @@ export type Info =
   | AnalysisCompleted
   | CacheInfo;
 
-interface InfoBase<T extends PackageReference = ScriptReference>
-  extends EventBase<T> {
+interface InfoBase<
+  T extends PackageReference = ScriptReference,
+> extends EventBase<T> {
   type: 'info';
 }
 

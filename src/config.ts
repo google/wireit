@@ -77,8 +77,7 @@ export interface NoCommandScriptConfig extends BaseScriptConfig {
  * A script with a command that exits by itself.
  */
 export interface StandardScriptConfig
-  extends BaseScriptConfig,
-    ScriptReferenceWithCommand {
+  extends BaseScriptConfig, ScriptReferenceWithCommand {
   service: undefined;
 }
 
@@ -92,8 +91,7 @@ export type ServiceConfig = {
  * A service script.
  */
 export interface ServiceScriptConfig
-  extends BaseScriptConfig,
-    ScriptReferenceWithCommand {
+  extends BaseScriptConfig, ScriptReferenceWithCommand {
   service: ServiceConfig;
 
   /**

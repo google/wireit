@@ -27,9 +27,8 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       break;
     }
     case 'github': {
-      const {GitHubActionsCache} = await import(
-        './caching/github-actions-cache.js'
-      );
+      const {GitHubActionsCache} =
+        await import('./caching/github-actions-cache.js');
       const cacheResult = await GitHubActionsCache.create(logger);
       if (cacheResult.ok) {
         cache = cacheResult.value;

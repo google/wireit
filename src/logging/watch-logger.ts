@@ -20,8 +20,7 @@ export class WatchLogger implements Logger {
   readonly console;
   readonly #actualLogger: Logger;
   readonly #iterationBuffer: Event[] = [];
-  #iterationIsInteresting =
-    /* The first iteration is always interesting. */ true;
+  #iterationIsInteresting = /* The first iteration is always interesting. */ true;
 
   constructor(actualLogger: Logger) {
     this.#actualLogger = actualLogger;

@@ -23,8 +23,9 @@ export interface JsonFile {
  *
  * A safer override, preferring unknown over any.
  */
-export interface JsonAstNode<T extends ValueTypes = ValueTypes>
-  extends Readonly<jsonParser.Node> {
+export interface JsonAstNode<
+  T extends ValueTypes = ValueTypes,
+> extends Readonly<jsonParser.Node> {
   readonly value: T;
   readonly children?: JsonAstNode[];
   readonly parent?: JsonAstNode<undefined>;
@@ -45,8 +46,9 @@ export interface ArrayNode<T> {
  * A JSON value that is inside an object literal, and that has a reference
  * to its key in that object.
  */
-export interface NamedAstNode<T extends ValueTypes = ValueTypes>
-  extends JsonAstNode<T> {
+export interface NamedAstNode<
+  T extends ValueTypes = ValueTypes,
+> extends JsonAstNode<T> {
   /**
    * If `this` represents:
    * ```json

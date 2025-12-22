@@ -268,7 +268,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **[BREAKING]** The following folders are now excluded by default from both the
   `files` and `output` arrays:
-
   - `.git/`
   - `.hg/`
   - `.svn/`
@@ -478,7 +477,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added `WIREIT_FAILURES` environment variable that controls what happens when a
   script fails (meaning it returned with a non-zero exit code) with the
   following options:
-
   - `no-new` (default): Allow running scripts to continue, but don't start new
     ones.
   - `continue`: Allow running scripts to continue, and start new ones as long as
@@ -577,7 +575,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - [**Breaking**] It is now an error to include an empty string or all-whitespace
   string in any of these fields:
-
   - `command`
   - `dependencies`
   - `files`
@@ -585,7 +582,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `packageLocks`
 
 - The fingerprint now additionally includes the following fields:
-
   - The system platform (e.g. `linux`, `win32`).
   - The system CPU architecture (e.g. `x64`).
   - The system Node version (e.g. `16.7.0`).
