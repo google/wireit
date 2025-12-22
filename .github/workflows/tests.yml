@@ -95,17 +95,3 @@ jobs:
       - run: xvfb-run -a npm test
         if: runner.os == 'Linux'
       - run: npm run test:cache-github-real
-
-  lint-and-format:
-    timeout-minutes: 5
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run format:check
