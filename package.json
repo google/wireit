@@ -424,7 +424,7 @@
     "@types/vscode": "^1.66.0",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^3.0.0",
-    "cmd-shim": "^7.0.0",
+    "cmd-shim": "^8.0.0",
     "esbuild": "^0.27.2",
     "eslint": "^9.10.0",
     "eslint-plugin-no-only-tests": "^3.1.0",
