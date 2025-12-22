@@ -45,7 +45,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      WIREIT_LOGGER: 'quiet-ci'
+      WIREIT_LOGGER: 'metrics'
 
     steps:
       - uses: actions/checkout@v6
