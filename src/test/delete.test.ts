@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 import * as pathlib from 'path';
 import {shuffle} from '../util/shuffle.js';
@@ -14,107 +14,110 @@ import {deleteEntries} from '../util/delete.js';
 
 import type {AbsoluteEntry} from '../util/glob.js';
 
-const test = suite<{
-  rig: FilesystemTestRig;
+async function setup(): Promise<
+  {
+    rig: FilesystemTestRig;
 
-  /** Make a fake glob AbsoluteEntry that looks like a regular file. */
-  file: (path: string) => AbsoluteEntry;
+    /** Make a fake glob AbsoluteEntry that looks like a regular file. */
+    file: (path: string) => AbsoluteEntry;
 
-  /** Make a fake glob AbsoluteEntry that looks like a directory. */
-  dir: (path: string) => AbsoluteEntry;
+    /** Make a fake glob AbsoluteEntry that looks like a directory. */
+    dir: (path: string) => AbsoluteEntry;
 
-  /** Make a fake glob Entry that looks like a symlink. */
-  symlink: (path: string) => AbsoluteEntry;
-}>();
+    /** Make a fake glob Entry that looks like a symlink. */
+    symlink: (path: string) => AbsoluteEntry;
+  } & AsyncDisposable
+> {
+  const rig = new FilesystemTestRig();
+  await rig.setup();
 
-test.before.each(async (ctx) => {
-  try {
-    const rig = (ctx.rig = new FilesystemTestRig());
-    await rig.setup();
+  const file = (path: string) =>
+    ({
+      path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
+      dirent: {
+        isFile: () => true,
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      },
+    }) as AbsoluteEntry;
 
-    ctx.file = (path) =>
-      ({
-        path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
-        dirent: {
-          isFile: () => true,
-          isDirectory: () => false,
-          isSymbolicLink: () => false,
-        },
-      }) as AbsoluteEntry;
+  const dir = (path: string) =>
+    ({
+      path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
+      dirent: {
+        isFile: () => false,
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+      },
+    }) as AbsoluteEntry;
 
-    ctx.dir = (path) =>
-      ({
-        path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
-        dirent: {
-          isFile: () => false,
-          isDirectory: () => true,
-          isSymbolicLink: () => false,
-        },
-      }) as AbsoluteEntry;
+  const symlink = (path: string) =>
+    ({
+      path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
+      dirent: {
+        isFile: () => false,
+        isDirectory: () => false,
+        isSymbolicLink: () => true,
+      },
+    }) as AbsoluteEntry;
 
-    ctx.symlink = (path) =>
-      ({
-        path: windowsifyPathIfOnWindows(pathlib.join(rig.temp, path)),
-        dirent: {
-          isFile: () => false,
-          isDirectory: () => false,
-          isSymbolicLink: () => true,
-        },
-      }) as AbsoluteEntry;
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
+  return {
+    rig,
+    file,
+    dir,
+    symlink,
+    [Symbol.asyncDispose]: () => rig.cleanup(),
+  };
+}
 
 test('ignore empty entries', async () => {
+  await using context = await setup();
   await deleteEntries([]);
 });
 
-test('delete 1 file', async ({rig, file}) => {
+test('delete 1 file', async () => {
+  await using context = await setup();
+  const {rig, file} = context;
   await rig.touch('foo');
   await deleteEntries([file('foo')]);
-  assert.not(await rig.exists('foo'));
+  assert.ok(!(await rig.exists('foo')));
 });
 
-test('ignore non-existent file', async ({rig, file}) => {
+test('ignore non-existent file', async () => {
+  await using context = await setup();
+  const {rig, file} = context;
   await deleteEntries([file('foo')]);
-  assert.not(await rig.exists('foo'));
+  assert.ok(!(await rig.exists('foo')));
 });
 
-test('delete 1 directory', async ({rig, dir}) => {
+test('delete 1 directory', async () => {
+  await using context = await setup();
+  const {rig, dir} = context;
   await rig.mkdir('foo');
   await deleteEntries([dir('foo')]);
-  assert.not(await rig.exists('foo'));
+  assert.ok(!(await rig.exists('foo')));
 });
 
-test('ignore non-existent directory', async ({rig, dir}) => {
+test('ignore non-existent directory', async () => {
+  await using context = await setup();
+  const {rig, dir} = context;
   await deleteEntries([dir('foo')]);
-  assert.not(await rig.exists('foo'));
+  assert.ok(!(await rig.exists('foo')));
 });
 
-test('delete 1 directory and its 1 file', async ({rig, file, dir}) => {
+test('delete 1 directory and its 1 file', async () => {
+  await using context = await setup();
+  const {rig, file, dir} = context;
   await rig.mkdir('foo');
   await rig.touch('foo/bar');
   await deleteEntries([file('foo/bar'), dir('foo')]);
-  assert.not(await rig.exists('foo/bar'));
-  assert.not(await rig.exists('foo'));
+  assert.ok(!(await rig.exists('foo/bar')));
+  assert.ok(!(await rig.exists('foo')));
 });
 
-test('ignore non-empty directory', async ({rig, dir}) => {
+test('ignore non-empty directory', async () => {
+  await using context = await setup();
+  const {rig, dir} = context;
   await rig.mkdir('foo');
   await rig.touch('foo/bar');
   await deleteEntries([dir('foo')]);
@@ -122,66 +125,71 @@ test('ignore non-empty directory', async ({rig, dir}) => {
   assert.ok(await rig.exists('foo'));
 });
 
-test('delete child directory but not parent', async ({rig, dir}) => {
+test('delete child directory but not parent', async () => {
+  await using context = await setup();
+  const {rig, dir} = context;
   await rig.mkdir('foo/bar');
   await deleteEntries([dir('foo/bar')]);
-  assert.not(await rig.exists('foo/bar'));
+  assert.ok(!(await rig.exists('foo/bar')));
   assert.ok(await rig.exists('foo'));
 });
 
-test('grandparent and child scheduled for delete, but not parent', async ({
-  rig,
-  dir,
-}) => {
+test('grandparent and child scheduled for delete, but not parent', async () => {
+  await using context = await setup();
+  const {rig, dir} = context;
   await rig.mkdir('foo/bar/baz');
   await deleteEntries([dir('foo'), dir('foo/bar/baz')]);
-  assert.not(await rig.exists('foo/bar/baz'));
+  assert.ok(!(await rig.exists('foo/bar/baz')));
   assert.ok(await rig.exists('foo'));
   assert.ok(await rig.exists('foo/bar'));
 });
 
-test('delete child directories before parents', async ({rig, dir}) => {
+test('delete child directories before parents', async () => {
+  await using context = await setup();
+  const {rig, dir} = context;
   await rig.mkdir('a/b/c/d');
   const entries = [dir('a/b/c'), dir('a'), dir('a/b/c/d'), dir('a/b')];
   await deleteEntries(entries);
-  assert.not(await rig.exists('a/b/c/d'));
-  assert.not(await rig.exists('a/b/c'));
-  assert.not(await rig.exists('a/b'));
-  assert.not(await rig.exists('a'));
+  assert.ok(!(await rig.exists('a/b/c/d')));
+  assert.ok(!(await rig.exists('a/b/c')));
+  assert.ok(!(await rig.exists('a/b')));
+  assert.ok(!(await rig.exists('a')));
 });
 
-test('delete symlink to existing file but not its target', async ({
-  rig,
-  symlink,
-}) => {
+test('delete symlink to existing file but not its target', async () => {
+  await using context = await setup();
+  const {rig, symlink} = context;
   await rig.write('target', 'content');
   await rig.symlink('target', 'symlink', 'file');
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
-  assert.not(await rig.exists('symlink'));
+  assert.ok(!(await rig.exists('symlink')));
   assert.equal(await rig.read('target'), 'content');
 });
 
-test('delete symlink to existing directory but not its target', async ({
-  rig,
-  symlink,
-}) => {
+test('delete symlink to existing directory but not its target', async () => {
+  await using context = await setup();
+  const {rig, symlink} = context;
   await rig.mkdir('target');
   await rig.symlink('target', 'symlink', 'dir');
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
-  assert.not(await rig.exists('symlink'));
+  assert.ok(!(await rig.exists('symlink')));
   assert.ok(await rig.isDirectory('target'));
 });
 
-test('delete symlink to non-existing file', async ({rig, symlink}) => {
+test('delete symlink to non-existing file', async () => {
+  await using context = await setup();
+  const {rig, symlink} = context;
   await rig.symlink('target', 'symlink', 'file');
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
-  assert.not(await rig.exists('symlink'));
+  assert.ok(!(await rig.exists('symlink')));
 });
 
-test('stress test', async ({rig, file, dir}) => {
+test('stress test', async () => {
+  await using context = await setup();
+  const {rig, file, dir} = context;
   const numRoots = 10;
   const depthPerRoot = 10;
   const filesPerDir = 300;
@@ -224,8 +232,6 @@ test('stress test', async ({rig, file, dir}) => {
   shuffle(entries);
   await deleteEntries(entries);
   await Promise.all(
-    entries.map(async (entry) => assert.not(await rig.exists(entry.path))),
+    entries.map(async (entry) => assert.ok(!(await rig.exists(entry.path)))),
   );
 });
-
-test.run();
