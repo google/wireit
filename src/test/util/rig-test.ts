@@ -100,9 +100,22 @@ export const rigTest = <T extends {rig?: WireitTestRig}>(
 };
 
 export function rigTestNode(
-  fn: (args: {rig: WireitTestRig}) => unknown,
+  handler: (args: {rig: WireitTestRig}) => unknown,
+  options?: {flaky?: boolean},
 ): TestFn {
-  return async function () {
-    await fn({rig: await WireitTestRig.setup()});
-  };
+  if (options?.flaky) {
+    return async () => {
+      try {
+        await handler({rig: await WireitTestRig.setup()});
+        return;
+      } catch {
+        console.log('Test failed, retrying...');
+      }
+      await handler({rig: await WireitTestRig.setup()});
+    };
+  } else {
+    return async () => {
+      await handler({rig: await WireitTestRig.setup()});
+    };
+  }
 }
