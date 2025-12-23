@@ -392,7 +392,7 @@
       "output": []
     },
     "test:watch": {
-      "command": "uvu lib/test \"^watch\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/watch.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
