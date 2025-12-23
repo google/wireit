@@ -24,8 +24,8 @@ function tests(
   // node test runner, maybe can do this as part of that.
   prepareRig: (rig: WireitTestRig) => void | Promise<void> = () => {},
 ) {
-  suite(suiteName, () => {
-    test(
+  void suite(suiteName, () => {
+    void test(
       'runs initially and waits for SIGINT',
       rigTest(
         async ({rig}) => {
@@ -79,7 +79,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'runs again when input file changes after execution',
       rigTest(
         async ({rig}) => {
@@ -130,7 +130,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'runs again when new input file created',
       rigTest(
         async ({rig}) => {
@@ -181,7 +181,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'runs again when input file deleted',
       rigTest(
         async ({rig}) => {
@@ -230,7 +230,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'runs again when input file changes in the middle of execution',
       rigTest(async ({rig}) => {
         await prepareRig(rig);
@@ -278,7 +278,7 @@ function tests(
       }),
     );
 
-    test(
+    void test(
       'reloads config when package.json changes and runs again',
       rigTest(
         async ({rig}) => {
@@ -339,7 +339,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'changes are detected in same-package dependencies',
       rigTest(
         async ({rig}) => {
@@ -423,7 +423,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'changes are detected in cross-package dependencies',
       rigTest(
         async ({rig}) => {
@@ -513,7 +513,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'error from script is not fatal',
       rigTest(
         async ({rig}) => {
@@ -566,7 +566,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'recovers from analysis errors',
       rigTest(
         async ({rig}) => {
@@ -674,7 +674,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'watchers understand negations',
       rigTest(
         async ({rig}) => {
@@ -738,7 +738,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       '.dotfiles are watched',
       rigTest(
         async ({rig}) => {
@@ -786,7 +786,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'package-lock.json files are watched',
       rigTest(
         async ({rig}) => {
@@ -832,7 +832,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'debounces when two scripts are watching the same file',
       rigTest(
         async ({rig}) => {
@@ -899,7 +899,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'strips leading slash from watch paths',
       rigTest(
         async ({rig}) => {
@@ -946,7 +946,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'script fails but still emits output consumed by another script',
       rigTest(
         async ({rig}) => {
@@ -1027,7 +1027,7 @@ function tests(
       ),
     );
 
-    test(
+    void test(
       'input file changes but the contents are the same',
       rigTest(
         async ({rig}) => {
