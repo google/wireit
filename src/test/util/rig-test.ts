@@ -6,6 +6,7 @@
 
 import type * as uvu from 'uvu';
 import {WireitTestRig} from './test-rig.js';
+import {TestFn} from 'node:test';
 
 export const DEFAULT_UVU_TIMEOUT = Number(process.env.TEST_TIMEOUT ?? 60_000);
 
@@ -97,3 +98,11 @@ export const rigTest = <T extends {rig?: WireitTestRig}>(
   }
   return runTest;
 };
+
+export function rigTestNode(
+  fn: (args: {rig: WireitTestRig}) => unknown,
+): TestFn {
+  return async function () {
+    await fn({rig: await WireitTestRig.setup()});
+  };
+}

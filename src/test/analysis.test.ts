@@ -4,14 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 import {Analyzer} from '../analyzer.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'analyzes services',
   rigTest(async ({rig}) => {
     //    a
@@ -111,7 +109,7 @@ test(
   }),
 );
 
-test(
+void test(
   '.wireit/, .git/, and node_modules/ are automatically ' +
     'excluded from input and output files by default',
   rigTest(async ({rig}) => {
@@ -147,7 +145,7 @@ test(
     }
 
     const withDefaultExcludes = result.config.value;
-    assert.equal(withDefaultExcludes.files?.values, [
+    assert.deepEqual(withDefaultExcludes.files?.values, [
       '**/*.ts',
       '!.git/',
       '!.hg/',
@@ -157,7 +155,7 @@ test(
       '!CVS/',
       '!node_modules/',
     ]);
-    assert.equal(withDefaultExcludes.output?.values, [
+    assert.deepEqual(withDefaultExcludes.output?.values, [
       '**/*.js',
       '!.git/',
       '!.hg/',
@@ -170,7 +168,7 @@ test(
   }),
 );
 
-test(
+void test(
   'Default excluded paths are not present when ' +
     'allowUsuallyExcludedPaths is true',
   rigTest(async ({rig}) => {
@@ -207,12 +205,12 @@ test(
     }
 
     const build = result.config.value;
-    assert.equal(build.files?.values, ['**/*.ts']);
-    assert.equal(build.output?.values, ['**/*.js']);
+    assert.deepEqual(build.files?.values, ['**/*.ts']);
+    assert.deepEqual(build.output?.values, ['**/*.js']);
   }),
 );
 
-test(
+void test(
   'Default excluded paths are not present when files and output are empty',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -245,9 +243,7 @@ test(
     }
 
     const build = result.config.value;
-    assert.equal(build.files?.values, []);
-    assert.equal(build.output?.values, []);
+    assert.deepEqual(build.files?.values, []);
+    assert.deepEqual(build.output?.values, []);
   }),
 );
-
-test.run();

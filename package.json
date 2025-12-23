@@ -125,7 +125,7 @@
       "output": []
     },
     "test:analysis": {
-      "command": "uvu lib/test \"^analysis\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/analysis.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
