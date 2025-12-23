@@ -44,6 +44,11 @@ export class WireitTestRig
   extends FilesystemTestRig
   implements AsyncDisposable
 {
+  static async setup(): Promise<WireitTestRig> {
+    const rig = new WireitTestRig();
+    await rig.setup();
+    return rig;
+  }
   readonly #activeChildProcesses = new Set<ExecResult>();
   readonly #completedChildProcesses = new Set<ExitReport>();
   readonly #commands: Array<WireitTestRigCommand> = [];
