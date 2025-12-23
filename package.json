@@ -432,7 +432,7 @@
     "jsonschema": "^1.4.0",
     "pnpm": "^10.2.1",
     "prettier": "^3.3.3",
-    "selfsigned": "^4.0.0",
+    "selfsigned": "^5.2.0",
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.4.0",
     "uvu": "^0.5.3",
