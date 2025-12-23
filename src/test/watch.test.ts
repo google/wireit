@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {test, suite} from 'node:test';
+import {test, describe} from 'node:test';
 import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import type {WireitTestRig} from './util/test-rig.js';
@@ -24,7 +24,7 @@ function tests(
   // node test runner, maybe can do this as part of that.
   prepareRig: (rig: WireitTestRig) => void | Promise<void> = () => {},
 ) {
-  void suite(suiteName, () => {
+  void describe(suiteName, () => {
     void test(
       'runs initially and waits for SIGINT',
       rigTest(
