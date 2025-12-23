@@ -70,12 +70,11 @@ async function setup(): Promise<
   };
 }
 
-test('ignore empty entries', async () => {
-  await using context = await setup();
+void test('ignore empty entries', async () => {
   await deleteEntries([]);
 });
 
-test('delete 1 file', async () => {
+void test('delete 1 file', async () => {
   await using context = await setup();
   const {rig, file} = context;
   await rig.touch('foo');
@@ -83,14 +82,14 @@ test('delete 1 file', async () => {
   assert.ok(!(await rig.exists('foo')));
 });
 
-test('ignore non-existent file', async () => {
+void test('ignore non-existent file', async () => {
   await using context = await setup();
   const {rig, file} = context;
   await deleteEntries([file('foo')]);
   assert.ok(!(await rig.exists('foo')));
 });
 
-test('delete 1 directory', async () => {
+void test('delete 1 directory', async () => {
   await using context = await setup();
   const {rig, dir} = context;
   await rig.mkdir('foo');
@@ -98,14 +97,14 @@ test('delete 1 directory', async () => {
   assert.ok(!(await rig.exists('foo')));
 });
 
-test('ignore non-existent directory', async () => {
+void test('ignore non-existent directory', async () => {
   await using context = await setup();
   const {rig, dir} = context;
   await deleteEntries([dir('foo')]);
   assert.ok(!(await rig.exists('foo')));
 });
 
-test('delete 1 directory and its 1 file', async () => {
+void test('delete 1 directory and its 1 file', async () => {
   await using context = await setup();
   const {rig, file, dir} = context;
   await rig.mkdir('foo');
@@ -115,7 +114,7 @@ test('delete 1 directory and its 1 file', async () => {
   assert.ok(!(await rig.exists('foo')));
 });
 
-test('ignore non-empty directory', async () => {
+void test('ignore non-empty directory', async () => {
   await using context = await setup();
   const {rig, dir} = context;
   await rig.mkdir('foo');
@@ -125,7 +124,7 @@ test('ignore non-empty directory', async () => {
   assert.ok(await rig.exists('foo'));
 });
 
-test('delete child directory but not parent', async () => {
+void test('delete child directory but not parent', async () => {
   await using context = await setup();
   const {rig, dir} = context;
   await rig.mkdir('foo/bar');
@@ -134,7 +133,7 @@ test('delete child directory but not parent', async () => {
   assert.ok(await rig.exists('foo'));
 });
 
-test('grandparent and child scheduled for delete, but not parent', async () => {
+void test('grandparent and child scheduled for delete, but not parent', async () => {
   await using context = await setup();
   const {rig, dir} = context;
   await rig.mkdir('foo/bar/baz');
@@ -144,7 +143,7 @@ test('grandparent and child scheduled for delete, but not parent', async () => {
   assert.ok(await rig.exists('foo/bar'));
 });
 
-test('delete child directories before parents', async () => {
+void test('delete child directories before parents', async () => {
   await using context = await setup();
   const {rig, dir} = context;
   await rig.mkdir('a/b/c/d');
@@ -156,7 +155,7 @@ test('delete child directories before parents', async () => {
   assert.ok(!(await rig.exists('a')));
 });
 
-test('delete symlink to existing file but not its target', async () => {
+void test('delete symlink to existing file but not its target', async () => {
   await using context = await setup();
   const {rig, symlink} = context;
   await rig.write('target', 'content');
@@ -167,7 +166,7 @@ test('delete symlink to existing file but not its target', async () => {
   assert.equal(await rig.read('target'), 'content');
 });
 
-test('delete symlink to existing directory but not its target', async () => {
+void test('delete symlink to existing directory but not its target', async () => {
   await using context = await setup();
   const {rig, symlink} = context;
   await rig.mkdir('target');
@@ -178,7 +177,7 @@ test('delete symlink to existing directory but not its target', async () => {
   assert.ok(await rig.isDirectory('target'));
 });
 
-test('delete symlink to non-existing file', async () => {
+void test('delete symlink to non-existing file', async () => {
   await using context = await setup();
   const {rig, symlink} = context;
   await rig.symlink('target', 'symlink', 'file');
@@ -187,7 +186,7 @@ test('delete symlink to non-existing file', async () => {
   assert.ok(!(await rig.exists('symlink')));
 });
 
-test('stress test', async () => {
+void test('stress test', async () => {
   await using context = await setup();
   const {rig, file, dir} = context;
   const numRoots = 10;
