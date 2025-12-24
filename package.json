@@ -269,7 +269,7 @@
       "output": []
     },
     "test:failures": {
-      "command": "uvu lib/test \"^failures\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/failures.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },

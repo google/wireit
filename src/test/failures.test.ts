@@ -4,14 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {DEFAULT_UVU_TIMEOUT, rigTest} from './util/rig-test.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 import type {ExitResult} from './util/test-rig.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'runs one script that fails',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
@@ -38,12 +36,12 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 1);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
-    assert.match(res.stderr, 'a stderr');
+    assert.match(res.stdout, /a stdout/);
+    assert.match(res.stderr, /a stderr/);
   }),
 );
 
-test(
+void test(
   'runs one non-root script that fails',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
@@ -74,12 +72,12 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 1);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
-    assert.match(res.stderr, 'a stderr');
+    assert.match(res.stdout, /a stdout/);
+    assert.match(res.stderr, /a stderr/);
   }),
 );
 
-test(
+void test(
   'dependency chain in one package that fails in the middle',
   rigTest(async ({rig}) => {
     // a --> b* --> c
@@ -124,7 +122,7 @@ test(
   }),
 );
 
-test(
+void test(
   'dependency chain in one package that fails in nested dependency',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -176,7 +174,7 @@ test(
 );
 
 for (const envSetting of ['no-new', undefined]) {
-  test(
+  void test(
     `don't start new script after unrelated failure when WIREIT_FAILURES=${
       envSetting ?? '<unset>'
     }`,
@@ -292,7 +290,7 @@ for (const envSetting of ['no-new', undefined]) {
   );
 }
 
-test(
+void test(
   "don't start new script after unrelated failure with constrained parallelism in no-new mode",
   rigTest(async ({rig}) => {
     // This test covers handling for a race condition that occurs where the
@@ -356,7 +354,7 @@ test(
   }),
 );
 
-test(
+void test(
   'allow unrelated scripts to start after failure in continue mode',
   rigTest(async ({rig}) => {
     //   main
@@ -428,7 +426,7 @@ test(
   }),
 );
 
-test(
+void test(
   'kill running script after failure in kill mode',
   rigTest(async ({rig}) => {
     //   main
@@ -481,8 +479,9 @@ test(
   }),
 );
 
-test(
+void test(
   'unexpected input file deletion during fingerprinting',
+  {timeout: 2 * 60 * 1000},
   rigTest(
     async ({rig}) => {
       // Spam our input file with writes and deletes out-of-band with wireit.
@@ -556,21 +555,20 @@ test(
       }
 
       assert.equal(finalExit!.code, 1);
-      assert.match(
-        finalExit!.stderr,
-        `[failer] Input file "${rig.resolve('input')}" was deleted unexpectedly.` +
-          ` Is another process writing to the same location?`,
+      assert.ok(
+        finalExit!.stderr.includes(
+          `[failer] Input file "${rig.resolve('input')}" was deleted unexpectedly.` +
+            ` Is another process writing to the same location?`,
+        ),
       );
     },
-    {
-      flaky: true,
-      ms: DEFAULT_UVU_TIMEOUT * 2,
-    },
+    {flaky: true},
   ),
 );
 
-test(
+void test(
   'unexpected output file deletion during manifest generation',
+  {timeout: 2 * 60 * 1000},
   rigTest(
     async ({rig}) => {
       // Spam our output file with writes and deletes out-of-band with wireit.
@@ -630,17 +628,13 @@ test(
       }
 
       assert.equal(finalExit!.code, 1);
-      assert.match(
-        finalExit!.stderr,
-        `[failer] Output file "${rig.resolve('output')}" was deleted unexpectedly.` +
-          ` Is another process writing to the same location?`,
+      assert.ok(
+        finalExit!.stderr.includes(
+          `[failer] Output file "${rig.resolve('output')}" was deleted unexpectedly.` +
+            ` Is another process writing to the same location?`,
+        ),
       );
     },
-    {
-      flaky: true,
-      ms: DEFAULT_UVU_TIMEOUT * 2,
-    },
+    {flaky: true},
   ),
 );
-
-test.run();
