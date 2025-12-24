@@ -4,13 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'CI logger with a dependency chain',
   rigTest(async ({rig}) => {
     // a --> b --> c
@@ -66,7 +64,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout\n');
+    assert.match(res.stdout, /a stdout\n/);
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
     assertEndsWith(
       res.stderr.trim(),
@@ -84,5 +82,3 @@ function assertEndsWith(actual: string, expected: string) {
   const actualSuffix = actual.slice(-expected.length);
   assert.equal(actualSuffix, expected);
 }
-
-test.run();
