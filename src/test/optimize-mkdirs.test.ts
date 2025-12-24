@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {test} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {optimizeMkdirs} from '../util/optimize-mkdirs.js';
 import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 
 const check = (input: string[], expected: string[]) =>
-  assert.equal(
+  assert.deepEqual(
     optimizeMkdirs(input.map(windowsifyPathIfOnWindows)).sort(),
     expected.map(windowsifyPathIfOnWindows).sort(),
   );
@@ -59,5 +59,3 @@ test('various shuffled cases', () => {
     check(input, expected);
   }
 });
-
-test.run();
