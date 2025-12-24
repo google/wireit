@@ -124,7 +124,7 @@ function applyEdit(
   );
 }
 
-test('can refactor a script to use wireit', async () => {
+void test('can refactor a script to use wireit', async () => {
   await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
@@ -170,7 +170,7 @@ test('can refactor a script to use wireit', async () => {
   });
 });
 
-test(`we don't do code actions when there are syntax or type errors`, async () => {
+void test(`we don't do code actions when there are syntax or type errors`, async () => {
   await using rig = await WireitTestRig.setup();
   // trailing comma
   await assertNoCodeActions({
@@ -191,7 +191,7 @@ test(`we don't do code actions when there are syntax or type errors`, async () =
   });
 });
 
-test(`we try to match the existing file's formatting`, async () => {
+void test(`we try to match the existing file's formatting`, async () => {
   await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
@@ -261,7 +261,7 @@ test(`we try to match the existing file's formatting`, async () => {
   });
 });
 
-test(`we suggest adding a wireit-only script to scripts section`, async () => {
+void test(`we suggest adding a wireit-only script to scripts section`, async () => {
   await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
@@ -283,7 +283,7 @@ test(`we suggest adding a wireit-only script to scripts section`, async () => {
   });
 });
 
-test(`we suggest moving command into wireit section`, async () => {
+void test(`we suggest moving command into wireit section`, async () => {
   await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,

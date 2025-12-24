@@ -42,7 +42,7 @@ function assertSquiggleAndPosition(
   assert.deepEqual(position, expectedPosition);
 }
 
-test('drawing squiggles under ranges in single-line files', () => {
+void test('drawing squiggles under ranges in single-line files', () => {
   assertSquiggleAndPosition(
     {
       offset: 0,
@@ -81,7 +81,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles single-line ranges at the end of multi-line files', () => {
+void test('drawing squiggles single-line ranges at the end of multi-line files', () => {
   assertSquiggleAndPosition(
     {
       offset: 4,
@@ -141,7 +141,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles under multi-line ranges', () => {
+void test('drawing squiggles under multi-line ranges', () => {
   assertSquiggleAndPosition(
     {
       offset: 0,
@@ -192,7 +192,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles under one line of a multi-line input', () => {
+void test('drawing squiggles under one line of a multi-line input', () => {
   assertSquiggleAndPosition(
     {offset: 0, length: 0, contents: 'abc\ndef\nhij'},
     `

@@ -13,8 +13,6 @@ import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 
-/* eslint-disable @typescript-eslint/unbound-method */
-
 const TEST_BINARY_COMMAND = `node ${pathlib.join(
   process.cwd(),
   'lib',
@@ -123,7 +121,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   const isWindows = process.platform === 'win32';
   const extraDashes = needsExtraDashes ? '--' : '';
 
-  test(
+  void test(
     `${agent} run`,
     rigTest(async ({rig}) => {
       await assertOptions(rig, `${runCmd} main`, {
@@ -136,7 +134,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} run --extra`,
     rigTest(async ({rig}) => {
       await assertOptions(rig, `${runCmd} main -- ${extraDashes} --extra`, {
@@ -150,7 +148,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} run --watch`,
     rigTest(async ({rig}) => {
       await assertOptions(rig, `${runCmd} main ${extraDashes} --watch`, {
@@ -164,7 +162,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} run --watch --extra`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -184,7 +182,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   );
 
   // https://github.com/google/wireit/issues/1168
-  (isWindows ? test.skip : test)(
+  void (isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -207,7 +205,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} WIREIT_LOGGER=simple run`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -228,7 +226,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} WIREIT_LOGGER=quiet run`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -254,7 +252,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   // included on argv, and the npm_config_argv variable does not let us
   // reconstruct it, because it always reflects the first script in a chain,
   // instead of the current script.
-  (isYarn || isWindows ? test.skip : test)(
+  void (isYarn || isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch --extra`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -278,7 +276,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   );
 
   if (testCmd !== undefined) {
-    test(
+    void test(
       `${agent} test`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${testCmd}`, {
@@ -292,7 +290,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     );
 
     // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-    (isPnpm ? test.skip : test)(
+    void (isPnpm ? test.skip : test)(
       `${agent} test --extra`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${testCmd} -- --extra`, {
@@ -307,7 +305,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     );
 
     // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-    (isPnpm ? test.skip : test)(
+    void (isPnpm ? test.skip : test)(
       `${agent} test --watch`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${testCmd} --watch`, {
@@ -322,7 +320,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     );
 
     // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-    (isPnpm ? test.skip : test)(
+    void (isPnpm ? test.skip : test)(
       `${agent} test --watch --extra`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${testCmd} --watch -- --extra`, {
@@ -339,7 +337,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   }
 
   if (startCmd !== undefined) {
-    test(
+    void test(
       `${agent} start`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, startCmd, {
@@ -352,7 +350,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       }),
     );
 
-    test(
+    void test(
       `${agent} start --extra`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${startCmd} -- --extra`, {
@@ -366,7 +364,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       }),
     );
 
-    test(
+    void test(
       `${agent} start --watch`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${startCmd} --watch`, {
@@ -380,7 +378,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       }),
     );
 
-    test(
+    void test(
       `${agent} start --watch --extra`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${startCmd} --watch -- --extra`, {
@@ -396,7 +394,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     );
   }
 
-  test(
+  void test(
     `${agent} --watch WIREIT_WATCH_STRATEGY=poll`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -421,7 +419,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} --watch WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -447,7 +445,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  test(
+  void test(
     `${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
     rigTest(async ({rig}) => {
       await assertOptions(
