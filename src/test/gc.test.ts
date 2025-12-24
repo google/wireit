@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {test, afterEach, beforeEach} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 import {
   Executor,
   registerExecutorConstructorHook,
@@ -18,8 +18,6 @@ import {WorkerPool} from '../util/worker-pool.js';
 import {registerExecutionConstructorHook} from '../execution/base.js';
 import {Console} from '../logging/logger.js';
 
-const test = suite<object>();
-
 let numLiveExecutors = 0;
 let numLiveExecutions = 0;
 
@@ -30,41 +28,27 @@ const collectGarbage = (() => {
   return global.gc;
 })();
 
-test.before.each(() => {
-  try {
-    const executorFinalizationRegistry = new FinalizationRegistry(() => {
-      numLiveExecutors--;
-    });
-    registerExecutorConstructorHook((executor) => {
-      numLiveExecutors++;
-      executorFinalizationRegistry.register(executor, null);
-    });
+beforeEach(() => {
+  const executorFinalizationRegistry = new FinalizationRegistry(() => {
+    numLiveExecutors--;
+  });
+  registerExecutorConstructorHook((executor) => {
+    numLiveExecutors++;
+    executorFinalizationRegistry.register(executor, null);
+  });
 
-    const executionFinalizationRegistry = new FinalizationRegistry(() => {
-      numLiveExecutions--;
-    });
-    registerExecutionConstructorHook((execution) => {
-      numLiveExecutions++;
-      executionFinalizationRegistry.register(execution, null);
-    });
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
+  const executionFinalizationRegistry = new FinalizationRegistry(() => {
+    numLiveExecutions--;
+  });
+  registerExecutionConstructorHook((execution) => {
+    numLiveExecutions++;
+    executionFinalizationRegistry.register(execution, null);
+  });
 });
 
-test.after.each(() => {
-  try {
-    numLiveExecutors = 0;
-    numLiveExecutions = 0;
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
+afterEach(() => {
+  numLiveExecutors = 0;
+  numLiveExecutions = 0;
 });
 
 async function retryWithGcUntilCallbackDoesNotThrow(
@@ -84,7 +68,7 @@ async function retryWithGcUntilCallbackDoesNotThrow(
   cb();
 }
 
-test(
+void test(
   'standard garbage collection',
   rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
@@ -150,7 +134,7 @@ test(
   }),
 );
 
-test(
+void test(
   'persistent service garbage collection',
   rigTest(async ({rig}) => {
     const service = await rig.newCommand();
@@ -225,7 +209,7 @@ test(
   }),
 );
 
-test(
+void test(
   'no-command, standard, persistent service, and ephemeral service garbage collection',
   rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
@@ -319,5 +303,3 @@ test(
     assert.equal(serviceEphemeral.numInvocations, numIterations);
   }),
 );
-
-test.run();

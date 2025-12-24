@@ -291,7 +291,7 @@
       "output": []
     },
     "test:gc": {
-      "command": "node --expose-gc node_modules/uvu/bin.js lib/test \"^gc\\.test\\.js$\"",
+      "command": "node --test --test-reporter=spec --expose-gc lib/test/gc.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
