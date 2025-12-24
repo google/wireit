@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {test} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {drawSquiggle, OffsetToPositionConverter, Position} from '../error.js';
 import {removeAnsiColors} from './util/colors.js';
 
@@ -39,7 +39,7 @@ function assertSquiggleAndPosition(
     );
   }
   assert.equal(removeAnsiColors(squiggle), expectedSquiggle.slice(1));
-  assert.equal(position, expectedPosition);
+  assert.deepEqual(position, expectedPosition);
 }
 
 test('drawing squiggles under ranges in single-line files', () => {
@@ -255,5 +255,3 @@ hij
     {line: 1, character: 3},
   );
 });
-
-test.run();

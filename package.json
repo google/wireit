@@ -236,7 +236,7 @@
       "output": []
     },
     "test:diagnostic": {
-      "command": "uvu lib/test \"^diagnostic\\.test\\.js$\"",
+      "command": "node --test --test-reporter=spec lib/test/diagnostic.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
