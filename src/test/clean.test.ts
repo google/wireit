@@ -4,15 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 import * as pathlib from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'cleans output by default',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -38,7 +36,7 @@ test(
     // command.
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
-    assert.not(await rig.exists('output'));
+    assert.ok(!(await rig.exists('output')));
 
     inv.exit(0);
     const res = await exec.exit;
@@ -47,7 +45,7 @@ test(
   }),
 );
 
-test(
+void test(
   'cleans output when clean is true',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -74,7 +72,7 @@ test(
     // command.
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
-    assert.not(await rig.exists('output'));
+    assert.ok(!(await rig.exists('output')));
 
     inv.exit(0);
     const res = await exec.exit;
@@ -83,7 +81,7 @@ test(
   }),
 );
 
-test(
+void test(
   'does not clean output when clean is false',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -116,7 +114,7 @@ test(
   }),
 );
 
-test(
+void test(
   'cleaning deletes all files matched by glob pattern',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -140,8 +138,8 @@ test(
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
 
-    assert.not(await rig.exists('output/include'));
-    assert.not(await rig.exists('output/sub/include'));
+    assert.ok(!(await rig.exists('output/include')));
+    assert.ok(!(await rig.exists('output/sub/include')));
     assert.ok(await rig.exists('output/exclude'));
 
     inv.exit(0);
@@ -151,7 +149,7 @@ test(
   }),
 );
 
-test(
+void test(
   'cleaning supports glob re-inclusion',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -179,7 +177,7 @@ test(
     const inv = await cmdA.nextInvocation();
 
     assert.ok(await rig.exists('output/subdir/excluded'));
-    assert.not(await rig.exists('output/subdir/reincluded'));
+    assert.ok(!(await rig.exists('output/subdir/reincluded')));
 
     inv.exit(0);
     const res = await exec.exit;
@@ -188,7 +186,7 @@ test(
   }),
 );
 
-test(
+void test(
   'cleaning deletes directories',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -210,8 +208,8 @@ test(
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
 
-    assert.not(await rig.exists('output/subdir/file'));
-    assert.not(await rig.exists('output/subdir'));
+    assert.ok(!(await rig.exists('output/subdir/file')));
+    assert.ok(!(await rig.exists('output/subdir')));
 
     inv.exit(0);
     const res = await exec.exit;
@@ -220,7 +218,7 @@ test(
   }),
 );
 
-test(
+void test(
   'cleaning deletes symlinks but not their targets',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -244,7 +242,7 @@ test(
     const inv = await cmdA.nextInvocation();
 
     // The symlink itself should be deleted, but not the target of the symlink.
-    assert.not(await rig.exists('symlink'));
+    assert.ok(!(await rig.exists('symlink')));
     assert.ok(await rig.exists('symlink.target'));
 
     inv.exit(0);
@@ -254,7 +252,7 @@ test(
   }),
 );
 
-test(
+void test(
   'errors if cleaning output outside of the package',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -296,7 +294,7 @@ test(
   }),
 );
 
-test(
+void test(
   '"if-file-deleted" cleans only when input file deleted',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -338,9 +336,9 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // No outputs have been written yet.
-      assert.not(await rig.exists('output/a'));
-      assert.not(await rig.exists('output/b'));
-      assert.not(await rig.exists('output/c'));
+      assert.ok(!(await rig.exists('output/a')));
+      assert.ok(!(await rig.exists('output/b')));
+      assert.ok(!(await rig.exists('output/c')));
 
       // Write output A.
       await rig.write({'output/a': 'v0'});
@@ -359,8 +357,8 @@ test(
 
       // Output A should still exist.
       assert.equal(await rig.read('output/a'), 'v0');
-      assert.not(await rig.exists('output/b'));
-      assert.not(await rig.exists('output/c'));
+      assert.ok(!(await rig.exists('output/b')));
+      assert.ok(!(await rig.exists('output/c')));
 
       // Write outputs A and B.
       await rig.write({'output/a': 'v1'});
@@ -381,7 +379,7 @@ test(
       // Outputs A and B should still exist.
       assert.equal(await rig.read('output/a'), 'v1');
       assert.equal(await rig.read('output/b'), 'v1');
-      assert.not(await rig.exists('output/c'));
+      assert.ok(!(await rig.exists('output/c')));
 
       // Write outputs A and B
       await rig.write({'output/a': 'v2'});
@@ -402,9 +400,9 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // Outputs A and B should have been cleaned.
-      assert.not(await rig.exists('output/a'));
-      assert.not(await rig.exists('output/b'));
-      assert.not(await rig.exists('output/c'));
+      assert.ok(!(await rig.exists('output/a')));
+      assert.ok(!(await rig.exists('output/b')));
+      assert.ok(!(await rig.exists('output/c')));
 
       // Write output B.
       await rig.write({'output/b': 'v3'});
@@ -425,9 +423,9 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // Output B should have been cleaned.
-      assert.not(await rig.exists('output/a'));
-      assert.not(await rig.exists('output/b'));
-      assert.not(await rig.exists('output/c'));
+      assert.ok(!(await rig.exists('output/a')));
+      assert.ok(!(await rig.exists('output/b')));
+      assert.ok(!(await rig.exists('output/c')));
 
       // Write output C.
       await rig.write({'output/c': 'v0'});
@@ -441,7 +439,7 @@ test(
   }),
 );
 
-test(
+void test(
   'directories are not deleted unless empty',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -466,7 +464,7 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // The included file should have been deleted.
-      assert.not(await rig.exists('output/included'));
+      assert.ok(!(await rig.exists('output/included')));
 
       // The output directory should not have been deleted, even though it was
       // matched, because the excluded file still exists, so it's not empty.
@@ -490,13 +488,13 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // The included file should have been deleted.
-      assert.not(await rig.exists('output/included'));
+      assert.ok(!(await rig.exists('output/included')));
 
       // The output directory is now empty, so it should have been deleted.
-      assert.not(await rig.exists('output'));
+      assert.ok(!(await rig.exists('output')));
 
       // The excluded file didn't exist to begin with.
-      assert.not(await rig.exists('output/excluded'));
+      assert.ok(!(await rig.exists('output/excluded')));
 
       inv.exit(0);
       const res = await exec.exit;
@@ -506,7 +504,7 @@ test(
   }),
 );
 
-test(
+void test(
   'leading slash on output glob is package relative',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -532,7 +530,7 @@ test(
     // command.
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
-    assert.not(await rig.exists('output'));
+    assert.ok(!(await rig.exists('output')));
 
     inv.exit(0);
     const res = await exec.exit;
@@ -540,5 +538,3 @@ test(
     assert.equal(cmdA.numInvocations, 1);
   }),
 );
-
-test.run();

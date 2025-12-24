@@ -181,7 +181,7 @@
       "output": []
     },
     "test:clean": {
-      "command": "uvu lib/test \"^clean\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/clean.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
