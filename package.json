@@ -192,7 +192,7 @@
       "output": []
     },
     "test:cli-options": {
-      "command": "uvu lib/test \"^cli-options\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cli-options.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },

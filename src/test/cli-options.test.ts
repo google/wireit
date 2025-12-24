@@ -5,17 +5,15 @@
  */
 
 import * as pathlib from 'path';
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {Options, type Agent} from '../cli-options.js';
 import {Result} from '../error.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
-import {rigTest} from './util/rig-test.js';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 
 /* eslint-disable @typescript-eslint/unbound-method */
-
-const test = suite<object>();
 
 const TEST_BINARY_COMMAND = `node ${pathlib.join(
   process.cwd(),
@@ -57,7 +55,7 @@ async function assertOptions(
   extraScripts?: Record<string, string>,
 ) {
   const result = await getOptionsResult(rig, command, env, extraScripts);
-  assert.equal(result, {
+  assert.deepEqual(result, {
     ok: true,
     value: {
       extraArgs: [],
@@ -474,5 +472,3 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 }
-
-test.run();
