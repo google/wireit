@@ -324,7 +324,7 @@
       "output": []
     },
     "test:json-schema": {
-      "command": "uvu lib/test \"^json-schema\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/json-schema.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
