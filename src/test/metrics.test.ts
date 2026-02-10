@@ -7,7 +7,7 @@
 import {test} from 'node:test';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import {checkScriptOutput} from './util/check-script-output.js';
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 
 test(
   'logs metrics for successful events',
