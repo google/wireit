@@ -381,7 +381,7 @@
       "output": []
     },
     "test:service": {
-      "command": "uvu lib/test \"^service\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/service.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },

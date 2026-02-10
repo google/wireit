@@ -4,14 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {rigTest} from './util/rig-test.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTestNode as rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'simple consumer and service with stdout',
   rigTest(async ({rig}) => {
     // consumer
@@ -64,14 +62,14 @@ test(
     // The service stops because the consumer is done
     await serviceInv.closed;
 
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(service.numInvocations, 1);
-    assert.equal(consumer.numInvocations, 1);
+    assert.deepStrictEqual((await wireit.exit).code, 0);
+    assert.deepStrictEqual(service.numInvocations, 1);
+    assert.deepStrictEqual(consumer.numInvocations, 1);
     await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0 in/);
   }),
 );
 
-test(
+void test(
   'service with standard and service deps',
   rigTest(async ({rig}) => {
     //  consumer
@@ -125,9 +123,9 @@ test(
     const standardDepInv = await standardDep.nextInvocation();
     // Wait a moment to ensure the service hasn't started yet
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(service.numInvocations, 0);
-    assert.equal(serviceDep.numInvocations, 0);
-    assert.equal(consumer.numInvocations, 0);
+    assert.deepStrictEqual(service.numInvocations, 0);
+    assert.deepStrictEqual(serviceDep.numInvocations, 0);
+    assert.deepStrictEqual(consumer.numInvocations, 0);
     standardDepInv.exit(0);
 
     // The service's own service dep must start first
@@ -152,15 +150,15 @@ test(
     await serviceDepInv.closed;
     await wireit.waitForLog(/\[serviceDep\] Service stopped/);
 
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(standardDep.numInvocations, 1);
-    assert.equal(serviceDep.numInvocations, 1);
-    assert.equal(service.numInvocations, 1);
-    assert.equal(consumer.numInvocations, 1);
+    assert.deepStrictEqual((await wireit.exit).code, 0);
+    assert.deepStrictEqual(standardDep.numInvocations, 1);
+    assert.deepStrictEqual(serviceDep.numInvocations, 1);
+    assert.deepStrictEqual(service.numInvocations, 1);
+    assert.deepStrictEqual(consumer.numInvocations, 1);
   }),
 );
 
-test(
+void test(
   'standard scripts are killed when service exits unexpectedly',
   rigTest(async ({rig}) => {
     // consumer
@@ -209,12 +207,12 @@ test(
     await wireit.waitForLog(/❌ \[consumer\] killed/);
 
     // Wireit exits with an error code
-    assert.equal((await wireit.exit).code, 1);
+    assert.deepStrictEqual((await wireit.exit).code, 1);
     await wireit.waitForLog(/❌ 2 scripts failed\./);
   }),
 );
 
-test(
+void test(
   'service remembers unexpected exit failure for next start call',
   rigTest(async ({rig}) => {
     //     entrypoint
@@ -297,11 +295,11 @@ test(
 
     // Consumer 2 can't start becuase the consumer already failed, so wireit
     // exits.
-    assert.equal((await wireit.exit).code, 1);
+    assert.deepStrictEqual((await wireit.exit).code, 1);
   }),
 );
 
-test(
+void test(
   'service shuts down when service dependency exits unexpectedly',
   rigTest(async ({rig}) => {
     // consumer
@@ -366,15 +364,15 @@ test(
     await service1Inv.closed;
 
     // Wireit exits with an error code
-    assert.equal((await wireit.exit).code, 1);
-    assert.equal(consumer.numInvocations, 1);
-    assert.equal(service1.numInvocations, 1);
-    assert.equal(service2.numInvocations, 1);
+    assert.deepStrictEqual((await wireit.exit).code, 1);
+    assert.deepStrictEqual(consumer.numInvocations, 1);
+    assert.deepStrictEqual(service1.numInvocations, 1);
+    assert.deepStrictEqual(service2.numInvocations, 1);
     await wireit.waitForLog(/❌ 2 scripts failed/);
   }),
 );
 
-test(
+void test(
   'persistent service and dependency starts and runs until SIGINT',
   // service1
   //    |
@@ -439,13 +437,13 @@ test(
       await wireit.waitForLog(/\[service2\] Service stopped/);
     }
     await service1Inv.closed;
-    assert.not(service1Inv.isRunning);
+    assert.ok(!service1Inv.isRunning);
     await service2Inv.closed;
-    assert.not(service2Inv.isRunning);
+    assert.ok(!service2Inv.isRunning);
 
     await wireit.exit;
-    assert.equal(service1.numInvocations, 1);
-    assert.equal(service2.numInvocations, 1);
+    assert.deepStrictEqual(service1.numInvocations, 1);
+    assert.deepStrictEqual(service2.numInvocations, 1);
   }),
 );
 
@@ -453,7 +451,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
   // Even persistent services which don't have an error in their branch should
   // stop when an error occurs elsewhere, regardless of the error mode.
   // Otherwise wireit won't always exit on failures.
-  test(
+  void test(
     `persistent service and dependency stop on error ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
@@ -536,20 +534,20 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       }
 
       await service1Inv.closed;
-      assert.not(service1Inv.isRunning);
+      assert.ok(!service1Inv.isRunning);
       await wireit.waitForLog(/\[service1\] Service stopped/);
       await service2Inv.closed;
-      assert.not(service2Inv.isRunning);
+      assert.ok(!service2Inv.isRunning);
       await wireit.waitForLog(/\[service2\] Service stopped/);
 
-      assert.equal((await wireit.exit).code, 1);
-      assert.equal(standard.numInvocations, 1);
-      assert.equal(service1.numInvocations, 1);
-      assert.equal(service2.numInvocations, 1);
+      assert.deepStrictEqual((await wireit.exit).code, 1);
+      assert.deepStrictEqual(standard.numInvocations, 1);
+      assert.deepStrictEqual(service1.numInvocations, 1);
+      assert.deepStrictEqual(service2.numInvocations, 1);
     }),
   );
 
-  test(
+  void test(
     `after one persistent service fails, other persistent services stop, ` +
       `and wireit exits non-zero with failure mode ${failureMode}`,
     //      entrypoint
@@ -591,7 +589,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       service1Inv.exit(1);
       await service1Inv.closed;
       await service2Inv.closed;
-      assert.equal((await wireit.exit).code, 1);
+      assert.deepStrictEqual((await wireit.exit).code, 1);
       await wireit.waitForLog(/❌ \[service1\] Service exited unexpectedly/);
       await wireit.waitForLog(/❌ 1 script failed/);
     }),
@@ -599,7 +597,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
 }
 
 for (const failureMode of ['continue', 'no-new']) {
-  test(
+  void test(
     `unrelated errors do not kill services in watch mode ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
@@ -657,15 +655,15 @@ for (const failureMode of ['continue', 'no-new']) {
 
         wireit.kill();
         await wireit.exit;
-        assert.equal(service.numInvocations, 1);
-        assert.equal(standard.numInvocations, 2);
+        assert.deepStrictEqual(service.numInvocations, 1);
+        assert.deepStrictEqual(standard.numInvocations, 2);
       },
       {flaky: true},
     ),
   );
 }
 
-test(
+void test(
   `unrelated errors kill services in watch mode with failure mode kill`,
   //      entrypoint
   //        /   \
@@ -715,7 +713,7 @@ test(
   ),
 );
 
-test(
+void test(
   'ephemeral service shuts down between watch iterations',
   rigTest(
     async ({rig}) => {
@@ -779,14 +777,14 @@ test(
 
       wireit.kill();
       await wireit.exit;
-      assert.equal(consumer.numInvocations, 2);
-      assert.equal(service.numInvocations, 2);
+      assert.deepStrictEqual(consumer.numInvocations, 2);
+      assert.deepStrictEqual(service.numInvocations, 2);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   'persistent services are preserved across watch iterations',
   rigTest(
     async ({rig}) => {
@@ -860,15 +858,15 @@ test(
       }
 
       wireit.kill();
-      assert.equal(service1.numInvocations, 1);
-      assert.equal(service2.numInvocations, 1);
-      assert.equal(standard.numInvocations, 2);
+      assert.deepStrictEqual(service1.numInvocations, 1);
+      assert.deepStrictEqual(service2.numInvocations, 1);
+      assert.deepStrictEqual(standard.numInvocations, 2);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   'deleted service shuts down between watch iterations',
   rigTest(
     async ({rig}) => {
@@ -955,14 +953,14 @@ test(
 
       wireit.kill();
       await wireit.exit;
-      assert.equal(service.numInvocations, 1);
-      assert.equal(standard.numInvocations, 2);
+      assert.deepStrictEqual(service.numInvocations, 1);
+      assert.deepStrictEqual(standard.numInvocations, 2);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   'service fingerprint is trackable despite never having outputs',
   rigTest(async ({rig}) => {
     // consumer
@@ -1004,9 +1002,9 @@ test(
       await serviceInv.closed;
       await consumerInv.closed;
       const {code} = await wireit.exit;
-      assert.equal(code, 0);
-      assert.equal(consumer.numInvocations, 1);
-      assert.equal(service.numInvocations, 1);
+      assert.deepStrictEqual(code, 0);
+      assert.deepStrictEqual(consumer.numInvocations, 1);
+      assert.deepStrictEqual(service.numInvocations, 1);
     }
 
     // Run 2. No input change. Consumer output is cached, service never needs to
@@ -1014,9 +1012,9 @@ test(
     {
       const wireit = rig.exec('npm run consumer');
       const {code} = await wireit.exit;
-      assert.equal(code, 0);
-      assert.equal(consumer.numInvocations, 1);
-      assert.equal(service.numInvocations, 1);
+      assert.deepStrictEqual(code, 0);
+      assert.deepStrictEqual(consumer.numInvocations, 1);
+      assert.deepStrictEqual(service.numInvocations, 1);
     }
 
     // Run 3. Service input changed. That affects the service fingerprint and
@@ -1030,14 +1028,14 @@ test(
       await serviceInv.closed;
       await consumerInv.closed;
       const {code} = await wireit.exit;
-      assert.equal(code, 0);
-      assert.equal(consumer.numInvocations, 2);
-      assert.equal(service.numInvocations, 2);
+      assert.deepStrictEqual(code, 0);
+      assert.deepStrictEqual(consumer.numInvocations, 2);
+      assert.deepStrictEqual(service.numInvocations, 2);
     }
   }),
 );
 
-test(
+void test(
   'caching with service dependencies works in watch mode',
   rigTest(
     async ({rig}) => {
@@ -1080,8 +1078,8 @@ test(
         consumerInv1.exit(0);
         await serviceInv.closed;
         await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
-        assert.equal(service.numInvocations, 1);
-        assert.equal(consumer.numInvocations, 1);
+        assert.deepStrictEqual(service.numInvocations, 1);
+        assert.deepStrictEqual(consumer.numInvocations, 1);
       }
 
       // 2nd run with input B. Runs.
@@ -1092,8 +1090,8 @@ test(
         consumerInv1.exit(0);
         await serviceInv.closed;
         await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
-        assert.equal(service.numInvocations, 2);
-        assert.equal(consumer.numInvocations, 2);
+        assert.deepStrictEqual(service.numInvocations, 2);
+        assert.deepStrictEqual(consumer.numInvocations, 2);
       }
 
       // 3rd run with input A. Restored from cache.
@@ -1105,20 +1103,20 @@ test(
         await new Promise((resolve) => setTimeout(resolve, 500));
         await rig.write('input', 'A');
         await wireit.waitForLog(/Ran 0 scripts and skipped 1/);
-        assert.equal(service.numInvocations, 2);
-        assert.equal(consumer.numInvocations, 2);
+        assert.deepStrictEqual(service.numInvocations, 2);
+        assert.deepStrictEqual(consumer.numInvocations, 2);
       }
 
       wireit.kill();
       await wireit.exit;
-      assert.equal(service.numInvocations, 2);
-      assert.equal(consumer.numInvocations, 2);
+      assert.deepStrictEqual(service.numInvocations, 2);
+      assert.deepStrictEqual(consumer.numInvocations, 2);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   'service with cascade:false does not require restart in watch mode',
   rigTest(
     async ({rig}) => {
@@ -1198,15 +1196,15 @@ test(
 
       wireit.kill();
       await wireit.exit;
-      assert.equal(service.numInvocations, 2);
-      assert.equal(hard.numInvocations, 2);
-      assert.equal(soft.numInvocations, 2);
+      assert.deepStrictEqual(service.numInvocations, 2);
+      assert.deepStrictEqual(hard.numInvocations, 2);
+      assert.deepStrictEqual(soft.numInvocations, 2);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   'service in watch mode persists when non-cascading dependency restarts or fails',
   // parentService
   //    |
@@ -1269,29 +1267,29 @@ test(
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(parentServiceInv1.isRunning);
       assert.ok(childServiceInv2.isRunning);
-      assert.not(childServiceInv1.isRunning);
+      assert.ok(!childServiceInv1.isRunning);
 
       // childService fails.
       childServiceInv2.exit(1);
       await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(parentServiceInv1.isRunning);
-      assert.not(childServiceInv2.isRunning);
-      assert.not(childServiceInv1.isRunning);
+      assert.ok(!childServiceInv2.isRunning);
+      assert.ok(!childServiceInv1.isRunning);
 
       wireit.kill();
       await wireit.exit;
-      assert.not(parentServiceInv1.isRunning);
-      assert.not(childServiceInv2.isRunning);
-      assert.not(childServiceInv1.isRunning);
-      assert.equal(parentService.numInvocations, 1);
-      assert.equal(childService.numInvocations, 2);
+      assert.ok(!parentServiceInv1.isRunning);
+      assert.ok(!childServiceInv2.isRunning);
+      assert.ok(!childServiceInv1.isRunning);
+      assert.deepStrictEqual(parentService.numInvocations, 1);
+      assert.deepStrictEqual(childService.numInvocations, 2);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   'service waits for log before being considered started',
   // standard
   //    |
@@ -1328,24 +1326,24 @@ test(
 
     // Haven't logged anything yet. Not ready.
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(standard.numInvocations, 0);
+    assert.deepStrictEqual(standard.numInvocations, 0);
 
     // Logged part of the expected line, but not all of it. Not ready.
     serviceInv.stdout('Foo\nBar\nListening ');
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(standard.numInvocations, 0);
+    assert.deepStrictEqual(standard.numInvocations, 0);
 
     // Logged the rest of the expected line. Ready!
     serviceInv.stdout('on port 8080.');
     const standardInv = await standard.nextInvocation();
 
     standardInv.exit(0);
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(standard.numInvocations, 1);
+    assert.deepStrictEqual((await wireit.exit).code, 0);
+    assert.deepStrictEqual(standard.numInvocations, 1);
   }),
 );
 
-test(
+void test(
   'service watch mode recovery from dependency failure',
   // service
   //    |
@@ -1390,8 +1388,8 @@ test(
       await wireit.waitForLog(/\[service\] Service ready/);
       await wireit.waitForLog(/\[service\] Watching for file changes/);
       await new Promise((resolve) => setTimeout(resolve, 50));
-      assert.equal(service.numInvocations, 1);
-      assert.equal(standard.numInvocations, 1);
+      assert.deepStrictEqual(service.numInvocations, 1);
+      assert.deepStrictEqual(standard.numInvocations, 1);
 
       // Introduce an error. Service keeps running but goes into a temporary
       // "started-broken" state, where it awaits its dependencies being fixed.
@@ -1401,8 +1399,8 @@ test(
       await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
       await wireit.waitForLog(/\[service\] Watching for file changes/);
       await new Promise((resolve) => setTimeout(resolve, 50));
-      assert.equal(service.numInvocations, 1);
-      assert.equal(standard.numInvocations, 2);
+      assert.deepStrictEqual(service.numInvocations, 1);
+      assert.deepStrictEqual(standard.numInvocations, 2);
 
       // Fix the error. Service restarts because the fingerprint of its dependency
       // has changed.
@@ -1415,8 +1413,8 @@ test(
       await wireit.waitForLog(/\[service\] Service ready/);
       await wireit.waitForLog(/\[service\] Watching for file changes/);
       await new Promise((resolve) => setTimeout(resolve, 50));
-      assert.equal(service.numInvocations, 2);
-      assert.equal(standard.numInvocations, 3);
+      assert.deepStrictEqual(service.numInvocations, 2);
+      assert.deepStrictEqual(standard.numInvocations, 3);
 
       // Introduce another error. Again the service keeps running as
       // "started-broken".
@@ -1426,8 +1424,8 @@ test(
       await wireit.waitForLog(/\[standard\] Failed with exit status 1/);
       await wireit.waitForLog(/\[service\] Watching for file changes/);
       await new Promise((resolve) => setTimeout(resolve, 50));
-      assert.equal(service.numInvocations, 2);
-      assert.equal(standard.numInvocations, 4);
+      assert.deepStrictEqual(service.numInvocations, 2);
+      assert.deepStrictEqual(standard.numInvocations, 4);
 
       // Fix the error, this time by reverting. This time the service doesn't
       // restart, because the fingerprint has been restored to what it was before
@@ -1438,19 +1436,19 @@ test(
       await wireit.waitForLog(/\[standard\] Executed successfully/);
       await wireit.waitForLog(/\[service\] Watching for file changes/);
       await new Promise((resolve) => setTimeout(resolve, 50));
-      assert.equal(service.numInvocations, 2);
-      assert.equal(standard.numInvocations, 5);
+      assert.deepStrictEqual(service.numInvocations, 2);
+      assert.deepStrictEqual(standard.numInvocations, 5);
 
       wireit.kill();
       await wireit.exit;
-      assert.equal(service.numInvocations, 2);
-      assert.equal(standard.numInvocations, 5);
+      assert.deepStrictEqual(service.numInvocations, 2);
+      assert.deepStrictEqual(standard.numInvocations, 5);
     },
     {flaky: true},
   ),
 );
 
-test(
+void test(
   `can abort a service while it's waiting on a dependency`,
   // service
   //    |
@@ -1490,5 +1488,3 @@ test(
     await exec.exit;
   }),
 );
-
-test.run();
