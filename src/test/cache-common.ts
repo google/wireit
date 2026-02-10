@@ -20,7 +20,7 @@ export const registerCommonCacheTests = (
   setup: () => Promise<{rig: WireitTestRig} & AsyncDisposable>,
   cacheMode: 'local' | 'github',
 ) => {
-  void test('caches single file', async () => {
+  test('caches single file', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -86,7 +86,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('caches large file', {timeout: 30_000}, async () => {
+  test('caches large file', {timeout: 30_000}, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -144,7 +144,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('caching follows glob patterns', async () => {
+  test('caching follows glob patterns', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -238,7 +238,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('caching supports glob re-inclusion', async () => {
+  test('caching supports glob re-inclusion', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -332,7 +332,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('cleans output when restoring from cache even when clean setting is false', async () => {
+  test('cleans output when restoring from cache even when clean setting is false', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -414,7 +414,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('does not cache script with undefined output', async () => {
+  test('does not cache script with undefined output', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -467,7 +467,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('caches script with defined but empty output', async () => {
+  test('caches script with defined but empty output', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -519,7 +519,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('caches symlinks to files without following them', async () => {
+  test('caches symlinks to files without following them', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -588,7 +588,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('caches symlinks to directories without following them', async () => {
+  test('caches symlinks to directories without following them', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -669,7 +669,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('does not cache when WIREIT_CACHE=none', async () => {
+  test('does not cache when WIREIT_CACHE=none', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -728,7 +728,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('does not cache when CI=true and WIREIT_CACHE is unset', async () => {
+  test('does not cache when CI=true and WIREIT_CACHE is unset', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -793,7 +793,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test(`caches when CI=true and WIREIT_CACHE=${cacheMode}`, async () => {
+  test(`caches when CI=true and WIREIT_CACHE=${cacheMode}`, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -867,7 +867,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('can cache empty directory', async () => {
+  test('can cache empty directory', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -945,7 +945,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('leading slash on output glob is package relative', async () => {
+  test('leading slash on output glob is package relative', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();
@@ -1011,7 +1011,7 @@ export const registerCommonCacheTests = (
     }
   });
 
-  void test('errors if caching output outside of the package', async () => {
+  test('errors if caching output outside of the package', async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     const cmdA = await rig.newCommand();

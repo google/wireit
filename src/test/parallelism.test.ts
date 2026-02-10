@@ -12,7 +12,7 @@ import {IS_WINDOWS} from '../util/windows.js';
 
 import type {PackageJson} from './util/package-json.js';
 
-void test(
+test(
   'by default we run dependencies in parallel',
   rigTest(async ({rig}) => {
     // Note the test rig set WIREIT_PARALLELISM to 10 by default, even though
@@ -56,7 +56,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'can set WIREIT_PARALLEL=1 to run sequentially',
   rigTest(async ({rig}) => {
     const dep1 = await rig.newCommand();
@@ -109,7 +109,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'can set WIREIT_PARALLEL=Infinity to run many commands in parallel',
   rigTest(async ({rig}) => {
     const main = await rig.newCommand();
@@ -160,7 +160,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'should fall back to default parallelism with empty WIREIT_PARALLEL',
   rigTest(async ({rig}) => {
     const dep1 = await rig.newCommand();
@@ -198,7 +198,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'scripts acquire exclusive locks across wireit processes',
   {timeout: IS_WINDOWS ? 60_000 : undefined},
   rigTest(async ({rig}) => {
@@ -245,7 +245,7 @@ void test(
   }),
 );
 
-void test(
+test(
   "scripts don't acquire exclusive locks when output=[]",
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();

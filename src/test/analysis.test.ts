@@ -9,7 +9,7 @@ import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import {Analyzer} from '../analyzer.js';
 
-void test(
+test(
   'analyzes services',
   rigTest(async ({rig}) => {
     //    a
@@ -109,7 +109,7 @@ void test(
   }),
 );
 
-void test(
+test(
   '.wireit/, .git/, and node_modules/ are automatically ' +
     'excluded from input and output files by default',
   rigTest(async ({rig}) => {
@@ -168,7 +168,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'Default excluded paths are not present when ' +
     'allowUsuallyExcludedPaths is true',
   rigTest(async ({rig}) => {
@@ -210,7 +210,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'Default excluded paths are not present when files and output are empty',
   rigTest(async ({rig}) => {
     await rig.write({

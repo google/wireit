@@ -44,6 +44,15 @@ export default [
         'no-only-tests': noOnlyTests,
       },
       rules: {
+        '@typescript-eslint/no-floating-promises': [
+          'error',
+          {
+            allowForKnownSafeCalls: [
+              {from: 'package', name: 'test', package: 'node:test'},
+              {from: 'package', name: 'describe', package: 'node:test'},
+            ],
+          },
+        ],
         'no-only-tests/no-only-tests': 'error',
         '@typescript-eslint/no-unused-vars': [
           'error',

@@ -9,9 +9,9 @@ import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import type {WireitTestRig} from './util/test-rig.js';
 
-void describe('WIREIT_WATCH_STRATEGY=<default=event>', () => tests());
+describe('WIREIT_WATCH_STRATEGY=<default=event>', () => tests());
 
-void describe('WIREIT_WATCH_STRATEGY=poll', () =>
+describe('WIREIT_WATCH_STRATEGY=poll', () =>
   tests((rig: WireitTestRig) => {
     rig.env.WIREIT_WATCH_STRATEGY = 'poll';
     // Default is 500, let's speed up the tests.
@@ -24,7 +24,7 @@ function tests(
   // node test runner, maybe can do this as part of that.
   prepareRig: (rig: WireitTestRig) => void | Promise<void> = () => {},
 ) {
-  void test(
+  test(
     'runs initially and waits for SIGINT',
     rigTest(
       async ({rig}) => {
@@ -78,7 +78,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'runs again when input file changes after execution',
     rigTest(
       async ({rig}) => {
@@ -129,7 +129,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'runs again when new input file created',
     rigTest(
       async ({rig}) => {
@@ -180,7 +180,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'runs again when input file deleted',
     rigTest(
       async ({rig}) => {
@@ -229,7 +229,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'runs again when input file changes in the middle of execution',
     rigTest(async ({rig}) => {
       await prepareRig(rig);
@@ -277,7 +277,7 @@ function tests(
     }),
   );
 
-  void test(
+  test(
     'reloads config when package.json changes and runs again',
     rigTest(
       async ({rig}) => {
@@ -338,7 +338,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'changes are detected in same-package dependencies',
     rigTest(
       async ({rig}) => {
@@ -422,7 +422,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'changes are detected in cross-package dependencies',
     rigTest(
       async ({rig}) => {
@@ -512,7 +512,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'error from script is not fatal',
     rigTest(
       async ({rig}) => {
@@ -565,7 +565,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'recovers from analysis errors',
     rigTest(
       async ({rig}) => {
@@ -673,7 +673,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'watchers understand negations',
     rigTest(
       async ({rig}) => {
@@ -737,7 +737,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     '.dotfiles are watched',
     rigTest(
       async ({rig}) => {
@@ -785,7 +785,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'package-lock.json files are watched',
     rigTest(
       async ({rig}) => {
@@ -831,7 +831,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'debounces when two scripts are watching the same file',
     rigTest(
       async ({rig}) => {
@@ -898,7 +898,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'strips leading slash from watch paths',
     rigTest(
       async ({rig}) => {
@@ -945,7 +945,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'script fails but still emits output consumed by another script',
     rigTest(
       async ({rig}) => {
@@ -1026,7 +1026,7 @@ function tests(
     ),
   );
 
-  void test(
+  test(
     'input file changes but the contents are the same',
     rigTest(
       async ({rig}) => {

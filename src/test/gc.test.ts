@@ -68,7 +68,7 @@ async function retryWithGcUntilCallbackDoesNotThrow(
   cb();
 }
 
-void test(
+test(
   'standard garbage collection',
   rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
@@ -134,7 +134,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'persistent service garbage collection',
   rigTest(async ({rig}) => {
     const service = await rig.newCommand();
@@ -209,7 +209,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'no-command, standard, persistent service, and ephemeral service garbage collection',
   rigTest(async ({rig}) => {
     const standard = await rig.newCommand();

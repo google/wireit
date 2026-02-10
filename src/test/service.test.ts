@@ -9,7 +9,7 @@ import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-void test(
+test(
   'simple consumer and service with stdout',
   rigTest(async ({rig}) => {
     // consumer
@@ -69,7 +69,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service with standard and service deps',
   rigTest(async ({rig}) => {
     //  consumer
@@ -158,7 +158,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'standard scripts are killed when service exits unexpectedly',
   rigTest(async ({rig}) => {
     // consumer
@@ -212,7 +212,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service remembers unexpected exit failure for next start call',
   rigTest(async ({rig}) => {
     //     entrypoint
@@ -299,7 +299,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service shuts down when service dependency exits unexpectedly',
   rigTest(async ({rig}) => {
     // consumer
@@ -372,7 +372,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'persistent service and dependency starts and runs until SIGINT',
   // service1
   //    |
@@ -451,7 +451,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
   // Even persistent services which don't have an error in their branch should
   // stop when an error occurs elsewhere, regardless of the error mode.
   // Otherwise wireit won't always exit on failures.
-  void test(
+  test(
     `persistent service and dependency stop on error ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
@@ -547,7 +547,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
     }),
   );
 
-  void test(
+  test(
     `after one persistent service fails, other persistent services stop, ` +
       `and wireit exits non-zero with failure mode ${failureMode}`,
     //      entrypoint
@@ -597,7 +597,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
 }
 
 for (const failureMode of ['continue', 'no-new']) {
-  void test(
+  test(
     `unrelated errors do not kill services in watch mode ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
@@ -663,7 +663,7 @@ for (const failureMode of ['continue', 'no-new']) {
   );
 }
 
-void test(
+test(
   `unrelated errors kill services in watch mode with failure mode kill`,
   //      entrypoint
   //        /   \
@@ -713,7 +713,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'ephemeral service shuts down between watch iterations',
   rigTest(
     async ({rig}) => {
@@ -784,7 +784,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'persistent services are preserved across watch iterations',
   rigTest(
     async ({rig}) => {
@@ -866,7 +866,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'deleted service shuts down between watch iterations',
   rigTest(
     async ({rig}) => {
@@ -960,7 +960,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'service fingerprint is trackable despite never having outputs',
   rigTest(async ({rig}) => {
     // consumer
@@ -1035,7 +1035,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'caching with service dependencies works in watch mode',
   rigTest(
     async ({rig}) => {
@@ -1116,7 +1116,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'service with cascade:false does not require restart in watch mode',
   rigTest(
     async ({rig}) => {
@@ -1204,7 +1204,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'service in watch mode persists when non-cascading dependency restarts or fails',
   // parentService
   //    |
@@ -1289,7 +1289,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'service waits for log before being considered started',
   // standard
   //    |
@@ -1343,7 +1343,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service watch mode recovery from dependency failure',
   // service
   //    |
@@ -1448,7 +1448,7 @@ void test(
   ),
 );
 
-void test(
+test(
   `can abort a service while it's waiting on a dependency`,
   // service
   //    |

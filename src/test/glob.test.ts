@@ -149,7 +149,7 @@ for (const mode of ['once', 'watch'] as const) {
   const skipIfWatch = mode === 'watch';
   const skipIfWatchOnWindows = mode === 'watch' && IS_WINDOWS;
 
-  void test(`[${mode}] empty patterns`, async () => {
+  test(`[${mode}] empty patterns`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -159,7 +159,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] normalizes trailing / in pattern`,
     {skip: skipIfWatch},
     async () => {
@@ -173,7 +173,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] normalizes ../ in pattern`, async () => {
+  test(`[${mode}] normalizes ../ in pattern`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -183,7 +183,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] explicit file that does not exist`, async () => {
+  test(`[${mode}] explicit file that does not exist`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -193,7 +193,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] * star`, async () => {
+  test(`[${mode}] * star`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -203,7 +203,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] * star with ! negation`, async () => {
+  test(`[${mode}] * star with ! negation`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -213,7 +213,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] inclusion of directory with trailing slash`, async () => {
+  test(`[${mode}] inclusion of directory with trailing slash`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -224,7 +224,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] inclusion of directory without trailing slash`, async () => {
+  test(`[${mode}] inclusion of directory without trailing slash`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -235,7 +235,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] !exclusion of directory with trailing slash`, async () => {
+  test(`[${mode}] !exclusion of directory with trailing slash`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -246,7 +246,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] !exclusion of directory without trailing slash`, async () => {
+  test(`[${mode}] !exclusion of directory without trailing slash`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -257,7 +257,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] explicit .dotfile`, async () => {
+  test(`[${mode}] explicit .dotfile`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -267,7 +267,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] * star matches .dotfiles`, async () => {
+  test(`[${mode}] * star matches .dotfiles`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -277,7 +277,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] {} groups`, async () => {
+  test(`[${mode}] {} groups`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -287,7 +287,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] matches explicit symlink`, async () => {
+  test(`[${mode}] matches explicit symlink`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -300,7 +300,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] explicit directory excluded when includeDirectories=false`, async () => {
+  test(`[${mode}] explicit directory excluded when includeDirectories=false`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -310,7 +310,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] explicit directory included when includeDirectories=true`, async () => {
+  test(`[${mode}] explicit directory included when includeDirectories=true`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -320,7 +320,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] explicit directory included when includeDirectories=true`,
     {skip: skipIfWatch},
     async () => {
@@ -335,7 +335,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] * star excludes directory when includeDirectories=false`, async () => {
+  test(`[${mode}] * star excludes directory when includeDirectories=false`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -345,7 +345,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] * star includes directory when includeDirectories=true`,
     {skip: skipIfWatch},
     async () => {
@@ -360,7 +360,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] includeDirectories=false + expandDirectories=false`,
     {skip: skipIfWatch},
     async () => {
@@ -384,7 +384,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] includeDirectories=true + expandDirectories=false`,
     {skip: skipIfWatch},
     async () => {
@@ -408,7 +408,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] includeDirectories=false + expandDirectories=true`, async () => {
+  test(`[${mode}] includeDirectories=false + expandDirectories=true`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -420,7 +420,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] includeDirectories=true + expandDirectories=true`,
     {skip: skipIfWatch},
     async () => {
@@ -452,7 +452,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] includeDirectories=true + expandDirectories=true + recursive !exclusion`,
     {skip: skipIfWatch},
     async () => {
@@ -482,7 +482,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] . matches current directory with includeDirectories=true`,
     {skip: skipIfWatch},
     async () => {
@@ -505,7 +505,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] . matches current directory with expandDirectories=true`, async () => {
+  test(`[${mode}] . matches current directory with expandDirectories=true`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -516,7 +516,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] {} groups with expand directories`,
     {skip: skipIfWatch},
     async () => {
@@ -539,7 +539,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] empty pattern throws`, {skip: skipIfWatch}, async () => {
+  test(`[${mode}] empty pattern throws`, {skip: skipIfWatch}, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -549,7 +549,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] empty pattern throws with expandDirectories=true`,
     {skip: skipIfWatch},
     async () => {
@@ -564,21 +564,17 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
-    `[${mode}] whitespace pattern throws`,
-    {skip: skipIfWatch},
-    async () => {
-      await using ctx = await setup();
-      await ctx.check({
-        mode,
-        files: ['foo', 'bar'],
-        patterns: [' '],
-        expected: 'ERROR',
-      });
-    },
-  );
+  test(`[${mode}] whitespace pattern throws`, {skip: skipIfWatch}, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['foo', 'bar'],
+      patterns: [' '],
+      expected: 'ERROR',
+    });
+  });
 
-  void test(
+  test(
     `[${mode}] whitespace pattern throws with expandDirectories=true`,
     {skip: skipIfWatch},
     async () => {
@@ -593,7 +589,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] re-inclusion of file`,
     {skip: skipIfWatchOnWindows},
     async () => {
@@ -607,22 +603,18 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
-    `[${mode}] re-inclusion of directory`,
-    {skip: skipIfWatch},
-    async () => {
-      await using ctx = await setup();
-      await ctx.check({
-        mode,
-        files: ['foo/'],
-        patterns: ['!foo', 'foo'],
-        expected: ['foo'],
-        includeDirectories: true,
-      });
-    },
-  );
+  test(`[${mode}] re-inclusion of directory`, {skip: skipIfWatch}, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['foo/'],
+      patterns: ['!foo', 'foo'],
+      expected: ['foo'],
+      includeDirectories: true,
+    });
+  });
 
-  void test(
+  test(
     `[${mode}] re-inclusion of file into directory`,
     {skip: skipIfWatch},
     async () => {
@@ -636,7 +628,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] re-inclusion of file into directory with expandDirectories=true`, async () => {
+  test(`[${mode}] re-inclusion of file into directory with expandDirectories=true`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -647,7 +639,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] re-inclusion of directory into directory with expandDirectories=true`, async () => {
+  test(`[${mode}] re-inclusion of directory into directory with expandDirectories=true`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -658,7 +650,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
+  test(
     `[${mode}] walks through symlinked directories when followSymlinks=true`,
     {skip: skipIfWatch},
     async () => {
@@ -677,7 +669,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] does not walk through symlinked directories when followSymlinks=false`,
     {skip: skipIfWatch},
     async () => {
@@ -696,7 +688,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] does not expand directly specified symlinked directories when followSymlinks=false`,
     {skip: skipIfWatch},
     async () => {
@@ -716,7 +708,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] dirent tags files`, async () => {
+  test(`[${mode}] dirent tags files`, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     await rig.touch('foo');
@@ -734,7 +726,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.ok(!actual[0]!.dirent.isSymbolicLink());
   });
 
-  void test(`[${mode}] dirent tags directories`, async () => {
+  test(`[${mode}] dirent tags directories`, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     await rig.mkdir('foo');
@@ -752,7 +744,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.ok(!actual[0]!.dirent.isSymbolicLink());
   });
 
-  void test(`[${mode}] dirent tags symlinks when followSymlinks=false`, async () => {
+  test(`[${mode}] dirent tags symlinks when followSymlinks=false`, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     await rig.symlink('target', 'foo', 'file');
@@ -770,7 +762,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.ok(actual[0]!.dirent.isSymbolicLink());
   });
 
-  void test(`[${mode}] dirent tags symlinks to files as files when followSymlinks=true`, async () => {
+  test(`[${mode}] dirent tags symlinks to files as files when followSymlinks=true`, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     await rig.symlink('target', 'foo', 'file');
@@ -789,7 +781,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.ok(!actual[0]!.dirent.isSymbolicLink());
   });
 
-  void test(`[${mode}] dirent tags symlinks to directories as directories when followSymlinks=true`, async () => {
+  test(`[${mode}] dirent tags symlinks to directories as directories when followSymlinks=true`, async () => {
     await using ctx = await setup();
     const {rig} = ctx;
     await rig.symlink('target', 'foo', 'dir');
@@ -808,7 +800,7 @@ for (const mode of ['once', 'watch'] as const) {
     assert.ok(!actual[0]!.dirent.isSymbolicLink());
   });
 
-  void test(`[${mode}] re-roots to cwd`, async () => {
+  test(`[${mode}] re-roots to cwd`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -818,7 +810,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(`[${mode}] re-roots to cwd with exclusion`, async () => {
+  test(`[${mode}] re-roots to cwd with exclusion`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -829,7 +821,7 @@ for (const mode of ['once', 'watch'] as const) {
   });
 
   if (mode !== 'watch') {
-    void test(`[${mode}] re-rooting allows ../`, async () => {
+    test(`[${mode}] re-rooting allows ../`, async () => {
       await using ctx = await setup();
       await ctx.check({
         mode,
@@ -841,7 +833,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   }
 
-  void test(`[${mode}] re-rooting handles /./foo`, async () => {
+  test(`[${mode}] re-rooting handles /./foo`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,
@@ -852,7 +844,7 @@ for (const mode of ['once', 'watch'] as const) {
   });
 
   if (mode !== 'watch') {
-    void test(`[${mode}] re-rooting handles /../foo`, async () => {
+    test(`[${mode}] re-rooting handles /../foo`, async () => {
       await using ctx = await setup();
       await ctx.check({
         mode,
@@ -863,7 +855,7 @@ for (const mode of ['once', 'watch'] as const) {
       });
     });
 
-    void test(`[${mode}] re-rooting handles /bar/../foo/`, async () => {
+    test(`[${mode}] re-rooting handles /bar/../foo/`, async () => {
       await using ctx = await setup();
       await ctx.check({
         mode,
@@ -873,7 +865,7 @@ for (const mode of ['once', 'watch'] as const) {
       });
     });
 
-    void test(`[${mode}] re-roots to cwd with braces`, async () => {
+    test(`[${mode}] re-roots to cwd with braces`, async () => {
       await using ctx = await setup();
       await ctx.check({
         mode,
@@ -883,7 +875,7 @@ for (const mode of ['once', 'watch'] as const) {
       });
     });
 
-    void test(`[${mode}] braces can be escaped`, async () => {
+    test(`[${mode}] braces can be escaped`, async () => {
       await using ctx = await setup();
       await ctx.check({
         mode,
@@ -894,7 +886,7 @@ for (const mode of ['once', 'watch'] as const) {
     });
   }
 
-  void test(
+  test(
     `[${mode}] disallows path outside cwd when throwIfOutsideCwd=true`,
     {skip: skipIfWatch},
     async () => {
@@ -910,7 +902,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(
+  test(
     `[${mode}] allows path outside cwd when throwIfOutsideCwd=false`,
     {skip: skipIfWatch},
     async () => {
@@ -926,7 +918,7 @@ for (const mode of ['once', 'watch'] as const) {
     },
   );
 
-  void test(`[${mode}] allows path inside cwd when throwIfOutsideCwd=true`, async () => {
+  test(`[${mode}] allows path inside cwd when throwIfOutsideCwd=true`, async () => {
     await using ctx = await setup();
     await ctx.check({
       mode,

@@ -78,13 +78,13 @@ async function setup(): Promise<
   };
 }
 
-void test('ignore empty entries', async () => {
+test('ignore empty entries', async () => {
   await using context = await setup();
   const {src, dst} = context;
   await copyEntries([], src.temp, dst.temp);
 });
 
-void test('copy file', async () => {
+test('copy file', async () => {
   await using context = await setup();
   const {src, dst, file} = context;
   await src.write('foo', 'content');
@@ -92,14 +92,14 @@ void test('copy file', async () => {
   assert.deepStrictEqual(await dst.read('foo'), 'content');
 });
 
-void test('ignore non-existent file', async () => {
+test('ignore non-existent file', async () => {
   await using context = await setup();
   const {src, dst, file} = context;
   await copyEntries([file('foo')], src.temp, dst.temp);
   assert.ok(!(await dst.exists('foo')));
 });
 
-void test('make empty directory', async () => {
+test('make empty directory', async () => {
   await using context = await setup();
   const {src, dst, dir} = context;
   await src.mkdir('foo');
@@ -107,7 +107,7 @@ void test('make empty directory', async () => {
   assert.ok(await dst.isDirectory('foo'));
 });
 
-void test('make non-existent directory', async () => {
+test('make non-existent directory', async () => {
   await using context = await setup();
   const {src, dst, dir} = context;
   // We don't actually know if a directory really exists or not, so we just
@@ -117,7 +117,7 @@ void test('make non-existent directory', async () => {
   assert.ok(await dst.isDirectory('foo'));
 });
 
-void test('copy listed directory with listed child', async () => {
+test('copy listed directory with listed child', async () => {
   await using context = await setup();
   const {src, dst, file, dir} = context;
   await src.mkdir('foo');
@@ -127,7 +127,7 @@ void test('copy listed directory with listed child', async () => {
   assert.deepStrictEqual(await dst.read('foo/bar'), 'content');
 });
 
-void test('copy listed directory but not its unlisted child', async () => {
+test('copy listed directory but not its unlisted child', async () => {
   await using context = await setup();
   const {src, dst, dir} = context;
   await src.mkdir('foo');
@@ -137,7 +137,7 @@ void test('copy listed directory but not its unlisted child', async () => {
   assert.ok(!(await dst.exists('foo/bar')));
 });
 
-void test('automatically create parent directory of file', async () => {
+test('automatically create parent directory of file', async () => {
   await using context = await setup();
   const {src, dst, file} = context;
   // We don't require the parent to be listed explicitly, we create them
@@ -149,7 +149,7 @@ void test('automatically create parent directory of file', async () => {
   assert.deepStrictEqual(await dst.read('foo/bar'), 'content');
 });
 
-void test('automatically create parent directory of directory', async () => {
+test('automatically create parent directory of directory', async () => {
   await using context = await setup();
   const {src, dst, dir} = context;
   // We don't require the parent to be listed explicitly, we create them
@@ -160,7 +160,7 @@ void test('automatically create parent directory of directory', async () => {
   assert.ok(await dst.isDirectory('foo/bar'));
 });
 
-void test('file that already exists is error', async () => {
+test('file that already exists is error', async () => {
   await using context = await setup();
   const {src, dst, file} = context;
   // We error if a file already exists in the destination, because that
@@ -178,7 +178,7 @@ void test('file that already exists is error', async () => {
   assert.deepStrictEqual(await dst.read('foo'), 'old content');
 });
 
-void test('file listed twice is not an error', async () => {
+test('file listed twice is not an error', async () => {
   await using context = await setup();
   const {src, dst, file} = context;
   // We error if a file already existed in the destination, but not if the same
@@ -188,7 +188,7 @@ void test('file listed twice is not an error', async () => {
   assert.deepStrictEqual(await dst.read('foo'), 'content');
 });
 
-void test('directory that already exists is not error', async () => {
+test('directory that already exists is not error', async () => {
   await using context = await setup();
   const {src, dst, dir} = context;
   // It doesn't really matter if a directory already existed in the destination,
@@ -200,7 +200,7 @@ void test('directory that already exists is not error', async () => {
   assert.ok(await dst.isDirectory('foo'));
 });
 
-void test('directory listed twice is not an error', async () => {
+test('directory listed twice is not an error', async () => {
   await using context = await setup();
   const {src, dst, dir} = context;
   await src.mkdir('foo');
@@ -208,7 +208,7 @@ void test('directory listed twice is not an error', async () => {
   assert.ok(await dst.isDirectory('foo'));
 });
 
-void test('copies symlink to file verbatim', async () => {
+test('copies symlink to file verbatim', async () => {
   await using context = await setup();
   const {src, dst, symlink} = context;
   await src.write('target', 'content');
@@ -223,7 +223,7 @@ void test('copies symlink to file verbatim', async () => {
   assert.deepStrictEqual(await dst.read('symlink'), 'content');
 });
 
-void test('copies symlink to directory verbatim', async () => {
+test('copies symlink to directory verbatim', async () => {
   await using context = await setup();
   const {src, dst, symlink} = context;
   await src.mkdir('target');
@@ -239,7 +239,7 @@ void test('copies symlink to directory verbatim', async () => {
   assert.deepStrictEqual(await fs.readdir(dst.resolve('symlink')), ['child']);
 });
 
-void test('stress test', async () => {
+test('stress test', async () => {
   await using context = await setup();
   const {src, dst, file, dir} = context;
   const numRoots = 10;

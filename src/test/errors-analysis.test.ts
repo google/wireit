@@ -11,7 +11,7 @@ import {rigTestNode as rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-void test(
+test(
   'wireit section is not an object',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -38,7 +38,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'wireit config is not an object',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -67,7 +67,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'dependencies is not an array',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -95,7 +95,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'dependency is not a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -123,7 +123,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `dependencies.script is not a string (object form)`,
   rigTest(async ({rig}) => {
     await rig.write('package.json', {
@@ -153,7 +153,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'dependency is empty or blank',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -181,7 +181,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `dependencies.script is empty or blank (object form)`,
   rigTest(async ({rig}) => {
     await rig.write('package.json', {
@@ -216,7 +216,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `dependencies.script is missing (object form)`,
   rigTest(async ({rig}) => {
     await rig.write('package.json', {
@@ -247,7 +247,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'command is not a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -275,7 +275,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'command is empty or blank',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -303,7 +303,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'files is not an array',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -332,7 +332,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'file item is not a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -361,7 +361,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'file item is empty or blank',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -390,7 +390,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'output is not an array',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -419,7 +419,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'output item is not a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -448,7 +448,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'output item is empty or blank',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -477,7 +477,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'clean is not a boolean or "if-file-deleted"',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -506,7 +506,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'allowUsuallyExcludedPaths is not a boolean',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -535,7 +535,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'packageLocks is not an array',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -564,7 +564,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'packageLocks item is not a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -593,7 +593,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'packageLocks item is empty or blank',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -622,7 +622,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'packageLocks item is not a filename',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -651,7 +651,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'missing dependency',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -679,7 +679,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'missing cross package dependency',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -712,7 +712,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'missing cross package dependency (object form)',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -745,7 +745,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'missing same-package dependency with colon in name',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -772,7 +772,7 @@ void test(
     );
   }),
 );
-void test(
+test(
   'missing cross package dependency with complicated escaped names',
   rigTest(async ({rig}) => {
     // This test writes a file with a name that windows can't handle.
@@ -809,7 +809,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cross-package dependency with complicated escaped name leads to directory without package.json',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -839,7 +839,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'duplicate dependency',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -872,7 +872,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script command is not wireit',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -909,7 +909,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script is wireit but has no wireit config',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -934,7 +934,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script has no command, dependencies, or files',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -960,7 +960,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script has no command and empty dependencies and files',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -989,7 +989,7 @@ void test(
   }),
 );
 
-void test(
+test(
   "cross-package dependency doesn't have a colon",
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1018,7 +1018,7 @@ void test(
   }),
 );
 
-void test(
+test(
   "cross-package dependency doesn't have a script name",
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1047,7 +1047,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cross-package dependency resolves to the same package (".")',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1076,7 +1076,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cross-package dependency resolves to the same package (up and back)',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1105,7 +1105,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cross-package dependency leads to directory without package.json',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1135,7 +1135,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cross-package dependency leads to package.json with invalid JSON',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1168,7 +1168,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle of length 1',
   rigTest(async ({rig}) => {
     //  a
@@ -1205,7 +1205,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle of length 2',
   rigTest(async ({rig}) => {
     //  a --> b
@@ -1250,7 +1250,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle of length 3',
   rigTest(async ({rig}) => {
     //  a --> b --> c
@@ -1303,7 +1303,7 @@ void test(
   }),
 );
 
-void test(
+test(
   '2 cycles of length 1',
   rigTest(async ({rig}) => {
     //  a -----> b
@@ -1344,7 +1344,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle with lead up and lead out',
   rigTest(async ({rig}) => {
     //  a --> b --> c --> d --> e
@@ -1404,7 +1404,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle with multiple trails',
   rigTest(async ({rig}) => {
     //    +------+
@@ -1465,7 +1465,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle with multiple trails (with different dependency order)',
   rigTest(async ({rig}) => {
     //    +------+
@@ -1528,7 +1528,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cycle across packages',
   rigTest(async ({rig}) => {
     //  foo:a --> bar:b
@@ -1579,7 +1579,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'multiple errors',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1615,7 +1615,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `we don't produce a duplicate analysis error for the same dependency`,
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1655,7 +1655,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `we don't produce a duplicate not found error when there's multiple deps into the same file`,
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1685,7 +1685,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `we don't produce a duplicate error when there's multiple deps into the same invalid file`,
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1721,7 +1721,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `we don't produce a duplicate error when there's multiple deps on a script that fails`,
   rigTest(async ({rig}) => {
     const willFail = await rig.newCommand();
@@ -1764,7 +1764,7 @@ void test(
   }),
 );
 
-void test(
+test(
   `repro an issue with looking for a colon in missing dependency`,
   rigTest(async ({rig}) => {
     await rig.write('package.json', {
@@ -1797,7 +1797,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script without command cannot have output',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1834,7 +1834,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service is not a boolean or object',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1863,7 +1863,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service does not have command',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1896,7 +1896,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service cannot have output',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1930,7 +1930,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'dependencies.cascade is not a boolean',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -1967,7 +1967,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service.readyWhen must be an object',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2002,7 +2002,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service.readyWhen.lineMatches must be a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2035,7 +2035,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'service.readyWhen.lineMatches must be a valid regular expression',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2068,7 +2068,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'env must be an object',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2097,7 +2097,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'env entry value must be a string or object',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2128,7 +2128,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'env entry value that is object must have an "external" property',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2165,7 +2165,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'env entry value that is object must have "external" set to true',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2198,7 +2198,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'env entry value that is object with "default" property must be a string',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -2232,7 +2232,7 @@ void test(
   }),
 );
 
-void test(
+test(
   "script with no command can't have env",
   rigTest(async ({rig}) => {
     await rig.write({

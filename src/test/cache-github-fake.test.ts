@@ -86,7 +86,7 @@ async function setup() {
 
 registerCommonCacheTests(setup, 'github');
 
-void test('cache key affected by ImageOS environment variable', async () => {
+test('cache key affected by ImageOS environment variable', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const cmdA = await rig.newCommand();
@@ -145,7 +145,7 @@ void test('cache key affected by ImageOS environment variable', async () => {
   }
 });
 
-void test('recovers from reservation race condition', async () => {
+test('recovers from reservation race condition', async () => {
   await using ctx = await setup();
   const {rig, server} = ctx;
   const cmdA = await rig.newCommand();
@@ -230,7 +230,7 @@ function assertSuccess(exitResult: ExitResult) {
   }
 }
 
-void test(`gracefully handles 409 conflict on set()`, async () => {
+test(`gracefully handles 409 conflict on set()`, async () => {
   await using ctx = await setup();
   const {rig, server} = ctx;
   const cmdA = await rig.newCommand();
@@ -293,7 +293,7 @@ for (const code of [
   })(),
   randomInt(500, 600),
 ] as const) {
-  void test(`recovers from ${code} error within get()`, async () => {
+  test(`recovers from ${code} error within get()`, async () => {
     await using ctx = await setup();
     const {rig, server} = ctx;
     const cmdA = await rig.newCommand();
@@ -338,7 +338,7 @@ for (const code of [
     assert.deepStrictEqual(cmdA.numInvocations, 1);
   });
 
-  void test(`recovers from ${code} error within set()`, async () => {
+  test(`recovers from ${code} error within set()`, async () => {
     await using ctx = await setup();
     const {rig, server} = ctx;
     await rig.write({
@@ -450,7 +450,7 @@ for (const code of [
   });
 }
 
-void test(
+test(
   'uploads large tarball in multiple chunks',
   {timeout: 15_000},
   async () => {

@@ -12,7 +12,7 @@ async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-void test('Semaphore restricts resource access', async () => {
+test('Semaphore restricts resource access', async () => {
   const semaphore = new Semaphore(1);
   const reservation1 = await semaphore.reserve();
   const reservation2Promise = semaphore.reserve();
@@ -31,7 +31,7 @@ void test('Semaphore restricts resource access', async () => {
   assert.strictEqual(hasResolved, true);
 });
 
-void test('Semaphore reservation happens immediately when not under contention', async () => {
+test('Semaphore reservation happens immediately when not under contention', async () => {
   const semaphore = new Semaphore(3);
   await semaphore.reserve();
   await semaphore.reserve();

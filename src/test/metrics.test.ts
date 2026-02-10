@@ -9,7 +9,7 @@ import {rigTestNode as rigTest} from './util/rig-test.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 import assert from 'node:assert';
 
-void test(
+test(
   'logs metrics for successful events',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'metrics';
@@ -86,7 +86,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'does not log metrics for non-success events',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'metrics';
@@ -115,7 +115,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'logs metrics for interesting iterations when in watch mode',
   rigTest(
     async ({rig}) => {
@@ -188,7 +188,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'does not log metrics for non-interesting iterations in watch mode',
   rigTest(
     async ({rig}) => {

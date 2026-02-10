@@ -11,7 +11,7 @@ import {rigTestNode as rigTest} from './util/rig-test.js';
 import {shuffle} from '../util/shuffle.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-void test(
+test(
   'fresh script is skipped',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -51,7 +51,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing input file makes script stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -96,7 +96,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'directory matched by files array covers recursive contents',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -142,7 +142,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'content of symlink targets affects key',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -187,7 +187,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'freshness check supports glob re-inclusion',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -244,7 +244,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing input file modtime does not make script stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -289,7 +289,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script with undefined input files is always stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -334,7 +334,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script with undefined output files is always stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -379,7 +379,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script with undefined input/output files and undefined command can be fresh',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -440,7 +440,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script with empty input files can be fresh',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -479,7 +479,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'empty directory is not included in fingerprint',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -520,7 +520,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cross-package freshness is tracked',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -609,7 +609,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'input file can be outside of package',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -662,7 +662,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'two commands which reference the same input file',
   rigTest(async ({rig}) => {
     const cmdB = await rig.newCommand();
@@ -733,7 +733,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'glob recursive stars (**) match input files',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -778,7 +778,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'glob negations (!) exclude input files',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -835,7 +835,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'fresh script is skipped with unsafe characters in script name',
   rigTest(async ({rig}) => {
     // This test confirms that we are serializing the previous fingerprint file
@@ -893,7 +893,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'failure makes script stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -936,7 +936,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'fingerprint file is deleted before invoking command',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1005,7 +1005,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script is stale if a dependency was stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1084,7 +1084,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script is always stale if a dependency has no input files',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1139,7 +1139,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing script command makes script stale',
   rigTest(async ({rig}) => {
     const cmdA1 = await rig.newCommand();
@@ -1200,7 +1200,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing output glob patterns makes script stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1257,7 +1257,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing clean setting makes script stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1315,7 +1315,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'fingerprint is independent of file ordering',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1373,7 +1373,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'fingerprint is independent of dependency ordering',
   rigTest(async ({rig}) => {
     //         a
@@ -1486,7 +1486,7 @@ for (const [agent, lockfile] of [
   ['yarn', 'yarn.lock'],
   ['pnpm', 'pnpm-lock.yaml'],
 ]) {
-  void test(
+  test(
     `changing ${lockfile} with ${agent} changes fingerprint`,
     rigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
@@ -1558,7 +1558,7 @@ for (const [agent, lockfile] of [
   );
 }
 
-void test(
+test(
   'changing package-lock.json does not invalidate when packageLocks is empty',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1610,7 +1610,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing custom.lock invalidates when set in packageLocks',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1664,7 +1664,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'packageLocks can have multiple files',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1730,7 +1730,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'leading slash on files glob is package relative',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -1775,7 +1775,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'file-only rule affects fingerprint of consumers',
   rigTest(async ({rig}) => {
     const consumer = await rig.newCommand();
@@ -1826,7 +1826,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'script is not fresh if output file is modified externally',
   rigTest(async ({rig}) => {
     const main = await rig.newCommand();
@@ -1927,7 +1927,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'changing external environment variable makes script stale',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();

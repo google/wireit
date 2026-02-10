@@ -10,7 +10,7 @@ import * as pathlib from 'path';
 import {test} from 'node:test';
 import * as assert from 'node:assert';
 
-void test('the extension is installed', () => {
+test('the extension is installed', () => {
   const extensionIds = vscode.extensions.all.map((extension) => extension.id);
   const ourId = 'google.wireit';
   assert.ok(
@@ -50,7 +50,7 @@ async function tryUntil<T>(
 // This is mainly a test that the schema is present and automatically
 // applies to all package.json files. The contents of the schema are
 // tested in the main wireit package.
-void test('warns on a package.json based on the schema', async () => {
+test('warns on a package.json based on the schema', async () => {
   const doc = await vscode.workspace.openTextDocument(
     vscode.Uri.file(
       pathlib.join(__dirname, '../../src/test/fixtures/incorrect/package.json'),
@@ -81,7 +81,7 @@ void test('warns on a package.json based on the schema', async () => {
   );
 });
 
-void test('warns on a package.json based on semantic analysis in the language server', async () => {
+test('warns on a package.json based on semantic analysis in the language server', async () => {
   const doc = await vscode.workspace.openTextDocument(
     vscode.Uri.file(
       pathlib.join(

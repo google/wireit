@@ -10,7 +10,7 @@ import pathlib from 'path';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
-void test(
+test(
   'invoked directly',
   rigTest(async ({rig}) => {
     const result = rig.exec(
@@ -28,7 +28,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'invoked through npx',
   rigTest(async ({rig}) => {
     const result = rig.exec('npx wireit');
@@ -51,7 +51,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'negative parallelism',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -76,7 +76,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'zero parallelism',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -101,7 +101,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'nonsense parallelism',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -128,7 +128,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'nonsense WIREIT_CACHE',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -155,7 +155,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'nonsense WIREIT_FAILURES',
   rigTest(async ({rig}) => {
     await rig.write({
@@ -182,7 +182,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'github caching without ACTIONS_RESULTS_URL',
   rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
@@ -217,7 +217,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'github caching but ACTIONS_RESULTS_URL does not end in slash',
   rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();
@@ -252,7 +252,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'github caching without ACTIONS_RUNTIME_TOKEN',
   rigTest(async ({rig}) => {
     const cmd = await rig.newCommand();

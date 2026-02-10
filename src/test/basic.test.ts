@@ -11,7 +11,7 @@ import {checkScriptOutput} from './util/check-script-output.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 import {WireitTestRig} from './util/test-rig.js';
 
-void test('rig commands exit and emit stdout/stderr as requested', async () => {
+test('rig commands exit and emit stdout/stderr as requested', async () => {
   await using rig = await WireitTestRig.setup();
 
   // Test 2 different simultaneous commands, one with two simultaneous
@@ -53,7 +53,7 @@ void test('rig commands exit and emit stdout/stderr as requested', async () => {
   assert.equal(resB1.code, 44);
 });
 
-void test('runs one script that succeeds', async () => {
+test('runs one script that succeeds', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -98,7 +98,7 @@ void test('runs one script that succeeds', async () => {
   );
 });
 
-void test('runs one script that succeeds from a package sub-directory', async () => {
+test('runs one script that succeeds from a package sub-directory', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -139,7 +139,7 @@ void test('runs one script that succeeds from a package sub-directory', async ()
   assert.match(res.stdout, /✅ Ran 1 script and skipped 0 in/);
 });
 
-void test('dependency chain in one package that succeeds', async () => {
+test('dependency chain in one package that succeeds', async () => {
   await using rig = await WireitTestRig.setup();
 
   // a --> b --> c
@@ -202,7 +202,7 @@ void test('dependency chain in one package that succeeds', async () => {
   checkScriptOutput(res.stderr, 'a stderr\n');
 });
 
-void test('dependency chain with vanilla npm script at the end', async () => {
+test('dependency chain with vanilla npm script at the end', async () => {
   await using rig = await WireitTestRig.setup();
 
   // a --> b --> c
@@ -263,7 +263,7 @@ void test('dependency chain with vanilla npm script at the end', async () => {
   checkScriptOutput(res.stderr, 'a stderr\n');
 });
 
-void test('dependency diamond in one package that succeeds', async () => {
+test('dependency diamond in one package that succeeds', async () => {
   await using rig = await WireitTestRig.setup();
 
   //     a
@@ -330,7 +330,7 @@ void test('dependency diamond in one package that succeeds', async () => {
   assert.match(res.stdout, /Ran 4 scripts and skipped 0/s);
 });
 
-void test('cross-package dependency', async () => {
+test('cross-package dependency', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -375,7 +375,7 @@ void test('cross-package dependency', async () => {
   assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
 });
 
-void test('cross-package dependency using object format', async () => {
+test('cross-package dependency using object format', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -424,7 +424,7 @@ void test('cross-package dependency using object format', async () => {
   assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
 });
 
-void test('cross-package dependency that validly cycles back to the first package', async () => {
+test('cross-package dependency that validly cycles back to the first package', async () => {
   await using rig = await WireitTestRig.setup();
 
   // Cycles between packages are fine, as long as there aren't cycles in the
@@ -482,7 +482,7 @@ void test('cross-package dependency that validly cycles back to the first packag
   assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
 });
 
-void test('finds node_modules binary in starting dir', async () => {
+test('finds node_modules binary in starting dir', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmd = await rig.newCommand();
@@ -510,7 +510,7 @@ void test('finds node_modules binary in starting dir', async () => {
   assert.equal(cmd.numInvocations, 1);
 });
 
-void test('finds node_modules binary in parent dir', async () => {
+test('finds node_modules binary in parent dir', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmd = await rig.newCommand();
@@ -538,7 +538,7 @@ void test('finds node_modules binary in parent dir', async () => {
   assert.equal(cmd.numInvocations, 1);
 });
 
-void test('finds node_modules binary across packages (child)', async () => {
+test('finds node_modules binary across packages (child)', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmd = await rig.newCommand();
@@ -576,7 +576,7 @@ void test('finds node_modules binary across packages (child)', async () => {
   assert.equal(cmd.numInvocations, 1);
 });
 
-void test('finds node_modules binary across packages (sibling)', async () => {
+test('finds node_modules binary across packages (sibling)', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmd = await rig.newCommand();
@@ -614,7 +614,7 @@ void test('finds node_modules binary across packages (sibling)', async () => {
   assert.equal(cmd.numInvocations, 1);
 });
 
-void test('starting node_modules binaries are not available across packages (sibling)', async () => {
+test('starting node_modules binaries are not available across packages (sibling)', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmd = await rig.newCommand();
@@ -712,7 +712,7 @@ void (NODE_MAJOR_VERSION > 14 ? test : test.skip)(
   },
 );
 
-void test('finds package directory without npm_package_json', async () => {
+test('finds package directory without npm_package_json', async () => {
   await using rig = await WireitTestRig.setup();
 
   // This confirms that we can walk up the filesystem to find the nearest
@@ -750,7 +750,7 @@ void test('finds package directory without npm_package_json', async () => {
 });
 
 if (NODE_MAJOR_VERSION >= 22) {
-  void test('runs a script with node --run', async () => {
+  test('runs a script with node --run', async () => {
     await using rig = await WireitTestRig.setup();
 
     const cmdA = await rig.newCommand();
@@ -776,7 +776,7 @@ if (NODE_MAJOR_VERSION >= 22) {
   });
 }
 
-void test('runs a script with yarn', async () => {
+test('runs a script with yarn', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -801,7 +801,7 @@ void test('runs a script with yarn', async () => {
   assert.match(res.stdout, /Ran 1 script and skipped 0/s);
 });
 
-void test('runs a script with pnpm', async () => {
+test('runs a script with pnpm', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -826,7 +826,7 @@ void test('runs a script with pnpm', async () => {
   assert.match(res.stdout, /Ran 1 script and skipped 0/s);
 });
 
-void test('commands run under yarn workspaces', async () => {
+test('commands run under yarn workspaces', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -887,7 +887,7 @@ void test('commands run under yarn workspaces', async () => {
   }
 });
 
-void test('commands run under pnpm workspaces', async () => {
+test('commands run under pnpm workspaces', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -941,7 +941,7 @@ void test('commands run under pnpm workspaces', async () => {
   }
 });
 
-void test('multiple cross-package dependencies', async () => {
+test('multiple cross-package dependencies', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -1005,7 +1005,7 @@ void test('multiple cross-package dependencies', async () => {
   assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
 });
 
-void test('top-level SIGINT kills running scripts', async () => {
+test('top-level SIGINT kills running scripts', async () => {
   await using rig = await WireitTestRig.setup();
 
   const main = await rig.newCommand();
@@ -1035,7 +1035,7 @@ void test('top-level SIGINT kills running scripts', async () => {
   }
 });
 
-void test('top-level SIGTERM kills running scripts', async () => {
+test('top-level SIGTERM kills running scripts', async () => {
   await using rig = await WireitTestRig.setup();
 
   const main = await rig.newCommand();
@@ -1078,7 +1078,7 @@ for (const command of [
   // node --run needs an extra set of "--" before arguments will be passed down
   // to Wireit.
   const extraDashes = command === 'node --run' ? '--' : '';
-  void test(`can pass extra args with using "${command} run --"`, async () => {
+  test(`can pass extra args with using "${command} run --"`, async () => {
     await using rig = await WireitTestRig.setup();
 
     const cmdA = await rig.newCommand();
@@ -1136,7 +1136,7 @@ for (const command of [
   });
 }
 
-void test('cascade:false dependency does not inherit fingerprint', async () => {
+test('cascade:false dependency does not inherit fingerprint', async () => {
   await using rig = await WireitTestRig.setup();
 
   //  a --[cascade:false]--> b --> c
@@ -1236,7 +1236,7 @@ void test('cascade:false dependency does not inherit fingerprint', async () => {
   }
 });
 
-void test('can write fingerprint file for extremely large script graph', async () => {
+test('can write fingerprint file for extremely large script graph', async () => {
   await using rig = await WireitTestRig.setup();
 
   // These numbers found experimentally, they were just enough to trigger an
@@ -1287,7 +1287,7 @@ void test('can write fingerprint file for extremely large script graph', async (
   assert.equal((await wireit.exit).code, 0);
 });
 
-void test('environment variables are passed to children', async () => {
+test('environment variables are passed to children', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -1336,7 +1336,7 @@ void test('environment variables are passed to children', async () => {
   assert.equal((await wireit.exit).code, 0);
 });
 
-void test('dependency which is not in script section', async () => {
+test('dependency which is not in script section', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();

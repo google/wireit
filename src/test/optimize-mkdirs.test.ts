@@ -16,27 +16,27 @@ const check = (input: string[], expected: string[]) =>
     expected.map(windowsifyPathIfOnWindows).sort(),
   );
 
-void test('empty', () => {
+test('empty', () => {
   check([], []);
 });
 
-void test('1 item', () => {
+test('1 item', () => {
   check(['a'], ['a']);
 });
 
-void test('duplicates', () => {
+test('duplicates', () => {
   check(['a', 'a'], ['a']);
 });
 
-void test('parent and children', () => {
+test('parent and children', () => {
   check(['a', 'a/b', 'a/b/c'], ['a/b/c']);
 });
 
-void test('parent and child reversed', () => {
+test('parent and child reversed', () => {
   check(['a/b/c', 'a/b', 'a'], ['a/b/c']);
 });
 
-void test('various shuffled cases', () => {
+test('various shuffled cases', () => {
   const input = [
     '',
     'a/b/c',

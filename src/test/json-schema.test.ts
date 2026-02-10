@@ -40,27 +40,27 @@ function expectValidationErrors(packageJson: object, errors: string[]) {
   );
 }
 
-void test('an empty package.json file is valid', () => {
+test('an empty package.json file is valid', () => {
   shouldValidate({});
 });
 
-void test('an empty wireit config section is valid', () => {
+test('an empty wireit config section is valid', () => {
   shouldValidate({wireit: {}});
 });
 
-void test('a script with just a command is valid', () => {
+test('a script with just a command is valid', () => {
   shouldValidate({wireit: {a: {command: 'b'}}});
 });
 
-void test('a script with just dependencies is valid', () => {
+test('a script with just dependencies is valid', () => {
   shouldValidate({wireit: {a: {dependencies: ['b']}}});
 });
 
-void test('dependency object is valid', () => {
+test('dependency object is valid', () => {
   shouldValidate({wireit: {a: {dependencies: [{script: 'b'}]}}});
 });
 
-void test('dependency object with cascade:false annotation is valid', () => {
+test('dependency object with cascade:false annotation is valid', () => {
   shouldValidate({
     wireit: {a: {dependencies: [{script: 'b', cascade: false}]}},
   });
@@ -69,13 +69,13 @@ void test('dependency object with cascade:false annotation is valid', () => {
 // I couldn't figure out how to make this test pass while keeping the other
 // error messages reasonable.
 // It just turned all errors into this one.
-void test('an empty script is invalid', {skip: true}, () => {
+test('an empty script is invalid', {skip: true}, () => {
   expectValidationErrors({wireit: {a: {}}}, [
     'instance.wireit.a is not any of <a script with a command>,<a script with only dependencies>',
   ]);
 });
 
-void test('a script with all fields set is valid', () => {
+test('a script with all fields set is valid', () => {
   shouldValidate({
     wireit: {
       a: {
@@ -90,7 +90,7 @@ void test('a script with all fields set is valid', () => {
   });
 });
 
-void test('clean can be either a boolean or the string if-file-deleted', () => {
+test('clean can be either a boolean or the string if-file-deleted', () => {
   shouldValidate({
     wireit: {
       a: {
@@ -130,7 +130,7 @@ void test('clean can be either a boolean or the string if-file-deleted', () => {
   );
 });
 
-void test('command must not be empty', () => {
+test('command must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -143,7 +143,7 @@ void test('command must not be empty', () => {
   );
 });
 
-void test('dependencies[i] must not be empty', () => {
+test('dependencies[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -162,7 +162,7 @@ void test('dependencies[i] must not be empty', () => {
   );
 });
 
-void test('files[i] must not be empty', () => {
+test('files[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -176,7 +176,7 @@ void test('files[i] must not be empty', () => {
   );
 });
 
-void test('output[i] must not be empty', () => {
+test('output[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -190,7 +190,7 @@ void test('output[i] must not be empty', () => {
   );
 });
 
-void test('packageLocks[i] must not be empty', () => {
+test('packageLocks[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -204,7 +204,7 @@ void test('packageLocks[i] must not be empty', () => {
   );
 });
 
-void test('dependencies must be an array of strings', () => {
+test('dependencies must be an array of strings', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -232,7 +232,7 @@ void test('dependencies must be an array of strings', () => {
   );
 });
 
-void test('dependencies[i].script is required', () => {
+test('dependencies[i].script is required', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -248,7 +248,7 @@ void test('dependencies[i].script is required', () => {
   );
 });
 
-void test('dependencies[i].cascade must be boolean', () => {
+test('dependencies[i].cascade must be boolean', () => {
   expectValidationErrors(
     {
       wireit: {

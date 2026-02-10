@@ -37,7 +37,7 @@ async function assertDiagnostics(
   assert.deepStrictEqual(actual, expected);
 }
 
-void test('can get diagnostics from a single file', async () => {
+test('can get diagnostics from a single file', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -47,7 +47,7 @@ void test('can get diagnostics from a single file', async () => {
   });
 });
 
-void test('changing a file gives us new diagnostics', async () => {
+test('changing a file gives us new diagnostics', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -66,7 +66,7 @@ void test('changing a file gives us new diagnostics', async () => {
   });
 });
 
-void test('the overlay filesystem overrides the regular one', async () => {
+test('the overlay filesystem overrides the regular one', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   await rig.write('child/package.json', {scripts: {}});
@@ -123,7 +123,7 @@ void test('the overlay filesystem overrides the regular one', async () => {
   await assertDiagnostics(ide, {});
 });
 
-void test('we can get cyclic dependency errors', async () => {
+test('we can get cyclic dependency errors', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -149,7 +149,7 @@ void test('we can get cyclic dependency errors', async () => {
   });
 });
 
-void test('warns for a service without a command', async () => {
+test('warns for a service without a command', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -277,7 +277,7 @@ function assertSquiggleEquals(actual: string, expected: string) {
   assert.deepStrictEqual(actual.trim(), expected.trim());
 }
 
-void test('we can get the definition for a same file dependency', async () => {
+test('we can get the definition for a same file dependency', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -354,7 +354,7 @@ test(`we jump to the scripts section for a vanilla script`, async () => {
   });
 });
 
-void test('jump to definition from object style dependency', async () => {
+test('jump to definition from object style dependency', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -520,7 +520,7 @@ test(`we can jump to definitions across files`, async () => {
   });
 });
 
-void test('can jump from scripts section to wireit config', async () => {
+test('can jump from scripts section to wireit config', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -566,7 +566,7 @@ void test('can jump from scripts section to wireit config', async () => {
   });
 });
 
-void test('can jump from colon in scripts section to wireit config', async () => {
+test('can jump from colon in scripts section to wireit config', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -671,7 +671,7 @@ async function assertReferences(
   }
 }
 
-void test('we can find references for same file dependencies', async () => {
+test('we can find references for same file dependencies', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -711,7 +711,7 @@ void test('we can find references for same file dependencies', async () => {
   });
 });
 
-void test('we can find references across files', async () => {
+test('we can find references across files', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -765,7 +765,7 @@ void test('we can find references across files', async () => {
   });
 });
 
-void test('we can find references to a dependency', async () => {
+test('we can find references to a dependency', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -860,7 +860,7 @@ async function assertCompletions(
   assert.deepStrictEqual(completionList, options.expected);
 }
 
-void test('we can get completions for same file dependencies', async () => {
+test('we can get completions for same file dependencies', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -972,7 +972,7 @@ void test('we can get completions for same file dependencies', async () => {
   });
 });
 
-void test('we can get completions for cross file dependencies', async () => {
+test('we can get completions for cross file dependencies', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();
@@ -1065,7 +1065,7 @@ void test('we can get completions for cross file dependencies', async () => {
   });
 });
 
-void test('we can get completions for paths', async () => {
+test('we can get completions for paths', async () => {
   await using ctx = await setup();
   const {rig} = ctx;
   const ide = new IdeAnalyzer();

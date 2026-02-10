@@ -121,7 +121,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   const isWindows = process.platform === 'win32';
   const extraDashes = needsExtraDashes ? '--' : '';
 
-  void test(
+  test(
     `${agent} run`,
     rigTest(async ({rig}) => {
       await assertOptions(rig, `${runCmd} main`, {
@@ -134,7 +134,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} run --extra`,
     rigTest(async ({rig}) => {
       await assertOptions(rig, `${runCmd} main -- ${extraDashes} --extra`, {
@@ -148,7 +148,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} run --watch`,
     rigTest(async ({rig}) => {
       await assertOptions(rig, `${runCmd} main ${extraDashes} --watch`, {
@@ -162,7 +162,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} run --watch --extra`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -205,7 +205,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} WIREIT_LOGGER=simple run`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -226,7 +226,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} WIREIT_LOGGER=quiet run`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -276,7 +276,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   );
 
   if (testCmd !== undefined) {
-    void test(
+    test(
       `${agent} test`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${testCmd}`, {
@@ -337,7 +337,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   }
 
   if (startCmd !== undefined) {
-    void test(
+    test(
       `${agent} start`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, startCmd, {
@@ -350,7 +350,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       }),
     );
 
-    void test(
+    test(
       `${agent} start --extra`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${startCmd} -- --extra`, {
@@ -364,7 +364,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       }),
     );
 
-    void test(
+    test(
       `${agent} start --watch`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${startCmd} --watch`, {
@@ -378,7 +378,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       }),
     );
 
-    void test(
+    test(
       `${agent} start --watch --extra`,
       rigTest(async ({rig}) => {
         await assertOptions(rig, `${startCmd} --watch -- --extra`, {
@@ -394,7 +394,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     );
   }
 
-  void test(
+  test(
     `${agent} --watch WIREIT_WATCH_STRATEGY=poll`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -419,7 +419,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} --watch WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -445,7 +445,7 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
-  void test(
+  test(
     `${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
     rigTest(async ({rig}) => {
       await assertOptions(

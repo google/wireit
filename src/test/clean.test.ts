@@ -10,7 +10,7 @@ import {rigTestNode as rigTest} from './util/rig-test.js';
 import * as pathlib from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-void test(
+test(
   'cleans output by default',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -45,7 +45,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cleans output when clean is true',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -81,7 +81,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'does not clean output when clean is false',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -114,7 +114,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cleaning deletes all files matched by glob pattern',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -149,7 +149,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cleaning supports glob re-inclusion',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -186,7 +186,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cleaning deletes directories',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -218,7 +218,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'cleaning deletes symlinks but not their targets',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -252,7 +252,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'errors if cleaning output outside of the package',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -294,7 +294,7 @@ void test(
   }),
 );
 
-void test(
+test(
   '"if-file-deleted" cleans only when input file deleted',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -439,7 +439,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'directories are not deleted unless empty',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -504,7 +504,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'leading slash on output glob is package relative',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();

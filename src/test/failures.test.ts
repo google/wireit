@@ -9,7 +9,7 @@ import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import type {ExitResult} from './util/test-rig.js';
 
-void test(
+test(
   'runs one script that fails',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
@@ -41,7 +41,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'runs one non-root script that fails',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
@@ -77,7 +77,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'dependency chain in one package that fails in the middle',
   rigTest(async ({rig}) => {
     // a --> b* --> c
@@ -122,7 +122,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'dependency chain in one package that fails in nested dependency',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -174,7 +174,7 @@ void test(
 );
 
 for (const envSetting of ['no-new', undefined]) {
-  void test(
+  test(
     `don't start new script after unrelated failure when WIREIT_FAILURES=${
       envSetting ?? '<unset>'
     }`,
@@ -290,7 +290,7 @@ for (const envSetting of ['no-new', undefined]) {
   );
 }
 
-void test(
+test(
   "don't start new script after unrelated failure with constrained parallelism in no-new mode",
   rigTest(async ({rig}) => {
     // This test covers handling for a race condition that occurs where the
@@ -354,7 +354,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'allow unrelated scripts to start after failure in continue mode',
   rigTest(async ({rig}) => {
     //   main
@@ -426,7 +426,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'kill running script after failure in kill mode',
   rigTest(async ({rig}) => {
     //   main
@@ -479,7 +479,7 @@ void test(
   }),
 );
 
-void test(
+test(
   'unexpected input file deletion during fingerprinting',
   {timeout: 2 * 60 * 1000},
   rigTest(
@@ -566,7 +566,7 @@ void test(
   ),
 );
 
-void test(
+test(
   'unexpected output file deletion during manifest generation',
   {timeout: 2 * 60 * 1000},
   rigTest(

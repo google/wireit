@@ -8,7 +8,7 @@ import {test} from 'node:test';
 import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 
-void test(
+test(
   'CI logger with a dependency chain',
   rigTest(async ({rig}) => {
     // a --> b --> c
