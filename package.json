@@ -214,7 +214,7 @@
       "output": []
     },
     "test:copy": {
-      "command": "uvu lib/test \"^copy\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/copy.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
