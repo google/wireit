@@ -4,11 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
 import {registerCommonCacheTests} from './cache-common.js';
+import {WireitTestRig} from './util/test-rig.js';
 
-const test = suite<object>();
+async function setup() {
+  const rig = await WireitTestRig.setup();
+  return {
+    rig,
+    [Symbol.asyncDispose]: () => rig[Symbol.asyncDispose](),
+  };
+}
 
-registerCommonCacheTests(test, 'local');
-
-test.run();
+registerCommonCacheTests(setup, 'local');

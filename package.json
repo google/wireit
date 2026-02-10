@@ -147,7 +147,7 @@
       "output": []
     },
     "test:cache-github-fake": {
-      "command": "uvu lib/test \"^cache-github-fake\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cache-github-fake.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -159,7 +159,7 @@
     },
     "test:cache-github-real": {
       "#comment": "Only works on GitHub CI",
-      "command": "uvu lib/test \"^cache-github-real\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cache-github-real.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -170,7 +170,7 @@
       "output": []
     },
     "test:cache-local": {
-      "command": "uvu lib/test \"^cache-local\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cache-local.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
