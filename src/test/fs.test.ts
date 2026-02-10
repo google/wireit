@@ -5,14 +5,14 @@
  */
 
 import {Semaphore} from '../util/fs.js';
-import {test} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 
 async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test('Semaphore restricts resource access', async () => {
+void test('Semaphore restricts resource access', async () => {
   const semaphore = new Semaphore(1);
   const reservation1 = await semaphore.reserve();
   const reservation2Promise = semaphore.reserve();
@@ -24,19 +24,17 @@ test('Semaphore restricts resource access', async () => {
   await wait(100);
   // The semaphore doesn't let the second reservation happen yet, it would
   // be over budget.
-  assert.is(hasResolved, false);
+  assert.strictEqual(hasResolved, false);
   reservation1[Symbol.dispose]();
   // Now it can happen.
   await reservation2Promise;
-  assert.is(hasResolved, true);
+  assert.strictEqual(hasResolved, true);
 });
 
-test('Semaphore reservation happens immediately when not under contention', async () => {
+void test('Semaphore reservation happens immediately when not under contention', async () => {
   const semaphore = new Semaphore(3);
   await semaphore.reserve();
   await semaphore.reserve();
   await semaphore.reserve();
   // If the test finishes, then we were able to reserve three slots.
 });
-
-test.run();

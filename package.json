@@ -403,7 +403,7 @@
       "output": []
     },
     "test:fs": {
-      "command": "uvu lib/test \"^fs\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/fs.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
