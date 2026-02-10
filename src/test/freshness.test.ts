@@ -6,7 +6,7 @@
 
 import * as pathlib from 'path';
 import {test} from 'node:test';
-import * as assert from 'uvu/assert';
+import * as assert from 'node:assert';
 import {rigTestNode as rigTest} from './util/rig-test.js';
 import {shuffle} from '../util/shuffle.js';
 import {IS_WINDOWS} from '../util/windows.js';
@@ -37,16 +37,16 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // No input file changed, so script is fresh, and command is not invoked.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -77,8 +77,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Input file changed, so script is stale, and command is invoked.
@@ -90,8 +90,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -122,8 +122,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // A child of the directory in the input files array changed, so script is
@@ -136,8 +136,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -170,8 +170,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Changing the content of the target of the symlink should cause a new run.
@@ -181,8 +181,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -214,8 +214,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Excluded file modified. Fresh.
@@ -225,8 +225,8 @@ void test(
       });
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Re-included file modified. Stale.
@@ -238,8 +238,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -270,8 +270,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Input file is written to the same value, so its modtime changed, but
@@ -283,8 +283,8 @@ void test(
       });
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -314,8 +314,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // No input file changed, but input files are undefined, so script is still
@@ -328,8 +328,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -359,8 +359,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // No input file changed, but input files are undefined, so script is still
@@ -373,8 +373,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -422,9 +422,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdC.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdC.numInvocations, 1);
     }
 
     // No input files changed, so no commands are invoked. It doesn't matter
@@ -433,9 +433,9 @@ void test(
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdC.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdC.numInvocations, 1);
     }
   }),
 );
@@ -465,16 +465,16 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // No input file changed, so script is fresh, and command is not invoked.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -504,8 +504,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Empty directory created, but that doesn't count as an input file, so
@@ -514,8 +514,8 @@ void test(
       await rig.mkdir('input/subdir');
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -563,18 +563,18 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
     }
 
     // Nothing changed, so neither runs.
     {
       const exec = rig.exec('npm run a', {cwd: 'foo'});
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
     }
 
     // Change A input file, so only A runs.
@@ -586,9 +586,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
     }
 
     // Change B input file, so both run.
@@ -602,9 +602,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
-      assert.equal(cmdB.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 3);
+      assert.deepStrictEqual(cmdB.numInvocations, 2);
     }
   }),
 );
@@ -635,16 +635,16 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Nothing changed, so doesn't run.
     {
       const exec = rig.exec('npm run a', {cwd: 'foo'});
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Input file changed, so command runs.
@@ -656,8 +656,8 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -701,18 +701,18 @@ void test(
       invB.exit(0);
       invC.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdB.numInvocations, 1);
-      assert.equal(cmdC.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(cmdC.numInvocations, 1);
     }
 
     // Nothing changed, so nothing runs.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdB.numInvocations, 1);
-      assert.equal(cmdC.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(cmdC.numInvocations, 1);
     }
 
     // Input file changed. Since it is an input to both B and C, they both run.
@@ -726,9 +726,9 @@ void test(
       invB.exit(0);
       invC.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdB.numInvocations, 2);
-      assert.equal(cmdC.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdB.numInvocations, 2);
+      assert.deepStrictEqual(cmdC.numInvocations, 2);
     }
   }),
 );
@@ -759,8 +759,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Input file changed, so script is stale, and command is invoked.
@@ -772,8 +772,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -805,8 +805,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // An excluded file changed, so script is fresh, and command is not invoked.
@@ -816,8 +816,8 @@ void test(
       });
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // An included file changed, so script is stale, and command is invoked.
@@ -829,8 +829,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -866,8 +866,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Check that we created a fingerprint file using the hex encoding of the
@@ -887,8 +887,8 @@ void test(
     {
       const exec = rig.exec(`npm run "${name}"`);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -919,8 +919,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(2);
       const res = await exec.exit;
-      assert.equal(res.code, 1);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 1);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // No input file changed, but previous invocation failed, so script is still
@@ -930,8 +930,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -965,8 +965,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Input file changed, so script is stale, and command is invoked. It fails,
@@ -983,8 +983,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(1);
       const res = await exec.exit;
-      assert.equal(res.code, 1);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 1);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
 
     // Input file reverts back to v0. Since the previous fingerprint file was
@@ -999,8 +999,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 3);
     }
   }),
 );
@@ -1042,9 +1042,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
     }
 
     // Input to B changed, so both A and B are stale.
@@ -1056,9 +1056,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
-      assert.equal(cmdB.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(cmdB.numInvocations, 2);
     }
 
     // Input to A changed, so only A is stale.
@@ -1068,18 +1068,18 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
-      assert.equal(cmdB.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 3);
+      assert.deepStrictEqual(cmdB.numInvocations, 2);
     }
 
     // No input changed, so both A and B are fresh.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
-      assert.equal(cmdB.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 3);
+      assert.deepStrictEqual(cmdB.numInvocations, 2);
     }
   }),
 );
@@ -1118,9 +1118,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
     }
 
     // No inputs changed, but both A and B are still stale, because B has
@@ -1132,9 +1132,9 @@ void test(
       const invA = await cmdA.nextInvocation();
       invA.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
-      assert.equal(cmdB.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(cmdB.numInvocations, 2);
     }
   }),
 );
@@ -1167,9 +1167,9 @@ void test(
       const inv = await cmdA1.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA1.numInvocations, 1);
-      assert.equal(cmdA2.numInvocations, 0);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA1.numInvocations, 1);
+      assert.deepStrictEqual(cmdA2.numInvocations, 0);
     }
 
     // Change the command.
@@ -1193,9 +1193,9 @@ void test(
       const inv = await cmdA2.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA1.numInvocations, 1);
-      assert.equal(cmdA2.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA1.numInvocations, 1);
+      assert.deepStrictEqual(cmdA2.numInvocations, 1);
     }
   }),
 );
@@ -1227,8 +1227,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change the output setting.
@@ -1251,8 +1251,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -1284,8 +1284,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change the clean setting.
@@ -1309,8 +1309,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -1342,8 +1342,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change the order of files
@@ -1367,8 +1367,8 @@ void test(
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -1457,26 +1457,26 @@ void test(
       invA.exit(0);
 
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
-      assert.equal(cmdC.numInvocations, 1);
-      assert.equal(cmdD.numInvocations, 1);
-      assert.equal(cmdE.numInvocations, 1);
-      assert.equal(cmdF.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(cmdC.numInvocations, 1);
+      assert.deepStrictEqual(cmdD.numInvocations, 1);
+      assert.deepStrictEqual(cmdE.numInvocations, 1);
+      assert.deepStrictEqual(cmdF.numInvocations, 1);
     }
 
     // No input files changed, so all commands are still fresh.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
-      assert.equal(cmdC.numInvocations, 1);
-      assert.equal(cmdD.numInvocations, 1);
-      assert.equal(cmdE.numInvocations, 1);
-      assert.equal(cmdF.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(cmdB.numInvocations, 1);
+      assert.deepStrictEqual(cmdC.numInvocations, 1);
+      assert.deepStrictEqual(cmdD.numInvocations, 1);
+      assert.deepStrictEqual(cmdE.numInvocations, 1);
+      assert.deepStrictEqual(cmdF.numInvocations, 1);
     }
   }),
 );
@@ -1520,16 +1520,16 @@ for (const [agent, lockfile] of [
         const inv = await cmdA.nextInvocation();
         inv.exit(0);
         const res = await exec.exit;
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 1);
+        assert.deepStrictEqual(res.code, 0);
+        assert.deepStrictEqual(cmdA.numInvocations, 1);
       }
 
       // Nothing changed. Expect no run.
       {
         const exec = rig.exec(`${agent} run a`, {cwd: 'foo'});
         const res = await exec.exit;
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 1);
+        assert.deepStrictEqual(res.code, 0);
+        assert.deepStrictEqual(cmdA.numInvocations, 1);
       }
 
       // Change current package's lock file. Expect another run.
@@ -1539,8 +1539,8 @@ for (const [agent, lockfile] of [
         const inv = await cmdA.nextInvocation();
         inv.exit(0);
         const res = await exec.exit;
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 2);
+        assert.deepStrictEqual(res.code, 0);
+        assert.deepStrictEqual(cmdA.numInvocations, 2);
       }
 
       // Create a lock file in the parent. Expect another run, since we also
@@ -1551,8 +1551,8 @@ for (const [agent, lockfile] of [
         const inv = await cmdA.nextInvocation();
         inv.exit(0);
         const res = await exec.exit;
-        assert.equal(res.code, 0);
-        assert.equal(cmdA.numInvocations, 3);
+        assert.deepStrictEqual(res.code, 0);
+        assert.deepStrictEqual(cmdA.numInvocations, 3);
       }
     }),
   );
@@ -1587,16 +1587,16 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Nothing changed. Expect no run.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change current package's package-lock.json. Expect no run.
@@ -1604,8 +1604,8 @@ void test(
       await rig.write({'package-lock.json': 'v1'});
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
   }),
 );
@@ -1639,16 +1639,16 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Nothing changed. Expect no run.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change custom lockfile. Expect another run.
@@ -1658,8 +1658,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -1694,16 +1694,16 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Nothing changed. Expect no run.
     {
       const exec = rig.exec('npm run a');
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change lock1. Expect another run.
@@ -1713,8 +1713,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
 
     // Change lock2. Expect another run.
@@ -1724,8 +1724,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 3);
     }
   }),
 );
@@ -1756,8 +1756,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Input file changed, so script is stale, and command is invoked.
@@ -1769,8 +1769,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -1804,15 +1804,15 @@ void test(
       await rig.write('foo', 'v0');
       const exec = rig.exec('npm run consumer');
       (await consumer.nextInvocation()).exit(0);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(consumer.numInvocations, 1);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(consumer.numInvocations, 1);
     }
 
     // Nothing changed, consumer is still fresh.
     {
       const exec = rig.exec('npm run consumer');
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(consumer.numInvocations, 1);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(consumer.numInvocations, 1);
     }
 
     // Changed input file of the file-only script, consumer is now stale.
@@ -1820,8 +1820,8 @@ void test(
       await rig.write('foo', 'v1');
       const exec = rig.exec('npm run consumer');
       (await consumer.nextInvocation()).exit(0);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(consumer.numInvocations, 2);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(consumer.numInvocations, 2);
     }
   }),
 );
@@ -1853,8 +1853,8 @@ void test(
       await rig.write('output/subdir/foo', '1');
       await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] main/); //
       inv.exit(0);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 1);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 1);
       await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
@@ -1862,8 +1862,8 @@ void test(
     {
       const exec = rig.exec('npm run main');
       await exec.waitForLog(/Ran 0 scripts and skipped 1/);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 1);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 1);
     }
 
     // Change the output externally from Wireit, which makes the script stale.
@@ -1879,8 +1879,8 @@ void test(
       await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] main/); //
       const inv = await main.nextInvocation();
       inv.exit(0);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 2);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 2);
       await exec.waitForLog(/Ran 1 script and skipped 0/);
     }
 
@@ -1888,8 +1888,8 @@ void test(
     {
       const exec = rig.exec('npm run main');
       await exec.waitForLog(/Ran 0 scripts and skipped 1/);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 2);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 2);
     }
 
     // Add a new file that matches the output globs, which also counts as a
@@ -1899,20 +1899,20 @@ void test(
       // Don't disable caching this time.
       const exec = rig.exec('npm run main');
       await exec.waitForLog(/Ran 0 scripts and skipped 1/);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 2);
-      assert.equal(await rig.read('output/subdir/foo'), '1');
-      assert.not(await rig.exists('output/subdir/bar'));
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 2);
+      assert.deepStrictEqual(await rig.read('output/subdir/foo'), '1');
+      assert.ok(!(await rig.exists('output/subdir/bar')));
     }
 
     // Fresh again because nothing changed.
     {
       const exec = rig.exec('npm run main');
       await exec.waitForLog(/Ran 0 scripts and skipped 1/);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 2);
-      assert.equal(await rig.read('output/subdir/foo'), '1');
-      assert.not(await rig.exists('output/subdir/bar'));
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 2);
+      assert.deepStrictEqual(await rig.read('output/subdir/foo'), '1');
+      assert.ok(!(await rig.exists('output/subdir/bar')));
     }
 
     // Adding an excluded file inside a directory that is included should not
@@ -1921,8 +1921,8 @@ void test(
       await rig.touch('output/subdir/excluded');
       const exec = rig.exec('npm run main');
       await exec.waitForLog(/Ran 0 scripts and skipped 1/);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(main.numInvocations, 2);
+      assert.deepStrictEqual((await exec.exit).code, 0);
+      assert.deepStrictEqual(main.numInvocations, 2);
     }
   }),
 );
@@ -1957,16 +1957,16 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await wireit.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Same environment variable, still fresh.
     {
       const wireit = rig.exec('npm run a', {env: {FOO: '1'}});
       const res = await wireit.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 1);
     }
 
     // Change environment variable, now stale.
@@ -1975,8 +1975,8 @@ void test(
       const inv = await cmdA.nextInvocation();
       inv.exit(0);
       const res = await wireit.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.deepStrictEqual(res.code, 0);
+      assert.deepStrictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
