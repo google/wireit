@@ -30,20 +30,20 @@ async function main() {
 
 /**
  * Downloads vscode and starts it in extension test mode, pointing it at
- * ./uvu-entrypoint
+ * ./entrypoint
  *
- * Note that uvu-entrypoint runs in its own process, inside of electron.
+ * Note that entrypoint runs in its own process, inside of electron.
  */
 async function run() {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../../built');
-  const extensionTestsPath = path.resolve(__dirname, './uvu-entrypoint.js');
+  const extensionTestsPath = path.resolve(__dirname, './entrypoint.js');
   await runTests({extensionDevelopmentPath, extensionTestsPath});
 }
 
 main().catch((err: unknown) => {
   if (err === 'Failed') {
     // The tests failed in a normal way, so the error has already been logged
-    // by uvu. All we need to do here is just to exit with a nonzero code.
+    // by node:test. All we need to do here is just to exit with a nonzero code.
   } else {
     console.error('Failed to run tests:');
     console.error(err);
