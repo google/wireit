@@ -359,7 +359,7 @@
       "output": []
     },
     "test:parallelism": {
-      "command": "uvu lib/test \"^parallelism\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/parallelism.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
