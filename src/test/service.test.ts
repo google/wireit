@@ -1098,6 +1098,11 @@ test(
 
       // 3rd run with input A. Restored from cache.
       {
+        // Wait for the file watcher to be ready before writing. Without
+        // this delay, chokidar does not detect the write. It's not clear
+        // exactly why, but the watcher seems to need time to settle after
+        // a watch iteration completes before it can pick up new changes.
+        await new Promise((resolve) => setTimeout(resolve, 500));
         await rig.write('input', 'A');
         await wireit.waitForLog(/Ran 0 scripts and skipped 1/);
         assert.equal(service.numInvocations, 2);
