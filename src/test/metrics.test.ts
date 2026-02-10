@@ -111,7 +111,7 @@ test(
     const {stdout} = await exec.exit;
 
     // There should be no metrics in the output.
-    assert.equal([...stdout.matchAll(/🏁/gi)].length, 0);
+    assert.strictEqual([...stdout.matchAll(/🏁/gi)].length, 0);
   }),
 );
 
@@ -154,8 +154,8 @@ test(
         invB.exit(0);
         const invA = await cmdA.nextInvocation();
         invA.exit(0);
-        assert.equal(cmdA.numInvocations, 1);
-        assert.equal(cmdB.numInvocations, 1);
+        assert.strictEqual(cmdA.numInvocations, 1);
+        assert.strictEqual(cmdB.numInvocations, 1);
       }
 
       // Input to A is changed, so A runs again. B is a dependency of A, but it is
@@ -173,7 +173,7 @@ test(
       exec.kill();
       const {stdout} = await exec.exit;
 
-      assert.equal([...stdout.matchAll(/🏁/gi)].length, 3);
+      assert.strictEqual([...stdout.matchAll(/🏁/gi)].length, 3);
       assertNthMetric(0, stdout, {total: 1, ran: 1, percentRan: 100});
       assertNthMetric(1, stdout, {total: 1, ran: 1, percentRan: 100});
       assertNthMetric(2, stdout, {

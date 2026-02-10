@@ -11,7 +11,7 @@ import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 
 const check = (input: string[], expected: string[]) =>
-  assert.deepEqual(
+  assert.deepStrictEqual(
     optimizeMkdirs(input.map(windowsifyPathIfOnWindows)).sort(),
     expected.map(windowsifyPathIfOnWindows).sort(),
   );

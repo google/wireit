@@ -34,8 +34,8 @@ test(
     invA.exit(1);
 
     const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 1);
+    assert.strictEqual(cmdA.numInvocations, 1);
     assert.match(res.stdout, /a stdout/);
     assert.match(res.stderr, /a stderr/);
   }),
@@ -70,8 +70,8 @@ test(
     invA.exit(1);
 
     const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 1);
+    assert.strictEqual(cmdA.numInvocations, 1);
     assert.match(res.stdout, /a stdout/);
     assert.match(res.stderr, /a stderr/);
   }),
@@ -115,10 +115,10 @@ test(
     invB.exit(42);
 
     const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.equal(cmdA.numInvocations, 0);
-    assert.equal(cmdB.numInvocations, 1);
-    assert.equal(cmdC.numInvocations, 1);
+    assert.strictEqual(res.code, 1);
+    assert.strictEqual(cmdA.numInvocations, 0);
+    assert.strictEqual(cmdB.numInvocations, 1);
+    assert.strictEqual(cmdC.numInvocations, 1);
   }),
 );
 
@@ -165,11 +165,11 @@ test(
     invC.exit(303);
 
     const res = await exec.exit;
-    assert.equal(res.code, 1);
-    assert.equal(cmdA.numInvocations, 0);
-    assert.equal(cmdB.numInvocations, 0);
-    assert.equal(cmdC.numInvocations, 1);
-    assert.equal(cmdD.numInvocations, 1);
+    assert.strictEqual(res.code, 1);
+    assert.strictEqual(cmdA.numInvocations, 0);
+    assert.strictEqual(cmdB.numInvocations, 0);
+    assert.strictEqual(cmdC.numInvocations, 1);
+    assert.strictEqual(cmdD.numInvocations, 1);
   }),
 );
 
@@ -281,11 +281,11 @@ for (const envSetting of ['no-new', undefined]) {
       await new Promise((resolve) => setTimeout(resolve, 50));
       failParentBlockerInv.exit(0);
 
-      assert.equal((await wireit.exit).code, 1);
-      assert.equal(fail.numInvocations, 1);
-      assert.equal(failParentBlocker.numInvocations, 1);
-      assert.equal(cancel.numInvocations, 0);
-      assert.equal(cancelBlocker.numInvocations, 1);
+      assert.strictEqual((await wireit.exit).code, 1);
+      assert.strictEqual(fail.numInvocations, 1);
+      assert.strictEqual(failParentBlocker.numInvocations, 1);
+      assert.strictEqual(cancel.numInvocations, 0);
+      assert.strictEqual(cancelBlocker.numInvocations, 1);
     }),
   );
 }
@@ -342,14 +342,14 @@ test(
     // could start. But there was a failure elsewhere in the build, so it
     // shouldn't.
 
-    assert.equal((await wireit.exit).code, 1);
+    assert.strictEqual((await wireit.exit).code, 1);
 
     if (a.numInvocations === 1) {
-      assert.equal(a.numInvocations, 1);
-      assert.equal(b.numInvocations, 0);
+      assert.strictEqual(a.numInvocations, 1);
+      assert.strictEqual(b.numInvocations, 0);
     } else {
-      assert.equal(a.numInvocations, 0);
-      assert.equal(b.numInvocations, 1);
+      assert.strictEqual(a.numInvocations, 0);
+      assert.strictEqual(b.numInvocations, 1);
     }
   }),
 );
@@ -419,10 +419,10 @@ test(
     const continuesInv = await continues.nextInvocation();
     continuesInv.exit(0);
 
-    assert.equal((await wireit.exit).code, 1);
-    assert.equal(fail.numInvocations, 1);
-    assert.equal(continues.numInvocations, 1);
-    assert.equal(continuesBlocker.numInvocations, 1);
+    assert.strictEqual((await wireit.exit).code, 1);
+    assert.strictEqual(fail.numInvocations, 1);
+    assert.strictEqual(continues.numInvocations, 1);
+    assert.strictEqual(continuesBlocker.numInvocations, 1);
   }),
 );
 
@@ -475,7 +475,7 @@ test(
     failInv.exit(1);
 
     // `kill` is killed.
-    assert.equal((await wireit.exit).code, 1);
+    assert.strictEqual((await wireit.exit).code, 1);
   }),
 );
 
@@ -554,7 +554,7 @@ test(
         spamming = false;
       }
 
-      assert.equal(finalExit!.code, 1);
+      assert.strictEqual(finalExit!.code, 1);
       assert.ok(
         finalExit!.stderr.includes(
           `[failer] Input file "${rig.resolve('input')}" was deleted unexpectedly.` +
@@ -627,7 +627,7 @@ test(
         spamming = false;
       }
 
-      assert.equal(finalExit!.code, 1);
+      assert.strictEqual(finalExit!.code, 1);
       assert.ok(
         finalExit!.stderr.includes(
           `[failer] Output file "${rig.resolve('output')}" was deleted unexpectedly.` +

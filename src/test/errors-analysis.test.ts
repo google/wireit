@@ -24,7 +24,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -53,7 +53,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -84,7 +84,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -112,7 +112,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -142,7 +142,7 @@ test(
     });
     const execResult = rig.exec(`npm run a`);
     const done = await execResult.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -170,7 +170,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -205,7 +205,7 @@ test(
     });
     const execResult = rig.exec(`npm run a`);
     const done = await execResult.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -236,7 +236,7 @@ test(
     });
     const execResult = rig.exec(`npm run a`);
     const done = await execResult.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -264,7 +264,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -292,7 +292,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -321,7 +321,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -350,7 +350,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -379,7 +379,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -408,7 +408,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -437,7 +437,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -466,7 +466,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -495,7 +495,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -524,7 +524,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -553,7 +553,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -582,7 +582,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -611,7 +611,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -640,7 +640,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -668,7 +668,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -699,7 +699,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -732,7 +732,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -762,7 +762,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -796,7 +796,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       String.raw`
@@ -826,7 +826,7 @@ test(
     });
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       String.raw`
@@ -857,7 +857,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -893,7 +893,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -922,7 +922,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -949,7 +949,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -978,7 +978,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1006,7 +1006,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1035,7 +1035,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1064,7 +1064,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1093,7 +1093,7 @@ test(
     });
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1122,7 +1122,7 @@ test(
     });
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1153,7 +1153,7 @@ test(
     });
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1189,7 +1189,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1230,7 +1230,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
-    assert.equal(code, 1);
+    assert.strictEqual(code, 1);
     checkScriptOutput(
       stderr,
       `
@@ -1279,7 +1279,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
-    assert.equal(code, 1);
+    assert.strictEqual(code, 1);
     checkScriptOutput(
       stderr,
       `
@@ -1328,7 +1328,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
-    assert.equal(code, 1);
+    assert.strictEqual(code, 1);
     checkScriptOutput(
       stderr,
       `
@@ -1381,7 +1381,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const {code, stderr} = await result.exit;
-    assert.equal(code, 1);
+    assert.strictEqual(code, 1);
     checkScriptOutput(
       stderr,
       `
@@ -1441,7 +1441,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1504,7 +1504,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1559,7 +1559,7 @@ test(
     });
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const {code, stderr} = await result.exit;
-    assert.equal(code, 1);
+    assert.strictEqual(code, 1);
     checkScriptOutput(
       stderr,
       `
@@ -1601,7 +1601,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1644,7 +1644,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1672,7 +1672,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1705,7 +1705,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1754,7 +1754,7 @@ test(
     invok.exit(1);
     await invok.closed;
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1786,7 +1786,7 @@ test(
     });
     const execResult = rig.exec(`npm run a`);
     const done = await execResult.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1819,7 +1819,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1852,7 +1852,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1885,7 +1885,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1915,7 +1915,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1956,7 +1956,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -1987,7 +1987,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2024,7 +2024,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2057,7 +2057,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2086,7 +2086,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2117,7 +2117,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2150,7 +2150,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2187,7 +2187,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2221,7 +2221,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -2252,7 +2252,7 @@ test(
     });
     const result = rig.exec('npm run a');
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `

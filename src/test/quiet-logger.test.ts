@@ -60,10 +60,10 @@ test(
     invA.exit(0);
 
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
-    assert.equal(cmdB.numInvocations, 1);
-    assert.equal(cmdC.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
+    assert.strictEqual(cmdB.numInvocations, 1);
+    assert.strictEqual(cmdC.numInvocations, 1);
     assert.match(res.stdout, /a stdout\n/);
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
     assertEndsWith(
@@ -80,5 +80,5 @@ a stderr
 
 function assertEndsWith(actual: string, expected: string) {
   const actualSuffix = actual.slice(-expected.length);
-  assert.equal(actualSuffix, expected);
+  assert.strictEqual(actualSuffix, expected);
 }

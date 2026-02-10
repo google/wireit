@@ -163,7 +163,7 @@ test('delete symlink to existing file but not its target', async () => {
   const entries = [symlink('symlink')];
   await deleteEntries(entries);
   assert.ok(!(await rig.exists('symlink')));
-  assert.equal(await rig.read('target'), 'content');
+  assert.strictEqual(await rig.read('target'), 'content');
 });
 
 test('delete symlink to existing directory but not its target', async () => {

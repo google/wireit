@@ -68,7 +68,7 @@ async function assertCodeAction(options: {
     });
   }
   const {actions, contents} = await getCodeActions(options);
-  assert.deepEqual(
+  assert.deepStrictEqual(
     actions.map((a) => a.title),
     [options.expectedTitle],
     `Error getting code actions for ${JSON.stringify(
@@ -78,9 +78,9 @@ async function assertCodeAction(options: {
   const [action] = actions;
   const newContents = applyEdit(options.rig, contents, action!);
   if (typeof options.expectedOutput === 'string') {
-    assert.equal(newContents, options.expectedOutput);
+    assert.strictEqual(newContents, options.expectedOutput);
   } else {
-    assert.deepEqual(JSON.parse(newContents), options.expectedOutput);
+    assert.deepStrictEqual(JSON.parse(newContents), options.expectedOutput);
   }
 }
 
@@ -89,7 +89,7 @@ async function assertNoCodeActions(options: {
   contentsWithPipe: string | object;
 }) {
   const {actions} = await getCodeActions(options);
-  assert.deepEqual(
+  assert.deepStrictEqual(
     actions.map((a) => a.title),
     [],
     `Expected no code action in: ${JSON.stringify(options.contentsWithPipe)}\n`,
@@ -105,9 +105,9 @@ function applyEdit(
     throw new Error(`Action ${action.title} had no edit`);
   }
   const edit = action.edit;
-  assert.deepEqual(Object.keys(edit), ['changes']);
+  assert.deepStrictEqual(Object.keys(edit), ['changes']);
   const filename = rig.resolve('package.json');
-  assert.deepEqual(Object.keys(edit?.changes ?? {}), [filename]);
+  assert.deepStrictEqual(Object.keys(edit?.changes ?? {}), [filename]);
   const textEdits = edit?.changes?.[filename];
   if (textEdits === undefined) {
     throw new Error(`Action ${action.title} had no edits for ${filename}`);

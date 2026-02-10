@@ -127,10 +127,10 @@ test(
     await retryWithGcUntilCallbackDoesNotThrow(() => {
       // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
       // numIterations we're OK.
-      assert.equal(numLiveExecutors, 1);
-      assert.equal(numLiveExecutions, 1);
+      assert.strictEqual(numLiveExecutors, 1);
+      assert.strictEqual(numLiveExecutions, 1);
     });
-    assert.equal(standard.numInvocations, numIterations);
+    assert.strictEqual(standard.numInvocations, numIterations);
   }),
 );
 
@@ -202,10 +202,10 @@ test(
     await retryWithGcUntilCallbackDoesNotThrow(() => {
       // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
       // numIterations we're OK.
-      assert.equal(numLiveExecutors, 1);
-      assert.equal(numLiveExecutions, 1);
+      assert.strictEqual(numLiveExecutors, 1);
+      assert.strictEqual(numLiveExecutions, 1);
     });
-    assert.equal(service.numInvocations, 1);
+    assert.strictEqual(service.numInvocations, 1);
   }),
 );
 
@@ -295,11 +295,11 @@ test(
     await retryWithGcUntilCallbackDoesNotThrow(() => {
       // TODO(aomarks) Not sure why it's 1 and 4 instead of 0, but as long as
       // it's not a factor of numIterations we're OK.
-      assert.equal(numLiveExecutors, 1);
-      assert.equal(numLiveExecutions, 4);
+      assert.strictEqual(numLiveExecutors, 1);
+      assert.strictEqual(numLiveExecutions, 4);
     });
-    assert.equal(standard.numInvocations, numIterations);
-    assert.equal(servicePersistent.numInvocations, 1);
-    assert.equal(serviceEphemeral.numInvocations, numIterations);
+    assert.strictEqual(standard.numInvocations, numIterations);
+    assert.strictEqual(servicePersistent.numInvocations, 1);
+    assert.strictEqual(serviceEphemeral.numInvocations, numIterations);
   }),
 );

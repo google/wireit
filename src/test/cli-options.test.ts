@@ -40,7 +40,7 @@ async function getOptionsResult(
     },
   });
   env = {...env, WIREIT_DEBUG_LOG_FILE: ''};
-  assert.equal((await rig.exec(command, {env}).exit).code, 0);
+  assert.strictEqual((await rig.exec(command, {env}).exit).code, 0);
   return JSON.parse(await rig.read('options.json')) as Result<Options>;
 }
 
@@ -53,7 +53,7 @@ async function assertOptions(
   extraScripts?: Record<string, string>,
 ) {
   const result = await getOptionsResult(rig, command, env, extraScripts);
-  assert.deepEqual(result, {
+  assert.deepStrictEqual(result, {
     ok: true,
     value: {
       extraArgs: [],

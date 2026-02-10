@@ -65,47 +65,47 @@ test(
 
     // a
     const a = result.config.value;
-    assert.equal(a.name, 'a');
+    assert.strictEqual(a.name, 'a');
     if (a.command) {
       throw new Error('Expected no-command');
     }
-    assert.equal(a.dependencies.length, 3);
+    assert.strictEqual(a.dependencies.length, 3);
 
     // b
     const b = a.dependencies[0]!.config;
-    assert.equal(b.name, 'b');
+    assert.strictEqual(b.name, 'b');
     if (!b.service) {
       throw new Error('Expected service');
     }
-    assert.equal(b.serviceConsumers.length, 1);
-    assert.equal(b.serviceConsumers[0]!.name, 'd');
-    assert.equal(b.isPersistent, true);
+    assert.strictEqual(b.serviceConsumers.length, 1);
+    assert.strictEqual(b.serviceConsumers[0]!.name, 'd');
+    assert.strictEqual(b.isPersistent, true);
 
     // c
     const c = a.dependencies[1]!.config;
-    assert.equal(c.name, 'c');
+    assert.strictEqual(c.name, 'c');
     if (!c.service) {
       throw new Error('Expected service');
     }
-    assert.equal(c.isPersistent, true);
-    assert.equal(c.serviceConsumers.length, 0);
-    assert.equal(c.services.length, 0);
+    assert.strictEqual(c.isPersistent, true);
+    assert.strictEqual(c.serviceConsumers.length, 0);
+    assert.strictEqual(c.services.length, 0);
 
     // d
     const d = a.dependencies[2]!.config;
-    assert.equal(d.name, 'd');
-    assert.equal(d.services.length, 2);
-    assert.equal(d.services[0]!.name, 'b');
-    assert.equal(d.services[1]!.name, 'e');
+    assert.strictEqual(d.name, 'd');
+    assert.strictEqual(d.services.length, 2);
+    assert.strictEqual(d.services[0]!.name, 'b');
+    assert.strictEqual(d.services[1]!.name, 'e');
 
     // e
     const e = d.services[1]!;
-    assert.equal(e.name, 'e');
+    assert.strictEqual(e.name, 'e');
     if (!e.service) {
       throw new Error('Expected service');
     }
-    assert.equal(e.isPersistent, false);
-    assert.equal(e.serviceConsumers.length, 1);
+    assert.strictEqual(e.isPersistent, false);
+    assert.strictEqual(e.serviceConsumers.length, 1);
   }),
 );
 
@@ -145,7 +145,7 @@ test(
     }
 
     const withDefaultExcludes = result.config.value;
-    assert.deepEqual(withDefaultExcludes.files?.values, [
+    assert.deepStrictEqual(withDefaultExcludes.files?.values, [
       '**/*.ts',
       '!.git/',
       '!.hg/',
@@ -155,7 +155,7 @@ test(
       '!CVS/',
       '!node_modules/',
     ]);
-    assert.deepEqual(withDefaultExcludes.output?.values, [
+    assert.deepStrictEqual(withDefaultExcludes.output?.values, [
       '**/*.js',
       '!.git/',
       '!.hg/',
@@ -205,8 +205,8 @@ test(
     }
 
     const build = result.config.value;
-    assert.deepEqual(build.files?.values, ['**/*.ts']);
-    assert.deepEqual(build.output?.values, ['**/*.js']);
+    assert.deepStrictEqual(build.files?.values, ['**/*.ts']);
+    assert.deepStrictEqual(build.output?.values, ['**/*.js']);
   }),
 );
 
@@ -243,7 +243,7 @@ test(
     }
 
     const build = result.config.value;
-    assert.deepEqual(build.files?.values, []);
-    assert.deepEqual(build.output?.values, []);
+    assert.deepStrictEqual(build.files?.values, []);
+    assert.deepStrictEqual(build.output?.values, []);
   }),
 );

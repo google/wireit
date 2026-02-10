@@ -72,7 +72,7 @@ function tests(
         // Should exit after a SIGINT signal (i.e. Ctrl-C).
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 1);
+        assert.strictEqual(cmdA.numInvocations, 1);
       },
       {flaky: true},
     ),
@@ -123,7 +123,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -174,7 +174,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -223,7 +223,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -273,7 +273,7 @@ function tests(
 
       exec.kill();
       await exec.exit;
-      assert.equal(cmdA.numInvocations, 2);
+      assert.strictEqual(cmdA.numInvocations, 2);
     }),
   );
 
@@ -331,8 +331,8 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA1.numInvocations, 1);
-        assert.equal(cmdA2.numInvocations, 1);
+        assert.strictEqual(cmdA1.numInvocations, 1);
+        assert.strictEqual(cmdA2.numInvocations, 1);
       },
       {flaky: true},
     ),
@@ -379,8 +379,8 @@ function tests(
           await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
           const invA = await cmdA.nextInvocation();
           invA.exit(0);
-          assert.equal(cmdA.numInvocations, 1);
-          assert.equal(cmdB.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdB.numInvocations, 1);
           await exec.waitForLog(/Ran 2 scripts and skipped 0/);
         }
 
@@ -392,8 +392,8 @@ function tests(
           await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
           const invA = await cmdA.nextInvocation();
           invA.exit(0);
-          assert.equal(cmdA.numInvocations, 2);
-          assert.equal(cmdB.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 2);
+          assert.strictEqual(cmdB.numInvocations, 1);
           await exec.waitForLog(/Ran 1 script and skipped 1/);
         }
 
@@ -415,8 +415,8 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 3);
-        assert.equal(cmdB.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 3);
+        assert.strictEqual(cmdB.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -469,8 +469,8 @@ function tests(
           await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
           const invA = await cmdA.nextInvocation();
           invA.exit(0);
-          assert.equal(cmdA.numInvocations, 1);
-          assert.equal(cmdB.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdB.numInvocations, 1);
           await exec.waitForLog(/Ran 2 scripts and skipped 0/);
         }
 
@@ -482,8 +482,8 @@ function tests(
           await exec.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
           const invA = await cmdA.nextInvocation();
           invA.exit(0);
-          assert.equal(cmdA.numInvocations, 2);
-          assert.equal(cmdB.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 2);
+          assert.strictEqual(cmdB.numInvocations, 1);
           await exec.waitForLog(/Ran 1 script and skipped 1/);
         }
 
@@ -505,8 +505,8 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 3);
-        assert.equal(cmdB.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 3);
+        assert.strictEqual(cmdB.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -540,7 +540,7 @@ function tests(
         {
           const inv = await cmdA.nextInvocation();
           inv.exit(1);
-          assert.equal(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
           await exec.waitForLog(/1 script failed/);
         }
 
@@ -559,7 +559,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -701,7 +701,7 @@ function tests(
         {
           const inv = await cmdA.nextInvocation();
           inv.exit(0);
-          assert.equal(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
         }
 
         // Changing an excluded file should not trigger a run.
@@ -716,7 +716,7 @@ function tests(
           // often, but the executor would be smart enough not to actually execute
           // the command. To confirm that the executor is not running too often, we
           // will need to test for some logged output.
-          assert.equal(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
         }
 
         // Changing an included file should trigger a run.
@@ -731,7 +731,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -764,7 +764,7 @@ function tests(
         {
           const inv = await cmdA.nextInvocation();
           inv.exit(0);
-          assert.equal(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
         }
 
         // Changing input file should trigger another run.
@@ -779,7 +779,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -813,7 +813,7 @@ function tests(
         {
           const inv = await cmdA.nextInvocation();
           inv.exit(0);
-          assert.equal(cmdA.numInvocations, 1);
+          assert.strictEqual(cmdA.numInvocations, 1);
         }
 
         // Change foo's package-lock.json file. Expect another run.
@@ -825,7 +825,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -891,8 +891,8 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
-        assert.equal(cmdB.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdB.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -939,7 +939,7 @@ function tests(
 
         exec.kill();
         await exec.exit;
-        assert.equal(cmdA.numInvocations, 2);
+        assert.strictEqual(cmdA.numInvocations, 2);
       },
       {flaky: true},
     ),
@@ -1002,21 +1002,21 @@ function tests(
 
         exec.kill();
         const {stdout, stderr} = await exec.exit;
-        assert.equal(cmdA.numInvocations, 0);
-        assert.equal(cmdB.numInvocations, 1);
+        assert.strictEqual(cmdA.numInvocations, 0);
+        assert.strictEqual(cmdB.numInvocations, 1);
 
         // Also check that we don't log anything for the second iteration which
         // ultimately doesn't do anything new.
-        assert.equal([...stdout.matchAll(/Running command/gi)].length, 1);
+        assert.strictEqual([...stdout.matchAll(/Running command/gi)].length, 1);
         const count = [...stdout.matchAll(/Watching for file changes/gi)]
           .length;
-        assert.equal(
+        assert.strictEqual(
           [1, 2].includes(count),
           true,
           `Expected to see one or two "Watching for file changes" but found ${count}`,
         );
         const failureCount = [...stderr.matchAll(/Failed/gi)].length;
-        assert.equal(
+        assert.strictEqual(
           [1, 2].includes(failureCount),
           true,
           `Expected to see one or two "Failed" lines but found ${failureCount}`,
@@ -1061,7 +1061,7 @@ function tests(
         await exec.waitForLog(/Ran 0 scripts and skipped 1/);
 
         exec.kill();
-        assert.equal(cmdA.numInvocations, 1);
+        assert.strictEqual(cmdA.numInvocations, 1);
       },
       {flaky: true},
     ),

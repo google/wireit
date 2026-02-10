@@ -48,9 +48,9 @@ test('rig commands exit and emit stdout/stderr as requested', async () => {
   assert.match(resB1.stdout, /b1 stdout/);
   assert.match(resB1.stderr, /b1 stderr/);
 
-  assert.equal(resA1.code, 42);
-  assert.equal(resA2.code, 43);
-  assert.equal(resB1.code, 44);
+  assert.strictEqual(resA1.code, 42);
+  assert.strictEqual(resA2.code, 43);
+  assert.strictEqual(resB1.code, 44);
 });
 
 test('runs one script that succeeds', async () => {
@@ -81,12 +81,12 @@ test('runs one script that succeeds', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
   checkScriptOutput(res.stderr, 'a stderr\n');
   assert.match(res.stdout, /a stdout\n/);
   assert.match(res.stdout, /✅ Ran 1 script and skipped 0 in/);
-  assert.equal(
+  assert.strictEqual(
     res.debugLog?.trim(),
     `
 <info> analysis-started
@@ -132,8 +132,8 @@ test('runs one script that succeeds from a package sub-directory', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
   checkScriptOutput(res.stderr, 'a stderr\n');
   assert.match(res.stdout, /a stdout\n/);
   assert.match(res.stdout, /✅ Ran 1 script and skipped 0 in/);
@@ -192,10 +192,10 @@ test('dependency chain in one package that succeeds', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
-  assert.equal(cmdC.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
+  assert.strictEqual(cmdC.numInvocations, 1);
   assert.match(res.stdout, /a stdout\n/);
   assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
   // we only see the output of the root command
@@ -253,10 +253,10 @@ test('dependency chain with vanilla npm script at the end', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
-  assert.equal(cmdC.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
+  assert.strictEqual(cmdC.numInvocations, 1);
   assert.match(res.stdout, /a stdout\n/);
   assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
   // we only see the output of the root command
@@ -322,11 +322,11 @@ test('dependency diamond in one package that succeeds', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
-  assert.equal(cmdC.numInvocations, 1);
-  assert.equal(cmdD.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
+  assert.strictEqual(cmdC.numInvocations, 1);
+  assert.strictEqual(cmdD.numInvocations, 1);
   assert.match(res.stdout, /Ran 4 scripts and skipped 0/s);
 });
 
@@ -369,9 +369,9 @@ test('cross-package dependency', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
   assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
 });
 
@@ -418,9 +418,9 @@ test('cross-package dependency using object format', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
   assert.match(res.stdout, /Ran 2 scripts and skipped 0/s);
 });
 
@@ -475,10 +475,10 @@ test('cross-package dependency that validly cycles back to the first package', a
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
-  assert.equal(cmdC.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
+  assert.strictEqual(cmdC.numInvocations, 1);
   assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
 });
 
@@ -506,8 +506,8 @@ test('finds node_modules binary in starting dir', async () => {
   const exec = rig.exec('npm run a');
   (await cmd.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmd.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmd.numInvocations, 1);
 });
 
 test('finds node_modules binary in parent dir', async () => {
@@ -534,8 +534,8 @@ test('finds node_modules binary in parent dir', async () => {
   const exec = rig.exec('npm run a', {cwd: 'foo'});
   (await cmd.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmd.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmd.numInvocations, 1);
 });
 
 test('finds node_modules binary across packages (child)', async () => {
@@ -572,8 +572,8 @@ test('finds node_modules binary across packages (child)', async () => {
   const exec = rig.exec('npm run a');
   (await cmd.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmd.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmd.numInvocations, 1);
 });
 
 test('finds node_modules binary across packages (sibling)', async () => {
@@ -610,8 +610,8 @@ test('finds node_modules binary across packages (sibling)', async () => {
   const exec = rig.exec('npm run a', {cwd: 'foo'});
   (await cmd.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmd.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmd.numInvocations, 1);
 });
 
 test('starting node_modules binaries are not available across packages (sibling)', async () => {
@@ -647,8 +647,8 @@ test('starting node_modules binaries are not available across packages (sibling)
   });
   const exec = rig.exec('npm run b', {cwd: 'bar'});
   const res = await exec.exit;
-  assert.equal(res.code, 1);
-  assert.equal(cmd.numInvocations, 0);
+  assert.strictEqual(res.code, 1);
+  assert.strictEqual(cmd.numInvocations, 0);
   assert.match(
     res.stderr,
     IS_WINDOWS
@@ -696,18 +696,18 @@ void (NODE_MAJOR_VERSION > 14 ? test : test.skip)(
       // Workspace commands run in serial.
       (await cmdA.nextInvocation()).exit(0);
       (await cmdB.nextInvocation()).exit(0);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.strictEqual((await exec.exit).code, 0);
+      assert.strictEqual(cmdA.numInvocations, 1);
+      assert.strictEqual(cmdB.numInvocations, 1);
     }
 
     // Run one from the workspace package.
     {
       const exec = rig.exec('npm run cmd', {cwd: 'foo'});
       (await cmdA.nextInvocation()).exit(0);
-      assert.equal((await exec.exit).code, 0);
-      assert.equal(cmdA.numInvocations, 2);
-      assert.equal(cmdB.numInvocations, 1);
+      assert.strictEqual((await exec.exit).code, 0);
+      assert.strictEqual(cmdA.numInvocations, 2);
+      assert.strictEqual(cmdB.numInvocations, 1);
     }
   },
 );
@@ -745,8 +745,8 @@ test('finds package directory without npm_package_json', async () => {
   );
   (await cmdA.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
 });
 
 if (NODE_MAJOR_VERSION >= 22) {
@@ -770,8 +770,8 @@ if (NODE_MAJOR_VERSION >= 22) {
     await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
     (await cmdA.nextInvocation()).exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
     assert.match(res.stdout, /Ran 1 script and skipped 0/s);
   });
 }
@@ -796,8 +796,8 @@ test('runs a script with yarn', async () => {
   await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
   (await cmdA.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
   assert.match(res.stdout, /Ran 1 script and skipped 0/s);
 });
 
@@ -821,8 +821,8 @@ test('runs a script with pnpm', async () => {
   await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
   (await cmdA.nextInvocation()).exit(0);
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
   assert.match(res.stdout, /Ran 1 script and skipped 0/s);
 });
 
@@ -872,18 +872,18 @@ test('commands run under yarn workspaces', async () => {
     // Workspace commands run in serial.
     (await cmdA.nextInvocation()).exit(0);
     (await cmdB.nextInvocation()).exit(0);
-    assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, 1);
-    assert.equal(cmdB.numInvocations, 1);
+    assert.strictEqual((await exec.exit).code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
+    assert.strictEqual(cmdB.numInvocations, 1);
   }
 
   // Run one from the workspace package.
   {
     const exec = rig.exec('yarn run cmd', {cwd: 'foo'});
     (await cmdA.nextInvocation()).exit(0);
-    assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, 2);
-    assert.equal(cmdB.numInvocations, 1);
+    assert.strictEqual((await exec.exit).code, 0);
+    assert.strictEqual(cmdA.numInvocations, 2);
+    assert.strictEqual(cmdB.numInvocations, 1);
   }
 });
 
@@ -926,18 +926,18 @@ test('commands run under pnpm workspaces', async () => {
     // Workspace commands run in serial.
     (await cmdA.nextInvocation()).exit(0);
     (await cmdB.nextInvocation()).exit(0);
-    assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, 1);
-    assert.equal(cmdB.numInvocations, 1);
+    assert.strictEqual((await exec.exit).code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
+    assert.strictEqual(cmdB.numInvocations, 1);
   }
 
   // Run one from the workspace package.
   {
     const exec = rig.exec('pnpm run cmd', {cwd: 'foo'});
     (await cmdA.nextInvocation()).exit(0);
-    assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, 2);
-    assert.equal(cmdB.numInvocations, 1);
+    assert.strictEqual((await exec.exit).code, 0);
+    assert.strictEqual(cmdA.numInvocations, 2);
+    assert.strictEqual(cmdB.numInvocations, 1);
   }
 });
 
@@ -998,10 +998,10 @@ test('multiple cross-package dependencies', async () => {
   invA.exit(0);
 
   const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.equal(cmdB.numInvocations, 1);
-  assert.equal(cmdC.numInvocations, 1);
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+  assert.strictEqual(cmdB.numInvocations, 1);
+  assert.strictEqual(cmdC.numInvocations, 1);
   assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
 });
 
@@ -1027,7 +1027,7 @@ test('top-level SIGINT kills running scripts', async () => {
   wireit.kill('SIGINT');
   await inv.closed;
   await wireit.exit;
-  assert.equal(main.numInvocations, 1);
+  assert.strictEqual(main.numInvocations, 1);
   // on windows we just die without reporting anything when we get a SIGINT
   if (!IS_WINDOWS) {
     await wireit.waitForLog(/❌ \[main\] killed/);
@@ -1057,7 +1057,7 @@ test('top-level SIGTERM kills running scripts', async () => {
   wireit.kill('SIGTERM');
   await inv.closed;
   await wireit.exit;
-  assert.equal(main.numInvocations, 1);
+  assert.strictEqual(main.numInvocations, 1);
   // on windows we just die without reporting anything when we get a SIGINT
   if (!IS_WINDOWS) {
     await wireit.waitForLog(/❌ \[main\] killed/);
@@ -1102,20 +1102,20 @@ for (const command of [
     {
       const wireit = rig.exec(`${command} a -- ${extraDashes} foo -bar --baz`);
       const inv = await cmdA.nextInvocation();
-      assert.deepEqual((await inv.environment()).argv.slice(3), [
+      assert.deepStrictEqual((await inv.environment()).argv.slice(3), [
         'foo',
         '-bar',
         '--baz',
       ]);
       inv.exit(0);
-      assert.equal((await wireit.exit).code, 0);
+      assert.strictEqual((await wireit.exit).code, 0);
       await wireit.waitForLog(/Ran 1 script and skipped 0/s); //
     }
 
     // Nothing changed, fresh.
     {
       const wireit = rig.exec(`${command} a -- ${extraDashes} foo -bar --baz`);
-      assert.equal((await wireit.exit).code, 0);
+      assert.strictEqual((await wireit.exit).code, 0);
       await wireit.waitForLog(/Ran 0 scripts and skipped 1/s); //
     }
 
@@ -1124,13 +1124,13 @@ for (const command of [
     {
       const wireit = rig.exec(`${command} a -- ${extraDashes} FOO -BAR --BAZ`);
       const inv = await cmdA.nextInvocation();
-      assert.deepEqual((await inv.environment()).argv.slice(3), [
+      assert.deepStrictEqual((await inv.environment()).argv.slice(3), [
         'FOO',
         '-BAR',
         '--BAZ',
       ]);
       inv.exit(0);
-      assert.equal((await wireit.exit).code, 0);
+      assert.strictEqual((await wireit.exit).code, 0);
       await wireit.waitForLog(/Ran 1 script and skipped 0/s); //
     }
   });
@@ -1189,10 +1189,10 @@ test('cascade:false dependency does not inherit fingerprint', async () => {
     (await b.nextInvocation()).exit(0);
     await wireit.waitForLog(/67% \[2 \/ 3\] \[1 running\] a/);
     (await a.nextInvocation()).exit(0);
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(a.numInvocations, 1);
-    assert.equal(b.numInvocations, 1);
-    assert.equal(c.numInvocations, 1);
+    assert.strictEqual((await wireit.exit).code, 0);
+    assert.strictEqual(a.numInvocations, 1);
+    assert.strictEqual(b.numInvocations, 1);
+    assert.strictEqual(c.numInvocations, 1);
     await wireit.waitForLog(/Ran 3 scripts and skipped 0/);
   }
 
@@ -1202,10 +1202,10 @@ test('cascade:false dependency does not inherit fingerprint', async () => {
     const wireit = rig.exec('npm run a');
     await wireit.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
     (await b.nextInvocation()).exit(0);
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(a.numInvocations, 1);
-    assert.equal(b.numInvocations, 2);
-    assert.equal(c.numInvocations, 1);
+    assert.strictEqual((await wireit.exit).code, 0);
+    assert.strictEqual(a.numInvocations, 1);
+    assert.strictEqual(b.numInvocations, 2);
+    assert.strictEqual(c.numInvocations, 1);
     await wireit.waitForLog(/Ran 1 script and skipped 2/);
   }
 
@@ -1217,10 +1217,10 @@ test('cascade:false dependency does not inherit fingerprint', async () => {
     (await c.nextInvocation()).exit(0);
     await wireit.waitForLog(/33% \[1 \/ 3\] \[1 running\] b/);
     (await b.nextInvocation()).exit(0);
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(a.numInvocations, 1);
-    assert.equal(b.numInvocations, 3);
-    assert.equal(c.numInvocations, 2);
+    assert.strictEqual((await wireit.exit).code, 0);
+    assert.strictEqual(a.numInvocations, 1);
+    assert.strictEqual(b.numInvocations, 3);
+    assert.strictEqual(c.numInvocations, 2);
     await wireit.waitForLog(/Ran 2 scripts and skipped 1/);
   }
 
@@ -1229,10 +1229,10 @@ test('cascade:false dependency does not inherit fingerprint', async () => {
     await rig.write('inputs/a', 'v2');
     const wireit = rig.exec('npm run a');
     (await a.nextInvocation()).exit(0);
-    assert.equal((await wireit.exit).code, 0);
-    assert.equal(a.numInvocations, 2);
-    assert.equal(b.numInvocations, 3);
-    assert.equal(c.numInvocations, 2);
+    assert.strictEqual((await wireit.exit).code, 0);
+    assert.strictEqual(a.numInvocations, 2);
+    assert.strictEqual(b.numInvocations, 3);
+    assert.strictEqual(c.numInvocations, 2);
   }
 });
 
@@ -1284,7 +1284,7 @@ test('can write fingerprint file for extremely large script graph', async () => 
   await rig.write(files);
 
   const wireit = rig.exec('npm run 0');
-  assert.equal((await wireit.exit).code, 0);
+  assert.strictEqual((await wireit.exit).code, 0);
 });
 
 test('environment variables are passed to children', async () => {
@@ -1328,12 +1328,12 @@ test('environment variables are passed to children', async () => {
   });
   const inv = await cmdA.nextInvocation();
   const {env} = await inv.environment();
-  assert.equal(env.FOO, 'foo-good');
-  assert.equal(env.BAR, 'bar-good');
-  assert.equal(env.BAZ, 'baz-good');
-  assert.equal(env.QUX, 'qux-good');
+  assert.strictEqual(env.FOO, 'foo-good');
+  assert.strictEqual(env.BAR, 'bar-good');
+  assert.strictEqual(env.BAZ, 'baz-good');
+  assert.strictEqual(env.QUX, 'qux-good');
   inv.exit(0);
-  assert.equal((await wireit.exit).code, 0);
+  assert.strictEqual((await wireit.exit).code, 0);
 });
 
 test('dependency which is not in script section', async () => {
@@ -1368,6 +1368,6 @@ test('dependency which is not in script section', async () => {
   await wireit.waitForLog(/50% \[1 \/ 2\] \[1 running\] a/);
   (await cmdA.nextInvocation()).exit(0);
   const {code} = await wireit.exit;
-  assert.equal(code, 0);
+  assert.strictEqual(code, 0);
   await wireit.waitForLog(/Ran 2 scripts and skipped 0/);
 });

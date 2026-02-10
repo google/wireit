@@ -40,8 +40,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -76,8 +76,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -109,8 +109,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -144,8 +144,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -181,8 +181,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -213,8 +213,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -247,8 +247,8 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );
 
@@ -273,7 +273,7 @@ test(
 
     const result = rig.exec('npm run a', {cwd: 'foo'});
     const done = await result.exit;
-    assert.equal(done.code, 1);
+    assert.strictEqual(done.code, 1);
     checkScriptOutput(
       done.stderr,
       `
@@ -287,7 +287,7 @@ test(
           ]
     ~~~~~~~`,
     );
-    assert.equal(cmdA.numInvocations, 0);
+    assert.strictEqual(cmdA.numInvocations, 0);
 
     // The outside file should not have been deleted.
     assert.ok(await rig.exists('outside'));
@@ -345,7 +345,7 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
+      assert.strictEqual(res.code, 0);
     }
 
     // Add new input file. Don't clean. Creates output/b.
@@ -356,7 +356,7 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // Output A should still exist.
-      assert.equal(await rig.read('output/a'), 'v0');
+      assert.strictEqual(await rig.read('output/a'), 'v0');
       assert.ok(!(await rig.exists('output/b')));
       assert.ok(!(await rig.exists('output/c')));
 
@@ -366,7 +366,7 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
+      assert.strictEqual(res.code, 0);
     }
 
     // Modify input file. Don't clean.
@@ -377,8 +377,8 @@ test(
       const inv = await cmdA.nextInvocation();
 
       // Outputs A and B should still exist.
-      assert.equal(await rig.read('output/a'), 'v1');
-      assert.equal(await rig.read('output/b'), 'v1');
+      assert.strictEqual(await rig.read('output/a'), 'v1');
+      assert.strictEqual(await rig.read('output/b'), 'v1');
       assert.ok(!(await rig.exists('output/c')));
 
       // Write outputs A and B
@@ -387,8 +387,8 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
+      assert.strictEqual(res.code, 0);
+      assert.strictEqual(cmdA.numInvocations, 3);
     }
 
     // Delete input file. Clean. (This covers the case where the number of input
@@ -409,7 +409,7 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
+      assert.strictEqual(res.code, 0);
     }
 
     // Delete an input file, and also add an input file. Clean. (This covers the
@@ -432,10 +432,10 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
+      assert.strictEqual(res.code, 0);
     }
 
-    assert.equal(cmdA.numInvocations, 5);
+    assert.strictEqual(cmdA.numInvocations, 5);
   }),
 );
 
@@ -475,8 +475,8 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
+      assert.strictEqual(res.code, 0);
+      assert.strictEqual(cmdA.numInvocations, 1);
     }
 
     {
@@ -498,8 +498,8 @@ test(
 
       inv.exit(0);
       const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
+      assert.strictEqual(res.code, 0);
+      assert.strictEqual(cmdA.numInvocations, 2);
     }
   }),
 );
@@ -534,7 +534,7 @@ test(
 
     inv.exit(0);
     const res = await exec.exit;
-    assert.equal(res.code, 0);
-    assert.equal(cmdA.numInvocations, 1);
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 1);
   }),
 );

@@ -38,8 +38,8 @@ function assertSquiggleAndPosition(
       `Test authoring error: write the expected squiggle as a template string with a leading newline.`,
     );
   }
-  assert.equal(removeAnsiColors(squiggle), expectedSquiggle.slice(1));
-  assert.deepEqual(position, expectedPosition);
+  assert.strictEqual(removeAnsiColors(squiggle), expectedSquiggle.slice(1));
+  assert.deepStrictEqual(position, expectedPosition);
 }
 
 test('drawing squiggles under ranges in single-line files', () => {
