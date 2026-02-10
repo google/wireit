@@ -13,5 +13,6 @@
 /vscode-extension/*.vsix
 /vscode-extension/built
 
+.direnv
 .DS_Store
 
