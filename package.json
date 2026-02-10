@@ -337,7 +337,7 @@
       "output": []
     },
     "test:metrics": {
-      "command": "uvu lib/test \"^metrics\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/metrics.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
