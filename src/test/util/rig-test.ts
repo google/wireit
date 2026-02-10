@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {WireitTestRig} from './test-rig.js';
 import {TestFn} from 'node:test';
 
 /**
@@ -13,24 +12,24 @@ import {TestFn} from 'node:test';
 export const wait = async (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export function rigTestNode(
-  handler: (args: {rig: WireitTestRig}) => unknown,
-  options?: {flaky?: boolean},
-): TestFn {
-  const runTest = async () => {
-    await using rig = await WireitTestRig.setup();
-    await handler({rig});
+/**
+ * Wraps a test function so that if it fails, it is retried once. Useful for
+ * tests that are inherently flaky (e.g. file watchers with timing-sensitive
+ * behavior).
+ *
+ * Usage:
+ *   test('some flaky test', flakyTest(async () => {
+ *     await using rig = await WireitTestRig.setup();
+ *     // ...
+ *   }));
+ */
+export function flakyTest(fn: () => Promise<void>): TestFn {
+  return async () => {
+    try {
+      return await fn();
+    } catch {
+      console.log('Test failed, retrying...');
+    }
+    return await fn();
   };
-  if (options?.flaky) {
-    return async () => {
-      try {
-        return await runTest();
-      } catch {
-        console.log('Test failed, retrying...');
-      }
-      return await runTest();
-    };
-  } else {
-    return runTest;
-  }
 }

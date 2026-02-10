@@ -6,182 +6,38 @@
 
 import {test} from 'node:test';
 import * as assert from 'node:assert';
-import {rigTestNode as rigTest, wait} from './util/rig-test.js';
+import {wait} from './util/rig-test.js';
+import {WireitTestRig} from './util/test-rig.js';
 import * as os from 'os';
 import {IS_WINDOWS} from '../util/windows.js';
 
 import type {PackageJson} from './util/package-json.js';
 
-test(
-  'by default we run dependencies in parallel',
-  rigTest(async ({rig}) => {
-    // Note the test rig set WIREIT_PARALLELISM to 10 by default, even though
-    // the real default is based on CPU count.
-    const dep1 = await rig.newCommand();
-    const dep2 = await rig.newCommand();
-    const main = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          dep1: 'wireit',
-          dep2: 'wireit',
-          main: 'wireit',
-        },
-        wireit: {
-          dep1: {command: dep1.command},
-          dep2: {command: dep2.command},
-          main: {command: main.command, dependencies: ['dep1', 'dep2']},
-        },
-      },
-    });
-
-    {
-      const exec = rig.exec('npm run main');
-      // The two deps are invoked immediately, but main isn't
-      const [inv1, inv2] = await Promise.all([
-        dep1.nextInvocation(),
-        dep2.nextInvocation(),
-      ]);
-      assert.deepStrictEqual(main.numInvocations, 0);
-      inv1.exit(0);
-      inv2.exit(0);
-      // now main is invoked, and the command exits
-      (await main.nextInvocation()).exit(0);
-      const res = await exec.exit;
-      assert.deepStrictEqual(res.code, 0);
-      assert.deepStrictEqual(dep1.numInvocations, 1);
-      assert.deepStrictEqual(dep2.numInvocations, 1);
-      assert.deepStrictEqual(main.numInvocations, 1);
-    }
-  }),
-);
-
-test(
-  'can set WIREIT_PARALLEL=1 to run sequentially',
-  rigTest(async ({rig}) => {
-    const dep1 = await rig.newCommand();
-    const dep2 = await rig.newCommand();
-    const main = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          dep1: 'wireit',
-          dep2: 'wireit',
-          main: 'wireit',
-        },
-        wireit: {
-          dep1: {command: dep1.command},
-          dep2: {command: dep2.command},
-          main: {command: main.command, dependencies: ['dep1', 'dep2']},
-        },
-      },
-    });
-
-    const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '1'}});
-    // One of the two deps are invoked first
-    const dep1InvPromise = dep1.nextInvocation();
-    const dep2InvPromise = dep2.nextInvocation();
-    // wait for the first command to begin
-    const luckyInv = await Promise.race([dep1InvPromise, dep2InvPromise]);
-    // wait for a bit, to show that the other command does not begin
-    await wait(300);
-    let unluckyInvPromise;
-    if (luckyInv.command === dep1) {
-      unluckyInvPromise = dep2InvPromise;
-      assert.deepStrictEqual(dep1.numInvocations, 1);
-      assert.deepStrictEqual(dep2.numInvocations, 0);
-    } else {
-      unluckyInvPromise = dep1InvPromise;
-      assert.deepStrictEqual(dep1.numInvocations, 0);
-      assert.deepStrictEqual(dep2.numInvocations, 1);
-    }
-    assert.deepStrictEqual(main.numInvocations, 0);
-    // once the lucky dep finishes, the unlucky one is invoked
-    luckyInv.exit(0);
-    (await unluckyInvPromise).exit(0);
-    // and then finally main is invoked and the command exits
-    (await main.nextInvocation()).exit(0);
-    const res = await exec.exit;
-    assert.deepStrictEqual(res.code, 0);
-    assert.deepStrictEqual(dep1.numInvocations, 1);
-    assert.deepStrictEqual(dep2.numInvocations, 1);
-    assert.deepStrictEqual(main.numInvocations, 1);
-  }),
-);
-
-test(
-  'can set WIREIT_PARALLEL=Infinity to run many commands in parallel',
-  rigTest(async ({rig}) => {
-    const main = await rig.newCommand();
-    // Pick a number of scripts that we will expect to run simultaneously which is
-    // higher than the default of CPUs x 4, to show that we have increased beyond
-    // that default.
-    const n = os.cpus().length * 10;
-    const depNames: string[] = [];
-    const packageJson: PackageJson = {
+test('by default we run dependencies in parallel', async () => {
+  await using rig = await WireitTestRig.setup();
+  // Note the test rig set WIREIT_PARALLELISM to 10 by default, even though
+  // the real default is based on CPU count.
+  const dep1 = await rig.newCommand();
+  const dep2 = await rig.newCommand();
+  const main = await rig.newCommand();
+  await rig.write({
+    'package.json': {
       scripts: {
+        dep1: 'wireit',
+        dep2: 'wireit',
         main: 'wireit',
       },
       wireit: {
-        main: {command: main.command, dependencies: depNames},
+        dep1: {command: dep1.command},
+        dep2: {command: dep2.command},
+        main: {command: main.command, dependencies: ['dep1', 'dep2']},
       },
-    };
-    const commands = [];
-    const invocations = [];
-    for (let i = 0; i < n; i++) {
-      const command = await rig.newCommand();
-      commands.push(command);
-      const name = `dep${i}`;
-      depNames.push(name);
+    },
+  });
 
-      packageJson.scripts![name] = 'wireit';
-      packageJson.wireit![name] = {command: command.command};
-      invocations.push(command.nextInvocation());
-    }
-
-    await rig.write({
-      'package.json': packageJson,
-    });
-
-    const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: 'Infinity'}});
-    // All invocations should be started simultaneously
-    const started = await Promise.all(invocations);
-    for (const invocation of started) {
-      invocation.exit(0);
-    }
-    // once they're all done, main still finishes normally
-    (await main.nextInvocation()).exit(0);
-    const res = await exec.exit;
-    assert.deepStrictEqual(res.code, 0);
-    for (const cmd of commands) {
-      assert.deepStrictEqual(cmd.numInvocations, 1);
-    }
-    assert.deepStrictEqual(main.numInvocations, 1);
-  }),
-);
-
-test(
-  'should fall back to default parallelism with empty WIREIT_PARALLEL',
-  rigTest(async ({rig}) => {
-    const dep1 = await rig.newCommand();
-    const dep2 = await rig.newCommand();
-    const main = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          dep1: 'wireit',
-          dep2: 'wireit',
-          main: 'wireit',
-        },
-        wireit: {
-          dep1: {command: dep1.command},
-          dep2: {command: dep2.command},
-          main: {command: main.command, dependencies: ['dep1', 'dep2']},
-        },
-      },
-    });
-
-    const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: ''}});
+  {
+    const exec = rig.exec('npm run main');
+    // The two deps are invoked immediately, but main isn't
     const [inv1, inv2] = await Promise.all([
       dep1.nextInvocation(),
       dep2.nextInvocation(),
@@ -189,19 +45,157 @@ test(
     assert.deepStrictEqual(main.numInvocations, 0);
     inv1.exit(0);
     inv2.exit(0);
+    // now main is invoked, and the command exits
     (await main.nextInvocation()).exit(0);
     const res = await exec.exit;
     assert.deepStrictEqual(res.code, 0);
     assert.deepStrictEqual(dep1.numInvocations, 1);
     assert.deepStrictEqual(dep2.numInvocations, 1);
     assert.deepStrictEqual(main.numInvocations, 1);
-  }),
-);
+  }
+});
+
+test('can set WIREIT_PARALLEL=1 to run sequentially', async () => {
+  await using rig = await WireitTestRig.setup();
+  const dep1 = await rig.newCommand();
+  const dep2 = await rig.newCommand();
+  const main = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        dep1: 'wireit',
+        dep2: 'wireit',
+        main: 'wireit',
+      },
+      wireit: {
+        dep1: {command: dep1.command},
+        dep2: {command: dep2.command},
+        main: {command: main.command, dependencies: ['dep1', 'dep2']},
+      },
+    },
+  });
+
+  const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '1'}});
+  // One of the two deps are invoked first
+  const dep1InvPromise = dep1.nextInvocation();
+  const dep2InvPromise = dep2.nextInvocation();
+  // wait for the first command to begin
+  const luckyInv = await Promise.race([dep1InvPromise, dep2InvPromise]);
+  // wait for a bit, to show that the other command does not begin
+  await wait(300);
+  let unluckyInvPromise;
+  if (luckyInv.command === dep1) {
+    unluckyInvPromise = dep2InvPromise;
+    assert.deepStrictEqual(dep1.numInvocations, 1);
+    assert.deepStrictEqual(dep2.numInvocations, 0);
+  } else {
+    unluckyInvPromise = dep1InvPromise;
+    assert.deepStrictEqual(dep1.numInvocations, 0);
+    assert.deepStrictEqual(dep2.numInvocations, 1);
+  }
+  assert.deepStrictEqual(main.numInvocations, 0);
+  // once the lucky dep finishes, the unlucky one is invoked
+  luckyInv.exit(0);
+  (await unluckyInvPromise).exit(0);
+  // and then finally main is invoked and the command exits
+  (await main.nextInvocation()).exit(0);
+  const res = await exec.exit;
+  assert.deepStrictEqual(res.code, 0);
+  assert.deepStrictEqual(dep1.numInvocations, 1);
+  assert.deepStrictEqual(dep2.numInvocations, 1);
+  assert.deepStrictEqual(main.numInvocations, 1);
+});
+
+test('can set WIREIT_PARALLEL=Infinity to run many commands in parallel', async () => {
+  await using rig = await WireitTestRig.setup();
+  const main = await rig.newCommand();
+  // Pick a number of scripts that we will expect to run simultaneously which is
+  // higher than the default of CPUs x 4, to show that we have increased beyond
+  // that default.
+  const n = os.cpus().length * 10;
+  const depNames: string[] = [];
+  const packageJson: PackageJson = {
+    scripts: {
+      main: 'wireit',
+    },
+    wireit: {
+      main: {command: main.command, dependencies: depNames},
+    },
+  };
+  const commands = [];
+  const invocations = [];
+  for (let i = 0; i < n; i++) {
+    const command = await rig.newCommand();
+    commands.push(command);
+    const name = `dep${i}`;
+    depNames.push(name);
+
+    packageJson.scripts![name] = 'wireit';
+    packageJson.wireit![name] = {command: command.command};
+    invocations.push(command.nextInvocation());
+  }
+
+  await rig.write({
+    'package.json': packageJson,
+  });
+
+  const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: 'Infinity'}});
+  // All invocations should be started simultaneously
+  const started = await Promise.all(invocations);
+  for (const invocation of started) {
+    invocation.exit(0);
+  }
+  // once they're all done, main still finishes normally
+  (await main.nextInvocation()).exit(0);
+  const res = await exec.exit;
+  assert.deepStrictEqual(res.code, 0);
+  for (const cmd of commands) {
+    assert.deepStrictEqual(cmd.numInvocations, 1);
+  }
+  assert.deepStrictEqual(main.numInvocations, 1);
+});
+
+test('should fall back to default parallelism with empty WIREIT_PARALLEL', async () => {
+  await using rig = await WireitTestRig.setup();
+  const dep1 = await rig.newCommand();
+  const dep2 = await rig.newCommand();
+  const main = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        dep1: 'wireit',
+        dep2: 'wireit',
+        main: 'wireit',
+      },
+      wireit: {
+        dep1: {command: dep1.command},
+        dep2: {command: dep2.command},
+        main: {command: main.command, dependencies: ['dep1', 'dep2']},
+      },
+    },
+  });
+
+  const exec = rig.exec('npm run main', {env: {WIREIT_PARALLEL: ''}});
+  const [inv1, inv2] = await Promise.all([
+    dep1.nextInvocation(),
+    dep2.nextInvocation(),
+  ]);
+  assert.deepStrictEqual(main.numInvocations, 0);
+  inv1.exit(0);
+  inv2.exit(0);
+  (await main.nextInvocation()).exit(0);
+  const res = await exec.exit;
+  assert.deepStrictEqual(res.code, 0);
+  assert.deepStrictEqual(dep1.numInvocations, 1);
+  assert.deepStrictEqual(dep2.numInvocations, 1);
+  assert.deepStrictEqual(main.numInvocations, 1);
+});
 
 test(
   'scripts acquire exclusive locks across wireit processes',
   {timeout: IS_WINDOWS ? 60_000 : undefined},
-  rigTest(async ({rig}) => {
+  async () => {
+    await using rig = await WireitTestRig.setup();
     const cmdA = await rig.newCommand();
     await rig.write({
       'package.json': {
@@ -242,38 +236,36 @@ test(
     }
 
     assert.deepStrictEqual(cmdA.numInvocations, concurrency);
-  }),
+  },
 );
 
-test(
-  "scripts don't acquire exclusive locks when output=[]",
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: [],
-          },
+test("scripts don't acquire exclusive locks when output=[]", async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: [],
         },
       },
-    });
+    },
+  });
 
-    // When output=[], we don't acquire an exclusive lock.
-    const exec1 = rig.exec('npm run a');
-    const exec2 = rig.exec('npm run a');
-    const inv1 = await cmdA.nextInvocation();
-    // inv2 couldn't start if we did acquire an exclusive lock, because inv1 is
-    // still running.
-    const inv2 = await cmdA.nextInvocation();
-    inv1.exit(0);
-    inv2.exit(0);
-    assert.deepStrictEqual((await exec1.exit).code, 0);
-    assert.deepStrictEqual((await exec2.exit).code, 0);
-    assert.deepStrictEqual(cmdA.numInvocations, 2);
-  }),
-);
+  // When output=[], we don't acquire an exclusive lock.
+  const exec1 = rig.exec('npm run a');
+  const exec2 = rig.exec('npm run a');
+  const inv1 = await cmdA.nextInvocation();
+  // inv2 couldn't start if we did acquire an exclusive lock, because inv1 is
+  // still running.
+  const inv2 = await cmdA.nextInvocation();
+  inv1.exit(0);
+  inv2.exit(0);
+  assert.deepStrictEqual((await exec1.exit).code, 0);
+  assert.deepStrictEqual((await exec2.exit).code, 0);
+  assert.deepStrictEqual(cmdA.numInvocations, 2);
+});

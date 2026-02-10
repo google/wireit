@@ -10,7 +10,6 @@ import * as assert from 'node:assert';
 import {Options, type Agent} from '../cli-options.js';
 import {Result} from '../error.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
-import {rigTestNode as rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 
 const TEST_BINARY_COMMAND = `node ${pathlib.join(
@@ -121,70 +120,63 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   const isWindows = process.platform === 'win32';
   const extraDashes = needsExtraDashes ? '--' : '';
 
-  test(
-    `${agent} run`,
-    rigTest(async ({rig}) => {
-      await assertOptions(rig, `${runCmd} main`, {
-        agent,
-        script: {
-          packageDir: rig.temp,
-          name: 'main',
-        },
-      });
-    }),
-  );
+  test(`${agent} run`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(rig, `${runCmd} main`, {
+      agent,
+      script: {
+        packageDir: rig.temp,
+        name: 'main',
+      },
+    });
+  });
 
-  test(
-    `${agent} run --extra`,
-    rigTest(async ({rig}) => {
-      await assertOptions(rig, `${runCmd} main -- ${extraDashes} --extra`, {
+  test(`${agent} run --extra`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(rig, `${runCmd} main -- ${extraDashes} --extra`, {
+      agent,
+      script: {
+        packageDir: rig.temp,
+        name: 'main',
+      },
+      extraArgs: ['--extra'],
+    });
+  });
+
+  test(`${agent} run --watch`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(rig, `${runCmd} main ${extraDashes} --watch`, {
+      agent,
+      script: {
+        packageDir: rig.temp,
+        name: 'main',
+      },
+      watch: {strategy: 'event'},
+    });
+  });
+
+  test(`${agent} run --watch --extra`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(
+      rig,
+      `${runCmd} main ${extraDashes} --watch -- --extra`,
+      {
         agent,
         script: {
           packageDir: rig.temp,
           name: 'main',
         },
         extraArgs: ['--extra'],
-      });
-    }),
-  );
-
-  test(
-    `${agent} run --watch`,
-    rigTest(async ({rig}) => {
-      await assertOptions(rig, `${runCmd} main ${extraDashes} --watch`, {
-        agent,
-        script: {
-          packageDir: rig.temp,
-          name: 'main',
-        },
         watch: {strategy: 'event'},
-      });
-    }),
-  );
-
-  test(
-    `${agent} run --watch --extra`,
-    rigTest(async ({rig}) => {
-      await assertOptions(
-        rig,
-        `${runCmd} main ${extraDashes} --watch -- --extra`,
-        {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'main',
-          },
-          extraArgs: ['--extra'],
-          watch: {strategy: 'event'},
-        },
-      );
-    }),
-  );
+      },
+    );
+  });
 
   // https://github.com/google/wireit/issues/1168
   void (isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch`,
-    rigTest(async ({rig}) => {
+    async () => {
+      await using rig = await WireitTestRig.setup();
       await assertOptions(
         rig,
         `${runCmd} recurse`,
@@ -202,50 +194,46 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
           recurse: `${runCmd} other ${extraDashes} --watch`,
         },
       );
-    }),
+    },
   );
 
-  test(
-    `${agent} WIREIT_LOGGER=simple run`,
-    rigTest(async ({rig}) => {
-      await assertOptions(
-        rig,
-        `${runCmd} main`,
-        {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'main',
-          },
-          logger: 'SimpleLogger',
+  test(`${agent} WIREIT_LOGGER=simple run`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(
+      rig,
+      `${runCmd} main`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
         },
-        {
-          WIREIT_LOGGER: 'simple',
-        },
-      );
-    }),
-  );
+        logger: 'SimpleLogger',
+      },
+      {
+        WIREIT_LOGGER: 'simple',
+      },
+    );
+  });
 
-  test(
-    `${agent} WIREIT_LOGGER=quiet run`,
-    rigTest(async ({rig}) => {
-      await assertOptions(
-        rig,
-        `${runCmd} main`,
-        {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'main',
-          },
-          logger: 'QuietLogger',
+  test(`${agent} WIREIT_LOGGER=quiet run`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(
+      rig,
+      `${runCmd} main`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
         },
-        {
-          WIREIT_LOGGER: 'quiet',
-        },
-      );
-    }),
-  );
+        logger: 'QuietLogger',
+      },
+      {
+        WIREIT_LOGGER: 'quiet',
+      },
+    );
+  });
 
   // Doesn't work with yarn 1.x due to
   // https://github.com/yarnpkg/yarn/issues/8905. Anything before a "--" is not
@@ -254,7 +242,8 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   // instead of the current script.
   void (isYarn || isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch --extra`,
-    rigTest(async ({rig}) => {
+    async () => {
+      await using rig = await WireitTestRig.setup();
       await assertOptions(
         rig,
         `${runCmd} recurse`,
@@ -272,57 +261,52 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
           recurse: `${runCmd} other ${extraDashes} --watch -- --extra`,
         },
       );
-    }),
+    },
   );
 
   if (testCmd !== undefined) {
-    test(
-      `${agent} test`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, `${testCmd}`, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'test',
-          },
-        });
-      }),
-    );
+    test(`${agent} test`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, `${testCmd}`, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'test',
+        },
+      });
+    });
 
     // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-    void (isPnpm ? test.skip : test)(
-      `${agent} test --extra`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, `${testCmd} -- --extra`, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'test',
-          },
-          extraArgs: ['--extra'],
-        });
-      }),
-    );
+    void (isPnpm ? test.skip : test)(`${agent} test --extra`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, `${testCmd} -- --extra`, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'test',
+        },
+        extraArgs: ['--extra'],
+      });
+    });
 
     // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
-    void (isPnpm ? test.skip : test)(
-      `${agent} test --watch`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, `${testCmd} --watch`, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'test',
-          },
-          watch: {strategy: 'event'},
-        });
-      }),
-    );
+    void (isPnpm ? test.skip : test)(`${agent} test --watch`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, `${testCmd} --watch`, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'test',
+        },
+        watch: {strategy: 'event'},
+      });
+    });
 
     // Does not work in pnpm, see https://github.com/pnpm/pnpm/issues/4821.
     void (isPnpm ? test.skip : test)(
       `${agent} test --watch --extra`,
-      rigTest(async ({rig}) => {
+      async () => {
+        await using rig = await WireitTestRig.setup();
         await assertOptions(rig, `${testCmd} --watch -- --extra`, {
           agent,
           script: {
@@ -332,141 +316,127 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
           extraArgs: ['--extra'],
           watch: {strategy: 'event'},
         });
-      }),
+      },
     );
   }
 
   if (startCmd !== undefined) {
-    test(
-      `${agent} start`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, startCmd, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'start',
-          },
-        });
-      }),
-    );
+    test(`${agent} start`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, startCmd, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'start',
+        },
+      });
+    });
 
-    test(
-      `${agent} start --extra`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, `${startCmd} -- --extra`, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'start',
-          },
-          extraArgs: ['--extra'],
-        });
-      }),
-    );
+    test(`${agent} start --extra`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, `${startCmd} -- --extra`, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'start',
+        },
+        extraArgs: ['--extra'],
+      });
+    });
 
-    test(
-      `${agent} start --watch`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, `${startCmd} --watch`, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'start',
-          },
-          watch: {strategy: 'event'},
-        });
-      }),
-    );
+    test(`${agent} start --watch`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, `${startCmd} --watch`, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'start',
+        },
+        watch: {strategy: 'event'},
+      });
+    });
 
-    test(
-      `${agent} start --watch --extra`,
-      rigTest(async ({rig}) => {
-        await assertOptions(rig, `${startCmd} --watch -- --extra`, {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'start',
-          },
-          extraArgs: ['--extra'],
-          watch: {strategy: 'event'},
-        });
-      }),
-    );
+    test(`${agent} start --watch --extra`, async () => {
+      await using rig = await WireitTestRig.setup();
+      await assertOptions(rig, `${startCmd} --watch -- --extra`, {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'start',
+        },
+        extraArgs: ['--extra'],
+        watch: {strategy: 'event'},
+      });
+    });
   }
 
-  test(
-    `${agent} --watch WIREIT_WATCH_STRATEGY=poll`,
-    rigTest(async ({rig}) => {
-      await assertOptions(
-        rig,
-        `${runCmd} main ${extraDashes} --watch`,
-        {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'main',
-          },
-          logger: 'QuietLogger',
-          watch: {
-            strategy: 'poll',
-            interval: 500,
-          },
+  test(`${agent} --watch WIREIT_WATCH_STRATEGY=poll`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(
+      rig,
+      `${runCmd} main ${extraDashes} --watch`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
         },
-        {
-          WIREIT_WATCH_STRATEGY: 'poll',
+        logger: 'QuietLogger',
+        watch: {
+          strategy: 'poll',
+          interval: 500,
         },
-      );
-    }),
-  );
+      },
+      {
+        WIREIT_WATCH_STRATEGY: 'poll',
+      },
+    );
+  });
 
-  test(
-    `${agent} --watch WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
-    rigTest(async ({rig}) => {
-      await assertOptions(
-        rig,
-        `${runCmd} main ${extraDashes} --watch`,
-        {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'main',
-          },
-          logger: 'QuietLogger',
-          watch: {
-            strategy: 'poll',
-            interval: 74,
-          },
+  test(`${agent} --watch WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(
+      rig,
+      `${runCmd} main ${extraDashes} --watch`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
         },
-        {
-          WIREIT_WATCH_STRATEGY: 'poll',
-          WIREIT_WATCH_POLL_MS: '74',
+        logger: 'QuietLogger',
+        watch: {
+          strategy: 'poll',
+          interval: 74,
         },
-      );
-    }),
-  );
+      },
+      {
+        WIREIT_WATCH_STRATEGY: 'poll',
+        WIREIT_WATCH_POLL_MS: '74',
+      },
+    );
+  });
 
-  test(
-    `${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
-    rigTest(async ({rig}) => {
-      await assertOptions(
-        rig,
-        `${runCmd} main ${extraDashes}`,
-        {
-          agent,
-          script: {
-            packageDir: rig.temp,
-            name: 'main',
-          },
-          logger: 'QuietLogger',
-          // This is just testing that the WIREIT_WATCH environment variables
-          // don't actually turn on watch mode. Only the --watch flag does that.
-          watch: false,
+  test(`${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`, async () => {
+    await using rig = await WireitTestRig.setup();
+    await assertOptions(
+      rig,
+      `${runCmd} main ${extraDashes}`,
+      {
+        agent,
+        script: {
+          packageDir: rig.temp,
+          name: 'main',
         },
-        {
-          WIREIT_WATCH_STRATEGY: 'poll',
-          WIREIT_WATCH_POLL_MS: '74',
-        },
-      );
-    }),
-  );
+        logger: 'QuietLogger',
+        // This is just testing that the WIREIT_WATCH environment variables
+        // don't actually turn on watch mode. Only the --watch flag does that.
+        watch: false,
+      },
+      {
+        WIREIT_WATCH_STRATEGY: 'poll',
+        WIREIT_WATCH_POLL_MS: '74',
+      },
+    );
+  });
 }

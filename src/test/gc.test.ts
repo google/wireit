@@ -6,7 +6,7 @@
 
 import {test, afterEach, beforeEach} from 'node:test';
 import * as assert from 'node:assert';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {WireitTestRig} from './util/test-rig.js';
 import {
   Executor,
   registerExecutorConstructorHook,
@@ -68,238 +68,232 @@ async function retryWithGcUntilCallbackDoesNotThrow(
   cb();
 }
 
-test(
-  'standard garbage collection',
-  rigTest(async ({rig}) => {
-    const standard = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          standard: 'wireit',
-        },
-        wireit: {
-          standard: {
-            command: standard.command,
-          },
+test('standard garbage collection', async () => {
+  await using rig = await WireitTestRig.setup();
+  const standard = await rig.newCommand();
+  await rig.writeAtomic({
+    'package.json': {
+      scripts: {
+        standard: 'wireit',
+      },
+      wireit: {
+        standard: {
+          command: standard.command,
         },
       },
-    });
+    },
+  });
 
-    const console = new Console(process.stderr, process.stderr);
-    const logger = new SimpleLogger(rig.temp, console);
-    const script = await new Analyzer('npm').analyze(
-      {packageDir: rig.temp, name: 'standard'},
-      [],
+  const console = new Console(process.stderr, process.stderr);
+  const logger = new SimpleLogger(rig.temp, console);
+  const script = await new Analyzer('npm').analyze(
+    {packageDir: rig.temp, name: 'standard'},
+    [],
+  );
+  if (!script.config.ok) {
+    for (const error of script.config.error) {
+      logger.log(error);
+    }
+    throw new Error(`Analysis error`);
+  }
+
+  const workerPool = new WorkerPool(Infinity);
+
+  const numIterations = 10;
+  for (let i = 0; i < numIterations; i++) {
+    const executor = new Executor(
+      script.config.value,
+      logger,
+      workerPool,
+      undefined,
+      'no-new',
+      undefined,
+      true,
     );
-    if (!script.config.ok) {
-      for (const error of script.config.error) {
+    const resultPromise = executor.execute();
+    assert.ok(numLiveExecutors >= 1);
+    assert.ok(numLiveExecutions >= 1);
+    (await standard.nextInvocation()).exit(0);
+    const result = await resultPromise;
+    if (result.errors.length > 0) {
+      for (const error of result.errors) {
         logger.log(error);
       }
-      throw new Error(`Analysis error`);
+      throw new Error(`Execution error`);
     }
+  }
 
-    const workerPool = new WorkerPool(Infinity);
+  await retryWithGcUntilCallbackDoesNotThrow(() => {
+    // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
+    // numIterations we're OK.
+    assert.strictEqual(numLiveExecutors, 1);
+    assert.strictEqual(numLiveExecutions, 1);
+  });
+  assert.strictEqual(standard.numInvocations, numIterations);
+});
 
-    const numIterations = 10;
-    for (let i = 0; i < numIterations; i++) {
-      const executor = new Executor(
-        script.config.value,
-        logger,
-        workerPool,
-        undefined,
-        'no-new',
-        undefined,
-        true,
-      );
-      const resultPromise = executor.execute();
-      assert.ok(numLiveExecutors >= 1);
-      assert.ok(numLiveExecutions >= 1);
-      (await standard.nextInvocation()).exit(0);
-      const result = await resultPromise;
-      if (result.errors.length > 0) {
-        for (const error of result.errors) {
-          logger.log(error);
-        }
-        throw new Error(`Execution error`);
-      }
-    }
-
-    await retryWithGcUntilCallbackDoesNotThrow(() => {
-      // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
-      // numIterations we're OK.
-      assert.strictEqual(numLiveExecutors, 1);
-      assert.strictEqual(numLiveExecutions, 1);
-    });
-    assert.strictEqual(standard.numInvocations, numIterations);
-  }),
-);
-
-test(
-  'persistent service garbage collection',
-  rigTest(async ({rig}) => {
-    const service = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          service: 'wireit',
-        },
-        wireit: {
-          service: {
-            command: service.command,
-            service: true,
-          },
+test('persistent service garbage collection', async () => {
+  await using rig = await WireitTestRig.setup();
+  const service = await rig.newCommand();
+  await rig.writeAtomic({
+    'package.json': {
+      scripts: {
+        service: 'wireit',
+      },
+      wireit: {
+        service: {
+          command: service.command,
+          service: true,
         },
       },
-    });
+    },
+  });
 
-    const console = new Console(process.stderr, process.stderr);
-    const logger = new SimpleLogger(rig.temp, console);
-    const script = await new Analyzer('npm').analyze(
-      {packageDir: rig.temp, name: 'service'},
-      [],
+  const console = new Console(process.stderr, process.stderr);
+  const logger = new SimpleLogger(rig.temp, console);
+  const script = await new Analyzer('npm').analyze(
+    {packageDir: rig.temp, name: 'service'},
+    [],
+  );
+  if (!script.config.ok) {
+    for (const error of script.config.error) {
+      logger.log(error);
+    }
+    throw new Error(`Analysis error`);
+  }
+
+  const workerPool = new WorkerPool(Infinity);
+
+  const numIterations = 10;
+  let previousServices: ServiceMap | undefined;
+  for (let i = 0; i < numIterations; i++) {
+    const executor = new Executor(
+      script.config.value,
+      logger,
+      workerPool,
+      undefined,
+      'no-new',
+      previousServices,
+      true,
     );
-    if (!script.config.ok) {
-      for (const error of script.config.error) {
+    const resultPromise = executor.execute();
+    assert.ok(numLiveExecutors >= 1);
+    assert.ok(numLiveExecutions >= 1);
+    const result = await resultPromise;
+    if (result.errors.length > 0) {
+      for (const error of result.errors) {
         logger.log(error);
       }
-      throw new Error(`Analysis error`);
+      throw new Error(`Execution error`);
     }
-
-    const workerPool = new WorkerPool(Infinity);
-
-    const numIterations = 10;
-    let previousServices: ServiceMap | undefined;
-    for (let i = 0; i < numIterations; i++) {
-      const executor = new Executor(
-        script.config.value,
-        logger,
-        workerPool,
-        undefined,
-        'no-new',
-        previousServices,
-        true,
-      );
-      const resultPromise = executor.execute();
-      assert.ok(numLiveExecutors >= 1);
-      assert.ok(numLiveExecutions >= 1);
-      const result = await resultPromise;
-      if (result.errors.length > 0) {
-        for (const error of result.errors) {
-          logger.log(error);
-        }
-        throw new Error(`Execution error`);
-      }
-      previousServices = result.persistentServices;
-      if (i === 0) {
-        await service.nextInvocation();
-      }
+    previousServices = result.persistentServices;
+    if (i === 0) {
+      await service.nextInvocation();
     }
+  }
 
-    for (const service of previousServices!.values()) {
-      await service.abort();
-    }
+  for (const service of previousServices!.values()) {
+    await service.abort();
+  }
 
-    await retryWithGcUntilCallbackDoesNotThrow(() => {
-      // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
-      // numIterations we're OK.
-      assert.strictEqual(numLiveExecutors, 1);
-      assert.strictEqual(numLiveExecutions, 1);
-    });
-    assert.strictEqual(service.numInvocations, 1);
-  }),
-);
+  await retryWithGcUntilCallbackDoesNotThrow(() => {
+    // TODO(aomarks) Not sure why it's 1 instead of 0, but as long as it's not
+    // numIterations we're OK.
+    assert.strictEqual(numLiveExecutors, 1);
+    assert.strictEqual(numLiveExecutions, 1);
+  });
+  assert.strictEqual(service.numInvocations, 1);
+});
 
-test(
-  'no-command, standard, persistent service, and ephemeral service garbage collection',
-  rigTest(async ({rig}) => {
-    const standard = await rig.newCommand();
-    const servicePersistent = await rig.newCommand();
-    const serviceEphemeral = await rig.newCommand();
-    await rig.writeAtomic({
-      'package.json': {
-        scripts: {
-          entrypoint: 'wireit',
-          standard: 'wireit',
-          servicePersistent: 'wireit',
-          serviceEphemeral: 'wireit',
+test('no-command, standard, persistent service, and ephemeral service garbage collection', async () => {
+  await using rig = await WireitTestRig.setup();
+  const standard = await rig.newCommand();
+  const servicePersistent = await rig.newCommand();
+  const serviceEphemeral = await rig.newCommand();
+  await rig.writeAtomic({
+    'package.json': {
+      scripts: {
+        entrypoint: 'wireit',
+        standard: 'wireit',
+        servicePersistent: 'wireit',
+        serviceEphemeral: 'wireit',
+      },
+      wireit: {
+        entrypoint: {
+          dependencies: ['standard', 'servicePersistent'],
         },
-        wireit: {
-          entrypoint: {
-            dependencies: ['standard', 'servicePersistent'],
-          },
-          standard: {
-            command: standard.command,
-            dependencies: ['serviceEphemeral'],
-          },
-          servicePersistent: {
-            command: servicePersistent.command,
-            service: true,
-          },
-          serviceEphemeral: {
-            command: serviceEphemeral.command,
-            service: true,
-          },
+        standard: {
+          command: standard.command,
+          dependencies: ['serviceEphemeral'],
+        },
+        servicePersistent: {
+          command: servicePersistent.command,
+          service: true,
+        },
+        serviceEphemeral: {
+          command: serviceEphemeral.command,
+          service: true,
         },
       },
-    });
+    },
+  });
 
-    const console = new Console(process.stderr, process.stderr);
-    const logger = new SimpleLogger(rig.temp, console);
-    const script = await new Analyzer('npm').analyze(
-      {packageDir: rig.temp, name: 'entrypoint'},
-      [],
+  const console = new Console(process.stderr, process.stderr);
+  const logger = new SimpleLogger(rig.temp, console);
+  const script = await new Analyzer('npm').analyze(
+    {packageDir: rig.temp, name: 'entrypoint'},
+    [],
+  );
+  if (!script.config.ok) {
+    for (const error of script.config.error) {
+      logger.log(error);
+    }
+    throw new Error(`Analysis error`);
+  }
+
+  const workerPool = new WorkerPool(Infinity);
+
+  const numIterations = 10;
+  let previousServices: ServiceMap | undefined;
+  for (let i = 0; i < numIterations; i++) {
+    const executor = new Executor(
+      script.config.value,
+      logger,
+      workerPool,
+      undefined,
+      'no-new',
+      previousServices,
+      true,
     );
-    if (!script.config.ok) {
-      for (const error of script.config.error) {
+    const resultPromise = executor.execute();
+    assert.ok(numLiveExecutors >= 1);
+    assert.ok(numLiveExecutions >= 1);
+    if (i === 0) {
+      await servicePersistent.nextInvocation();
+    }
+    await serviceEphemeral.nextInvocation();
+    (await standard.nextInvocation()).exit(0);
+    const result = await resultPromise;
+    if (result.errors.length > 0) {
+      for (const error of result.errors) {
         logger.log(error);
       }
-      throw new Error(`Analysis error`);
+      throw new Error(`Execution error`);
     }
+    previousServices = result.persistentServices;
+  }
 
-    const workerPool = new WorkerPool(Infinity);
+  for (const service of previousServices!.values()) {
+    await service.abort();
+  }
 
-    const numIterations = 10;
-    let previousServices: ServiceMap | undefined;
-    for (let i = 0; i < numIterations; i++) {
-      const executor = new Executor(
-        script.config.value,
-        logger,
-        workerPool,
-        undefined,
-        'no-new',
-        previousServices,
-        true,
-      );
-      const resultPromise = executor.execute();
-      assert.ok(numLiveExecutors >= 1);
-      assert.ok(numLiveExecutions >= 1);
-      if (i === 0) {
-        await servicePersistent.nextInvocation();
-      }
-      await serviceEphemeral.nextInvocation();
-      (await standard.nextInvocation()).exit(0);
-      const result = await resultPromise;
-      if (result.errors.length > 0) {
-        for (const error of result.errors) {
-          logger.log(error);
-        }
-        throw new Error(`Execution error`);
-      }
-      previousServices = result.persistentServices;
-    }
-
-    for (const service of previousServices!.values()) {
-      await service.abort();
-    }
-
-    await retryWithGcUntilCallbackDoesNotThrow(() => {
-      // TODO(aomarks) Not sure why it's 1 and 4 instead of 0, but as long as
-      // it's not a factor of numIterations we're OK.
-      assert.strictEqual(numLiveExecutors, 1);
-      assert.strictEqual(numLiveExecutions, 4);
-    });
-    assert.strictEqual(standard.numInvocations, numIterations);
-    assert.strictEqual(servicePersistent.numInvocations, 1);
-    assert.strictEqual(serviceEphemeral.numInvocations, numIterations);
-  }),
-);
+  await retryWithGcUntilCallbackDoesNotThrow(() => {
+    // TODO(aomarks) Not sure why it's 1 and 4 instead of 0, but as long as
+    // it's not a factor of numIterations we're OK.
+    assert.strictEqual(numLiveExecutors, 1);
+    assert.strictEqual(numLiveExecutions, 4);
+  });
+  assert.strictEqual(standard.numInvocations, numIterations);
+  assert.strictEqual(servicePersistent.numInvocations, 1);
+  assert.strictEqual(serviceEphemeral.numInvocations, numIterations);
+});

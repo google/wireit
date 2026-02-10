@@ -6,535 +6,513 @@
 
 import {test} from 'node:test';
 import * as assert from 'node:assert';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {WireitTestRig} from './util/test-rig.js';
 import * as pathlib from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-test(
-  'cleans output by default',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['output'],
-          },
+test('cleans output by default', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['output'],
         },
       },
-      output: 'foo',
-    });
+    },
+    output: 'foo',
+  });
 
-    // Output should exist before we run the script.
-    assert.ok(await rig.exists('output'));
+  // Output should exist before we run the script.
+  assert.ok(await rig.exists('output'));
 
-    // Output should be deleted between running the script and executing the
-    // command.
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
-    assert.ok(!(await rig.exists('output')));
+  // Output should be deleted between running the script and executing the
+  // command.
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
+  assert.ok(!(await rig.exists('output')));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'cleans output when clean is true',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['output'],
-            clean: true,
-          },
+test('cleans output when clean is true', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['output'],
+          clean: true,
         },
       },
-      output: 'foo',
-    });
+    },
+    output: 'foo',
+  });
 
-    // Output should exist before we run the script.
-    assert.ok(await rig.exists('output'));
+  // Output should exist before we run the script.
+  assert.ok(await rig.exists('output'));
 
-    // Output should be deleted between running the script and executing the
-    // command.
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
-    assert.ok(!(await rig.exists('output')));
+  // Output should be deleted between running the script and executing the
+  // command.
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
+  assert.ok(!(await rig.exists('output')));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'does not clean output when clean is false',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['output'],
-            clean: false,
-          },
+test('does not clean output when clean is false', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['output'],
+          clean: false,
         },
       },
-      output: 'foo',
-    });
+    },
+    output: 'foo',
+  });
 
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
 
-    // Output should NOT have been deleted because clean was false.
-    assert.ok(await rig.exists('output'));
+  // Output should NOT have been deleted because clean was false.
+  assert.ok(await rig.exists('output'));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'cleaning deletes all files matched by glob pattern',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['output/**', '!output/exclude'],
-          },
+test('cleaning deletes all files matched by glob pattern', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['output/**', '!output/exclude'],
         },
       },
-      'output/include': 'foo',
-      'output/sub/include': 'foo',
-      'output/exclude': 'foo',
-    });
+    },
+    'output/include': 'foo',
+    'output/sub/include': 'foo',
+    'output/exclude': 'foo',
+  });
 
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
 
-    assert.ok(!(await rig.exists('output/include')));
-    assert.ok(!(await rig.exists('output/sub/include')));
-    assert.ok(await rig.exists('output/exclude'));
+  assert.ok(!(await rig.exists('output/include')));
+  assert.ok(!(await rig.exists('output/sub/include')));
+  assert.ok(await rig.exists('output/exclude'));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'cleaning supports glob re-inclusion',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: [
-              'output/**',
-              '!output/subdir/**',
-              'output/subdir/reincluded',
-            ],
-          },
+test('cleaning supports glob re-inclusion', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: [
+            'output/**',
+            '!output/subdir/**',
+            'output/subdir/reincluded',
+          ],
         },
       },
-      'output/subdir/excluded': 'v0',
-      'output/subdir/reincluded': 'v0',
-    });
+    },
+    'output/subdir/excluded': 'v0',
+    'output/subdir/reincluded': 'v0',
+  });
 
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
 
-    assert.ok(await rig.exists('output/subdir/excluded'));
-    assert.ok(!(await rig.exists('output/subdir/reincluded')));
+  assert.ok(await rig.exists('output/subdir/excluded'));
+  assert.ok(!(await rig.exists('output/subdir/reincluded')));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'cleaning deletes directories',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['output/**'],
-          },
+test('cleaning deletes directories', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['output/**'],
         },
       },
-      'output/subdir/file': 'foo',
-    });
+    },
+    'output/subdir/file': 'foo',
+  });
 
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
 
-    assert.ok(!(await rig.exists('output/subdir/file')));
-    assert.ok(!(await rig.exists('output/subdir')));
+  assert.ok(!(await rig.exists('output/subdir/file')));
+  assert.ok(!(await rig.exists('output/subdir')));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'cleaning deletes symlinks but not their targets',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['symlink'],
-          },
+test('cleaning deletes symlinks but not their targets', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['symlink'],
         },
       },
-      'symlink.target': 'foo',
-    });
-    await rig.symlink('symlink.target', 'symlink', 'file');
+    },
+    'symlink.target': 'foo',
+  });
+  await rig.symlink('symlink.target', 'symlink', 'file');
 
-    const exec = rig.exec('npm run a');
-    const inv = await cmdA.nextInvocation();
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
 
-    // The symlink itself should be deleted, but not the target of the symlink.
-    assert.ok(!(await rig.exists('symlink')));
-    assert.ok(await rig.exists('symlink.target'));
+  // The symlink itself should be deleted, but not the target of the symlink.
+  assert.ok(!(await rig.exists('symlink')));
+  assert.ok(await rig.exists('symlink.target'));
 
-    inv.exit(0);
-    const res = await exec.exit;
-    assert.strictEqual(res.code, 0);
-    assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
 
-test(
-  'errors if cleaning output outside of the package',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'foo/package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['../outside'],
-          },
+test('errors if cleaning output outside of the package', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'foo/package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['../outside'],
         },
       },
-      outside: 'bad',
-    });
+    },
+    outside: 'bad',
+  });
 
-    const result = rig.exec('npm run a', {cwd: 'foo'});
-    const done = await result.exit;
-    assert.strictEqual(done.code, 1);
-    checkScriptOutput(
-      done.stderr,
-      `
+  const result = rig.exec('npm run a', {cwd: 'foo'});
+  const done = await result.exit;
+  assert.strictEqual(done.code, 1);
+  checkScriptOutput(
+    done.stderr,
+    `
 ❌ package.json:8:17 Output files must be within the package: ${JSON.stringify(
-        pathlib.join(rig.temp, 'outside'),
-      )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
+      pathlib.join(rig.temp, 'outside'),
+    )} was outside ${JSON.stringify(pathlib.join(rig.temp, 'foo'))}
           "output": [
                     ~
             "../outside"
     ~~~~~~~~~~~~~~~~~~~~
           ]
     ~~~~~~~`,
-    );
-    assert.strictEqual(cmdA.numInvocations, 0);
+  );
+  assert.strictEqual(cmdA.numInvocations, 0);
 
-    // The outside file should not have been deleted.
-    assert.ok(await rig.exists('outside'));
-  }),
-);
+  // The outside file should not have been deleted.
+  assert.ok(await rig.exists('outside'));
+});
 
-test(
-  '"if-file-deleted" cleans only when input file deleted',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-          b: 'wireit',
+test('"if-file-deleted" cleans only when input file deleted', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+        b: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: ['input/**'],
+          output: ['output/**'],
+          clean: 'if-file-deleted',
+          // Include a dependency on a script with no input files to cover an
+          // edge case that was broken in an earlier implementation.
+          //
+          // We use the ".wireit/<script>/fingerprint" file to find out which
+          // input files were present in the previous run, so that we can
+          // compare them to the current input files. However, in an earlier
+          // implementation we did not save a "fingerprint" file for scripts
+          // with a dependency that have no input files (because that makes
+          // the script "uncacheable").
+          dependencies: ['b'],
         },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['input/**'],
-            output: ['output/**'],
-            clean: 'if-file-deleted',
-            // Include a dependency on a script with no input files to cover an
-            // edge case that was broken in an earlier implementation.
-            //
-            // We use the ".wireit/<script>/fingerprint" file to find out which
-            // input files were present in the previous run, so that we can
-            // compare them to the current input files. However, in an earlier
-            // implementation we did not save a "fingerprint" file for scripts
-            // with a dependency that have no input files (because that makes
-            // the script "uncacheable").
-            dependencies: ['b'],
-          },
-          b: {
-            command: 'true',
-          },
+        b: {
+          command: 'true',
         },
       },
-    });
+    },
+  });
 
-    // Initial run creates output A.
-    {
-      await rig.write({'input/a': 'v0'});
+  // Initial run creates output A.
+  {
+    await rig.write({'input/a': 'v0'});
 
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // No outputs have been written yet.
-      assert.ok(!(await rig.exists('output/a')));
-      assert.ok(!(await rig.exists('output/b')));
-      assert.ok(!(await rig.exists('output/c')));
-
-      // Write output A.
-      await rig.write({'output/a': 'v0'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-    }
-
-    // Add new input file. Don't clean. Creates output/b.
-    {
-      await rig.write({'input/b': 'v0'});
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // Output A should still exist.
-      assert.strictEqual(await rig.read('output/a'), 'v0');
-      assert.ok(!(await rig.exists('output/b')));
-      assert.ok(!(await rig.exists('output/c')));
-
-      // Write outputs A and B.
-      await rig.write({'output/a': 'v1'});
-      await rig.write({'output/b': 'v1'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-    }
-
-    // Modify input file. Don't clean.
-    {
-      await rig.write({'input/a': 'v1'});
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // Outputs A and B should still exist.
-      assert.strictEqual(await rig.read('output/a'), 'v1');
-      assert.strictEqual(await rig.read('output/b'), 'v1');
-      assert.ok(!(await rig.exists('output/c')));
-
-      // Write outputs A and B
-      await rig.write({'output/a': 'v2'});
-      await rig.write({'output/b': 'v2'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-      assert.strictEqual(cmdA.numInvocations, 3);
-    }
-
-    // Delete input file. Clean. (This covers the case where the number of input
-    // files is lower).
-    {
-      await rig.delete('input/a');
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // Outputs A and B should have been cleaned.
-      assert.ok(!(await rig.exists('output/a')));
-      assert.ok(!(await rig.exists('output/b')));
-      assert.ok(!(await rig.exists('output/c')));
-
-      // Write output B.
-      await rig.write({'output/b': 'v3'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-    }
-
-    // Delete an input file, and also add an input file. Clean. (This covers the
-    // case where the number of input files are the same, but they are
-    // different.)
-    {
-      await rig.delete('input/b');
-      await rig.write({'input/c': 'v0'});
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // Output B should have been cleaned.
-      assert.ok(!(await rig.exists('output/a')));
-      assert.ok(!(await rig.exists('output/b')));
-      assert.ok(!(await rig.exists('output/c')));
-
-      // Write output C.
-      await rig.write({'output/c': 'v0'});
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-    }
-
-    assert.strictEqual(cmdA.numInvocations, 5);
-  }),
-);
-
-test(
-  'directories are not deleted unless empty',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['output', '!output/excluded'],
-          },
-        },
-      },
-      'output/included': '',
-      'output/excluded': '',
-    });
-
-    {
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // The included file should have been deleted.
-      assert.ok(!(await rig.exists('output/included')));
-
-      // The output directory should not have been deleted, even though it was
-      // matched, because the excluded file still exists, so it's not empty.
-      assert.ok(await rig.exists('output'));
-
-      // The excluded should not have been deleted.
-      assert.ok(await rig.exists('output/excluded'));
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-      assert.strictEqual(cmdA.numInvocations, 1);
-    }
-
-    {
-      // Restore the included file and delete the excluded file.
-      await rig.touch('output/included');
-      await rig.delete('output/excluded');
-
-      const exec = rig.exec('npm run a');
-      const inv = await cmdA.nextInvocation();
-
-      // The included file should have been deleted.
-      assert.ok(!(await rig.exists('output/included')));
-
-      // The output directory is now empty, so it should have been deleted.
-      assert.ok(!(await rig.exists('output')));
-
-      // The excluded file didn't exist to begin with.
-      assert.ok(!(await rig.exists('output/excluded')));
-
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.strictEqual(res.code, 0);
-      assert.strictEqual(cmdA.numInvocations, 2);
-    }
-  }),
-);
-
-test(
-  'leading slash on output glob is package relative',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            output: ['/output'],
-          },
-        },
-      },
-      output: 'foo',
-    });
-
-    // Output should exist before we run the script.
-    assert.ok(await rig.exists('output'));
-
-    // Output should be deleted between running the script and executing the
-    // command.
     const exec = rig.exec('npm run a');
     const inv = await cmdA.nextInvocation();
-    assert.ok(!(await rig.exists('output')));
+
+    // No outputs have been written yet.
+    assert.ok(!(await rig.exists('output/a')));
+    assert.ok(!(await rig.exists('output/b')));
+    assert.ok(!(await rig.exists('output/c')));
+
+    // Write output A.
+    await rig.write({'output/a': 'v0'});
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.strictEqual(res.code, 0);
+  }
+
+  // Add new input file. Don't clean. Creates output/b.
+  {
+    await rig.write({'input/b': 'v0'});
+
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    // Output A should still exist.
+    assert.strictEqual(await rig.read('output/a'), 'v0');
+    assert.ok(!(await rig.exists('output/b')));
+    assert.ok(!(await rig.exists('output/c')));
+
+    // Write outputs A and B.
+    await rig.write({'output/a': 'v1'});
+    await rig.write({'output/b': 'v1'});
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.strictEqual(res.code, 0);
+  }
+
+  // Modify input file. Don't clean.
+  {
+    await rig.write({'input/a': 'v1'});
+
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    // Outputs A and B should still exist.
+    assert.strictEqual(await rig.read('output/a'), 'v1');
+    assert.strictEqual(await rig.read('output/b'), 'v1');
+    assert.ok(!(await rig.exists('output/c')));
+
+    // Write outputs A and B
+    await rig.write({'output/a': 'v2'});
+    await rig.write({'output/b': 'v2'});
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 3);
+  }
+
+  // Delete input file. Clean. (This covers the case where the number of input
+  // files is lower).
+  {
+    await rig.delete('input/a');
+
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    // Outputs A and B should have been cleaned.
+    assert.ok(!(await rig.exists('output/a')));
+    assert.ok(!(await rig.exists('output/b')));
+    assert.ok(!(await rig.exists('output/c')));
+
+    // Write output B.
+    await rig.write({'output/b': 'v3'});
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.strictEqual(res.code, 0);
+  }
+
+  // Delete an input file, and also add an input file. Clean. (This covers the
+  // case where the number of input files are the same, but they are
+  // different.)
+  {
+    await rig.delete('input/b');
+    await rig.write({'input/c': 'v0'});
+
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    // Output B should have been cleaned.
+    assert.ok(!(await rig.exists('output/a')));
+    assert.ok(!(await rig.exists('output/b')));
+    assert.ok(!(await rig.exists('output/c')));
+
+    // Write output C.
+    await rig.write({'output/c': 'v0'});
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.strictEqual(res.code, 0);
+  }
+
+  assert.strictEqual(cmdA.numInvocations, 5);
+});
+
+test('directories are not deleted unless empty', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['output', '!output/excluded'],
+        },
+      },
+    },
+    'output/included': '',
+    'output/excluded': '',
+  });
+
+  {
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    // The included file should have been deleted.
+    assert.ok(!(await rig.exists('output/included')));
+
+    // The output directory should not have been deleted, even though it was
+    // matched, because the excluded file still exists, so it's not empty.
+    assert.ok(await rig.exists('output'));
+
+    // The excluded should not have been deleted.
+    assert.ok(await rig.exists('output/excluded'));
 
     inv.exit(0);
     const res = await exec.exit;
     assert.strictEqual(res.code, 0);
     assert.strictEqual(cmdA.numInvocations, 1);
-  }),
-);
+  }
+
+  {
+    // Restore the included file and delete the excluded file.
+    await rig.touch('output/included');
+    await rig.delete('output/excluded');
+
+    const exec = rig.exec('npm run a');
+    const inv = await cmdA.nextInvocation();
+
+    // The included file should have been deleted.
+    assert.ok(!(await rig.exists('output/included')));
+
+    // The output directory is now empty, so it should have been deleted.
+    assert.ok(!(await rig.exists('output')));
+
+    // The excluded file didn't exist to begin with.
+    assert.ok(!(await rig.exists('output/excluded')));
+
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.strictEqual(res.code, 0);
+    assert.strictEqual(cmdA.numInvocations, 2);
+  }
+});
+
+test('leading slash on output glob is package relative', async () => {
+  await using rig = await WireitTestRig.setup();
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          output: ['/output'],
+        },
+      },
+    },
+    output: 'foo',
+  });
+
+  // Output should exist before we run the script.
+  assert.ok(await rig.exists('output'));
+
+  // Output should be deleted between running the script and executing the
+  // command.
+  const exec = rig.exec('npm run a');
+  const inv = await cmdA.nextInvocation();
+  assert.ok(!(await rig.exists('output')));
+
+  inv.exit(0);
+  const res = await exec.exit;
+  assert.strictEqual(res.code, 0);
+  assert.strictEqual(cmdA.numInvocations, 1);
+});
