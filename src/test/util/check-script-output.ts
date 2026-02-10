@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as assert from 'uvu/assert';
+import * as assert from 'node:assert';
 import {removeAnsiColors} from './colors.js';
-import {NODE_MAJOR_VERSION} from './node-version.js';
 
 /**
  * Remove ANSI colors and \r writeover lines and compare the final output as
@@ -38,9 +37,7 @@ export function checkScriptOutput(
       }
     }
   }
-  const assertOutputEqualish =
-    NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
-  assertOutputEqualish(actual, expected, message);
+  assert.deepStrictEqual(actual, expected, message);
 }
 
 /**

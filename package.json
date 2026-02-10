@@ -435,7 +435,6 @@
     "selfsigned": "^5.2.0",
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.4.0",
-    "uvu": "^0.5.3",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.4",
