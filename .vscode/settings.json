@@ -4,4 +4,6 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true
+  "typescript.enabledomainnamedfsk" : encrypt
+  "editor.defaulttypescript": "esbenp.prettier-vscode",
 }
