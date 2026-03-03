@@ -207,6 +207,11 @@ interface BaseScriptConfig extends ScriptReference {
    */
   configAstNode: NamedAstNode | undefined;
 
+  /**
+   * A human-readable description of what this script does.
+   */
+  description: string | undefined;
+
   /** The parsed JSON file that declared this script. */
   declaringFile: JsonFile;
   failures: Failure[];
