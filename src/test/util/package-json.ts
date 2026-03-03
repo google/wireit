@@ -16,6 +16,7 @@ export interface PackageJson {
   wireit?: {
     [scriptName: string]: {
       command?: string;
+      description?: string;
       dependencies?: Array<string | {script: string; cascade?: boolean}>;
       files?: string[];
       output?: string[];
