@@ -42,6 +42,7 @@ _Wireit upgrades your npm scripts to make them smarter and more efficient._
 - [Cleaning output](#cleaning-output)
 - [Watch mode](#watch-mode)
 - [Services](#services)
+  - [Stop service before dependency](#stop-service-before-dependency)
 - [Execution cascade](#execution-cascade)
 - [Environment variables](#environment-variables)
 - [Failures and errors](#failures-and-errors)
@@ -585,6 +586,36 @@ In watch mode, a service will be restarted whenever one of its input files or
 dependencies change, except for dependencies with
 [`cascade`](#execution-cascade) set to `false`.
 
+### Stop service before dependency
+
+By default, when a service restarts in watch mode its previous instance keeps
+running while its dependencies execute, and is only stopped once the new
+fingerprint has been computed. This allows the service to keep serving requests
+for as long as possible.
+
+However, if a dependency needs to write files that the service has open (e.g.
+recompiling output that the service reads from disk), the running service can
+interfere. Setting `stopFirst: true` on that dependency tells Wireit to stop
+the service _before_ the dependency runs:
+
+```json
+{
+  "command": "node my-server.js",
+  "dependencies": [
+    {
+      "script": "build",
+      "cascade": true,
+      "stopFirst": true
+    }
+  ]
+}
+```
+
+> **Note**
+> When `stopFirst` is `true` the service is always stopped before the
+> dependency runs, even if the fingerprint ultimately does not change. Accept
+> the extra downtime in exchange for avoiding file-lock or port conflicts.
+
 ### Service output
 
 Services cannot have `output` files, because there is no way for Wireit to know
@@ -855,6 +886,7 @@ The following properties can be set inside `wireit.<script>` objects in
 | `dependencies`            | `string[] \| object[]`             | `[]`                    | [Scripts that must run before this one](#dependencies).                                                                         |
 | `dependencies[i].script`  | `string`                           | `undefined`             | [The name of the script, when the dependency is an object.](#dependencies).                                                     |
 | `dependencies[i].cascade` | `boolean`                          | `true`                  | [Whether this dependency always causes this script to re-execute](#execution-cascade).                                          |
+| `dependencies[i].stopFirst` | `boolean`                        | `false`                 | [Whether a service dependent should be stopped before this dependency runs](#stop-service-before-dependency).                   |
 | `files`                   | `string[]`                         | `undefined`             | Input file [glob patterns](#glob-patterns), used to determine the [fingerprint](#fingerprint).                                  |
 | `output`                  | `string[]`                         | `undefined`             | Output file [glob patterns](#glob-patterns), used for [caching](#caching) and [cleaning](#cleaning-output).                     |
 | `clean`                   | `boolean \| "if-file-deleted"`     | `true`                  | [Delete output files before running](#cleaning-output).                                                                         |
