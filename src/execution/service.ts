@@ -360,17 +360,34 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           void this.abort();
         });
 
+        const adoptee = this.#state.adoptee;
+        // If any dependency has cascade:true, stop the adoptee before running
+        // deps so they can freely write to files the service may have open.
+        const shouldStopAdopteeEarly =
+          adoptee !== undefined &&
+          this._config.dependencies.some((dep) => dep.cascade);
+
         this.#state = {
           id: 'executingDeps',
           deferredFingerprint: new Deferred(),
-          adoptee: this.#state.adoptee,
+          adoptee: shouldStopAdopteeEarly ? undefined : adoptee,
         };
-        void this._executeDependencies().then((result) => {
-          if (result.ok) {
-            this.#onDepsExecuted(result.value);
-          } else {
-            this.#onDepExecErr(result);
+
+        void (shouldStopAdopteeEarly
+          ? adoptee.abort()
+          : Promise.resolve()
+        ).then(() => {
+          if (this.#state.id !== 'executingDeps') {
+            // Service was aborted while waiting for the adoptee to stop.
+            return;
           }
+          void this._executeDependencies().then((result) => {
+            if (result.ok) {
+              this.#onDepsExecuted(result.value);
+            } else {
+              this.#onDepExecErr(result);
+            }
+          });
         });
         return this.#state.deferredFingerprint.promise;
       }
