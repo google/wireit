@@ -361,11 +361,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         });
 
         const adoptee = this.#state.adoptee;
-        // If any dependency has cascade:true, stop the adoptee before running
+        // If any dependency has stopFirst:true, stop the adoptee before running
         // deps so they can freely write to files the service may have open.
         const shouldStopAdopteeEarly =
           adoptee !== undefined &&
-          this._config.dependencies.some((dep) => dep.cascade);
+          this._config.dependencies.some((dep) => dep.stopFirst);
 
         this.#state = {
           id: 'executingDeps',
