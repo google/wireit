@@ -551,9 +551,11 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
         const message =
           status === 429
             ? `Hit GitHub Actions cache service rate limit`
-            : status === 503
-              ? `GitHub Actions cache service is temporarily unavailable`
-              : `Unexpected HTTP ${status} error from GitHub Actions cache service`;
+            : status === 502
+              ? `GitHub Actions cache service returned a bad gateway error`
+              : status === 503
+                ? `GitHub Actions cache service is temporarily unavailable`
+                : `Unexpected HTTP ${status} error from GitHub Actions cache service`;
         this.#logger.log({
           script,
           type: 'info',
