@@ -8,6 +8,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+- Add `WIREIT_WATCH=true` as an environment-variable escape hatch for enabling
+  watch mode when a package runner does not forward `--watch`.
+
 - HTTP errors from the GitHub Actions cache service are no longer ever fatal,
   and should always continue gracefully with GitHub Actions caching temporarily
   disabled (previously only network errors and HTTP 429/503 errors failed

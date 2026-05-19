@@ -181,6 +181,48 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
+  void test(
+    `${agent} WIREIT_WATCH=true run`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          watch: {strategy: 'event'},
+        },
+        {
+          WIREIT_WATCH: 'true',
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_WATCH=false run`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          watch: false,
+        },
+        {
+          WIREIT_WATCH: 'false',
+        },
+      );
+    }),
+  );
+
   // https://github.com/google/wireit/issues/1168
   void (isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch`,
