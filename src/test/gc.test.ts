@@ -6,7 +6,7 @@
 
 import {test, afterEach, beforeEach} from 'node:test';
 import * as assert from 'node:assert';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {rigTest} from './util/rig-test.js';
 import {
   Executor,
   registerExecutorConstructorHook,

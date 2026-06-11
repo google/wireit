@@ -4,14 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'simple consumer and service with stdout',
   rigTest(async ({rig}) => {
     // consumer
@@ -71,7 +69,7 @@ test(
   }),
 );
 
-test(
+void test(
   'service with standard and service deps',
   rigTest(async ({rig}) => {
     //  consumer
@@ -160,7 +158,7 @@ test(
   }),
 );
 
-test(
+void test(
   'standard scripts are killed when service exits unexpectedly',
   rigTest(async ({rig}) => {
     // consumer
@@ -214,7 +212,7 @@ test(
   }),
 );
 
-test(
+void test(
   'service remembers unexpected exit failure for next start call',
   rigTest(async ({rig}) => {
     //     entrypoint
@@ -301,7 +299,7 @@ test(
   }),
 );
 
-test(
+void test(
   'service shuts down when service dependency exits unexpectedly',
   rigTest(async ({rig}) => {
     // consumer
@@ -374,7 +372,7 @@ test(
   }),
 );
 
-test(
+void test(
   'persistent service and dependency starts and runs until SIGINT',
   // service1
   //    |
@@ -439,9 +437,9 @@ test(
       await wireit.waitForLog(/\[service2\] Service stopped/);
     }
     await service1Inv.closed;
-    assert.not(service1Inv.isRunning);
+    assert.ok(!service1Inv.isRunning);
     await service2Inv.closed;
-    assert.not(service2Inv.isRunning);
+    assert.ok(!service2Inv.isRunning);
 
     await wireit.exit;
     assert.equal(service1.numInvocations, 1);
@@ -453,7 +451,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
   // Even persistent services which don't have an error in their branch should
   // stop when an error occurs elsewhere, regardless of the error mode.
   // Otherwise wireit won't always exit on failures.
-  test(
+  void test(
     `persistent service and dependency stop on error ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
@@ -536,10 +534,10 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
       }
 
       await service1Inv.closed;
-      assert.not(service1Inv.isRunning);
+      assert.ok(!service1Inv.isRunning);
       await wireit.waitForLog(/\[service1\] Service stopped/);
       await service2Inv.closed;
-      assert.not(service2Inv.isRunning);
+      assert.ok(!service2Inv.isRunning);
       await wireit.waitForLog(/\[service2\] Service stopped/);
 
       assert.equal((await wireit.exit).code, 1);
@@ -549,7 +547,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
     }),
   );
 
-  test(
+  void test(
     `after one persistent service fails, other persistent services stop, ` +
       `and wireit exits non-zero with failure mode ${failureMode}`,
     //      entrypoint
@@ -599,7 +597,7 @@ for (const failureMode of ['continue', 'no-new', 'kill']) {
 }
 
 for (const failureMode of ['continue', 'no-new']) {
-  test(
+  void test(
     `unrelated errors do not kill services in watch mode ` +
       `with failure mode ${failureMode}`,
     //      entrypoint
@@ -665,7 +663,7 @@ for (const failureMode of ['continue', 'no-new']) {
   );
 }
 
-test(
+void test(
   `unrelated errors kill services in watch mode with failure mode kill`,
   //      entrypoint
   //        /   \
@@ -715,7 +713,7 @@ test(
   ),
 );
 
-test(
+void test(
   'ephemeral service shuts down between watch iterations',
   rigTest(
     async ({rig}) => {
@@ -786,7 +784,7 @@ test(
   ),
 );
 
-test(
+void test(
   'persistent services are preserved across watch iterations',
   rigTest(
     async ({rig}) => {
@@ -868,7 +866,7 @@ test(
   ),
 );
 
-test(
+void test(
   'deleted service shuts down between watch iterations',
   rigTest(
     async ({rig}) => {
@@ -962,7 +960,7 @@ test(
   ),
 );
 
-test(
+void test(
   'service fingerprint is trackable despite never having outputs',
   rigTest(async ({rig}) => {
     // consumer
@@ -1037,7 +1035,7 @@ test(
   }),
 );
 
-test(
+void test(
   'caching with service dependencies works in watch mode',
   rigTest(
     async ({rig}) => {
@@ -1113,7 +1111,7 @@ test(
   ),
 );
 
-test(
+void test(
   'service with cascade:false does not require restart in watch mode',
   rigTest(
     async ({rig}) => {
@@ -1201,7 +1199,7 @@ test(
   ),
 );
 
-test(
+void test(
   'service in watch mode persists when non-cascading dependency restarts or fails',
   // parentService
   //    |
@@ -1264,21 +1262,21 @@ test(
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(parentServiceInv1.isRunning);
       assert.ok(childServiceInv2.isRunning);
-      assert.not(childServiceInv1.isRunning);
+      assert.ok(!childServiceInv1.isRunning);
 
       // childService fails.
       childServiceInv2.exit(1);
       await wireit.waitForLog(/\[childService\] Service exited unexpectedly/);
       await new Promise((resolve) => setTimeout(resolve, 100));
       assert.ok(parentServiceInv1.isRunning);
-      assert.not(childServiceInv2.isRunning);
-      assert.not(childServiceInv1.isRunning);
+      assert.ok(!childServiceInv2.isRunning);
+      assert.ok(!childServiceInv1.isRunning);
 
       wireit.kill();
       await wireit.exit;
-      assert.not(parentServiceInv1.isRunning);
-      assert.not(childServiceInv2.isRunning);
-      assert.not(childServiceInv1.isRunning);
+      assert.ok(!parentServiceInv1.isRunning);
+      assert.ok(!childServiceInv2.isRunning);
+      assert.ok(!childServiceInv1.isRunning);
       assert.equal(parentService.numInvocations, 1);
       assert.equal(childService.numInvocations, 2);
     },
@@ -1286,7 +1284,7 @@ test(
   ),
 );
 
-test(
+void test(
   'service waits for log before being considered started',
   // standard
   //    |
@@ -1340,7 +1338,7 @@ test(
   }),
 );
 
-test(
+void test(
   'service watch mode recovery from dependency failure',
   // service
   //    |
@@ -1445,7 +1443,7 @@ test(
   ),
 );
 
-test(
+void test(
   `can abort a service while it's waiting on a dependency`,
   // service
   //    |
@@ -1485,5 +1483,3 @@ test(
     await exec.exit;
   }),
 );
-
-test.run();

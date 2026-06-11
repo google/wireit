@@ -147,7 +147,7 @@
       "output": []
     },
     "test:cache-github-fake": {
-      "command": "uvu lib/test \"^cache-github-fake\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cache-github-fake.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -159,7 +159,7 @@
     },
     "test:cache-github-real": {
       "#comment": "Only works on GitHub CI",
-      "command": "uvu lib/test \"^cache-github-real\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cache-github-real.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -170,7 +170,7 @@
       "output": []
     },
     "test:cache-local": {
-      "command": "uvu lib/test \"^cache-local\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/cache-local.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -214,7 +214,7 @@
       "output": []
     },
     "test:copy": {
-      "command": "uvu lib/test \"^copy\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/copy.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -258,7 +258,7 @@
       "output": []
     },
     "test:errors-usage": {
-      "command": "uvu lib/test \"^errors-usage\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/errors-usage.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -302,7 +302,7 @@
       "output": []
     },
     "test:glob": {
-      "command": "uvu lib/test \"^glob\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/glob.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -313,7 +313,7 @@
       "output": []
     },
     "test:ide": {
-      "command": "uvu lib/test \"^ide\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/ide.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -324,7 +324,7 @@
       "output": []
     },
     "test:json-schema": {
-      "command": "uvu lib/test \"^json-schema\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/json-schema.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -337,7 +337,7 @@
       "output": []
     },
     "test:metrics": {
-      "command": "uvu lib/test \"^metrics\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/metrics.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -359,7 +359,7 @@
       "output": []
     },
     "test:parallelism": {
-      "command": "uvu lib/test \"^parallelism\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/parallelism.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -381,7 +381,7 @@
       "output": []
     },
     "test:service": {
-      "command": "uvu lib/test \"^service\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/service.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -403,7 +403,7 @@
       "output": []
     },
     "test:fs": {
-      "command": "uvu lib/test \"^fs\\.test\\.js$\"",
+      "command": "node --test --test-reporter=dot lib/test/fs.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
@@ -435,7 +435,6 @@
     "selfsigned": "^5.2.0",
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.4.0",
-    "uvu": "^0.5.3",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.4",

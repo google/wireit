@@ -7,7 +7,7 @@
 import {test} from 'node:test';
 import * as assert from 'node:assert';
 import * as pathlib from 'path';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 

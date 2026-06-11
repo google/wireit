@@ -4,14 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
+import {test} from 'node:test';
 import {rigTest} from './util/rig-test.js';
 import {checkScriptOutput} from './util/check-script-output.js';
-import assert from 'assert';
+import * as assert from 'node:assert';
 
-const test = suite<object>();
-
-test(
+void test(
   'logs metrics for successful events',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'metrics';
@@ -88,7 +86,7 @@ test(
   }),
 );
 
-test(
+void test(
   'does not log metrics for non-success events',
   rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'metrics';
@@ -117,7 +115,7 @@ test(
   }),
 );
 
-test(
+void test(
   'logs metrics for interesting iterations when in watch mode',
   rigTest(
     async ({rig}) => {
@@ -190,7 +188,7 @@ test(
   ),
 );
 
-test(
+void test(
   'does not log metrics for non-interesting iterations in watch mode',
   rigTest(
     async ({rig}) => {
@@ -321,5 +319,3 @@ function replaceTimeWithWildcard(metric: string): string {
 
   return words.join(' ');
 }
-
-test.run();

@@ -10,7 +10,7 @@ import * as assert from 'node:assert';
 import {Options, type Agent} from '../cli-options.js';
 import {Result} from '../error.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 
 const TEST_BINARY_COMMAND = `node ${pathlib.join(

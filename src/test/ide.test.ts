@@ -5,39 +5,14 @@
  */
 
 import {inspect} from 'util';
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {drawSquiggle, OffsetToPositionConverter} from '../error.js';
 import {completionItemKinds, IdeAnalyzer} from '../ide.js';
 import {WireitTestRig} from './util/test-rig.js';
 import * as url from 'url';
 import {removeAnsiColors} from './util/colors.js';
 import {type CompletionList} from 'vscode-languageclient';
-
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
 
 async function assertDiagnostics(
   ide: IdeAnalyzer,
@@ -48,10 +23,11 @@ async function assertDiagnostics(
   for (const [path, diagnostics] of byFile.entries()) {
     actual[path] = [...diagnostics].map((d) => d.message);
   }
-  assert.equal(actual, expected);
+  assert.deepEqual(actual, expected);
 }
 
-test('can get diagnostics from a single file', async ({rig}) => {
+void test('can get diagnostics from a single file', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   ide.setOpenFileContents(rig.resolve('package.json'), `{"scripts": "bad"}`);
   await assertDiagnostics(ide, {
@@ -59,7 +35,8 @@ test('can get diagnostics from a single file', async ({rig}) => {
   });
 });
 
-test('changing a file gives us new diagnostics', async ({rig}) => {
+void test('changing a file gives us new diagnostics', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   ide.setOpenFileContents(rig.resolve(`package.json`), `{"scripts": "bad"}`);
   await assertDiagnostics(ide, {
@@ -76,7 +53,8 @@ test('changing a file gives us new diagnostics', async ({rig}) => {
   });
 });
 
-test('the overlay filesystem overrides the regular one', async ({rig}) => {
+void test('the overlay filesystem overrides the regular one', async () => {
+  await using rig = await WireitTestRig.setup();
   await rig.write('child/package.json', {scripts: {}});
   const ide = new IdeAnalyzer();
   ide.setOpenFileContents(
@@ -102,7 +80,7 @@ test('the overlay filesystem overrides the regular one', async ({rig}) => {
       scripts: {b: 'foo'},
     }),
   );
-  assert.equal(
+  assert.deepEqual(
     [...ide.openFiles],
     [rig.resolve('package.json'), rig.resolve('child/package.json')],
   );
@@ -131,7 +109,8 @@ test('the overlay filesystem overrides the regular one', async ({rig}) => {
   await assertDiagnostics(ide, {});
 });
 
-test('we can get cyclic dependency errors', async ({rig}) => {
+void test('we can get cyclic dependency errors', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   ide.setOpenFileContents(
     rig.resolve('package.json'),
@@ -155,7 +134,8 @@ test('we can get cyclic dependency errors', async ({rig}) => {
   });
 });
 
-test('warns for a service without a command', async ({rig}) => {
+void test('warns for a service without a command', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   ide.setOpenFileContents(
     rig.resolve('package.json'),
@@ -281,7 +261,8 @@ function assertSquiggleEquals(actual: string, expected: string) {
   assert.equal(actual.trim(), expected.trim());
 }
 
-test('we can get the definition for a same file dependency', async ({rig}) => {
+void test('we can get the definition for a same file dependency', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
     path: rig.resolve('package.json'),
@@ -321,7 +302,8 @@ test('we can get the definition for a same file dependency', async ({rig}) => {
   });
 });
 
-test(`we jump to the scripts section for a vanilla script`, async ({rig}) => {
+void test(`we jump to the scripts section for a vanilla script`, async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
     path: rig.resolve('package.json'),
@@ -354,7 +336,8 @@ test(`we jump to the scripts section for a vanilla script`, async ({rig}) => {
   });
 });
 
-test('jump to definition from object style dependency', async ({rig}) => {
+void test('jump to definition from object style dependency', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
     path: rig.resolve('package.json'),
@@ -387,7 +370,8 @@ test('jump to definition from object style dependency', async ({rig}) => {
   });
 });
 
-test(`we don't get definitions for non-dep locations`, async ({rig}) => {
+void test(`we don't get definitions for non-dep locations`, async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
     path: rig.resolve('package.json'),
@@ -481,7 +465,8 @@ test(`we don't get definitions for non-dep locations`, async ({rig}) => {
   });
 });
 
-test(`we can jump to definitions across files`, async ({rig}) => {
+void test(`we can jump to definitions across files`, async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await rig.write('child/package.json', {scripts: {b: 'echo'}});
   await assertDefinition(ide, {
@@ -514,7 +499,8 @@ test(`we can jump to definitions across files`, async ({rig}) => {
   });
 });
 
-test('can jump from scripts section to wireit config', async ({rig}) => {
+void test('can jump from scripts section to wireit config', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
     path: rig.resolve('package.json'),
@@ -558,9 +544,8 @@ test('can jump from scripts section to wireit config', async ({rig}) => {
   });
 });
 
-test('can jump from colon in scripts section to wireit config', async ({
-  rig,
-}) => {
+void test('can jump from colon in scripts section to wireit config', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertDefinition(ide, {
     path: rig.resolve('package.json'),
@@ -663,7 +648,8 @@ async function assertReferences(
   }
 }
 
-test('we can find references for same file dependencies', async ({rig}) => {
+void test('we can find references for same file dependencies', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await assertReferences(ide, {
     path: rig.resolve('package.json'),
@@ -701,7 +687,8 @@ test('we can find references for same file dependencies', async ({rig}) => {
   });
 });
 
-test('we can find references across files', async ({rig}) => {
+void test('we can find references across files', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await rig.write('child/package.json', {
     scripts: {foo: 'wireit'},
@@ -753,7 +740,8 @@ test('we can find references across files', async ({rig}) => {
   });
 });
 
-test('we can find references to a dependency', async ({rig}) => {
+void test('we can find references to a dependency', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await rig.write('child/package.json', {
     scripts: {foo: 'wireit'},
@@ -843,10 +831,11 @@ async function assertCompletions(
       `Expected no completionList, but got: ${inspect(completionList)}`,
     );
   }
-  assert.equal(completionList, options.expected);
+  assert.deepEqual(completionList, options.expected);
 }
 
-test('we can get completions for same file dependencies', async ({rig}) => {
+void test('we can get completions for same file dependencies', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   const expected = {
     // We actually propose all scripts, and let the IDE narrow them down.
@@ -956,7 +945,8 @@ test('we can get completions for same file dependencies', async ({rig}) => {
   });
 });
 
-test('we can get completions for cross file dependencies', async ({rig}) => {
+void test('we can get completions for cross file dependencies', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await rig.write('child/package.json', {
     scripts: {
@@ -1047,7 +1037,8 @@ test('we can get completions for cross file dependencies', async ({rig}) => {
   });
 });
 
-test('we can get completions for paths', async ({rig}) => {
+void test('we can get completions for paths', async () => {
+  await using rig = await WireitTestRig.setup();
   const ide = new IdeAnalyzer();
   await rig.write('packages/child/package.json', {
     scripts: {
@@ -1210,5 +1201,3 @@ test('we can get completions for paths', async ({rig}) => {
 // I've tried to get that work work by using the textEdit field of the
 // completion item, but that just results in vscode ignoring all of our
 // completions. Filed as https://github.com/microsoft/vscode/issues/194580
-
-test.run();
