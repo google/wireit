@@ -31,15 +31,18 @@ export function rigTest(
     }
     const work = handler({rig});
     if (ms !== undefined) {
+      let timerId: ReturnType<typeof setTimeout>;
       await Promise.race([
         work,
         new Promise<never>((_resolve, reject) => {
-          setTimeout(() => {
+          timerId = setTimeout(() => {
             console.error('Test timed out.');
             reject(new Error(`Test timed out after ${ms} milliseconds.`));
           }, ms);
         }),
-      ]);
+      ]).finally(() => {
+        clearTimeout(timerId);
+      });
     } else {
       await work;
     }

@@ -94,7 +94,7 @@ afterEach(async () => {
   await Promise.all([server.close(), rig.cleanup()]);
 });
 
-registerCommonCacheTests(test, 'github', {
+registerCommonCacheTests((...args) => void test(...args), 'github', {
   WIREIT_CACHE: 'github',
   ACTIONS_RESULTS_URL: commonActionsCacheUrl,
   ACTIONS_RUNTIME_TOKEN: commonAuthToken,

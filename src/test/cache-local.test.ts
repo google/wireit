@@ -7,4 +7,4 @@
 import {test} from 'node:test';
 import {registerCommonCacheTests} from './cache-common.js';
 
-registerCommonCacheTests(test, 'local');
+registerCommonCacheTests((...args) => void test(...args), 'local');
