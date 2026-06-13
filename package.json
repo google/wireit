@@ -432,7 +432,7 @@
     "pnpm": "^10.2.1",
     "prettier": "^3.3.3",
     "selfsigned": "^5.2.0",
-    "typescript": "^5.2.2",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.4.0",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
