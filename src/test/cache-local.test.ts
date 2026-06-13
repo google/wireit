@@ -4,11 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
+import {test} from 'node:test';
 import {registerCommonCacheTests} from './cache-common.js';
 
-const test = suite<object>();
-
-registerCommonCacheTests(test, 'local');
-
-test.run();
+registerCommonCacheTests((...args) => void test(...args), 'local');

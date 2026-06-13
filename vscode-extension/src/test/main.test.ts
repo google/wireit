@@ -6,18 +6,7 @@
 
 import * as vscode from 'vscode';
 import * as pathlib from 'path';
-
-import {test} from 'uvu';
-import * as assert from 'uvu/assert';
-
-test('the extension is installed', () => {
-  const extensionIds = vscode.extensions.all.map((extension) => extension.id);
-  const ourId = 'google.wireit';
-  assert.ok(
-    extensionIds.includes(ourId),
-    `Expected ${JSON.stringify(extensionIds)} to include '${ourId}'`,
-  );
-});
+import * as assert from 'node:assert';
 
 // Wait until the something is able to produce diagnostics, then return
 // those.
@@ -47,73 +36,88 @@ async function tryUntil<T>(
   throw new Error('tryUntil never got a value');
 }
 
-// This is mainly a test that the schema is present and automatically
-// applies to all package.json files. The contents of the schema are
-// tested in the main wireit package.
-test('warns on a package.json based on the schema', async () => {
-  const doc = await vscode.workspace.openTextDocument(
-    vscode.Uri.file(
-      pathlib.join(__dirname, '../../src/test/fixtures/incorrect/package.json'),
-    ),
-  );
-  await vscode.window.showTextDocument(doc);
-  const diagnostic = await tryUntil(() => {
-    return vscode.languages.getDiagnostics(doc.uri)?.find((d) => {
-      if (`Incorrect type. Expected "string".` === d.message) {
-        return d;
-      }
-    });
-  });
-  assert.equal(diagnostic.message, `Incorrect type. Expected "string".`);
-  const range = diagnostic.range;
-  assert.equal(
-    {
-      start: {line: range.start.line, character: range.start.character},
-      end: {line: range.end.line, character: range.end.character},
-    },
-    {
-      start: {line: 6, character: 17},
-      end: {line: 6, character: 18},
-    },
-    JSON.stringify(range),
-  );
-});
+export const tests: Record<string, () => void | Promise<void>> = {
+  'the extension is installed'() {
+    const extensionIds = vscode.extensions.all.map((extension) => extension.id);
+    const ourId = 'google.wireit';
+    assert.ok(
+      extensionIds.includes(ourId),
+      `Expected ${JSON.stringify(extensionIds)} to include '${ourId}'`,
+    );
+  },
 
-test('warns on a package.json based on semantic analysis in the language server', async () => {
-  const doc = await vscode.workspace.openTextDocument(
-    vscode.Uri.file(
-      pathlib.join(
-        __dirname,
-        '../../src/test/fixtures/semantic_errors/package.json',
+  // This is mainly a test that the schema is present and automatically
+  // applies to all package.json files. The contents of the schema are
+  // tested in the main wireit package.
+  async 'warns on a package.json based on the schema'() {
+    const doc = await vscode.workspace.openTextDocument(
+      vscode.Uri.file(
+        pathlib.join(
+          __dirname,
+          '../../src/test/fixtures/incorrect/package.json',
+        ),
       ),
-    ),
-  );
-  await vscode.window.showTextDocument(doc);
-  const diagnostics = await getDiagnostics(doc);
-  assert.equal(
-    diagnostics.map((d) => d.message),
-    [
-      'This command should just be "wireit", as this script is configured in the wireit section.',
-      'A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.',
-    ],
-    JSON.stringify(diagnostics.map((d) => d.message)),
-  );
-  assert.equal(
-    diagnostics.map((d) => ({
-      start: {line: d.range.start.line, character: d.range.start.character},
-      end: {line: d.range.end.line, character: d.range.end.character},
-    })),
-    [
-      {start: {line: 2, character: 26}, end: {line: 2, character: 31}},
-      {start: {line: 17, character: 4}, end: {line: 17, character: 38}},
-    ],
-    JSON.stringify(
+    );
+    await vscode.window.showTextDocument(doc);
+    const diagnostic = await tryUntil(() => {
+      return vscode.languages.getDiagnostics(doc.uri)?.find((d) => {
+        if (`Incorrect type. Expected "string".` === d.message) {
+          return d;
+        }
+      });
+    });
+    assert.equal(diagnostic.message, `Incorrect type. Expected "string".`);
+    const range = diagnostic.range;
+    assert.deepEqual(
+      {
+        start: {line: range.start.line, character: range.start.character},
+        end: {line: range.end.line, character: range.end.character},
+      },
+      {
+        start: {line: 6, character: 17},
+        end: {line: 6, character: 18},
+      },
+      JSON.stringify(range),
+    );
+  },
+
+  async 'warns on a package.json based on semantic analysis in the language server'() {
+    const doc = await vscode.workspace.openTextDocument(
+      vscode.Uri.file(
+        pathlib.join(
+          __dirname,
+          '../../src/test/fixtures/semantic_errors/package.json',
+        ),
+      ),
+    );
+    await vscode.window.showTextDocument(doc);
+    const diagnostics = await getDiagnostics(doc);
+    assert.deepEqual(
+      diagnostics.map((d) => d.message),
+      [
+        'This command should just be "wireit", as this script is configured in the wireit section.',
+        'A wireit config must set at least one of "command", "dependencies", or "files". Otherwise there is nothing for wireit to do.',
+      ],
+      JSON.stringify(diagnostics.map((d) => d.message)),
+    );
+    assert.deepEqual(
       diagnostics.map((d) => ({
         start: {line: d.range.start.line, character: d.range.start.character},
         end: {line: d.range.end.line, character: d.range.end.character},
       })),
-    ),
-  );
-});
-
-export {test};
+      [
+        {start: {line: 2, character: 26}, end: {line: 2, character: 31}},
+        {start: {line: 17, character: 4}, end: {line: 17, character: 38}},
+      ],
+      JSON.stringify(
+        diagnostics.map((d) => ({
+          start: {
+            line: d.range.start.line,
+            character: d.range.start.character,
+          },
+          end: {line: d.range.end.line, character: d.range.end.character},
+        })),
+      ),
+    );
+  },
+};
