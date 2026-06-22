@@ -276,11 +276,16 @@ function getArgvOptions(
       //
       // npm 8.11.0
       //   - Like npm 6, except there is no "npm_config_argv" environment variable.
+      //
+      // npm 12 (https://github.com/npm/cli/pull/8071)
+      //   - "npm run build --watch" is rejected as an unrecognized npm argument
+      //     instead of being silently turned into "npm_config_watch", so we also
+      //     accept WIREIT_WATCH=true as an escape hatch (see #1346).
       return {
         watch:
           process.env['npm_config_watch'] !== undefined
             ? readWatchConfigFromEnv()
-            : false,
+            : readWatchConfigFromWireitWatchEnv(),
         extraArgs: process.argv.slice(2),
       };
     }
@@ -446,6 +451,11 @@ function parseRemainingArgs(
         `e.g. "npm run build -- --extra".`,
     );
   }
+  // Also accept WIREIT_WATCH as an escape hatch (matches the npm branch behavior,
+  // useful for yarn/pnpm/node --run wrappers that scrub --watch from argv).
+  if (!watch) {
+    watch = readWatchConfigFromWireitWatchEnv();
+  }
   return {
     watch,
     extraArgs,
@@ -454,6 +464,12 @@ function parseRemainingArgs(
 
 const DEFAULT_WATCH_STRATEGY = {strategy: 'event'} as const;
 const DEFAULT_WATCH_INTERVAL = 500;
+
+function readWatchConfigFromWireitWatchEnv(): Options['watch'] {
+  return process.env['WIREIT_WATCH']?.toLowerCase() === 'true'
+    ? readWatchConfigFromEnv()
+    : false;
+}
 
 /**
  * Interpret the WIREIT_WATCH_* environment variables.
