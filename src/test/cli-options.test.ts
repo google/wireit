@@ -223,6 +223,27 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
+  void test(
+    `${agent} WIREIT_WATCH=false run --watch`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes} --watch`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          watch: {strategy: 'event'},
+        },
+        {
+          WIREIT_WATCH: 'false',
+        },
+      );
+    }),
+  );
+
   // https://github.com/google/wireit/issues/1168
   void (isWindows ? test.skip : test)(
     `${agent} run recurse -> run other --watch`,
@@ -488,6 +509,33 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   );
 
   void test(
+    `${agent} WIREIT_WATCH=true WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'QuietLogger',
+          watch: {
+            strategy: 'poll',
+            interval: 74,
+          },
+        },
+        {
+          WIREIT_WATCH: 'true',
+          WIREIT_WATCH_STRATEGY: 'poll',
+          WIREIT_WATCH_POLL_MS: '74',
+        },
+      );
+    }),
+  );
+
+  void test(
     `${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -500,8 +548,8 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'main',
           },
           logger: 'QuietLogger',
-          // This is just testing that the WIREIT_WATCH environment variables
-          // don't actually turn on watch mode. Only the --watch flag does that.
+          // Testing that watch strategy variables alone don't turn on watch mode
+          // without WIREIT_WATCH=true or --watch.
           watch: false,
         },
         {
