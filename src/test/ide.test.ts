@@ -21,7 +21,9 @@ async function assertDiagnostics(
   const actual = {} as Record<string, string[]>;
   const byFile = await ide.getDiagnostics();
   for (const [path, diagnostics] of byFile.entries()) {
-    actual[path] = [...diagnostics].map((d) => d.message);
+    actual[path] = [...diagnostics].map((d) =>
+      typeof d.message === 'string' ? d.message : d.message.value,
+    );
   }
   assert.deepEqual(actual, expected);
 }

@@ -18,7 +18,12 @@ import {
   InitializeResult,
   TextDocumentSyncKind,
   CodeActionKind,
-} from 'vscode-languageserver/node.js';
+  type InitializeParams,
+  type CodeActionParams,
+  type DefinitionParams,
+  type ReferenceParams,
+  type CompletionParams,
+} from 'vscode-languageserver/node';
 import * as url from 'url';
 
 import {TextDocument} from 'vscode-languageserver-textdocument';
@@ -28,7 +33,7 @@ import {IdeAnalyzer} from './ide.js';
 const ideAnalyzer = new IdeAnalyzer();
 const connection = createConnection(ProposedFeatures.all);
 
-connection.onInitialize((init) => {
+connection.onInitialize((init: InitializeParams) => {
   const workspacePaths: string[] = [];
   for (const folder of init.workspaceFolders ?? []) {
     workspacePaths.push(url.fileURLToPath(folder.uri));
@@ -106,15 +111,15 @@ const updateOpenFile = (document: TextDocument) => {
   void getAndSendDiagnostics();
 };
 
-documents.onDidOpen((event) => {
+documents.onDidOpen((event: {document: TextDocument}) => {
   updateOpenFile(event.document);
 });
 
-documents.onDidChangeContent((change) => {
+documents.onDidChangeContent((change: {document: TextDocument}) => {
   updateOpenFile(change.document);
 });
 
-documents.onDidClose((change) => {
+documents.onDidClose((change: {document: TextDocument}) => {
   const path = url.fileURLToPath(change.document.uri);
   ideAnalyzer.closeFile(path);
   void getAndSendDiagnostics();
@@ -125,7 +130,7 @@ documents.onDidClose((change) => {
   });
 });
 
-connection.onCodeAction(async (params) => {
+connection.onCodeAction(async (params: CodeActionParams) => {
   const document = documents.get(params.textDocument.uri);
   if (document === undefined) {
     return [];
@@ -135,20 +140,20 @@ connection.onCodeAction(async (params) => {
   return actions;
 });
 
-connection.onDefinition(async (params) => {
+connection.onDefinition(async (params: DefinitionParams) => {
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
   return ideAnalyzer.getDefinition(path, position);
 });
 
-connection.onReferences(async (params) => {
+connection.onReferences(async (params: ReferenceParams) => {
   // TODO: handle params.context.includeDeclaration
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
   return ideAnalyzer.findAllReferences(path, position);
 });
 
-connection.onCompletion(async (params) => {
+connection.onCompletion(async (params: CompletionParams) => {
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
   return ideAnalyzer.getCompletions(path, position);
