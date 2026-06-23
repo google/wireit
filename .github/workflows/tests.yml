@@ -114,3 +114,4 @@ jobs:
       - run: xvfb-run -a npm test
         if: runner.os == 'Linux'
       - run: npm run test:cache-github-real
+        timeout-minutes: 10
