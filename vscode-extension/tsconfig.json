@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2022",
     "module": "CommonJS",
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "useDefineForClassFields": true,
     "lib": ["es2021"],
     "rootDir": "src",
@@ -12,7 +12,6 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true,
     "useUnknownInCatchVariables": true
   },
   "include": ["src/**/*.ts"],

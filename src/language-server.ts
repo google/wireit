@@ -18,7 +18,7 @@ import {
   InitializeResult,
   TextDocumentSyncKind,
   CodeActionKind,
-} from 'vscode-languageserver/node';
+} from 'vscode-languageserver/node.js';
 import * as url from 'url';
 
 import {TextDocument} from 'vscode-languageserver-textdocument';
