@@ -120,7 +120,6 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     continue;
   }
 
-
   const isYarn = agent === 'yarnClassic';
   const isPnpm = agent === 'pnpm';
   const isWindows = process.platform === 'win32';

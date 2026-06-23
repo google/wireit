@@ -802,30 +802,33 @@ void test('runs a script with yarn', async () => {
 });
 
 // pnpm 11 requires Node >= 22.13.
-void (NODE_MAJOR_VERSION >= 22 ? test : test.skip)('runs a script with pnpm', async () => {
-  await using rig = await WireitTestRig.setup();
+void (NODE_MAJOR_VERSION >= 22 ? test : test.skip)(
+  'runs a script with pnpm',
+  async () => {
+    await using rig = await WireitTestRig.setup();
 
-  const cmdA = await rig.newCommand();
-  await rig.write({
-    'package.json': {
-      scripts: {
-        a: 'wireit',
-      },
-      wireit: {
-        a: {
-          command: cmdA.command,
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+          },
         },
       },
-    },
-  });
-  const exec = rig.exec('pnpm run a');
-  await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
-  (await cmdA.nextInvocation()).exit(0);
-  const res = await exec.exit;
-  assert.equal(res.code, 0);
-  assert.equal(cmdA.numInvocations, 1);
-  assert.match(res.stdout, /Ran 1 script and skipped 0/s);
-});
+    });
+    const exec = rig.exec('pnpm run a');
+    await exec.waitForLog(/0% \[0 \/ 1\] \[1 running\] a/);
+    (await cmdA.nextInvocation()).exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.match(res.stdout, /Ran 1 script and skipped 0/s);
+  },
+);
 
 void test('commands run under yarn workspaces', async () => {
   await using rig = await WireitTestRig.setup();
@@ -889,59 +892,62 @@ void test('commands run under yarn workspaces', async () => {
 });
 
 // pnpm 11 requires Node >= 22.13.
-void (NODE_MAJOR_VERSION >= 22 ? test : test.skip)('commands run under pnpm workspaces', async () => {
-  await using rig = await WireitTestRig.setup();
+void (NODE_MAJOR_VERSION >= 22 ? test : test.skip)(
+  'commands run under pnpm workspaces',
+  async () => {
+    await using rig = await WireitTestRig.setup();
 
-  const cmdA = await rig.newCommand();
-  const cmdB = await rig.newCommand();
-  await rig.write({
-    'pnpm-workspace.yaml': `
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'pnpm-workspace.yaml': `
         packages:
           - foo
           - bar
       `,
-    'foo/package.json': {
-      scripts: {
-        cmd: 'wireit',
-      },
-      wireit: {
-        cmd: {
-          command: cmdA.command,
+      'foo/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdA.command,
+          },
         },
       },
-    },
-    'bar/package.json': {
-      scripts: {
-        cmd: 'wireit',
-      },
-      wireit: {
-        cmd: {
-          command: cmdB.command,
+      'bar/package.json': {
+        scripts: {
+          cmd: 'wireit',
+        },
+        wireit: {
+          cmd: {
+            command: cmdB.command,
+          },
         },
       },
-    },
-  });
+    });
 
-  // Run both from the workspaces root package.
-  {
-    const exec = rig.exec('pnpm run --recursive cmd');
-    // Workspace commands run in serial.
-    (await cmdA.nextInvocation()).exit(0);
-    (await cmdB.nextInvocation()).exit(0);
-    assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, 1);
-    assert.equal(cmdB.numInvocations, 1);
-  }
+    // Run both from the workspaces root package.
+    {
+      const exec = rig.exec('pnpm run --recursive cmd');
+      // Workspace commands run in serial.
+      (await cmdA.nextInvocation()).exit(0);
+      (await cmdB.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(cmdB.numInvocations, 1);
+    }
 
-  // Run one from the workspace package.
-  {
-    const exec = rig.exec('pnpm run cmd', {cwd: 'foo'});
-    (await cmdA.nextInvocation()).exit(0);
-    assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, 2);
-    assert.equal(cmdB.numInvocations, 1);
-  }
-});
+    // Run one from the workspace package.
+    {
+      const exec = rig.exec('pnpm run cmd', {cwd: 'foo'});
+      (await cmdA.nextInvocation()).exit(0);
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(cmdB.numInvocations, 1);
+    }
+  },
+);
 
 void test('multiple cross-package dependencies', async () => {
   await using rig = await WireitTestRig.setup();
