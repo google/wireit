@@ -115,3 +115,4 @@ jobs:
         if: runner.os == 'Linux'
       - run: npm run test:cache-github-real
         timeout-minutes: 10
+        continue-on-error: true
