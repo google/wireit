@@ -1500,6 +1500,7 @@ export class Analyzer {
         const current = trailArray[i]!;
         const next = trailArray[i + 1];
         if (current.state === 'unvalidated') {
+          // eslint-disable-next-line no-useless-assignment -- read after the loop (line ~1617)
           dependencyStillUnvalidated = current;
           continue;
         }

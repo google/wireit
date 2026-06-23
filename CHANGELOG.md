@@ -8,8 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.14.13] - 2026-06-23
+
+### Added
+
 - Add `WIREIT_WATCH=true` as an environment-variable escape hatch for enabling
   watch mode when a package runner does not forward `--watch`.
+
+### Fixed
 
 - HTTP errors from the GitHub Actions cache service are no longer ever fatal,
   and should always continue gracefully with GitHub Actions caching temporarily
@@ -664,7 +670,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Initial release.
 
-[unreleased]: https://github.com/google/wireit/compare/v0.14.12...HEAD
+[unreleased]: https://github.com/google/wireit/compare/v0.14.13...HEAD
+[0.14.13]: https://github.com/google/wireit/compare/v0.14.12...v0.14.13
 [0.14.12]: https://github.com/google/wireit/compare/v0.14.11...v0.14.12
 [0.14.11]: https://github.com/google/wireit/compare/v0.14.10...v0.14.11
 [0.14.10]: https://github.com/google/wireit/compare/v0.14.9...v0.14.10

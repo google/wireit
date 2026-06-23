@@ -266,9 +266,8 @@ void test('stress test', async () => {
   //         └── f1
 
   const entries = [];
-  let dirPath = '';
   for (let r = 0; r < numRoots; r++) {
-    dirPath = `r${r}`;
+    let dirPath = `r${r}`;
     entries.push(dir(dirPath));
     for (let d = 0; d < depthPerRoot; d++) {
       dirPath = pathlib.join(dirPath, `d${d}`);

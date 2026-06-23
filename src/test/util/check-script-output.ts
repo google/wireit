@@ -19,7 +19,9 @@ export function checkScriptOutput(
   expected: string,
   message?: string,
 ) {
-  actual = removeOverwrittenLines(removeAnsiColors(actual)).trim();
+  actual = removeGpkgLines(
+    removeOverwrittenLines(removeAnsiColors(actual)),
+  ).trim();
   expected = expected.trim();
   if (actual !== expected) {
     for (let i = 0; i < actual.length; i++) {
@@ -57,4 +59,15 @@ function removeOverwrittenLines(output: string) {
     result.push(content);
   }
   return result.join('\n');
+}
+
+/**
+ * Remove "*** gpkg:" lines that are injected into stderr by some
+ * environments and are not part of wireit's output.
+ */
+function removeGpkgLines(output: string): string {
+  return output
+    .split('\n')
+    .filter((line) => !line.startsWith('*** gpkg:'))
+    .join('\n');
 }

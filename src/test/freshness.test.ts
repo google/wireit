@@ -10,6 +10,7 @@ import * as assert from 'node:assert';
 import {rigTest} from './util/rig-test.js';
 import {shuffle} from '../util/shuffle.js';
 import {IS_WINDOWS} from '../util/windows.js';
+import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
 void test(
   'fresh script is skipped',
@@ -1486,6 +1487,10 @@ for (const [agent, lockfile] of [
   ['yarn', 'yarn.lock'],
   ['pnpm', 'pnpm-lock.yaml'],
 ]) {
+  if (agent === 'pnpm' && NODE_MAJOR_VERSION < 22) {
+    // pnpm 11 requires Node >= 22.13.
+    continue;
+  }
   void test(
     `changing ${lockfile} with ${agent} changes fingerprint`,
     rigTest(async ({rig}) => {
