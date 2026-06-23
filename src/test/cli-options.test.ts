@@ -115,6 +115,11 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     // node --run was added in Node 22.
     continue;
   }
+  if (agent === 'pnpm' && NODE_MAJOR_VERSION < 22) {
+    // pnpm 11 requires Node >= 22.13.
+    continue;
+  }
+
 
   const isYarn = agent === 'yarnClassic';
   const isPnpm = agent === 'pnpm';

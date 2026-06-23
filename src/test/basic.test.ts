@@ -801,7 +801,8 @@ void test('runs a script with yarn', async () => {
   assert.match(res.stdout, /Ran 1 script and skipped 0/s);
 });
 
-void test('runs a script with pnpm', async () => {
+// pnpm 11 requires Node >= 22.13.
+void (NODE_MAJOR_VERSION >= 22 ? test : test.skip)('runs a script with pnpm', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -887,7 +888,8 @@ void test('commands run under yarn workspaces', async () => {
   }
 });
 
-void test('commands run under pnpm workspaces', async () => {
+// pnpm 11 requires Node >= 22.13.
+void (NODE_MAJOR_VERSION >= 22 ? test : test.skip)('commands run under pnpm workspaces', async () => {
   await using rig = await WireitTestRig.setup();
 
   const cmdA = await rig.newCommand();
@@ -1073,6 +1075,10 @@ for (const command of [
 ] as const) {
   if (command === 'node --run' && NODE_MAJOR_VERSION < 22) {
     // node --run was added in Node 22.
+    continue;
+  }
+  if (command === 'pnpm run' && NODE_MAJOR_VERSION < 22) {
+    // pnpm 11 requires Node >= 22.13.
     continue;
   }
   // node --run needs an extra set of "--" before arguments will be passed down
