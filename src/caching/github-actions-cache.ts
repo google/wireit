@@ -641,9 +641,7 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
         ],
         (error: unknown) => {
           if (error != null) {
-            const message =
-              error instanceof Error ? error.message : JSON.stringify(error);
-            reject(new Error(`tar error: ${message}`));
+            reject(new Error(`tar error`, {cause: error}));
           } else {
             resolve();
           }
@@ -783,9 +781,7 @@ class GitHubActionsCacheHit implements CacheHit {
         ['--extract', '--file', tarballPath, '--gzip', '-P'],
         (error: unknown) => {
           if (error != null) {
-            const message =
-              error instanceof Error ? error.message : JSON.stringify(error);
-            reject(new Error(`tar error: ${message}`));
+            reject(new Error(`tar error`, {cause: error}));
           } else {
             resolve();
           }
