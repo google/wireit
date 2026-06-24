@@ -446,7 +446,7 @@
   },
   "dependencies": {
     "brace-expansion": "^5.0.6",
-    "chokidar": "^3.5.3",
+    "chokidar": "^5.0.0",
     "fast-glob": "^3.2.11",
     "jsonc-parser": "^3.0.0",
     "proper-lockfile": "^4.1.2"
