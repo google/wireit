@@ -4,7 +4,7 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "useDefineForClassFields": false,
-    "lib": ["es2022", "esnext.disposable"],
+    "lib": ["es2023", "esnext.disposable"],
     "rootDir": "src",
     "outDir": "lib",
     "strict": true,
