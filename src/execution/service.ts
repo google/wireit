@@ -17,6 +17,14 @@ import type {Logger} from '../logging/logger.js';
 import type {Failure} from '../event.js';
 import type {Result} from '../error.js';
 
+/** Debug logging for diagnosing Windows CI hangs */
+function serviceDebug(serviceName: string, msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[SERVICE-DEBUG ${ts} +${hrTime}ms] [${serviceName}] ${msg}${extraStr}`);
+}
+
 type ServiceState =
   | {
       id: 'initial';
@@ -260,9 +268,16 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
       entireExecutionAborted,
       adoptee,
     };
+    serviceDebug(config.name, 'constructor: state=initial', {
+      isPersistent: config.isPersistent,
+      hasAdoptee: adoptee !== undefined,
+      isWatchMode,
+      serviceConsumers: config.serviceConsumers.map(c => c.name),
+    });
     // Doing this here ensures that we always log when the
     // service stops, no matter how that happens.
-    void this.#terminated.promise.then(() => {
+    void this.#terminated.promise.then((result) => {
+      serviceDebug(this._config.name, `terminated promise resolved`, {ok: result.ok});
       this._logger.log({
         script: this._config,
         type: 'info',
@@ -347,6 +362,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   protected override _execute(): Promise<ExecutionResult> {
     switch (this.#state.id) {
       case 'initial': {
+        serviceDebug(this._config.name, '_execute: initial -> executingDeps');
         const allConsumersDone = Promise.all(
           this._config.serviceConsumers.map(
             (consumer) =>
@@ -357,6 +373,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           ? Promise.all([this.#state.entireExecutionAborted, allConsumersDone])
           : allConsumersDone;
         void abort.then(() => {
+          serviceDebug(this._config.name, '_execute: abort triggered, calling this.abort()');
           void this.abort();
         });
 
@@ -365,7 +382,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           deferredFingerprint: new Deferred(),
           adoptee: this.#state.adoptee,
         };
+        serviceDebug(this._config.name, '_execute: calling _executeDependencies()');
         void this._executeDependencies().then((result) => {
+          serviceDebug(this._config.name, `_execute: _executeDependencies resolved`, {ok: result.ok});
           if (result.ok) {
             this.#onDepsExecuted(result.value);
           } else {
@@ -399,6 +418,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   #onDepsExecuted(depFingerprints: Array<[Dependency, Fingerprint]>): void {
     switch (this.#state.id) {
       case 'executingDeps': {
+        serviceDebug(this._config.name, '#onDepsExecuted: executingDeps -> fingerprinting');
         this.#state = {
           id: 'fingerprinting',
           deferredFingerprint: this.#state.deferredFingerprint,
@@ -406,6 +426,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
         };
         void Fingerprint.compute(this._config, depFingerprints).then(
           (result) => {
+            serviceDebug(this._config.name, `#onDepsExecuted: Fingerprint.compute resolved`, {ok: result.ok});
             if (!result.ok) {
               this.#onFingerprintingErr(result.error);
             } else {
@@ -515,10 +536,15 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
     switch (this.#state.id) {
       case 'fingerprinting': {
         const adoptee = this.#state.adoptee;
+        serviceDebug(this._config.name, '#onFingerprinted', {
+          hasAdoptee: adoptee !== undefined,
+          adopteeHasFingerprint: adoptee?.fingerprint !== undefined,
+        });
         if (
           adoptee?.fingerprint !== undefined &&
           !adoptee.fingerprint.equal(fingerprint)
         ) {
+          serviceDebug(this._config.name, '#onFingerprinted: fingerprint changed, stopping adoptee');
           // There is a previous running version of this service, but the
           // fingerprint changed, so we need to restart it.
           this.#state = {
@@ -540,6 +566,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           fingerprint,
           adoptee,
         };
+        serviceDebug(this._config.name, `#onFingerprinted: -> unstarted, isPersistent=${this._config.isPersistent}`);
         if (this._config.isPersistent) {
           void this.start();
         }
@@ -616,6 +643,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   start(): Promise<Result<void, Failure>> {
     switch (this.#state.id) {
       case 'unstarted': {
+        serviceDebug(this._config.name, 'start: unstarted -> depsStarting');
         const started = new Deferred<Result<void, Failure>>();
         this.#state = {
           id: 'depsStarting',
@@ -623,7 +651,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           fingerprint: this.#state.fingerprint,
           adoptee: this.#state.adoptee,
         };
+        serviceDebug(this._config.name, 'start: calling _startServices()');
         void this._startServices().then((result) => {
+          serviceDebug(this._config.name, `start: _startServices resolved`, {ok: result.ok});
           if (result.ok) {
             this.#onDepsStarted();
           } else {
@@ -693,8 +723,10 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   #onDepsStarted() {
     switch (this.#state.id) {
       case 'depsStarting': {
+        serviceDebug(this._config.name, '#onDepsStarted: depsStarting, checking adoptee');
         const detached = this.#state.adoptee?.detach();
         if (detached === undefined) {
+          serviceDebug(this._config.name, '#onDepsStarted: no adoptee, spawning new child process');
           const child = new ScriptChildProcess(this._config);
           this.#state = {
             id: 'starting',
@@ -709,10 +741,13 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
                     this._config.service.readyWhen.lineMatches,
                   ),
           };
+          serviceDebug(this._config.name, '#onDepsStarted: waiting for child.started');
           void this.#state.child.started.then(() => {
+            serviceDebug(this._config.name, '#onDepsStarted: child.started resolved');
             this.#onChildStarted();
           });
         } else {
+          serviceDebug(this._config.name, '#onDepsStarted: reusing adoptee child');
           this.#state.started.resolve({ok: true, value: undefined});
           this.#state = {
             id: 'started',
@@ -720,7 +755,9 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             fingerprint: this.#state.fingerprint,
           };
         }
+        serviceDebug(this._config.name, '#onDepsStarted: hooking child.completed');
         void this.#state.child.completed.then(() => {
+          serviceDebug(this._config.name, '#onDepsStarted: child.completed resolved');
           this.#onChildExited();
         });
         this.#startLoggingChildStdio(this.#state.child);
@@ -860,6 +897,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   }
 
   #onChildStarted() {
+    serviceDebug(this._config.name, `#onChildStarted: state=${this.#state.id}`);
     switch (this.#state.id) {
       case 'starting': {
         this._logger.log({
@@ -868,6 +906,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           detail: 'service-process-started',
         });
         if (this.#state.readyMonitor !== undefined) {
+          serviceDebug(this._config.name, '#onChildStarted: has readyMonitor, -> readying');
           this.#state = {
             id: 'readying',
             child: this.#state.child,
@@ -876,6 +915,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
             readyMonitor: this.#state.readyMonitor,
           };
           void this.#state.readyMonitor.matched.then((result) => {
+            serviceDebug(this._config.name, `#onChildStarted: readyMonitor.matched resolved`, {ok: result.ok});
             if (result.ok) {
               this.#onChildReady();
             }
@@ -883,6 +923,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
           });
           return;
         }
+        serviceDebug(this._config.name, '#onChildStarted: no readyMonitor, -> started (service-ready)');
         this.#state.started.resolve({ok: true, value: undefined});
         this._logger.log({
           script: this._config,
@@ -960,6 +1001,7 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   }
 
   #onChildExited() {
+    serviceDebug(this._config.name, `#onChildExited: state=${this.#state.id}`);
     switch (this.#state.id) {
       case 'stopping': {
         this.#enterStoppedState();
@@ -1016,9 +1058,11 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
    * when it is stopped.
    */
   abort(): Promise<void> {
+    serviceDebug(this._config.name, `abort: state=${this.#state.id}`);
     switch (this.#state.id) {
       case 'started':
       case 'started-broken': {
+        serviceDebug(this._config.name, `abort: ${this.#state.id} -> stopping, killing child`);
         this.#state.child.kill();
         this.#state = {
           id: 'stopping',
@@ -1082,12 +1126,14 @@ export class ServiceScriptExecution extends BaseExecutionWithCommand<ServiceScri
   }
 
   #enterStoppedState() {
+    serviceDebug(this._config.name, '#enterStoppedState: -> stopped');
     this.#state = {id: 'stopped'};
     this.#terminated.resolve({ok: true, value: undefined});
     this._servicesNotNeeded.resolve();
   }
 
   #enterFailedState(failure: Failure) {
+    serviceDebug(this._config.name, '#enterFailedState: -> failed', {reason: failure.reason});
     this.#state = {
       id: 'failed',
       failure,

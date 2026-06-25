@@ -16,6 +16,14 @@ import {
   EnvironmentResponseMessage,
 } from './test-rig-command-interface.js';
 
+/** Debug logging for diagnosing Windows CI hangs */
+function cmdDebug(msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[CMD-DEBUG ${ts} +${hrTime}ms] ${msg}${extraStr}`);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const childModulePath = pathlib.resolve(__dirname, 'test-rig-command-child.js');
@@ -55,10 +63,17 @@ export class WireitTestRigCommand {
   async listen(): Promise<void> {
     this.#assertState('uninitialized');
     this.#state = 'listening';
+    cmdDebug('listen: starting IPC server', {ipcPath: this.#ipcPath});
     return new Promise((resolve, reject) => {
       this.#server.listen(this.#ipcPath);
-      this.#server.on('listening', () => resolve());
-      this.#server.on('error', (error: Error) => reject(error));
+      this.#server.on('listening', () => {
+        cmdDebug('listen: IPC server listening', {ipcPath: this.#ipcPath});
+        resolve();
+      });
+      this.#server.on('error', (error: Error) => {
+        cmdDebug('listen: IPC server error', {error: error.message});
+        reject(error);
+      });
     });
   }
 
@@ -104,11 +119,14 @@ export class WireitTestRigCommand {
    */
   async nextInvocation(): Promise<WireitTestRigCommandInvocation> {
     this.#assertState('listening');
+    cmdDebug('nextInvocation: waiting for next connection', {ipcPath: this.#ipcPath, existingConnections: this.#allConnections.length});
     while (true) {
       const socket = this.#newConnections.shift();
       if (socket !== undefined) {
+        cmdDebug('nextInvocation: got connection', {ipcPath: this.#ipcPath, totalConnections: this.#allConnections.length});
         return new WireitTestRigCommandInvocation(socket, this);
       }
+      cmdDebug('nextInvocation: no pending connections, awaiting notification');
       await this.#newConnectionNotification.promise;
     }
   }
@@ -118,6 +136,7 @@ export class WireitTestRigCommand {
    */
   readonly #onConnection = (socket: net.Socket) => {
     this.#assertState('listening');
+    cmdDebug('onConnection: new child connected', {ipcPath: this.#ipcPath, totalConnections: this.#allConnections.length + 1});
     this.#allConnections.push(socket);
     this.#newConnections.push(socket);
     this.#newConnectionNotification.resolve();
@@ -141,6 +160,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
     super(socket);
     this.command = command;
     void this.closed.then(() => {
+      cmdDebug('WireitTestRigCommandInvocation: socket closed');
       this.#state = 'closed';
     });
     socket.on('error', (err) => {
@@ -151,6 +171,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
       // The connection was reset, but this is an IPC socket, so this means
       // that the child process exited early.
       if (err.message === 'read ECONNRESET') {
+        cmdDebug('WireitTestRigCommandInvocation: ECONNRESET (early exit)');
         this.#state = 'earlyexit';
         return;
       }
@@ -240,6 +261,7 @@ export class WireitTestRigCommandInvocation extends IpcClient<
    */
   exit(code: number): void {
     this.#assertState('connected');
+    cmdDebug(`exit: sending exit(${code}) to child`);
     this._send({type: 'exit', code});
     this.#state = 'closing';
   }

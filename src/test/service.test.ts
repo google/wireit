@@ -9,16 +9,27 @@ import * as assert from 'node:assert';
 import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 
+/** Debug logging for diagnosing Windows CI hangs */
+function testDebug(testName: string, step: string) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  console.error(`[TEST-DEBUG ${ts} +${hrTime}ms] [${testName}] ${step}`);
+}
+
 void test(
   'simple consumer and service with stdout',
   rigTest(async ({rig}) => {
+    const T = 'simple consumer and service with stdout';
+    testDebug(T, 'START');
     // consumer
     //    |
     //    v
     // service
 
     const consumer = await rig.newCommand();
+    testDebug(T, 'consumer command created');
     const service = await rig.newCommand();
+    testDebug(T, 'service command created');
     await rig.writeAtomic({
       'package.json': {
         scripts: {
@@ -37,35 +48,47 @@ void test(
         },
       },
     });
+    testDebug(T, 'package.json written');
 
     const wireit = rig.exec('npm run consumer');
+    testDebug(T, 'wireit exec started, waiting for log');
     await wireit.waitForLog(
       /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
     );
+    testDebug(T, 'log matched, waiting for service invocation');
 
     // The service starts because the consumer depends on it
     const serviceInv = await service.nextInvocation();
+    testDebug(T, 'service invocation received');
 
     // Confirm we show stdout/stderr from services
     serviceInv.stdout('service stdout');
     await wireit.waitForLog(/service stdout/);
+    testDebug(T, 'service stdout received');
     serviceInv.stderr('service stderr');
     await wireit.waitForLog(/service stderr/);
+    testDebug(T, 'service stderr received');
 
     // The consumer starts and finishes
     const consumerInv = await consumer.nextInvocation();
+    testDebug(T, 'consumer invocation received');
     // Wait a moment to ensure the service stays running
     await new Promise((resolve) => setTimeout(resolve, 100));
+    testDebug(T, 'after 100ms wait, checking service still running');
     assert.ok(serviceInv.isRunning);
     consumerInv.exit(0);
+    testDebug(T, 'consumer exit(0) sent');
 
     // The service stops because the consumer is done
     await serviceInv.closed;
+    testDebug(T, 'service closed');
 
     assert.equal((await wireit.exit).code, 0);
+    testDebug(T, 'wireit exited');
     assert.equal(service.numInvocations, 1);
     assert.equal(consumer.numInvocations, 1);
     await wireit.waitForLog(/✅ Ran 2 scripts and skipped 0 in/);
+    testDebug(T, 'DONE');
   }),
 );
 
@@ -161,6 +184,8 @@ void test(
 void test(
   'standard scripts are killed when service exits unexpectedly',
   rigTest(async ({rig}) => {
+    const T = 'standard scripts killed when service exits';
+    testDebug(T, 'START');
     // consumer
     //    |
     //    v
@@ -168,6 +193,7 @@ void test(
 
     const consumer = await rig.newCommand();
     const service = await rig.newCommand();
+    testDebug(T, 'commands created');
     await rig.writeAtomic({
       'package.json': {
         scripts: {
@@ -186,29 +212,40 @@ void test(
         },
       },
     });
+    testDebug(T, 'package.json written');
 
     const wireit = rig.exec('npm run consumer');
+    testDebug(T, 'wireit exec started');
     await wireit.waitForLog(
       /50% \[1 \/ 2\] \[2 running\] \[1 service\] consumer/,
     );
+    testDebug(T, 'initial log matched');
 
     // Service starts
     const serviceInv = await service.nextInvocation();
+    testDebug(T, 'service invocation received');
 
     // Consumer starts
     const consumerInv = await consumer.nextInvocation();
+    testDebug(T, 'consumer invocation received');
 
     // Service exits unexpectedly
     serviceInv.exit(1);
+    testDebug(T, 'service exit(1) sent');
     await wireit.waitForLog(/❌ \[service\] Service exited unexpectedly/);
+    testDebug(T, 'service unexpected exit log matched');
 
     // Consumer is killed
     await consumerInv.closed;
+    testDebug(T, 'consumer closed');
     await wireit.waitForLog(/❌ \[consumer\] killed/);
+    testDebug(T, 'consumer killed log matched');
 
     // Wireit exits with an error code
     assert.equal((await wireit.exit).code, 1);
+    testDebug(T, 'wireit exited');
     await wireit.waitForLog(/❌ 2 scripts failed\./);
+    testDebug(T, 'DONE');
   }),
 );
 
@@ -379,12 +416,15 @@ void test(
   //    v
   // service2
   rigTest(async ({rig}) => {
+    const T = 'persistent service and dep until SIGINT';
+    testDebug(T, 'START');
     // This test uses standard logger output to ensure that
     // certain operations happen in the right order.
     rig.env['WIREIT_LOGGER'] = 'simple';
 
     const service1 = await rig.newCommand();
     const service2 = await rig.newCommand();
+    testDebug(T, 'commands created');
     await rig.writeAtomic({
       'package.json': {
         scripts: {
@@ -404,25 +444,34 @@ void test(
         },
       },
     });
+    testDebug(T, 'package.json written');
 
     const wireit = rig.exec('npm run service1');
+    testDebug(T, 'wireit exec started');
 
     // Services start in bottom-up order.
     const service2Inv = await service2.nextInvocation();
+    testDebug(T, 'service2 invocation received');
     await wireit.waitForLog(/\[service2\] Service ready/);
+    testDebug(T, 'service2 ready log matched');
     const service1Inv = await service1.nextInvocation();
+    testDebug(T, 'service1 invocation received');
     await wireit.waitForLog(/\[service1\] Service ready/);
+    testDebug(T, 'service1 ready log matched');
 
     // Wait a moment to ensure they keep running since the user hasn't killed
     // Wireit yet.
     await new Promise((resolve) => setTimeout(resolve, 100));
+    testDebug(T, 'after 100ms wait, checking services still running');
     assert.ok(service1Inv.isRunning);
     assert.ok(service2Inv.isRunning);
 
     // The user kills Wireit. The services stop in top-down order.
     if (IS_WINDOWS) {
+      testDebug(T, 'Windows: killing wireit (no graceful shutdown)');
       // We don't get graceful shutdown on Windows.
       wireit.kill();
+      testDebug(T, 'Windows: wireit.kill() returned');
     } else {
       // Wait a moment after SIGINT to ensure that until service1 actually
       // exits, service2 keeps running.
@@ -436,14 +485,21 @@ void test(
       await wireit.waitForLog(/\[service1\] Service stopped/);
       await wireit.waitForLog(/\[service2\] Service stopped/);
     }
+    testDebug(T, 'waiting for service1Inv.closed');
     await service1Inv.closed;
+    testDebug(T, 'service1Inv closed');
     assert.ok(!service1Inv.isRunning);
+    testDebug(T, 'waiting for service2Inv.closed');
     await service2Inv.closed;
+    testDebug(T, 'service2Inv closed');
     assert.ok(!service2Inv.isRunning);
 
+    testDebug(T, 'waiting for wireit.exit');
     await wireit.exit;
+    testDebug(T, 'wireit exited');
     assert.equal(service1.numInvocations, 1);
     assert.equal(service2.numInvocations, 1);
+    testDebug(T, 'DONE');
   }),
 );
 

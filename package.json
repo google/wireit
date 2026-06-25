@@ -381,9 +381,10 @@
       "output": []
     },
     "test:service": {
-      "command": "node --test --test-reporter=dot lib/test/service.test.js",
+      "command": "node --test --test-reporter=spec --test-timeout=120000 lib/test/service.test.js",
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "SHOW_TEST_OUTPUT": "1"
       },
       "dependencies": [
         "build"

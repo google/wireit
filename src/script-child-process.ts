@@ -17,6 +17,14 @@ import type {ScriptReferenceWithCommand} from './config.js';
 import type {ChildProcessWithoutNullStreams} from 'child_process';
 import type {ExitNonZero, ExitSignal, SpawnError, Killed} from './event.js';
 
+/** Debug logging for diagnosing Windows CI hangs */
+function childDebug(name: string, msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[CHILD-DEBUG ${ts} +${hrTime}ms] [${name}] ${msg}${extraStr}`);
+}
+
 /**
  * The PATH environment variable of this process, minus all of the leading
  * "node_modules/.bin" entries that the incoming "npm run" command already set.
@@ -124,7 +132,15 @@ export class ScriptChildProcess {
       detached: !IS_WINDOWS,
     });
 
+    childDebug(this.#script.name, 'constructor: spawned child process', {
+      command: this.#script.command.value,
+      cwd: this.#script.packageDir,
+      detached: !IS_WINDOWS,
+      pid: this.#child.pid,
+    });
+
     this.#child.on('spawn', () => {
+      childDebug(this.#script.name, `on('spawn'): state=${this.#state}, pid=${this.#child.pid}`);
       switch (this.#state) {
         case 'starting': {
           this.#started.resolve({ok: true, value: undefined});
@@ -162,6 +178,7 @@ export class ScriptChildProcess {
     });
 
     this.#child.on('error', (error) => {
+      childDebug(this.#script.name, `on('error'): ${error.message}`);
       const result = {
         ok: false,
         error: {
@@ -177,6 +194,7 @@ export class ScriptChildProcess {
     });
 
     this.#child.on('close', (status, signal) => {
+      childDebug(this.#script.name, `on('close'): status=${status}, signal=${signal}, state=${this.#state}`);
       if (this.#state === 'killing') {
         this.#completed.resolve({
           ok: false,
@@ -227,10 +245,12 @@ export class ScriptChildProcess {
   kill(): void {
     switch (this.#state) {
       case 'started': {
+        childDebug(this.#script.name, 'kill: state=started, calling #actuallyKill');
         this.#actuallyKill();
         return;
       }
       case 'starting': {
+        childDebug(this.#script.name, 'kill: state=starting, deferring to killing state');
         // We're still starting up, and it's not possible to abort. When we get
         // the "spawn" event, we'll notice the "killing" state and actually kill
         // then.
@@ -239,6 +259,7 @@ export class ScriptChildProcess {
       }
       case 'killing':
       case 'stopped': {
+        childDebug(this.#script.name, `kill: state=${this.#state}, no-op`);
         // No-op.
         return;
       }
@@ -261,18 +282,29 @@ export class ScriptChildProcess {
       );
     }
     if (IS_WINDOWS) {
+      childDebug(this.#script.name, `#actuallyKill: Windows taskkill /pid ${this.#child.pid} /t /f`);
       // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
       // the behavior of SIGKILL (and ignores the signal you pass in), but this
       // doesn't end child processes. We have child processes because the parent
       // process is the shell (cmd.exe or PowerShell).
       // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
-      spawn('taskkill', [
+      const taskkillProcess = spawn('taskkill', [
         '/pid',
         this.#child.pid.toString(),
         /* End child processes */ '/t',
         /* Force. Killing does not seem reliable otherwise. */ '/f',
       ]);
+      taskkillProcess.stdout.on('data', (data: Buffer) => {
+        childDebug(this.#script.name, `taskkill stdout: ${data.toString().trim()}`);
+      });
+      taskkillProcess.stderr.on('data', (data: Buffer) => {
+        childDebug(this.#script.name, `taskkill stderr: ${data.toString().trim()}`);
+      });
+      taskkillProcess.on('close', (code) => {
+        childDebug(this.#script.name, `taskkill exited with code ${code}`);
+      });
     } else {
+      childDebug(this.#script.name, `#actuallyKill: POSIX kill(-${this.#child.pid}, SIGINT)`);
       // We used "detached" when we spawned, so our child is the leader of a
       // process group. Passing the negative of a pid kills all processes in
       // that group (without the negative, only the leader "sh" process would be

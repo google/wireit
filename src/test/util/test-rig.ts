@@ -23,6 +23,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 
+/** Debug logging for diagnosing Windows CI hangs */
+function rigDebug(msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[RIG-DEBUG ${ts} +${hrTime}ms] ${msg}${extraStr}`);
+}
+
 type ExitReport =
   | {
       ok: true;
@@ -69,6 +77,7 @@ export class WireitTestRig
    */
   override async setup() {
     await super.setup();
+    rigDebug('WireitTestRig.setup: temp dir created', {temp: this.temp});
     const absWireitBinaryPath = pathlib.resolve(repoRoot, 'bin', 'wireit.js');
     const absWireitTempInstallPath = pathlib.resolve(
       this.temp,
@@ -77,11 +86,13 @@ export class WireitTestRig
       'wireit',
     );
     if (IS_WINDOWS) {
+      rigDebug('WireitTestRig.setup: creating cmd-shim for wireit on Windows');
       // Npm install works differently on Windows, since it won't recognize a
       // shebang like "#!/usr/bin/env node". Npm instead uses the cmd-shim
       // package to generate Windows shell wrappers for each binary, so we do
       // that here too.
       await cmdShim(absWireitBinaryPath, absWireitTempInstallPath);
+      rigDebug('WireitTestRig.setup: cmd-shim created');
     } else {
       await this.symlink(absWireitBinaryPath, absWireitTempInstallPath, 'file');
     }
@@ -218,6 +229,7 @@ export class WireitTestRig
       ...(opts?.env ?? {}),
     });
     this.#activeChildProcesses.add(result);
+    rigDebug(`exec: spawned child`, {command, cwd, pid: 'pending'});
     void result.exit
       .then(
         (exitResult) => {
@@ -267,9 +279,11 @@ export class WireitTestRig
       // parent directory must exist.
       await fs.mkdir(pathlib.dirname(ipcPath), {recursive: true});
     }
+    rigDebug('newCommand: creating new test rig command', {ipcPath});
     const command = new WireitTestRigCommand(ipcPath);
     this.#commands.push(command);
     await command.listen();
+    rigDebug('newCommand: listening', {ipcPath});
     return command;
   }
 
@@ -436,6 +450,7 @@ class ExecResult {
    * Send a kill signal to the child process. SIGINT by default.
    */
   kill(signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL' = 'SIGINT'): void {
+    rigDebug(`ExecResult.kill: killing child`, {command: this.#command, signal, pid: this.#child.pid});
     if (!this.running) {
       throw new Error("Can't kill child process because it is not running");
     }
@@ -443,6 +458,7 @@ class ExecResult {
       throw new Error("Can't kill child process because it has no pid");
     }
     if (IS_WINDOWS) {
+      rigDebug(`ExecResult.kill: Windows taskkill /pid ${this.#child.pid} /t /f`);
       // Windows doesn't have signals. Node ChildProcess.kill() sort of emulates
       // the behavior of SIGKILL (and ignores the signal you pass in), but it
       // seems to leave streams and file handles open. The taskkill command does
@@ -450,6 +466,7 @@ class ExecResult {
       // https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
       spawn('taskkill', ['/pid', this.#child.pid.toString(), '/t', '/f']);
     } else {
+      rigDebug(`ExecResult.kill: POSIX kill(-${this.#child.pid}, ${signal})`);
       // We used "detached" when we spawned, so our child is the leader of its
       // own process group. Passing the negative of the child's pid kills all
       // processes in the group (without the negative only the leader "sh"
@@ -471,6 +488,7 @@ class ExecResult {
    * that match so far.
    */
   waitForLog(matcher: RegExp): Promise<void> {
+    rigDebug(`waitForLog: waiting for ${matcher}`, {command: this.#command});
     const deferred = new Deferred<void>();
     this.#logMatchers.add({
       re: matcher,
@@ -479,7 +497,9 @@ class ExecResult {
     });
     // In case we've already received the log we're watching for
     this.#checkMatchersAgainstLogs();
-    return deferred.promise;
+    return deferred.promise.then(() => {
+      rigDebug(`waitForLog: matched ${matcher}`, {command: this.#command});
+    });
   }
 
   reportStalledLogMatchers() {
