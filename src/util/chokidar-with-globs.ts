@@ -67,7 +67,7 @@ export function chokidarWatchWithGlobs(
     }
   }
 
-  return chokidar.watch(
+  const watcher = chokidar.watch(
     staticWatchPaths.size > 0 ? [...staticWatchPaths] : [resolvedCwd],
     {
       ...options,
@@ -95,4 +95,33 @@ export function chokidarWatchWithGlobs(
       },
     },
   );
+
+  // The `ignored` callback above must return false for all directories, or
+  // chokidar won't recurse into them to find matching files. But this means
+  // directory events for unrelated paths (e.g. .wireit/ lock files) pass
+  // through unfiltered. On Mac, fsevents delivers recursive notifications for
+  // the entire tree, so these spurious events trigger re-runs. Filter emitted
+  // events through our glob rules to suppress them.
+  const originalEmit = watcher.emit;
+  watcher.emit = ((event: string, ...args: unknown[]): boolean => {
+    // For individual events the path is args[0].
+    // For the 'all' meta-event the path is args[1] (args[0] is the event name).
+    const filePath =
+      event === 'all' ? args[1] :
+      event === 'add' || event === 'change' || event === 'unlink' ||
+      event === 'addDir' || event === 'unlinkDir' ? args[0] :
+      undefined;
+    if (typeof filePath === 'string') {
+      const absolutePath = pathlib.resolve(resolvedCwd, filePath);
+      const lastMatchingRule = rules.findLast((r) => r.test(absolutePath));
+      if (!lastMatchingRule || lastMatchingRule.ignore) {
+        return false;
+      }
+    }
+    return originalEmit.apply(watcher, [event, ...args] as Parameters<
+      typeof originalEmit
+    >);
+  }) as typeof watcher.emit;
+
+  return watcher;
 }
