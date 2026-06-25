@@ -848,7 +848,7 @@ for (const mode of ['once', 'watch'] as const) {
     await ctx.check({
       mode,
       files: ['foo', 'bar', 'baz'],
-      patterns: ['/*', '!/bar'],
+      patterns: ['/*', '!bar'],
       expected: ['foo', 'baz'],
     });
   });

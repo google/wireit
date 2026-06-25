@@ -52,22 +52,14 @@ export function chokidarWatchWithGlobs(
   }[] = [];
 
   for (const pattern of patterns) {
-    // Replicate chokidar 3's getAbsolutePath: resolve patterns against cwd
-    // before processing negation. This must happen before splitting off '!'
-    // because '!/bar' is not filesystem-absolute — the inner '/bar' should be
-    // joined with cwd.
-    let resolved: string;
-    if (pathlib.isAbsolute(pattern)) {
-      resolved = pattern;
-    } else if (pattern.startsWith('!')) {
-      resolved = '!' + pathlib.join(resolvedCwd, pattern.slice(1));
-    } else {
-      resolved = pathlib.join(resolvedCwd, pattern);
-    }
-
-    const isNegated = resolved.startsWith('!');
-    const raw = isNegated ? resolved.slice(1) : resolved;
-    const absolute = pathlib.resolve(raw);
+    const isNegated = pattern.startsWith('!');
+    const raw = isNegated ? pattern.slice(1) : pattern;
+    // If the path is already absolute, use it directly. Otherwise join with
+    // cwd. We can't blindly path.join(cwd, raw) because on Windows path.join
+    // concatenates drive letters: path.join('D:\', 'D:\a') → 'D:\D:\a'.
+    const absolute = pathlib.isAbsolute(raw)
+      ? pathlib.resolve(raw)
+      : pathlib.resolve(pathlib.join(resolvedCwd, raw));
     // Normalize to forward slashes for comparison with chokidar's paths.
     // Chokidar 4 normalizes all paths to forward slashes internally.
     const absoluteFwd = toForwardSlashes(absolute);
