@@ -54,12 +54,14 @@ export function chokidarWatchWithGlobs(
   for (const pattern of patterns) {
     const isNegated = pattern.startsWith('!');
     const raw = isNegated ? pattern.slice(1) : pattern;
-    // If the path is already absolute, use it directly. Otherwise join with
-    // cwd. We can't blindly path.join(cwd, raw) because on Windows path.join
-    // concatenates drive letters: path.join('D:\', 'D:\a') → 'D:\D:\a'.
-    const absolute = pathlib.isAbsolute(raw)
-      ? pathlib.resolve(raw)
-      : pathlib.resolve(pathlib.join(resolvedCwd, raw));
+    // Use path.join to resolve against cwd, matching chokidar 3's behavior
+    // (path.join treats '/bar' as a segment, correctly giving cwd/bar).
+    // Guard: if the path already has a drive-letter root (e.g. 'D:\...'),
+    // use it directly — path.join would incorrectly double the drive letter.
+    const absolute =
+      pathlib.parse(raw).root.length > 1
+        ? pathlib.resolve(raw)
+        : pathlib.resolve(pathlib.join(resolvedCwd, raw));
     // Normalize to forward slashes for comparison with chokidar's paths.
     // Chokidar 4 normalizes all paths to forward slashes internally.
     const absoluteFwd = toForwardSlashes(absolute);
