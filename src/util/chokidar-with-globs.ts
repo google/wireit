@@ -63,23 +63,23 @@ export function chokidarWatchWithGlobs(
     // Normalize to forward slashes for comparison with chokidar's paths.
     // Chokidar 4 normalizes all paths to forward slashes internally.
     const absoluteFwd = toForwardSlashes(absolute);
-    const isGlob = picomatch.scan(absolute).isGlob;
+    const isGlob = picomatch.scan(absoluteFwd).isGlob;
 
     if (isNegated) {
       rules.push({
         ignore: true,
         test: isGlob
-          ? picomatch(absolute, {dot: true})
+          ? picomatch(absoluteFwd, {dot: true})
           : (p) => {
               const pFwd = toForwardSlashes(p);
               return pFwd === absoluteFwd || pFwd.startsWith(absoluteFwd + '/');
             },
       });
     } else if (isGlob) {
-      staticWatchPaths.add(globParent(absolute));
-      rules.push({ignore: false, test: picomatch(absolute, {dot: true})});
+      staticWatchPaths.add(globParent(absoluteFwd));
+      rules.push({ignore: false, test: picomatch(absoluteFwd, {dot: true})});
     } else {
-      staticWatchPaths.add(absolute);
+      staticWatchPaths.add(absoluteFwd);
       rules.push({
         ignore: false,
         test: (p) => {
