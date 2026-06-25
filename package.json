@@ -55,6 +55,7 @@
     "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
     "test:quiet": "wireit",
+    "test:chokidar-probe": "wireit",
     "test:service": "wireit",
     "test:watch": "wireit"
   },
@@ -393,6 +394,17 @@
     },
     "test:watch": {
       "command": "node --test --test-reporter=dot lib/test/watch.test.js",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:chokidar-probe": {
+      "command": "node --test --test-reporter=spec --test-timeout=30000 lib/test/chokidar-probe.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
