@@ -23,6 +23,14 @@ import {WorkerPool} from './util/worker-pool.js';
 import type {Agent, Options} from './cli-options.js';
 import type {Fingerprint} from './fingerprint.js';
 
+/** Debug logging for diagnosing Windows CI watcher issues */
+function watcherDebug(msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[WATCHER-DEBUG ${ts} +${hrTime}ms] ${msg}${extraStr}`);
+}
+
 /**
  * ```
  *                                                            ┌─────────┐
@@ -158,6 +166,7 @@ export class Watcher {
     if (this.#debounceTimeoutId !== undefined) {
       throw new Error('Expected #debounceTimeoutId to be undefined');
     }
+    watcherDebug('startDebounce: starting debounce timer', {debounceMs: DEBOUNCE_MS});
     this.#debounceTimeoutId = setTimeout(() => {
       this.#onDebounced();
     }, DEBOUNCE_MS);
@@ -169,6 +178,7 @@ export class Watcher {
   }
 
   #onDebounced(): void {
+    watcherDebug('onDebounced: debounce timer fired', {state: this.#state});
     switch (this.#state) {
       case 'debouncing': {
         this.#debounceTimeoutId = undefined;
@@ -189,6 +199,7 @@ export class Watcher {
   }
 
   #startRun(): void {
+    watcherDebug('startRun', {state: this.#state, hasConfig: this.#latestRootScriptConfig !== undefined});
     switch (this.#state) {
       case 'initial':
       case 'debouncing': {
@@ -298,6 +309,7 @@ export class Watcher {
   }
 
   #onRunDone(): void {
+    watcherDebug('onRunDone', {state: this.#state});
     this.#logger.log({
       script: this.#rootScript,
       type: 'info',
@@ -335,11 +347,13 @@ export class Watcher {
   }
 
   #onConfigFileChanged = (): void => {
+    watcherDebug('onConfigFileChanged: config file changed, invalidating config');
     this.#latestRootScriptConfig = undefined;
     this.#fileChanged();
   };
 
   #fileChanged = (): void => {
+    watcherDebug('fileChanged: file change detected', {state: this.#state});
     switch (this.#state) {
       case 'watching': {
         this.#state = 'debouncing';
@@ -491,6 +505,13 @@ export const makeWatcher = (
   ignoreInitial: boolean,
   watchOptions: Exclude<Options['watch'], false>,
 ): FileWatcher => {
+  watcherDebug('makeWatcher: creating watcher', {
+    patterns,
+    cwd,
+    ignoreInitial,
+    strategy: watchOptions.strategy,
+    usePolling: watchOptions.strategy === 'poll',
+  });
   // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
   // currently various differences in what gets watched vs what actually affects
   // the build. See https://github.com/google/wireit/issues/550.
@@ -506,7 +527,14 @@ export const makeWatcher = (
         watchOptions.strategy === 'poll' ? watchOptions.interval : undefined,
     },
   );
-  watcher.on('all', callback);
+  watcher.on('all', (...allArgs: unknown[]) => {
+    watcherDebug('makeWatcher: watcher.on(all) fired, calling callback', {
+      cwd,
+      eventType: allArgs[0],
+      eventPath: allArgs[1],
+    });
+    callback();
+  });
   return {
     patterns,
     watcher,

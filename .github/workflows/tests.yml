@@ -36,9 +36,21 @@ jobs:
         run: npx tsc --build --pretty
 
       - name: Run service tests
-        run: node --test --test-reporter=spec --test-timeout=120000 lib/test/service.test.js
+        run: node --test --test-reporter=spec --test-timeout=60000 lib/test/service.test.js
         env:
           SHOW_TEST_OUTPUT: '1'
           NODE_OPTIONS: '--enable-source-maps'
           WIREIT_LOGGER: 'simple'
           WIREIT_PARALLEL: 1
+
+      - name: Debug info
+        if: always()
+        run: |
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
+          echo "OS info:"
+          systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
+          echo "Chokidar version:"
+          node -e "console.log(require('chokidar/package.json').version)"

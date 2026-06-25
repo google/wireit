@@ -15,6 +15,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 
+/** Debug logging for diagnosing Windows CI hangs */
+function fsDebug(msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[FS-DEBUG ${ts} +${hrTime}ms] ${msg}${extraStr}`);
+}
+
 /**
  * A test rig for managing a temporary filesystem.
  */
@@ -81,7 +89,9 @@ export class FilesystemTestRig {
       await fs.mkdir(pathlib.dirname(absolute), {recursive: true});
       const str =
         typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      fsDebug('write: writing file', {path: absolute, contentLength: str.length});
       await fs.writeFile(absolute, str, 'utf8');
+      fsDebug('write: file written', {path: absolute});
     } else {
       await Promise.all(
         Object.entries(fileOrFiles).map(async ([relative, data]) =>
@@ -105,8 +115,11 @@ export class FilesystemTestRig {
     if (typeof fileOrFiles === 'string') {
       const actual = pathlib.resolve(this.temp, fileOrFiles);
       const temp = actual + '.tmp';
+      fsDebug('writeAtomic: writing to temp', {temp, actual});
       await this.write(temp, data);
+      fsDebug('writeAtomic: renaming temp to actual', {temp, actual});
       await this.rename(temp, actual);
+      fsDebug('writeAtomic: rename complete', {actual});
     } else {
       await Promise.all(
         Object.entries(fileOrFiles).map(async ([relative, data]) =>

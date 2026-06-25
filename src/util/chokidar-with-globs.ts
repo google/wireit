@@ -12,6 +12,14 @@ import picomatch from 'picomatch';
 import globParent from 'glob-parent';
 import * as pathlib from 'path';
 
+/** Debug logging for diagnosing Windows CI watcher issues */
+function watchDebug(msg: string, extra?: Record<string, unknown>) {
+  const ts = new Date().toISOString();
+  const hrTime = performance.now().toFixed(1);
+  const extraStr = extra ? ' ' + JSON.stringify(extra) : '';
+  console.error(`[CHOKIDAR-DEBUG ${ts} +${hrTime}ms] ${msg}${extraStr}`);
+}
+
 /**
  * Invoke Chokidar with additional support for glob patterns, emulating the
  * behavior of chokidar 3.
@@ -36,6 +44,13 @@ export function chokidarWatchWithGlobs(
   options?: Omit<ChokidarOptions, 'ignored'> & {ignored?: never},
 ): ChokidarFSWatcher {
   const resolvedCwd = pathlib.resolve(options?.cwd ?? '.');
+  watchDebug('chokidarWatchWithGlobs called', {
+    patterns,
+    cwd: resolvedCwd,
+    usePolling: options?.usePolling,
+    ignoreInitial: options?.ignoreInitial,
+    interval: options?.interval,
+  });
   const staticWatchPaths = new Set<string>();
   const rules: {
     ignore: boolean;
@@ -67,6 +82,11 @@ export function chokidarWatchWithGlobs(
     }
   }
 
+  watchDebug('chokidarWatchWithGlobs: setting up watcher', {
+    staticWatchPaths: [...staticWatchPaths],
+    ruleCount: rules.length,
+  });
+
   const watcher = chokidar.watch(
     staticWatchPaths.size > 0 ? [...staticWatchPaths] : [resolvedCwd],
     {
@@ -96,6 +116,21 @@ export function chokidarWatchWithGlobs(
     },
   );
 
+  // Log chokidar lifecycle events
+  watcher.on('ready', () => {
+    watchDebug('chokidar READY event fired', {
+      cwd: resolvedCwd,
+      watched: Object.keys(watcher.getWatched()),
+    });
+  });
+  watcher.on('error', (err: unknown) => {
+    watchDebug('chokidar ERROR event', {error: String(err)});
+  });
+  // Log the raw events from chokidar BEFORE our emit filter
+  watcher.on('raw', (event: string, path: string, details: unknown) => {
+    watchDebug('chokidar RAW event', {event, path, details: String(details)});
+  });
+
   // Chokidar 4 only checks `ignored` during the initial directory scan, not
   // on subsequent change events. Override `emit` to also filter those.
   const originalEmit = watcher.emit;
@@ -111,8 +146,12 @@ export function chokidarWatchWithGlobs(
       const absolutePath = pathlib.resolve(resolvedCwd, filePath);
       const lastMatchingRule = rules.findLast((r) => r.test(absolutePath));
       if (!lastMatchingRule || lastMatchingRule.ignore) {
+        watchDebug('emit FILTERED OUT', {event, filePath, absolutePath, matched: !!lastMatchingRule, ignored: lastMatchingRule?.ignore});
         return false;
       }
+      watchDebug('emit PASSED', {event, filePath, absolutePath});
+    } else if (event !== 'ready' && event !== 'error' && event !== 'raw') {
+      watchDebug('emit (no path filtering)', {event, args: args.map(String)});
     }
     return originalEmit.apply(watcher, [event, ...args] as Parameters<
       typeof originalEmit
