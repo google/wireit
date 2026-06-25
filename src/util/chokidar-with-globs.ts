@@ -12,6 +12,10 @@ import picomatch from 'picomatch';
 import globParent from 'glob-parent';
 import * as pathlib from 'path';
 
+// Picomatch treats backslashes as escape characters, not path separators.
+// Normalize all paths to forward slashes before passing to picomatch.
+const toForwardSlash = (p: string) => p.replaceAll('\\', '/');
+
 /**
  * Invoke Chokidar with additional support for glob patterns, emulating the
  * behavior of chokidar 3.
@@ -45,7 +49,9 @@ export function chokidarWatchWithGlobs(
   for (const pattern of patterns) {
     const isNegated = pattern.startsWith('!');
     const raw = isNegated ? pattern.slice(1) : pattern;
-    const absolute = pathlib.resolve(pathlib.join(resolvedCwd, raw));
+    const absolute = toForwardSlash(
+      pathlib.resolve(pathlib.join(resolvedCwd, raw)),
+    );
     const isGlob = picomatch.scan(absolute).isGlob;
 
     if (isNegated) {
@@ -53,7 +59,9 @@ export function chokidarWatchWithGlobs(
         ignore: true,
         test: isGlob
           ? picomatch(absolute, {dot: true})
-          : (p) => p === absolute || p.startsWith(absolute + '/'),
+          : (p) =>
+              toForwardSlash(p) === absolute ||
+              toForwardSlash(p).startsWith(absolute + '/'),
       });
     } else if (isGlob) {
       staticWatchPaths.add(globParent(absolute));
@@ -62,7 +70,9 @@ export function chokidarWatchWithGlobs(
       staticWatchPaths.add(absolute);
       rules.push({
         ignore: false,
-        test: (p) => p === absolute || p.startsWith(absolute + '/'),
+        test: (p) =>
+          toForwardSlash(p) === absolute ||
+          toForwardSlash(p).startsWith(absolute + '/'),
       });
     }
   }
@@ -85,7 +95,9 @@ export function chokidarWatchWithGlobs(
         }
         // Take the last matching rule because later rules shadow earlier ones
         // (e.g. `foo/*.js` followed by `!foo/*.js`).
-        const lastMatchingRule = rules.findLast((r) => r.test(path));
+        const lastMatchingRule = rules.findLast((r) =>
+          r.test(toForwardSlash(path)),
+        );
         if (lastMatchingRule) {
           return lastMatchingRule.ignore;
         }
@@ -99,9 +111,8 @@ export function chokidarWatchWithGlobs(
   // The `ignored` callback above must return false for all directories, or
   // chokidar won't recurse into them to find matching files. But this means
   // directory events for unrelated paths (e.g. .wireit/ lock files) pass
-  // through unfiltered. On Mac, fsevents delivers recursive notifications for
-  // the entire tree, so these spurious events trigger re-runs. Filter emitted
-  // events through our glob rules to suppress them.
+  // through unfiltered, causing spurious re-runs. Filter emitted events
+  // through our glob rules to suppress them.
   const originalEmit = watcher.emit;
   watcher.emit = ((event: string, ...args: unknown[]): boolean => {
     // For individual events the path is args[0].
@@ -112,7 +123,9 @@ export function chokidarWatchWithGlobs(
       event === 'addDir' || event === 'unlinkDir' ? args[0] :
       undefined;
     if (typeof filePath === 'string') {
-      const absolutePath = pathlib.resolve(resolvedCwd, filePath);
+      const absolutePath = toForwardSlash(
+        pathlib.resolve(resolvedCwd, filePath),
+      );
       const lastMatchingRule = rules.findLast((r) => r.test(absolutePath));
       if (!lastMatchingRule || lastMatchingRule.ignore) {
         return false;

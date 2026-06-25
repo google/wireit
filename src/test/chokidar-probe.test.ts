@@ -620,52 +620,44 @@ describe('chokidar 4 platform behavior probes', () => {
     const tmpDir = await makeTempDir();
     tempDirs.push(tmpDir);
 
+    const fwd = (p: string) => p.replaceAll('\\', '/');
+
     const resolvedCwd = path.resolve(tmpDir);
     const pattern = 'src/**/*.js';
     const joined = path.join(resolvedCwd, pattern);
     const resolved = path.resolve(joined);
+    const normalized = fwd(resolved);
 
     console.log(`[Probe 8] Platform: ${process.platform}`);
     console.log(`[Probe 8] resolvedCwd: ${resolvedCwd}`);
     console.log(`[Probe 8] path.join result: ${joined}`);
     console.log(`[Probe 8] path.resolve result: ${resolved}`);
+    console.log(`[Probe 8] normalized (fwd slash): ${normalized}`);
     console.log(`[Probe 8] path.sep: '${path.sep}'`);
 
     const picomatch = (await import('picomatch')).default;
     const globParentMod = (await import('glob-parent')).default;
 
-    const scanResult = picomatch.scan(resolved);
+    const scanResult = picomatch.scan(normalized);
     console.log(`[Probe 8] picomatch.scan isGlob: ${scanResult.isGlob}`);
     console.log(`[Probe 8] picomatch.scan base: '${scanResult.base}'`);
     console.log(`[Probe 8] picomatch.scan glob: '${scanResult.glob}'`);
 
-    const parent = globParentMod(resolved);
+    const parent = globParentMod(normalized);
     console.log(`[Probe 8] glob-parent result: '${parent}'`);
 
-    // Build a matcher like chokidarWatchWithGlobs does
-    const matcher = picomatch(resolved, {dot: true});
+    // Build a matcher with the normalized pattern
+    const matcher = picomatch(normalized, {dot: true});
 
-    // Test file path (what chokidar would emit after resolving)
     const srcDir = path.join(tmpDir, 'src');
     await fs.mkdir(srcDir);
-    const testFile = path.resolve(path.join(srcDir, 'new.js'));
-    console.log(`[Probe 8] testFile: ${testFile}`);
+    const testFile = fwd(path.resolve(path.join(srcDir, 'new.js')));
+    console.log(`[Probe 8] testFile (normalized): ${testFile}`);
     console.log(`[Probe 8] matcher(testFile): ${matcher(testFile)}`);
 
-    // Also test the non-glob path matching
-    const nonGlobAbsolute = path.resolve(path.join(resolvedCwd, 'src'));
-    console.log(`[Probe 8] nonGlobAbsolute: ${nonGlobAbsolute}`);
-    console.log(
-      `[Probe 8] startsWith test (fwd slash): ${testFile.startsWith(nonGlobAbsolute + '/')}`,
-    );
-    console.log(
-      `[Probe 8] startsWith test (path.sep): ${testFile.startsWith(nonGlobAbsolute + path.sep)}`,
-    );
-
-    // The picomatch matcher must match the test file
     assert.ok(
       matcher(testFile),
-      `picomatch should match ${testFile} against pattern ${resolved}`,
+      `picomatch should match ${testFile} against pattern ${normalized}`,
     );
   });
 });
