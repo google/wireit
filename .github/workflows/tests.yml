@@ -56,4 +56,4 @@ jobs:
           echo "OS info:"
           systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
           echo "Chokidar version:"
-          node -e "console.log(require('chokidar/package.json').version)"
+          node -e "console.log(JSON.parse(require('fs').readFileSync(require.resolve('chokidar').replace(/index\.js$/,'package.json'),'utf8')).version)"
