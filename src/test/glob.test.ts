@@ -214,6 +214,16 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
+  void test(`[${mode}] ** glob with ! glob negation`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['src/a.ts', 'src/b.js', 'src/sub/c.ts', 'src/sub/d.js'],
+      patterns: ['src/**/*', '!src/**/*.js'],
+      expected: ['src/a.ts', 'src/sub/c.ts'],
+    });
+  });
+
   void test(`[${mode}] inclusion of directory with trailing slash`, async () => {
     await using ctx = await setup();
     await ctx.check({
@@ -604,6 +614,20 @@ for (const mode of ['once', 'watch'] as const) {
         files: ['foo'],
         patterns: ['!foo', 'foo'],
         expected: ['foo'],
+      });
+    },
+  );
+
+  void test(
+    `[${mode}] re-inclusion after negation`,
+    {skip: skipIfWatchOnWindows},
+    async () => {
+      await using ctx = await setup();
+      await ctx.check({
+        mode,
+        files: ['foo/a.js', 'foo/bar.js', 'foo/c.js'],
+        patterns: ['foo/*.js', '!foo/bar.js', 'foo/bar.js'],
+        expected: ['foo/a.js', 'foo/bar.js', 'foo/c.js'],
       });
     },
   );
