@@ -32,6 +32,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Patch chokidar with debug logging
+        run: node scripts/patch-chokidar-debug.cjs
+
       - name: Build
         run: npx tsc --build --pretty
 

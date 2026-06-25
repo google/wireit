@@ -60,7 +60,7 @@ export function chokidarWatchWithGlobs(
   for (const pattern of patterns) {
     const isNegated = pattern.startsWith('!');
     const raw = isNegated ? pattern.slice(1) : pattern;
-    const absolute = pathlib.resolve(pathlib.join(resolvedCwd, raw));
+    const absolute = pathlib.resolve(resolvedCwd, raw);
     const isGlob = picomatch.scan(absolute).isGlob;
 
     if (isNegated) {
@@ -97,20 +97,24 @@ export function chokidarWatchWithGlobs(
         // must return false here so chokidar proceeds to stat the path,
         // since we need stats to distinguish files from directories.
         if (!stats) {
+          watchDebug('ignored callback (no stats, returning false)', {path});
           return false;
         }
         // Never ignore directories, or chokidar won't recurse into them.
         if (stats.isDirectory()) {
+          watchDebug('ignored callback (directory, returning false)', {path});
           return false;
         }
         // Take the last matching rule because later rules shadow earlier ones
         // (e.g. `foo/*.js` followed by `!foo/*.js`).
         const lastMatchingRule = rules.findLast((r) => r.test(path));
         if (lastMatchingRule) {
+          watchDebug('ignored callback (rule matched)', {path, ignore: lastMatchingRule.ignore});
           return lastMatchingRule.ignore;
         }
         // No rule matched — this file is in a watched directory but doesn't
         // match any pattern, so ignore it.
+        watchDebug('ignored callback (no rule matched, ignoring)', {path});
         return true;
       },
     },
@@ -118,10 +122,31 @@ export function chokidarWatchWithGlobs(
 
   // Log chokidar lifecycle events
   watcher.on('ready', () => {
+    const watched = watcher.getWatched();
+    const watchedKeys = Object.keys(watched);
+    const watchedDetails: Record<string, string[]> = {};
+    for (const k of watchedKeys) {
+      watchedDetails[k] = watched[k] as string[];
+    }
     watchDebug('chokidar READY event fired', {
       cwd: resolvedCwd,
-      watched: Object.keys(watcher.getWatched()),
+      watchedDirCount: watchedKeys.length,
+      watchedDetails,
     });
+    // Also log after a short delay to see if watcher state stabilizes
+    setTimeout(() => {
+      const watched2 = watcher.getWatched();
+      const keys2 = Object.keys(watched2);
+      const details2: Record<string, string[]> = {};
+      for (const k of keys2) {
+        details2[k] = watched2[k] as string[];
+      }
+      watchDebug('chokidar DELAYED getWatched (500ms after ready)', {
+        cwd: resolvedCwd,
+        watchedDirCount: keys2.length,
+        watchedDetails: details2,
+      });
+    }, 500);
   });
   watcher.on('error', (err: unknown) => {
     watchDebug('chokidar ERROR event', {error: String(err)});
