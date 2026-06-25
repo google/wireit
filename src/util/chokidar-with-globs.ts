@@ -21,6 +21,15 @@ function watchDebug(msg: string, extra?: Record<string, unknown>) {
 }
 
 /**
+ * Normalize a path to use forward slashes. Chokidar 4 normalizes all paths
+ * to forward slashes internally, so we must do the same when comparing paths
+ * in our `ignored` callback and emit filter.
+ */
+function toForwardSlashes(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
+/**
  * Invoke Chokidar with additional support for glob patterns, emulating the
  * behavior of chokidar 3.
  *
@@ -61,6 +70,9 @@ export function chokidarWatchWithGlobs(
     const isNegated = pattern.startsWith('!');
     const raw = isNegated ? pattern.slice(1) : pattern;
     const absolute = pathlib.resolve(resolvedCwd, raw);
+    // Normalize to forward slashes for comparison with chokidar's paths.
+    // Chokidar 4 normalizes all paths to forward slashes internally.
+    const absoluteFwd = toForwardSlashes(absolute);
     const isGlob = picomatch.scan(absolute).isGlob;
 
     if (isNegated) {
@@ -68,7 +80,10 @@ export function chokidarWatchWithGlobs(
         ignore: true,
         test: isGlob
           ? picomatch(absolute, {dot: true})
-          : (p) => p === absolute || p.startsWith(absolute + '/'),
+          : (p) => {
+              const pFwd = toForwardSlashes(p);
+              return pFwd === absoluteFwd || pFwd.startsWith(absoluteFwd + '/');
+            },
       });
     } else if (isGlob) {
       staticWatchPaths.add(globParent(absolute));
@@ -77,7 +92,10 @@ export function chokidarWatchWithGlobs(
       staticWatchPaths.add(absolute);
       rules.push({
         ignore: false,
-        test: (p) => p === absolute || p.startsWith(absolute + '/'),
+        test: (p) => {
+          const pFwd = toForwardSlashes(p);
+          return pFwd === absoluteFwd || pFwd.startsWith(absoluteFwd + '/');
+        },
       });
     }
   }
@@ -168,7 +186,8 @@ export function chokidarWatchWithGlobs(
       event === 'addDir' || event === 'unlinkDir' ? args[0] :
       undefined;
     if (typeof filePath === 'string') {
-      const absolutePath = pathlib.resolve(resolvedCwd, filePath);
+      // Normalize to forward slashes, matching chokidar's convention.
+      const absolutePath = toForwardSlashes(pathlib.resolve(resolvedCwd, filePath));
       const lastMatchingRule = rules.findLast((r) => r.test(absolutePath));
       if (!lastMatchingRule || lastMatchingRule.ignore) {
         watchDebug('emit FILTERED OUT', {event, filePath, absolutePath, matched: !!lastMatchingRule, ignored: lastMatchingRule?.ignore});
