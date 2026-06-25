@@ -13,9 +13,11 @@ jobs:
           - node: 18
             os: windows-2022
             os-name: Windows
+            test-flags: ''
           - node: 25
             os: windows-2025
             os-name: Windows
+            test-flags: '--test-timeout=60000'
 
       fail-fast: false
 
@@ -39,7 +41,7 @@ jobs:
         run: npx tsc --build --pretty
 
       - name: Run service tests
-        run: node --test --test-reporter=spec --test-timeout=60000 lib/test/service.test.js
+        run: node --test --test-reporter=spec ${{ matrix.test-flags }} lib/test/service.test.js
         env:
           SHOW_TEST_OUTPUT: '1'
           NODE_OPTIONS: '--enable-source-maps'
