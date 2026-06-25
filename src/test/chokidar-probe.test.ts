@@ -536,14 +536,28 @@ describe('chokidar 4 platform behavior probes', () => {
     await fs.mkdir(wireitDir);
     await fs.writeFile(path.join(srcDir, 'index.js'), 'hello');
 
+    console.log(`[Probe 7] tmpDir: ${tmpDir}`);
+    console.log(`[Probe 7] srcDir: ${srcDir}`);
+    console.log(`[Probe 7] path.resolve(tmpDir): ${path.resolve(tmpDir)}`);
+
     const events: RecordedEvent[] = [];
+    const allRawEvents: string[] = [];
     const watcher = chokidarWatchWithGlobs(['src/**/*.js'], {
       cwd: tmpDir,
       ignoreInitial: true,
     });
     activeWatchers.push(watcher);
     collectEvents(watcher, events);
+
+    // Also listen on the raw EventEmitter to see if emit filter is blocking
+    const origOn = Object.getPrototypeOf(watcher).on;
+    if (origOn) {
+      // We can't easily intercept the patched emit, but we can log
+      // what the watcher eventually delivers
+    }
+
     await waitForReady(watcher);
+    console.log(`[Probe 7] Watcher ready. Watched paths:`, watcher.getWatched());
     events.length = 0;
     await delay(200);
     events.length = 0;
@@ -559,9 +573,12 @@ describe('chokidar 4 platform behavior probes', () => {
 
     // Activity in src (should be visible)
     await delay(300);
-    await fs.writeFile(path.join(srcDir, 'new.js'), 'new file');
+    const newJsPath = path.join(srcDir, 'new.js');
+    console.log(`[Probe 7] Writing: ${newJsPath}`);
+    await fs.writeFile(newJsPath, 'new file');
 
-    await delay(2000);
+    // Windows CI may need more time
+    await delay(3000);
 
     const wireitEvents = events.filter((e) => e.path.includes('.wireit'));
     const srcEvents = events.filter(
@@ -569,6 +586,10 @@ describe('chokidar 4 platform behavior probes', () => {
     );
 
     console.log(`[Probe 7] Platform: ${process.platform}`);
+    console.log(
+      `[Probe 7] ALL events (${events.length}):`,
+      events.map((e) => `${e.event}:${e.path}`),
+    );
     console.log(
       `[Probe 7] .wireit events (should be 0):`,
       wireitEvents.map((e) => `${e.event}:${e.path}`),
@@ -586,6 +607,65 @@ describe('chokidar 4 platform behavior probes', () => {
     assert.ok(
       srcEvents.length > 0,
       'src events should pass through',
+    );
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Probe 8: Path resolution diagnostics.
+  //
+  // Directly test the picomatch + glob-parent behavior with paths as they'd
+  // appear on each platform, to isolate any path separator mismatches.
+  // ──────────────────────────────────────────────────────────────────────────
+  test('Probe 8: picomatch and glob-parent path handling', async () => {
+    const tmpDir = await makeTempDir();
+    tempDirs.push(tmpDir);
+
+    const resolvedCwd = path.resolve(tmpDir);
+    const pattern = 'src/**/*.js';
+    const joined = path.join(resolvedCwd, pattern);
+    const resolved = path.resolve(joined);
+
+    console.log(`[Probe 8] Platform: ${process.platform}`);
+    console.log(`[Probe 8] resolvedCwd: ${resolvedCwd}`);
+    console.log(`[Probe 8] path.join result: ${joined}`);
+    console.log(`[Probe 8] path.resolve result: ${resolved}`);
+    console.log(`[Probe 8] path.sep: '${path.sep}'`);
+
+    const picomatch = (await import('picomatch')).default;
+    const globParentMod = (await import('glob-parent')).default;
+
+    const scanResult = picomatch.scan(resolved);
+    console.log(`[Probe 8] picomatch.scan isGlob: ${scanResult.isGlob}`);
+    console.log(`[Probe 8] picomatch.scan base: '${scanResult.base}'`);
+    console.log(`[Probe 8] picomatch.scan glob: '${scanResult.glob}'`);
+
+    const parent = globParentMod(resolved);
+    console.log(`[Probe 8] glob-parent result: '${parent}'`);
+
+    // Build a matcher like chokidarWatchWithGlobs does
+    const matcher = picomatch(resolved, {dot: true});
+
+    // Test file path (what chokidar would emit after resolving)
+    const srcDir = path.join(tmpDir, 'src');
+    await fs.mkdir(srcDir);
+    const testFile = path.resolve(path.join(srcDir, 'new.js'));
+    console.log(`[Probe 8] testFile: ${testFile}`);
+    console.log(`[Probe 8] matcher(testFile): ${matcher(testFile)}`);
+
+    // Also test the non-glob path matching
+    const nonGlobAbsolute = path.resolve(path.join(resolvedCwd, 'src'));
+    console.log(`[Probe 8] nonGlobAbsolute: ${nonGlobAbsolute}`);
+    console.log(
+      `[Probe 8] startsWith test (fwd slash): ${testFile.startsWith(nonGlobAbsolute + '/')}`,
+    );
+    console.log(
+      `[Probe 8] startsWith test (path.sep): ${testFile.startsWith(nonGlobAbsolute + path.sep)}`,
+    );
+
+    // The picomatch matcher must match the test file
+    assert.ok(
+      matcher(testFile),
+      `picomatch should match ${testFile} against pattern ${resolved}`,
     );
   });
 });
