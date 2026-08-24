@@ -8,6 +8,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Fixed
+
+- GitHub Actions caching now uses `http` or `https` based on the scheme of
+  `ACTIONS_RESULTS_URL`. Always calling `https.request` broke `http://` cache
+  proxies used by some third-party runners.
+
 ## [0.14.13] - 2026-06-23
 
 ### Added

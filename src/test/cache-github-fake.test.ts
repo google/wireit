@@ -561,3 +561,84 @@ void test(
     }
   },
 );
+
+void test('caches over HTTP when ACTIONS_RESULTS_URL is http://', async () => {
+  // The suite fixtures always speak HTTPS. Stand up an HTTP server for this
+  // case, which is what some third-party runner cache proxies expose.
+  const authToken = String(Math.random()).slice(2);
+  const httpServer = new FakeGitHubActionsCacheServer(authToken);
+  const actionsCacheUrl = await httpServer.listen();
+  assert.equal(new URL(actionsCacheUrl).protocol, 'http:');
+
+  const httpRig = new WireitTestRig();
+  httpRig.env = {
+    ...httpRig.env,
+    WIREIT_CACHE: 'github',
+    ACTIONS_RESULTS_URL: actionsCacheUrl,
+    ACTIONS_RUNTIME_TOKEN: authToken,
+    RUNNER_TEMP: pathlib.join(httpRig.temp, 'github-cache-temp'),
+  };
+  await httpRig.setup();
+
+  try {
+    const cmdA = await httpRig.newCommand();
+    await httpRig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    {
+      const exec = httpRig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await httpRig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await httpRig.read('output'), 'v0');
+      assert.deepEqual(httpServer.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+
+    // Delete the ".wireit" folder so that the next run won't be considered
+    // fresh, and the "output" file so that we can be sure it gets restored from
+    // cache.
+    await httpRig.delete('.wireit');
+    await httpRig.delete('output');
+
+    {
+      const exec = httpRig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await httpRig.read('output'), 'v0');
+      assert.deepEqual(httpServer.metrics, {
+        getCacheEntry: 2,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 1,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+  } finally {
+    await Promise.all([httpServer.close(), httpRig.cleanup()]);
+  }
+});
