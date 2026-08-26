@@ -146,6 +146,15 @@ export async function stat(path: string): Promise<fsTypes.Stats> {
   }
 }
 
+export async function utimes(
+  path: string,
+  atime: Date,
+  mtime: Date,
+): Promise<void> {
+  using _reservation = await fileBudget.reserve();
+  return await fs.utimes(path, atime, mtime);
+}
+
 export async function access(path: string): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {

@@ -23,7 +23,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
     case 'local': {
       // Import dynamically so that we import fewer unnecessary modules.
       const {LocalCache} = await import('./caching/local-cache.js');
-      cache = new LocalCache();
+      cache = new LocalCache(options.cacheMaxEntries);
       break;
     }
     case 'github': {

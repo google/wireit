@@ -8,6 +8,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- Local caches are now limited to the 2 most recently used entries per script,
+  instead of growing without bound. Set `WIREIT_CACHE_MAX_ENTRIES` to change the
+  limit, or to `infinity` for the previous behavior. See
+  [#71](https://github.com/google/wireit/issues/71).
+
 ## [0.14.13] - 2026-06-23
 
 ### Added

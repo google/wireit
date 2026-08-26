@@ -18,9 +18,22 @@ import type {AbsoluteEntry} from '../util/glob.js';
 
 /**
  * Caches script output to each package's
- * ".wireit/<script-name-hex>/cache/<cache-key-sha256-hex>" folder.
+ * ".wireit/<script-name-hex>/cache/<cache-key-sha256-hex>" folder, keeping only
+ * the {@link maxEntries} least recently read or written entries per script.
+ *
+ * Eviction needs no lock of its own. It only touches the calling script's own
+ * cache folder, and StandardScriptExecution#acquireSystemLockIfNeeded already
+ * holds that script's lock, except when "output" is empty, in which case the
+ * entries are empty directories.
  */
 export class LocalCache implements Cache {
+  readonly #maxEntries: number;
+
+  /** @param maxEntries Entries to retain per script, or Infinity for all. */
+  constructor(maxEntries: number) {
+    this.#maxEntries = maxEntries;
+  }
+
   async get(
     script: ScriptReference,
     fingerprint: Fingerprint,
@@ -34,6 +47,15 @@ export class LocalCache implements Cache {
       }
       throw error;
     }
+    // Recency lives in the mtime, so there is no index file to maintain. atime
+    // won't do, because filesystems are commonly mounted noatime or relatime.
+    const now = new Date();
+    try {
+      await fs.utimes(cacheDir, now, now);
+    } catch {
+      // A directory we can't stamp (read-only mount, foreign owner) must still
+      // produce a hit. It just ages as though it had only ever been written.
+    }
     return new LocalCacheHit(cacheDir, script.packageDir);
   }
 
@@ -42,11 +64,6 @@ export class LocalCache implements Cache {
     fingerprint: Fingerprint,
     absoluteFiles: AbsoluteEntry[],
   ): Promise<boolean> {
-    // TODO(aomarks) A script's cache directory currently just grows forever.
-    // We'll have the "clean" command to help with manual cleanup, but we'll
-    // almost certainly want an automated way to limit the size of the cache
-    // directory (e.g. LRU capped to some number of entries).
-    // https://github.com/google/wireit/issues/71
     const absCacheDir = this.#getCacheDir(script, fingerprint);
     // Note fs.mkdir returns the first created directory, or undefined if no
     // directory was created.
@@ -58,13 +75,49 @@ export class LocalCache implements Cache {
       throw new Error(`Did not expect ${absCacheDir} to already exist.`);
     }
     await copyEntries(absoluteFiles, script.packageDir, absCacheDir);
+    await this.#evictLeastRecentlyUsedEntries(script);
     return true;
+  }
+
+  /**
+   * Housekeeping, so failures are swallowed: the entry we just wrote is still
+   * valid, the folder is only larger than asked for.
+   */
+  async #evictLeastRecentlyUsedEntries(script: ScriptReference): Promise<void> {
+    if (this.#maxEntries === Infinity) {
+      return;
+    }
+    try {
+      const cacheDir = this.#getScriptCacheDir(script);
+      const entries = await fs.readdir(cacheDir, {withFileTypes: true});
+      if (entries.length <= this.#maxEntries) {
+        return;
+      }
+      // lstat, so a broken symlink in the folder gets evicted rather than
+      // throwing on every future eviction.
+      const byRecency = await Promise.all(
+        entries.map(async (entry) => {
+          const path = pathlib.join(cacheDir, entry.name);
+          return {path, mtimeMs: (await fs.lstat(path)).mtimeMs};
+        }),
+      );
+      byRecency.sort((a, b) => a.mtimeMs - b.mtimeMs);
+      const doomed = byRecency.slice(0, byRecency.length - this.#maxEntries);
+      await Promise.all(
+        doomed.map(({path}) => fs.rm(path, {recursive: true, force: true})),
+      );
+    } catch {
+      // See above.
+    }
+  }
+
+  #getScriptCacheDir(script: ScriptReference): string {
+    return pathlib.join(getScriptDataDir(script), 'cache');
   }
 
   #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
     return pathlib.join(
-      getScriptDataDir(script),
-      'cache',
+      this.#getScriptCacheDir(script),
       createHash('sha256').update(fingerprint.string).digest('hex'),
     );
   }

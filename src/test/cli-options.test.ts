@@ -59,6 +59,7 @@ async function assertOptions(
       extraArgs: [],
       watch: false,
       cache: 'local',
+      cacheMaxEntries: 2,
       numWorkers: 10,
       failureMode: 'no-new',
       logger: 'QuietLogger',
@@ -559,6 +560,27 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
         {
           WIREIT_WATCH_STRATEGY: 'poll',
           WIREIT_WATCH_POLL_MS: '74',
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_CACHE_MAX_ENTRIES=5`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          cacheMaxEntries: 5,
+        },
+        {
+          WIREIT_CACHE_MAX_ENTRIES: '5',
         },
       );
     }),
