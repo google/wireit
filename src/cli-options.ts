@@ -47,12 +47,12 @@ export const packageDir = await (async (): Promise<string | undefined> => {
 })();
 
 /**
- * Deliberately small, because an entry is a full copy of a script's output, and
- * scripts with large outputs are what make an unbounded cache painful. Two
- * still covers what local caching is most useful for: bouncing between the
- * current state and one other, like a branch you keep switching back to.
+ * Bounded, because an entry is a full copy of a script's output, and scripts
+ * with large outputs are what make an unbounded cache painful. Ten is enough to
+ * survive a fair amount of churn, like jumping between a few branches, without
+ * the folder growing without limit.
  */
-const DEFAULT_CACHE_MAX_ENTRIES = 2;
+const DEFAULT_CACHE_MAX_ENTRIES = 10;
 
 export type Agent = 'npm' | 'nodeRun' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 

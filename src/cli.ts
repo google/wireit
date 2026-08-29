@@ -14,9 +14,43 @@ import {Console} from './logging/logger.js';
 import {unreachable} from './util/unreachable.js';
 import {WorkerPool} from './util/worker-pool.js';
 
+import type {Cache} from './caching/cache.js';
+
+/** Below this, a sweep finishes before the user wonders why they're waiting. */
+const SWEEP_NOTICE_MS = 1000;
+
+/**
+ * Delete the entries this run evicted, plus anything an earlier run left.
+ *
+ * The notice goes to the console rather than the logger because the default
+ * logger drops cache advisories, and this one is only ever seen while a prompt
+ * hasn't come back.
+ */
+const sweepTrash = async (
+  cache: Cache | undefined,
+  signal: AbortSignal,
+): Promise<void> => {
+  if (cache === undefined) {
+    return;
+  }
+  const sweep = cache.sweepTrash(signal);
+  const notice = setTimeout(() => {
+    console.warn(
+      '🗑️ Deleting evicted cache entries. ' +
+        'Ctrl-C is safe; anything left is deleted on the next run.',
+    );
+  }, SWEEP_NOTICE_MS);
+  try {
+    await sweep;
+  } finally {
+    clearTimeout(notice);
+  }
+};
+
 const run = async (options: Options): Promise<Result<void, Failure[]>> => {
   using logger = options.logger;
   const workerPool = new WorkerPool(options.numWorkers);
+  const sweepAbort = new AbortController();
 
   let cache;
   switch (options.cache) {
@@ -69,11 +103,14 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
     );
     process.on('SIGINT', () => {
       watcher.abort();
+      sweepAbort.abort();
     });
     process.on('SIGTERM', () => {
       watcher.abort();
+      sweepAbort.abort();
     });
     await watcher.watch();
+    await sweepTrash(cache, sweepAbort.signal);
     return {ok: true, value: undefined};
   } else {
     const analyzer = new Analyzer(options.agent, logger);
@@ -92,9 +129,11 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
     );
     process.on('SIGINT', () => {
       executor.abort();
+      sweepAbort.abort();
     });
     process.on('SIGTERM', () => {
       executor.abort();
+      sweepAbort.abort();
     });
     const {persistentServices, errors} = await executor.execute();
     if (persistentServices.size > 0) {
@@ -106,6 +145,7 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       }
     }
     logger.printMetrics();
+    await sweepTrash(cache, sweepAbort.signal);
     return errors.length === 0
       ? {ok: true, value: undefined}
       : {ok: false, error: errors};

@@ -59,7 +59,7 @@ async function assertOptions(
       extraArgs: [],
       watch: false,
       cache: 'local',
-      cacheMaxEntries: 2,
+      cacheMaxEntries: 10,
       numWorkers: 10,
       failureMode: 'no-new',
       logger: 'QuietLogger',

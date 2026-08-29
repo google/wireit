@@ -271,6 +271,16 @@ export class GitHubActionsCache implements Cache {
     );
   }
 
+  /** The service decides what to evict; recency isn't ours to report. */
+  markEntryRecentlyUsed(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  /** No entry of this cache lives on local disk. */
+  sweepTrash(): Promise<void> {
+    return Promise.resolve();
+  }
+
   /**
    * @returns True if we reserved, uploaded, and committed the tarball. False if
    * we gave up due to a rate limit error.

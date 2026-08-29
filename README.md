@@ -346,21 +346,25 @@ Local caching is enabled by default, unless the
 environment variable is detected. To force local caching, set
 `WIREIT_CACHE=local`. To disable local caching, set `WIREIT_CACHE=none`.
 
-Each script retains its 2 most recently used cache entries. Whenever a new entry
-is written, any entries beyond that limit are deleted, least recently used
+Each script retains its 10 most recently used cache entries. Whenever a new
+entry is written, any entries beyond that limit are evicted, least recently used
 first. Because an entry is a full copy of the script's `output` files, this caps
-a script's cache at roughly 2× the size of its output.
+a script's cache at roughly 10× the size of its output.
 
 To change the limit, set `WIREIT_CACHE_MAX_ENTRIES` to a positive integer, or to
 `infinity` to retain every entry:
 
 ```sh
-export WIREIT_CACHE_MAX_ENTRIES=10
+export WIREIT_CACHE_MAX_ENTRIES=2
 ```
+
+Evicted entries are moved to `.wireit/trash` and deleted at the end of the run,
+so that a script is never held up by a large delete. Interrupting that with
+Ctrl-C is safe — whatever is left is deleted by the next run.
 
 Note the limit is applied per script, so a package with many cached scripts will
 still use a multiple of this space. To free all of it at once, use
-`rm -rf .wireit/*/cache`.
+`rm -rf .wireit/*/cache .wireit/trash`.
 
 ### GitHub Actions caching
 
@@ -884,7 +888,7 @@ The following environment variables affect the behavior of Wireit:
 | `WIREIT_CACHE`             | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v2`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul>                                                                                                                                                                                                                                                      |
 | `WIREIT_FAILURES`          | [How to handle script failures](#failures-and-errors).<br><br>Options:<br><ul><li>[`no-new`](#failures-and-errors) (default): Allow running scripts to finish, but don't start new ones.</li><li>[`continue`](#continue): Allow running scripts to continue, and start new ones unless any of their dependencies failed.</li><li>[`kill`](#kill): Immediately kill running scripts, and don't start new ones.</li></ul>                                                                                                                                                                                                                                                                   |
 | `WIREIT_LOGGER`            | How to present progress and results on the command line.<br><br>Options:<br><ul><li>`quiet` (default for normal execution): Writes a single dynamically updating line summarizing progress. Only passes along stdout and stderr from commands if there's a failure, or if the command is a service.</li><li>`quiet-ci` (default when `env.CI` or `!stdout.isTTY`): like `quiet` but optimized for non-interactive environments, like GitHub Actions runners.</li><li>`simple`: A verbose logger that presents clear information about the work that Wireit is doing.</li><li>`metrics`: Like `simple`, but also presents a summary table of results once a command is finished.</li></ul> |
-| `WIREIT_CACHE_MAX_ENTRIES` | Maximum number of [local cache](#local-caching) entries to retain per script.<br><br>Defaults to `2`.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `WIREIT_CACHE_MAX_ENTRIES` | Maximum number of [local cache](#local-caching) entries to retain per script.<br><br>Defaults to `10`.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `WIREIT_DEBUG_LOG_FILE`    | Path to a file which will receive detailed event logging.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `WIREIT_MAX_OPEN_FILES`    | Limits the number of file descriptors Wireit will have open concurrently. Prevents resource exhaustion when checking large numbers of cached files. Set to a lower number if you hit file descriptor limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `WIREIT_PARALLEL`          | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 2×logical CPU cores.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |

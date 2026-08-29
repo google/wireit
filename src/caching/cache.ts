@@ -45,6 +45,30 @@ export interface Cache {
     fingerprint: Fingerprint,
     absoluteFiles: AbsoluteEntry[],
   ): Promise<boolean>;
+
+  /**
+   * Move the entry to the front of an evicting cache's queue without reading it
+   * (the local cache updates its mtime). Called when a script was fresh, so
+   * nothing was restored; without it, an always-fresh script's entry looks
+   * untouched and is eventually evicted. Does nothing if there is no entry.
+   *
+   * @param script The script whose entry was relied upon.
+   * @param fingerprint The string-encoded fingerprint for the script.
+   */
+  markEntryRecentlyUsed(
+    script: ScriptReference,
+    fingerprint: Fingerprint,
+  ): Promise<void>;
+
+  /**
+   * Delete everything this cache has moved aside, this run or a previous one.
+   * An evicted entry is a full copy of a script's output, so a script waits
+   * only for it to be moved out of the way; the deleting happens here.
+   *
+   * @param signal Aborts the sweep at the next entry boundary. Safe: whatever
+   * is left is picked up by the next run.
+   */
+  sweepTrash(signal?: AbortSignal): Promise<void>;
 }
 
 /**
