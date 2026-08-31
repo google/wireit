@@ -80,7 +80,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      - uses: google/wireit@setup-github-actions-caching/v2
+      - uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2
 
       - run: npm ci
 
