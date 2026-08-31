@@ -8,6 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Changed
+
+- Upgraded to chokidar 4. This required a re-implementation of support for
+  watching globs, because chokidar 4 removed that feature.
+
 ## [0.14.13] - 2026-06-23
 
 ### Added
