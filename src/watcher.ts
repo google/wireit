@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import chokidar from 'chokidar';
+import type {FSWatcher} from 'chokidar';
+import {chokidarWatchWithGlobs} from './util/chokidar-with-globs.js';
 import {Analyzer} from './analyzer.js';
 import {Cache} from './caching/cache.js';
 import {
@@ -65,7 +66,7 @@ function unexpectedState(state: WatcherState) {
  */
 interface FileWatcher extends AsyncDisposable {
   patterns: string[];
-  watcher: chokidar.FSWatcher;
+  watcher: FSWatcher;
 }
 
 /**
@@ -493,7 +494,7 @@ export const makeWatcher = (
   // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
   // currently various differences in what gets watched vs what actually affects
   // the build. See https://github.com/google/wireit/issues/550.
-  const watcher = chokidar.watch(
+  const watcher = chokidarWatchWithGlobs(
     // Trim leading slashes from patterns, to "re-root" all paths to the package
     // directory, just as we do when globbing for script execution.
     patterns.map((pattern) => pattern.replace(/^\/+/, '')),
