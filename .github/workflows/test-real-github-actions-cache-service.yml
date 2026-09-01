@@ -5,6 +5,9 @@ on:
     - cron: '14 7 * * *' # 6:07AM PST / 7:07AM PDT
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   tests:
     strategy:
@@ -19,8 +22,10 @@ jobs:
       WIREIT_LOGGER: 'quiet-ci'
 
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -32,7 +37,7 @@ jobs:
       # So, slightly confusingly, although we disable caching of the top-level
       # test script below, we do need the runner environment set up to allow
       # GitHub caching.
-      - uses: google/wireit@setup-github-actions-caching/v2
+      - uses: google/wireit@9d7c2e5346f8ef1b1ab6014c4e96c74e234f7ed5 # setup-github-actions-caching/v2
 
       - run: npm ci
       - run: npm run test:cache-github-real

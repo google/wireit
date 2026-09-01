@@ -15,6 +15,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   limit, or to `infinity` for the previous behavior. Evicted entries are moved
   to `.wireit/trash` and deleted at the end of the run, which is safe to
   interrupt. See [#71](https://github.com/google/wireit/issues/71).
+### Changed
+
+- Upgraded to chokidar 4. This required a re-implementation of support for
+  watching globs, because chokidar 4 removed that feature.
 
 ## [0.14.13] - 2026-06-23
 
