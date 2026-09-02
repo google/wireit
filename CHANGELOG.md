@@ -15,6 +15,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   limit, or to `infinity` for the previous behavior. Evicted entries are moved
   to `.wireit/trash` and deleted at the end of the run, which is safe to
   interrupt. See [#71](https://github.com/google/wireit/issues/71).
+
 ### Changed
 
 - Upgraded to chokidar 4. This required a re-implementation of support for
@@ -209,7 +210,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the `scripts` section. Such scripts cannot be directly invoked with `npm run
   <script>` or similar, but they can still be used as dependencies by other
   wireit scripts.
-
+  
 ## [0.9.3] - 2023-01-03
 
 ### Fixed
