@@ -46,6 +46,14 @@ export const packageDir = await (async (): Promise<string | undefined> => {
   }
 })();
 
+/**
+ * Bounded, because an entry is a full copy of a script's output, and scripts
+ * with large outputs are what make an unbounded cache painful. Ten is enough to
+ * survive a fair amount of churn, like jumping between a few branches, without
+ * the folder growing without limit.
+ */
+const DEFAULT_CACHE_MAX_ENTRIES = 10;
+
 export type Agent = 'npm' | 'nodeRun' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 
 export interface Options {
@@ -54,6 +62,7 @@ export interface Options {
   extraArgs: string[] | undefined;
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
+  cacheMaxEntries: number;
   failureMode: FailureMode;
   agent: Agent;
   logger: Logger;
@@ -161,6 +170,34 @@ export const getOptions = async (): Promise<Result<Options>> => {
     return cacheResult;
   }
 
+  const cacheMaxEntriesResult = ((): Result<number> => {
+    const str = process.env['WIREIT_CACHE_MAX_ENTRIES'] ?? '';
+    if (str === '') {
+      return {ok: true, value: DEFAULT_CACHE_MAX_ENTRIES};
+    }
+    if (str.match(/^infinity$/i)) {
+      return {ok: true, value: Infinity};
+    }
+    const parsedInt = parseInt(str, 10);
+    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            `Expected the WIREIT_CACHE_MAX_ENTRIES env variable to be ` +
+            `a positive integer or "infinity", got ${JSON.stringify(str)}`,
+          script,
+          type: 'failure',
+        },
+      };
+    }
+    return {ok: true, value: parsedInt};
+  })();
+  if (!cacheMaxEntriesResult.ok) {
+    return cacheMaxEntriesResult;
+  }
+
   const failureModeResult = ((): Result<FailureMode> => {
     const str = process.env['WIREIT_FAILURES'];
     if (!str) {
@@ -247,6 +284,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       script,
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
+      cacheMaxEntries: cacheMaxEntriesResult.value,
       failureMode: failureModeResult.value,
       agent,
       logger,

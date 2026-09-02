@@ -101,6 +101,9 @@ export class Watcher {
   readonly #failureMode: FailureMode;
   readonly #agent: Agent;
   #executor?: Executor;
+
+  /** Stops the background trash sweep when watching is aborted. */
+  readonly #sweepAbort = new AbortController();
   #debounceTimeoutId?: NodeJS.Timeout = undefined;
   #previousIterationServices?: ServiceMap = undefined;
   #previousIterationFailures = new Map<ScriptReferenceString, Fingerprint>();
@@ -286,6 +289,9 @@ export class Watcher {
       this.#previousIterationFailures,
     );
     const result = await this.#executor.execute();
+    // Unawaited: the next iteration shouldn't wait on a delete, and whatever
+    // this sweep doesn't finish the next one picks up. Never rejects.
+    void this.#cache?.sweepTrash(this.#sweepAbort.signal);
     this.#previousIterationServices = result.persistentServices;
     if (result.errors.length > 0) {
       for (const error of result.errors) {
@@ -412,6 +418,7 @@ export class Watcher {
   }
 
   abort(): void {
+    this.#sweepAbort.abort();
     if (this.#executor !== undefined) {
       this.#executor.abort();
       this.#executor = undefined;
