@@ -11,8 +11,7 @@ import type {JsonFile, NamedAstNode} from './util/ast.js';
 import type {ScriptReference} from './config.js';
 
 export type Result<T, E = Failure> =
-  | {ok: true; value: T}
-  | {ok: false; error: E};
+  {ok: true; value: T} | {ok: false; error: E};
 
 export interface Range {
   readonly offset: number;
