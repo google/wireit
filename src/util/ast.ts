@@ -103,7 +103,8 @@ export function findNodeAtLocation(
   path: jsonParser.JSONPath,
 ): JsonAstNode | undefined {
   return jsonParser.findNodeAtLocation(astNode, path) as
-    JsonAstNode | undefined;
+    | JsonAstNode
+    | undefined;
 }
 
 export function parseTree(

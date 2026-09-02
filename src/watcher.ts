@@ -45,7 +45,12 @@ import type {Fingerprint} from './fingerprint.js';
  * ```
  */
 type WatcherState =
-  'initial' | 'watching' | 'debouncing' | 'running' | 'queued' | 'aborted';
+  | 'initial'
+  | 'watching'
+  | 'debouncing'
+  | 'running'
+  | 'queued'
+  | 'aborted';
 
 function unknownState(state: never) {
   return new Error(`Unknown watcher state ${String(state)}`);

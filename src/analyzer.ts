@@ -559,7 +559,8 @@ export class Analyzer {
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
     const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
-      undefined | JsonAstNode<string>;
+      | undefined
+      | JsonAstNode<string>;
     if (commandAst !== undefined) {
       const result = failUnlessNonBlankString(commandAst, packageJson.jsonFile);
       if (result.ok) {
@@ -1046,7 +1047,8 @@ export class Analyzer {
       return defaultValue;
     }
     const clean = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['clean']) as
-      undefined | JsonAstNode<true | false | 'if-file-deleted'>;
+      | undefined
+      | JsonAstNode<true | false | 'if-file-deleted'>;
     if (
       clean !== undefined &&
       clean.value !== true &&

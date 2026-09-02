@@ -29,7 +29,9 @@ import {ExecutionResult} from './execution/base.js';
 import {convertExceptionToFailure} from './error.js';
 
 type Execution =
-  NoCommandScriptExecution | StandardScriptExecution | ServiceScriptExecution;
+  | NoCommandScriptExecution
+  | StandardScriptExecution
+  | ServiceScriptExecution;
 
 type ConfigToExecution<T extends ScriptConfig> = T extends NoCommandScriptConfig
   ? NoCommandScriptExecution
@@ -77,7 +79,8 @@ export class Executor {
   readonly #cache?: Cache;
   readonly #isWatchMode: boolean;
   readonly #previousWatchIterationFailures:
-    Map<ScriptReferenceString, Fingerprint> | undefined;
+    | Map<ScriptReferenceString, Fingerprint>
+    | undefined;
 
   /** Resolves when the first failure occurs in any script. */
   readonly #failureOccured = new Deferred<void>();

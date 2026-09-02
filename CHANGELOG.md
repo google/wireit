@@ -210,7 +210,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the `scripts` section. Such scripts cannot be directly invoked with `npm run
   <script>` or similar, but they can still be used as dependencies by other
   wireit scripts.
-  
+
 ## [0.9.3] - 2023-01-03
 
 ### Fixed

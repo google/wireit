@@ -30,7 +30,9 @@ import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
 import {Stats} from 'fs';
 
 type StandardScriptExecutionState =
-  'before-running' | 'running' | 'after-running';
+  | 'before-running'
+  | 'running'
+  | 'after-running';
 
 /**
  * Execution for a {@link StandardScriptConfig}.
