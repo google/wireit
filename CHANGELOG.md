@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- Local caches are now limited to the 10 most recently used entries per script,
+  instead of growing without bound. Set `WIREIT_CACHE_MAX_ENTRIES` to change the
+  limit, or to `infinity` for the previous behavior. Evicted entries are moved
+  to `.wireit/trash` and deleted at the end of the run, which is safe to
+  interrupt. See [#71](https://github.com/google/wireit/issues/71).
+
 ### Fixed
 
 - GitHub Actions caching now uses `http` or `https` based on the scheme of
@@ -18,6 +26,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Upgraded to chokidar 4. This required a re-implementation of support for
   watching globs, because chokidar 4 removed that feature.
+- Upgraded picomatch to 4 and glob-parent to 6.
 
 ## [0.14.13] - 2026-06-23
 
@@ -205,9 +214,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - It is now allowed to define a wireit script without a corresponding entry in
-  the `scripts` section. Such scripts cannot be directly invoked with `npm run
-  <script>` or similar, but they can still be used as dependencies by other
-  wireit scripts.
+  the `scripts` section. Such scripts cannot be directly invoked with
+  `npm run <script>` or similar, but they can still be used as dependencies by
+  other wireit scripts.
 
 ## [0.9.3] - 2023-01-03
 

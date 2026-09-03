@@ -30,9 +30,7 @@ import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
 import {Stats} from 'fs';
 
 type StandardScriptExecutionState =
-  | 'before-running'
-  | 'running'
-  | 'after-running';
+  'before-running' | 'running' | 'after-running';
 
 /**
  * Execution for a {@link StandardScriptConfig}.
@@ -114,7 +112,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
             return {ok: false, error: [manifestFresh.error]};
           }
           if (manifestFresh.value) {
-            return this.#handleFresh(fingerprint);
+            return await this.#handleFresh(fingerprint);
           }
         }
 
@@ -250,12 +248,15 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script is already fresh.
    */
-  #handleFresh(fingerprint: Fingerprint): ExecutionResult {
+  async #handleFresh(fingerprint: Fingerprint): Promise<ExecutionResult> {
     this._logger.log({
       script: this._config,
       type: 'success',
       reason: 'fresh',
     });
+    // Nothing to restore, but this entry is the one we would have used, so a
+    // usually-fresh script must not have it evicted for looking untouched.
+    await this.#cache?.markEntryRecentlyUsed(this._config, fingerprint);
     return {ok: true, value: fingerprint};
   }
 
