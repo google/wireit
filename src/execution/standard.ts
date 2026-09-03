@@ -322,13 +322,16 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // we sometimes need to read the previous fingerprint file to determine
     // this.
     const shouldClean = await this.#shouldClean(fingerprint);
+    if (!shouldClean.ok) {
+      return {ok: false, error: [shouldClean.error]};
+    }
 
     // Delete the fingerprint and other files. It's important we do this before
     // starting the command, because we don't want to think that the previous
     // fingerprint is still valid when it no longer is.
     await this.#prepareDataDir();
 
-    if (shouldClean) {
+    if (shouldClean.value) {
       const result = await this.#cleanOutput();
       if (!result.ok) {
         return {ok: false, error: [result.error]};
@@ -472,14 +475,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     return {ok: true, value: fingerprint};
   }
 
-  async #shouldClean(fingerprint: Fingerprint) {
+  async #shouldClean(fingerprint: Fingerprint): Promise<Result<boolean>> {
     const cleanValue = this._config.clean;
     switch (cleanValue) {
       case true: {
-        return true;
+        return {ok: true, value: true};
       }
       case false: {
-        return false;
+        return {ok: true, value: false};
       }
       case 'if-file-deleted': {
         const prevFingerprint = await this.#readPreviousFingerprint();
@@ -487,12 +490,19 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           // If we don't know the previous fingerprint, then we can't know
           // whether any input files were removed. It's safer to err on the
           // side of cleaning.
-          return true;
+          return {ok: true, value: true};
         }
-        return this.#anyInputFilesDeletedSinceLastRun(
-          fingerprint,
-          prevFingerprint,
-        );
+        if (
+          this.#anyInputFilesDeletedSinceLastRun(fingerprint, prevFingerprint)
+        ) {
+          return {ok: true, value: true};
+        }
+
+        const outputManifestFresh = await this.#outputManifestIsFresh();
+        if (!outputManifestFresh.ok) {
+          return outputManifestFresh;
+        }
+        return {ok: true, value: !outputManifestFresh.value};
       }
       default: {
         throw new Error(
