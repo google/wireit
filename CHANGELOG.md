@@ -16,6 +16,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   to `.wireit/trash` and deleted at the end of the run, which is safe to
   interrupt. See [#71](https://github.com/google/wireit/issues/71).
 
+### Fixed
+
+- GitHub Actions caching now uses `http` or `https` based on the scheme of
+  `ACTIONS_RESULTS_URL`. Always calling `https.request` broke `http://` cache
+  proxies used by some third-party runners.
+
 ### Changed
 
 - Upgraded to chokidar 4. This required a re-implementation of support for

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as http from 'http';
 import * as https from 'https';
-import type * as http from 'http';
 
 /**
  * Numeric ID for a cache entry.
@@ -95,6 +95,7 @@ export type FakeGitHubActionsCacheServerMetrics = {
  */
 export class FakeGitHubActionsCacheServer {
   readonly #server: http.Server;
+  readonly #protocol: 'http:' | 'https:';
   #url!: URL;
 
   /**
@@ -115,9 +116,13 @@ export class FakeGitHubActionsCacheServer {
   readonly #keyAndVersionToEntryId = new Map<KeyAndVersion, EntryId>();
   readonly #blobIdToEntryId = new Map<BlobId, EntryId>();
 
-  constructor(authToken: string, tlsCert: {cert: string; key: string}) {
+  constructor(authToken: string, tlsCert?: {cert: string; key: string}) {
     this.#authToken = authToken;
-    this.#server = https.createServer(tlsCert, this.#route);
+    this.#protocol = tlsCert === undefined ? 'http:' : 'https:';
+    this.#server =
+      tlsCert === undefined
+        ? http.createServer(this.#route)
+        : https.createServer(tlsCert, this.#route);
     this.resetMetrics();
   }
 
@@ -148,7 +153,9 @@ export class FakeGitHubActionsCacheServer {
     // include this in the fake because it ensures the client is preserving the
     // base path and not just using the origin.
     const randomBasePath = Math.random().toString().slice(2);
-    this.#url = new URL(`https://${host}:${address.port}/${randomBasePath}/`);
+    this.#url = new URL(
+      `${this.#protocol}//${host}:${address.port}/${randomBasePath}/`,
+    );
     return this.#url.href;
   }
 

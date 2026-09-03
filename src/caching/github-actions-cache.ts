@@ -7,6 +7,7 @@
 import * as pathlib from 'path';
 import * as unbudgetedFs from 'fs/promises';
 import * as fs from '../util/fs.js';
+import * as http from 'http';
 import * as https from 'https';
 import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
@@ -17,7 +18,6 @@ import {execFile} from 'child_process';
 import '../util/dispose.js';
 import {inspect} from 'util';
 
-import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../config.js';
 import type {Fingerprint} from '../fingerprint.js';
@@ -827,7 +827,10 @@ function request(
   let req!: http.ClientRequest;
   const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
     (resolve) => {
-      req = https.request(url, opts, (value) => {
+      const parsed = typeof url === 'string' ? new URL(url) : url;
+      // https.request() throws ERR_INVALID_PROTOCOL for http: URLs.
+      const transport = parsed.protocol === 'http:' ? http : https;
+      req = transport.request(url, opts, (value) => {
         resolve({ok: true, value});
       });
       req.on('error', (error) => {
