@@ -132,7 +132,10 @@ function isValidWireitScriptCommand(command: string): boolean {
     // do not automatically add all parent directory `node_modules/.bin`
     // folders to PATH.
     /^(\.\.\/)+node_modules\/\.bin\/wireit$/.test(command) ||
-    (IS_WINDOWS && /^(\.\.\\)+node_modules\\\.bin\\wireit\.cmd$/.test(command))
+    (IS_WINDOWS && /^(\.\.\\)+node_modules\\\.bin\\wireit\.cmd$/.test(command)) ||
+    // This form is useful in preinstall scripts where wireit has not yet been
+    // installed and cannot be invoked directly.
+    /^(npx|pnpx|pnpm dlx|bunx|dx) wireit$/.test(command)
   );
 }
 
