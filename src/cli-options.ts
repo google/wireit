@@ -54,6 +54,15 @@ export const packageDir = await (async (): Promise<string | undefined> => {
  */
 const DEFAULT_CACHE_MAX_ENTRIES = 10;
 
+function parsePositiveInteger(value: string): number | undefined {
+  const normalized = value.trim();
+  if (!/^\+?\d+$/.test(normalized)) {
+    return undefined;
+  }
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export type Agent = 'npm' | 'nodeRun' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 
 export interface Options {
@@ -112,8 +121,8 @@ export const getOptions = async (): Promise<Result<Options>> => {
     if (workerString == null || workerString === '') {
       return {ok: true, value: defaultValue};
     }
-    const parsedInt = parseInt(workerString, 10);
-    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+    const parsedInt = parsePositiveInteger(workerString);
+    if (parsedInt === undefined) {
       return {
         ok: false,
         error: {
@@ -178,8 +187,8 @@ export const getOptions = async (): Promise<Result<Options>> => {
     if (str.match(/^infinity$/i)) {
       return {ok: true, value: Infinity};
     }
-    const parsedInt = parseInt(str, 10);
-    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+    const parsedInt = parsePositiveInteger(str);
+    if (parsedInt === undefined) {
       return {
         ok: false,
         error: {
