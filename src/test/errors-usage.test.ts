@@ -122,6 +122,58 @@ void test(
 );
 
 void test(
+  'partially numeric parallelism',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_PARALLEL: '2abc'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "2abc"`,
+      ),
+    );
+  }),
+);
+
+void test(
+  'partially numeric WIREIT_CACHE_MAX_ENTRIES',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_CACHE_MAX_ENTRIES: '2abc'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_CACHE_MAX_ENTRIES env variable to be a positive integer or "infinity", got "2abc"`,
+      ),
+    );
+  }),
+);
+
+void test(
   'nonsense WIREIT_CACHE',
   rigTest(async ({rig}) => {
     await rig.write({
