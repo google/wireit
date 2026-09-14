@@ -6,10 +6,12 @@
 
 import * as fs from '../util/fs.js';
 import * as pathlib from 'path';
-import {createHash, randomBytes} from 'crypto';
-import {getPackageDataDir, getScriptDataDir} from '../util/script-data-dir.js';
+import {randomBytes} from 'crypto';
+import {getPackageDataDir} from '../util/script-data-dir.js';
 import {copyEntries} from '../util/copy.js';
 import {glob} from '../util/glob.js';
+import {resolveCachePackageDir} from '../util/cache-root.js';
+import {hashPortableFingerprint} from '../util/portable-fingerprint.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../config.js';
@@ -66,8 +68,9 @@ const REMIND_OVER_LIMIT_EVERY_MS = 24 * 60 * 60 * 1000;
  */
 export class LocalCache implements Cache {
   readonly #maxEntries: number;
+  readonly #cacheDir: string | undefined;
 
-  /** Packages used this run, whose trash {@link sweepTrash} empties. */
+  /** Cache package dirs used this run, whose trash {@link sweepTrash} empties. */
   readonly #packageDirs = new Set<string>();
 
   /** Messages for the user, which the next {@link sweepTrash} returns. */
@@ -79,9 +82,14 @@ export class LocalCache implements Cache {
    */
   readonly #remindedPackages = new Set<string>();
 
-  /** @param maxEntries Entries to retain per script, or Infinity for all. */
-  constructor(maxEntries: number) {
+  /**
+   * @param maxEntries Entries to retain per script, or Infinity for all.
+   * @param cacheDir Optional WIREIT_CACHE_DIR. Linked git worktrees still
+   * share via the main worktree when this is unset.
+   */
+  constructor(maxEntries: number, cacheDir?: string) {
     this.#maxEntries = maxEntries;
+    this.#cacheDir = cacheDir === '' ? undefined : cacheDir;
   }
 
   async get(
@@ -105,7 +113,7 @@ export class LocalCache implements Cache {
     script: ScriptReference,
     fingerprint: Fingerprint,
   ): Promise<void> {
-    this.#packageDirs.add(script.packageDir);
+    this.#packageDirs.add(this.#cachePackageDir(script));
     // Recency lives in the mtime, so there is no index file to maintain. atime
     // won't do, because filesystems are commonly mounted noatime or relatime.
     const now = new Date();
@@ -122,7 +130,7 @@ export class LocalCache implements Cache {
     fingerprint: Fingerprint,
     absoluteFiles: AbsoluteEntry[],
   ): Promise<boolean> {
-    this.#packageDirs.add(script.packageDir);
+    this.#packageDirs.add(this.#cachePackageDir(script));
     const absCacheDir = this.#getCacheDir(script, fingerprint);
     if (absoluteFiles.length === 0) {
       // No temp folder, because an empty "output" runs without the lock.
@@ -243,7 +251,9 @@ export class LocalCache implements Cache {
       // allSettled, so one entry we can't move (EPERM on Windows, while
       // something holds it open) doesn't block evicting the rest.
       await Promise.allSettled(
-        doomed.map(({path}) => this.#moveToTrash(script.packageDir, path)),
+        doomed.map(({path}) =>
+          this.#moveToTrash(this.#cachePackageDir(script), path),
+        ),
       );
       const numLeft = entries.length - doomed.length;
       if (numLeft > REMIND_OVER_LIMIT_FACTOR * this.#maxEntries) {
@@ -350,8 +360,16 @@ export class LocalCache implements Cache {
     return pathlib.join(getPackageDataDir(packageDir), 'trash');
   }
 
+  #cachePackageDir(script: ScriptReference): string {
+    return resolveCachePackageDir(script.packageDir, this.#cacheDir);
+  }
+
   #getScriptCacheDir(script: ScriptReference): string {
-    return pathlib.join(getScriptDataDir(script), 'cache');
+    return pathlib.join(
+      getPackageDataDir(this.#cachePackageDir(script)),
+      Buffer.from(script.name).toString('hex'),
+      'cache',
+    );
   }
 
   #getScriptTempDir(script: ScriptReference): string {
@@ -361,7 +379,7 @@ export class LocalCache implements Cache {
   #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
     return pathlib.join(
       this.#getScriptCacheDir(script),
-      createHash('sha256').update(fingerprint.string).digest('hex'),
+      hashPortableFingerprint(fingerprint, script.packageDir),
     );
   }
 }
