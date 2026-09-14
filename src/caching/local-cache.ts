@@ -84,7 +84,7 @@ export class LocalCache implements Cache {
    */
   constructor(maxEntries: number, cacheDir?: string) {
     this.#maxEntries = maxEntries;
-    this.#cacheDir = cacheDir === '' ? undefined : cacheDir;
+    this.#cacheDir = cacheDir;
   }
 
   async get(
