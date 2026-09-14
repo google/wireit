@@ -9,6 +9,7 @@ import * as assert from 'node:assert';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
+import {execFileSync} from 'child_process';
 import {LocalCache} from '../caching/local-cache.js';
 import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
@@ -458,4 +459,67 @@ void test('get returns undefined for an evicted entry', async () => {
   await ctx.cacheOutput('v0');
   await ctx.cacheOutput('v1');
   assert.equal(await ctx.cache.get(ctx.script, fingerprint('v0')), undefined);
+});
+
+void test('a second set of the same entry is a hit, not an error', async () => {
+  await using ctx = await setup(10);
+  await ctx.cacheOutput('v0');
+  await ctx.cacheOutput('v0');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+});
+
+const git = (cwd: string, args: string[]) => {
+  execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+};
+
+void test('linked worktree restores from the main worktree local cache', async () => {
+  const rig = new FilesystemTestRig();
+  await rig.setup();
+  try {
+    const main = rig.resolve('main');
+    const linked = rig.resolve('linked');
+    await rig.mkdir('main');
+    git(main, ['init']);
+    git(main, ['config', 'user.email', 'wireit@example.com']);
+    git(main, ['config', 'user.name', 'Wireit Test']);
+    git(main, ['config', 'commit.gpgsign', 'false']);
+    await rig.write(pathlib.join('main', 'README.md'), 'x');
+    git(main, ['add', '.']);
+    git(main, ['commit', '-m', 'init']);
+    git(main, ['worktree', 'add', linked, '-b', 'other']);
+
+    const mainScript = {packageDir: main, name: SCRIPT_NAME};
+    const linkedScript = {packageDir: linked, name: SCRIPT_NAME};
+    const cache = new LocalCache(10);
+    const outputEntry = {
+      path: pathlib.join(main, 'output'),
+      dirent: {
+        isFile: () => true,
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      },
+    } as AbsoluteEntry;
+    await rig.write(pathlib.join('main', 'output'), 'from-main');
+    assert.equal(
+      await cache.set(mainScript, fingerprint('v0'), [outputEntry]),
+      true,
+    );
+
+    const linkedCacheDir = pathlib.join(
+      getScriptDataDir(linkedScript),
+      'cache',
+    );
+    await assert.rejects(fs.readdir(linkedCacheDir), {code: 'ENOENT'});
+
+    const hit = await cache.get(linkedScript, fingerprint('v0'));
+    assert.notEqual(hit, undefined);
+    await hit!.apply();
+    assert.equal(await rig.read(pathlib.join('linked', 'output')), 'from-main');
+  } finally {
+    await rig.cleanup();
+  }
 });
