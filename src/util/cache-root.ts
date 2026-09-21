@@ -4,59 +4,51 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {createHash} from 'crypto';
-import * as fs from 'fs';
+import * as fs from './fs.js';
 import * as pathlib from 'path';
 
-export type WorktreeInfo = {
+export interface WorktreeInfo {
   worktreeRoot: string;
   mainWorktreeRoot: string;
-};
+}
 
 /**
  * Directory whose `.wireit/` folder should hold this package's local cache
  * (not lock/fingerprint/manifest).
  *
- * - `cacheDir` set (WIREIT_CACHE_DIR): `{cacheDir}/{path-from-worktree-root}`.
- *   Without git, isolated by a hash of the absolute package path (no sharing).
- * - Linked git worktree: the same relative package under the main worktree.
- * - Otherwise: `packageDir` (Wireit's historical layout).
+ * Linked git worktrees share the main worktree only when `shareWorktrees` is
+ * true. Otherwise `packageDir` (Wireit's historical layout).
  */
-export const resolveCachePackageDir = (
+export const resolveCachePackageDir = async (
   packageDir: string,
-  cacheDir?: string,
-): string => {
+  options?: {shareWorktrees?: boolean},
+): Promise<string> => {
   const absPackageDir = pathlib.resolve(packageDir);
-  const worktree = detectWorktree(absPackageDir);
-  const relPackage =
-    worktree === undefined
-      ? undefined
-      : pathlib.relative(worktree.worktreeRoot, absPackageDir);
-
-  if (cacheDir !== undefined && cacheDir !== '') {
-    const root = pathlib.resolve(cacheDir);
-    return relPackage === undefined
-      ? pathlib.join(root, hashPath(absPackageDir))
-      : pathlib.join(root, relPackage);
+  if (options?.shareWorktrees !== true) {
+    return absPackageDir;
   }
-
+  const worktree = await detectWorktree(absPackageDir);
   if (
-    worktree !== undefined &&
-    relPackage !== undefined &&
-    worktree.worktreeRoot !== worktree.mainWorktreeRoot
+    worktree === undefined ||
+    worktree.worktreeRoot === worktree.mainWorktreeRoot
   ) {
-    return pathlib.join(worktree.mainWorktreeRoot, relPackage);
+    return absPackageDir;
   }
-  return absPackageDir;
+  return pathlib.join(
+    worktree.mainWorktreeRoot,
+    pathlib.relative(worktree.worktreeRoot, absPackageDir),
+  );
 };
 
-export const detectWorktree = (startDir: string): WorktreeInfo | undefined => {
-  const worktreeRoot = findGitAncestor(pathlib.resolve(startDir));
+export const detectWorktree = async (
+  startDir: string,
+): Promise<WorktreeInfo | undefined> => {
+  const worktreeRoot = await findGitAncestor(pathlib.resolve(startDir));
   if (worktreeRoot === undefined) {
     return undefined;
   }
   const dotGit = pathlib.join(worktreeRoot, '.git');
-  const stat = lstatOrUndefined(dotGit);
+  const stat = await lstatOrUndefined(dotGit);
   if (stat === undefined) {
     return undefined;
   }
@@ -66,19 +58,19 @@ export const detectWorktree = (startDir: string): WorktreeInfo | undefined => {
   if (!stat.isFile()) {
     return undefined;
   }
-  const gitDir = readGitdirPointer(dotGit, worktreeRoot);
+  const gitDir = await readGitdirPointer(dotGit, worktreeRoot);
   if (gitDir === undefined) {
     return undefined;
   }
-  const mainWorktreeRoot = readMainWorktreeRoot(gitDir);
+  const mainWorktreeRoot = await readMainWorktreeRoot(gitDir);
   if (mainWorktreeRoot === undefined) {
     return undefined;
   }
   return {worktreeRoot, mainWorktreeRoot};
 };
 
-const findGitAncestor = (dir: string): string | undefined => {
-  const stat = lstatOrUndefined(pathlib.join(dir, '.git'));
+const findGitAncestor = async (dir: string): Promise<string | undefined> => {
+  const stat = await lstatOrUndefined(pathlib.join(dir, '.git'));
   if (stat !== undefined) {
     return dir;
   }
@@ -86,27 +78,39 @@ const findGitAncestor = (dir: string): string | undefined => {
   return parent === dir ? undefined : findGitAncestor(parent);
 };
 
-const lstatOrUndefined = (path: string): fs.Stats | undefined => {
+const lstatOrUndefined = async (
+  path: string,
+): Promise<Awaited<ReturnType<typeof fs.lstat>> | undefined> => {
   try {
-    return fs.lstatSync(path);
-  } catch {
-    return undefined;
+    return await fs.lstat(path);
+  } catch (error) {
+    const {code} = error as {code: string};
+    if (code === /* does not exist */ 'ENOENT') {
+      return undefined;
+    }
+    throw error;
   }
 };
 
-const readFileOrUndefined = (path: string): string | undefined => {
+const readFileOrUndefined = async (
+  path: string,
+): Promise<string | undefined> => {
   try {
-    return fs.readFileSync(path, 'utf8');
-  } catch {
-    return undefined;
+    return await fs.readFile(path, 'utf8');
+  } catch (error) {
+    const {code} = error as {code: string};
+    if (code === /* does not exist */ 'ENOENT') {
+      return undefined;
+    }
+    throw error;
   }
 };
 
-const readGitdirPointer = (
+const readGitdirPointer = async (
   dotGitFile: string,
   worktreeRoot: string,
-): string | undefined => {
-  const content = readFileOrUndefined(dotGitFile);
+): Promise<string | undefined> => {
+  const content = await readFileOrUndefined(dotGitFile);
   if (content === undefined) {
     return undefined;
   }
@@ -122,9 +126,11 @@ const readGitdirPointer = (
   return realpathOrSelf(resolved);
 };
 
-const readMainWorktreeRoot = (gitDir: string): string | undefined => {
-  const commondir = readFileOrUndefined(
-    pathlib.join(gitDir, 'commondir'),
+const readMainWorktreeRoot = async (
+  gitDir: string,
+): Promise<string | undefined> => {
+  const commondir = (
+    await readFileOrUndefined(pathlib.join(gitDir, 'commondir'))
   )?.trim();
   if (commondir === undefined || commondir === '') {
     return undefined;
@@ -132,18 +138,19 @@ const readMainWorktreeRoot = (gitDir: string): string | undefined => {
   const gitCommon = pathlib.isAbsolute(commondir)
     ? commondir
     : pathlib.resolve(gitDir, commondir);
-  const resolved = realpathOrSelf(gitCommon);
+  const resolved = await realpathOrSelf(gitCommon);
   const main = pathlib.dirname(resolved);
   return main === resolved ? undefined : main;
 };
 
-const realpathOrSelf = (path: string): string => {
+const realpathOrSelf = async (path: string): Promise<string> => {
   try {
-    return fs.realpathSync(path);
-  } catch {
-    return path;
+    return await fs.realpath(path);
+  } catch (error) {
+    const {code} = error as {code: string};
+    if (code === /* does not exist */ 'ENOENT') {
+      return path;
+    }
+    throw error;
   }
 };
-
-const hashPath = (path: string): string =>
-  createHash('sha256').update(path).digest('hex').slice(0, 16);

@@ -5,6 +5,7 @@
  */
 
 import {createHash} from 'crypto';
+import * as pathlib from 'path';
 import {createReadStream} from './util/fs.js';
 import {glob} from './util/glob.js';
 import {scriptReferenceToString} from './config.js';
@@ -148,7 +149,13 @@ export class Fingerprint {
         allDependenciesAreFullyTracked = false;
       }
       filteredDependencyFingerprints.push([
-        scriptReferenceToString(dep.config),
+        scriptReferenceToString({
+          packageDir: pathRelativeToPackage(
+            script.packageDir,
+            dep.config.packageDir,
+          ),
+          name: dep.config.name,
+        }),
         depFingerprint.hash,
       ]);
     }
@@ -193,7 +200,10 @@ export class Fingerprint {
             }
             erroredFilePaths.push(absolutePath);
           }
-          return [file.path, hash.digest('hex') as FileSha256HexDigest];
+          return [
+            pathRelativeToPackage(script.packageDir, absolutePath),
+            hash.digest('hex') as FileSha256HexDigest,
+          ];
         }),
       );
 
@@ -292,3 +302,9 @@ export class Fingerprint {
     return this.string === other.string;
   }
 }
+
+/** Package-relative so fingerprints match across checkouts. */
+const pathRelativeToPackage = (packageDir: string, path: string): string => {
+  const relative = pathlib.relative(packageDir, path);
+  return relative === '' ? '.' : relative;
+};
