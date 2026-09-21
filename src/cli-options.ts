@@ -199,29 +199,8 @@ export const getOptions = async (): Promise<Result<Options>> => {
     return cacheMaxEntriesResult;
   }
 
-  const cacheWorktreesResult = ((): Result<boolean> => {
-    const str = process.env['WIREIT_CACHE_WORKTREES'];
-    if (str === undefined) {
-      return {ok: true, value: false};
-    }
-    if (str === 'true') {
-      return {ok: true, value: true};
-    }
-    return {
-      ok: false,
-      error: {
-        reason: 'invalid-usage',
-        message:
-          `Expected the WIREIT_CACHE_WORKTREES env variable to be ` +
-          `"true", got ${JSON.stringify(str)}`,
-        script,
-        type: 'failure',
-      },
-    };
-  })();
-  if (!cacheWorktreesResult.ok) {
-    return cacheWorktreesResult;
-  }
+  // Same rule as CI: only the exact string "true" enables it.
+  const cacheWorktrees = process.env['WIREIT_CACHE_WORKTREES'] === 'true';
 
   const failureModeResult = ((): Result<FailureMode> => {
     const str = process.env['WIREIT_FAILURES'];
@@ -310,7 +289,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       cacheMaxEntries: cacheMaxEntriesResult.value,
-      cacheWorktrees: cacheWorktreesResult.value,
+      cacheWorktrees,
       failureMode: failureModeResult.value,
       agent,
       logger,

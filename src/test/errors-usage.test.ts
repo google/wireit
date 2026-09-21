@@ -148,32 +148,6 @@ void test(
 );
 
 void test(
-  'nonsense WIREIT_CACHE_WORKTREES',
-  rigTest(async ({rig}) => {
-    await rig.write({
-      'package.json': {
-        scripts: {
-          main: 'wireit',
-        },
-        wireit: {
-          main: {command: (await rig.newCommand()).command},
-        },
-      },
-    });
-    const result = rig.exec('npm run main', {
-      env: {WIREIT_CACHE_WORKTREES: 'yes'},
-    });
-    const done = await result.exit;
-    assert.equal(done.code, 1);
-    assert.ok(
-      done.stderr.includes(
-        `❌ [main] Invalid usage: Expected the WIREIT_CACHE_WORKTREES env variable to be "true", got "yes"`,
-      ),
-    );
-  }),
-);
-
-void test(
   'nonsense WIREIT_FAILURES',
   rigTest(async ({rig}) => {
     await rig.write({

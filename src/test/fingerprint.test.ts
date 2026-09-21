@@ -61,7 +61,7 @@ const depAt = (
   fingerprint,
 ];
 
-void test('fingerprint is identical for two absolute checkouts', async () => {
+void test('fingerprint stays absolute; shared cache entry name matches', async () => {
   await using rig = await FilesystemTestRig.setup();
   await rig.write({
     'a/packages/foo/src/a.ts': 'export const a = 1;',
@@ -82,15 +82,24 @@ void test('fingerprint is identical for two absolute checkouts', async () => {
   ]);
   assert.ok(resultA.ok);
   assert.ok(resultB.ok);
-  assert.equal(resultA.value.string, resultB.value.string);
+  assert.notEqual(resultA.value.string, resultB.value.string);
   assert.deepEqual(
     Object.keys(resultA.value.data.files).sort(),
-    [pathlib.join('src', 'a.ts'), 'input.txt'].sort(),
+    [pathlib.join(fooA, 'src', 'a.ts'), pathlib.join(fooA, 'input.txt')].sort(),
   );
   assert.deepEqual(Object.keys(resultA.value.data.dependencies), [
     scriptReferenceToString({
-      packageDir: pathlib.join('..', 'dep'),
+      packageDir: rig.resolve('a/packages/dep'),
       name: 'compile',
     }),
   ]);
+  assert.equal(resultA.value.localCacheEntryName(false), resultA.value.hash);
+  assert.notEqual(
+    resultA.value.localCacheEntryName(false),
+    resultB.value.localCacheEntryName(false),
+  );
+  assert.equal(
+    resultA.value.localCacheEntryName(true),
+    resultB.value.localCacheEntryName(true),
+  );
 });

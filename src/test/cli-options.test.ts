@@ -607,4 +607,25 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
       );
     }),
   );
+
+  void test(
+    `${agent} WIREIT_CACHE_WORKTREES=yes is false`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          cacheWorktrees: false,
+        },
+        {
+          WIREIT_CACHE_WORKTREES: 'yes',
+        },
+      );
+    }),
+  );
 }

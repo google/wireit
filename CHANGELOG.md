@@ -19,11 +19,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   version, shrinks by one entry per write, and Wireit reminds you once a day
   while it holds more than twice the limit. To free it at once, run
   `rm -rf .wireit/*/cache`. See [#71](https://github.com/google/wireit/issues/71).
-- Fingerprint file and dependency paths are relative to the package, so local
-  and GitHub Actions cache keys match across checkouts. Set
-  `WIREIT_CACHE_WORKTREES=true` to store a linked Git worktree's local cache in
-  the main worktree's corresponding `.wireit` folders. A concurrent write of an
-  existing local cache entry is now treated as a hit instead of throwing.
+- Set `WIREIT_CACHE_WORKTREES=true` to store a linked Git worktree's local
+  cache in the main worktree's corresponding `.wireit` folders. Any other value
+  keeps each worktree's own cache. Fingerprints and GitHub Actions caching are
+  unchanged.
 
 ### Fixed
 

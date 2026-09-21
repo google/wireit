@@ -135,13 +135,48 @@ export class LocalCache implements Cache {
   ): Promise<boolean> {
     const cachePackageDir = await this.#cachePackageDir(script);
     this.#packageDirs.add(cachePackageDir);
-    const scriptDataDir = getScriptDataDir({
-      packageDir: cachePackageDir,
-      name: script.name,
-    });
-    const absCacheDir = pathlib.join(scriptDataDir, 'cache', fingerprint.hash);
+    const absCacheDir = this.#getCacheDir(cachePackageDir, script, fingerprint);
+    await (this.#shareWorktrees
+      ? this.#writeShared(script, cachePackageDir, absCacheDir, absoluteFiles)
+      : this.#writeExclusive(script, absCacheDir, absoluteFiles));
+    await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
+    return true;
+  }
+
+  /**
+   * Historical write. An entry that already exists is an error: the Executor
+   * checks for a hit before it runs the script.
+   */
+  async #writeExclusive(
+    script: ScriptReference,
+    absCacheDir: string,
+    absoluteFiles: AbsoluteEntry[],
+  ): Promise<void> {
+    // Note fs.mkdir returns the first created directory, or undefined if no
+    // directory was created.
+    const existed =
+      (await fs.mkdir(absCacheDir, {recursive: true})) === undefined;
+    if (existed) {
+      // This is an unexpected error because the Executor should already have
+      // checked for an existing cache hit.
+      throw new Error(`Did not expect ${absCacheDir} to already exist.`);
+    }
+    await copyEntries(absoluteFiles, script.packageDir, absCacheDir);
+  }
+
+  /**
+   * Temp dir plus rename, so two worktrees racing on one shared entry leave a
+   * single complete directory. If the destination already exists, that write
+   * won and this one is a hit.
+   */
+  async #writeShared(
+    script: ScriptReference,
+    cachePackageDir: string,
+    absCacheDir: string,
+    absoluteFiles: AbsoluteEntry[],
+  ): Promise<void> {
     const tmpDir = pathlib.join(
-      scriptDataDir,
+      getScriptDataDir({packageDir: cachePackageDir, name: script.name}),
       `.tmp-${randomBytes(8).toString('hex')}`,
     );
     await fs.mkdir(tmpDir, {recursive: true});
@@ -155,15 +190,13 @@ export class LocalCache implements Cache {
       if (code === 'EEXIST' || code === 'ENOTEMPTY' || code === 'EPERM') {
         try {
           await fs.access(absCacheDir);
-          return true;
+          return;
         } catch {
           throw error;
         }
       }
       throw error;
     }
-    await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
-    return true;
   }
 
   async sweepTrash({
@@ -333,9 +366,9 @@ export class LocalCache implements Cache {
   }
 
   async #cachePackageDir(script: ScriptReference): Promise<string> {
-    return resolveCachePackageDir(script.packageDir, {
-      shareWorktrees: this.#shareWorktrees,
-    });
+    return this.#shareWorktrees
+      ? resolveCachePackageDir(script.packageDir, {shareWorktrees: true})
+      : script.packageDir;
   }
 
   #getScriptCacheDir(cachePackageDir: string, script: ScriptReference): string {
@@ -352,7 +385,7 @@ export class LocalCache implements Cache {
   ): string {
     return pathlib.join(
       this.#getScriptCacheDir(cachePackageDir, script),
-      fingerprint.hash,
+      fingerprint.localCacheEntryName(this.#shareWorktrees),
     );
   }
 }
