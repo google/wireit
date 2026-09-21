@@ -183,7 +183,7 @@
       "output": []
     },
     "test:local-cache": {
-      "command": "node --test --test-reporter=dot lib/test/local-cache.test.js lib/test/portable-fingerprint.test.js lib/test/cache-root.test.js",
+      "command": "node --test --test-reporter=dot lib/test/local-cache.test.js lib/test/fingerprint.test.js lib/test/cache-root.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },

@@ -63,6 +63,7 @@ export interface Options {
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
   cacheMaxEntries: number;
+  cacheWorktrees: boolean;
   failureMode: FailureMode;
   agent: Agent;
   logger: Logger;
@@ -198,6 +199,30 @@ export const getOptions = async (): Promise<Result<Options>> => {
     return cacheMaxEntriesResult;
   }
 
+  const cacheWorktreesResult = ((): Result<boolean> => {
+    const str = process.env['WIREIT_CACHE_WORKTREES'];
+    if (str === undefined) {
+      return {ok: true, value: false};
+    }
+    if (str === 'true') {
+      return {ok: true, value: true};
+    }
+    return {
+      ok: false,
+      error: {
+        reason: 'invalid-usage',
+        message:
+          `Expected the WIREIT_CACHE_WORKTREES env variable to be ` +
+          `"true", got ${JSON.stringify(str)}`,
+        script,
+        type: 'failure',
+      },
+    };
+  })();
+  if (!cacheWorktreesResult.ok) {
+    return cacheWorktreesResult;
+  }
+
   const failureModeResult = ((): Result<FailureMode> => {
     const str = process.env['WIREIT_FAILURES'];
     if (!str) {
@@ -285,6 +310,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       cacheMaxEntries: cacheMaxEntriesResult.value,
+      cacheWorktrees: cacheWorktreesResult.value,
       failureMode: failureModeResult.value,
       agent,
       logger,

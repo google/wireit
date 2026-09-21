@@ -7,11 +7,10 @@
 import * as fs from '../util/fs.js';
 import * as pathlib from 'path';
 import {randomBytes} from 'crypto';
-import {getPackageDataDir} from '../util/script-data-dir.js';
+import {getPackageDataDir, getScriptDataDir} from '../util/script-data-dir.js';
 import {copyEntries} from '../util/copy.js';
 import {glob} from '../util/glob.js';
 import {resolveCachePackageDir} from '../util/cache-root.js';
-import {hashPortableFingerprint} from '../util/portable-fingerprint.js';
 
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../config.js';
@@ -63,7 +62,7 @@ const REMIND_OVER_LIMIT_EVERY_MS = 24 * 60 * 60 * 1000;
  */
 export class LocalCache implements Cache {
   readonly #maxEntries: number;
-  readonly #cacheDir: string | undefined;
+  readonly #shareWorktrees: boolean;
 
   /** Cache package dirs used this run, whose trash {@link sweepTrash} empties. */
   readonly #packageDirs = new Set<string>();
@@ -79,19 +78,23 @@ export class LocalCache implements Cache {
 
   /**
    * @param maxEntries Entries to retain per script, or Infinity for all.
-   * @param cacheDir Optional WIREIT_CACHE_DIR. Linked git worktrees still
-   * share via the main worktree when this is unset.
+   * @param options When `shareWorktrees` is true, linked git worktrees write
+   * cache into the main worktree's matching `.wireit`.
    */
-  constructor(maxEntries: number, cacheDir?: string) {
+  constructor(maxEntries: number, options?: {shareWorktrees?: boolean}) {
     this.#maxEntries = maxEntries;
-    this.#cacheDir = cacheDir;
+    this.#shareWorktrees = options?.shareWorktrees === true;
   }
 
   async get(
     script: ScriptReference,
     fingerprint: Fingerprint,
   ): Promise<CacheHit | undefined> {
-    const cacheDir = this.#getCacheDir(script, fingerprint);
+    const cacheDir = this.#getCacheDir(
+      await this.#cachePackageDir(script),
+      script,
+      fingerprint,
+    );
     try {
       await fs.access(cacheDir);
     } catch (error) {
@@ -108,12 +111,17 @@ export class LocalCache implements Cache {
     script: ScriptReference,
     fingerprint: Fingerprint,
   ): Promise<void> {
-    this.#packageDirs.add(this.#cachePackageDir(script));
+    const cachePackageDir = await this.#cachePackageDir(script);
+    this.#packageDirs.add(cachePackageDir);
     // Recency lives in the mtime, so there is no index file to maintain. atime
     // won't do, because filesystems are commonly mounted noatime or relatime.
     const now = new Date();
     try {
-      await fs.utimes(this.#getCacheDir(script, fingerprint), now, now);
+      await fs.utimes(
+        this.#getCacheDir(cachePackageDir, script, fingerprint),
+        now,
+        now,
+      );
     } catch {
       // No entry, or one we can't stamp (read-only mount, foreign owner). A hit
       // is still a hit; the entry just ages as though only ever written.
@@ -125,11 +133,15 @@ export class LocalCache implements Cache {
     fingerprint: Fingerprint,
     absoluteFiles: AbsoluteEntry[],
   ): Promise<boolean> {
-    this.#packageDirs.add(this.#cachePackageDir(script));
-    const absCacheDir = this.#getCacheDir(script, fingerprint);
+    const cachePackageDir = await this.#cachePackageDir(script);
+    this.#packageDirs.add(cachePackageDir);
+    const scriptDataDir = getScriptDataDir({
+      packageDir: cachePackageDir,
+      name: script.name,
+    });
+    const absCacheDir = pathlib.join(scriptDataDir, 'cache', fingerprint.hash);
     const tmpDir = pathlib.join(
-      pathlib.dirname(absCacheDir),
-      '..',
+      scriptDataDir,
       `.tmp-${randomBytes(8).toString('hex')}`,
     );
     await fs.mkdir(tmpDir, {recursive: true});
@@ -139,7 +151,7 @@ export class LocalCache implements Cache {
       await fs.rename(tmpDir, absCacheDir);
     } catch (error) {
       await fs.rm(tmpDir, {recursive: true, force: true});
-      const code = (error as {code?: string}).code;
+      const {code} = error as {code: string};
       if (code === 'EEXIST' || code === 'ENOTEMPTY' || code === 'EPERM') {
         try {
           await fs.access(absCacheDir);
@@ -188,7 +200,8 @@ export class LocalCache implements Cache {
       return;
     }
     try {
-      const cacheDir = this.#getScriptCacheDir(script);
+      const cachePackageDir = await this.#cachePackageDir(script);
+      const cacheDir = this.#getScriptCacheDir(cachePackageDir, script);
       const entries = await fs.readdir(cacheDir, {withFileTypes: true});
       if (entries.length <= this.#maxEntries) {
         return;
@@ -212,9 +225,7 @@ export class LocalCache implements Cache {
       // allSettled, so one entry we can't move (EPERM on Windows, while
       // something holds it open) doesn't block evicting the rest.
       await Promise.allSettled(
-        doomed.map(({path}) =>
-          this.#moveToTrash(this.#cachePackageDir(script), path),
-        ),
+        doomed.map(({path}) => this.#moveToTrash(cachePackageDir, path)),
       );
       const numLeft = entries.length - doomed.length;
       if (numLeft > REMIND_OVER_LIMIT_FACTOR * this.#maxEntries) {
@@ -321,22 +332,27 @@ export class LocalCache implements Cache {
     return pathlib.join(getPackageDataDir(packageDir), 'trash');
   }
 
-  #cachePackageDir(script: ScriptReference): string {
-    return resolveCachePackageDir(script.packageDir, this.#cacheDir);
+  async #cachePackageDir(script: ScriptReference): Promise<string> {
+    return resolveCachePackageDir(script.packageDir, {
+      shareWorktrees: this.#shareWorktrees,
+    });
   }
 
-  #getScriptCacheDir(script: ScriptReference): string {
+  #getScriptCacheDir(cachePackageDir: string, script: ScriptReference): string {
     return pathlib.join(
-      getPackageDataDir(this.#cachePackageDir(script)),
-      Buffer.from(script.name).toString('hex'),
+      getScriptDataDir({packageDir: cachePackageDir, name: script.name}),
       'cache',
     );
   }
 
-  #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
+  #getCacheDir(
+    cachePackageDir: string,
+    script: ScriptReference,
+    fingerprint: Fingerprint,
+  ): string {
     return pathlib.join(
-      this.#getScriptCacheDir(script),
-      hashPortableFingerprint(fingerprint, script.packageDir),
+      this.#getScriptCacheDir(cachePackageDir, script),
+      fingerprint.hash,
     );
   }
 }
