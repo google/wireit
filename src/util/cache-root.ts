@@ -23,10 +23,10 @@ export const resolveCachePackageDir = async (
   packageDir: string,
   options?: {shareWorktrees?: boolean},
 ): Promise<string> => {
-  const absPackageDir = pathlib.resolve(packageDir);
   if (options?.shareWorktrees !== true) {
-    return absPackageDir;
+    return packageDir;
   }
+  const absPackageDir = pathlib.resolve(packageDir);
   const worktree = await detectWorktree(absPackageDir);
   if (
     worktree === undefined ||
@@ -70,6 +70,9 @@ export const detectWorktree = async (
 };
 
 const findGitAncestor = async (dir: string): Promise<string | undefined> => {
+  // Nearest `.git`. A submodule working tree has its own `.git` file, so a
+  // package inside one does not walk up into the superproject.
+  // https://git-scm.com/docs/gitsubmodules
   const stat = await lstatOrUndefined(pathlib.join(dir, '.git'));
   if (stat !== undefined) {
     return dir;
@@ -129,6 +132,9 @@ const readGitdirPointer = async (
 const readMainWorktreeRoot = async (
   gitDir: string,
 ): Promise<string | undefined> => {
+  // Linked worktrees point `commondir` at the main git dir. A submodule git
+  // dir has none, so this returns undefined and the cache stays put.
+  // https://git-scm.com/docs/gitrepository-layout
   const commondir = (
     await readFileOrUndefined(pathlib.join(gitDir, 'commondir'))
   )?.trim();

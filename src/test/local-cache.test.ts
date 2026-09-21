@@ -25,7 +25,10 @@ import type {ScriptReference} from '../config.js';
 
 const SCRIPT_NAME = 'a';
 
-async function setup(maxEntries: number): Promise<
+async function setup(
+  maxEntries: number,
+  shareWorktrees = false,
+): Promise<
   {
     rig: FilesystemTestRig;
     cache: LocalCache;
@@ -62,7 +65,7 @@ async function setup(maxEntries: number): Promise<
     packageDir: rig.resolve('.'),
     name: SCRIPT_NAME,
   };
-  const cache = new LocalCache(maxEntries);
+  const cache = new LocalCache(maxEntries, {shareWorktrees});
   const cacheDir = pathlib.join(getScriptDataDir(script), 'cache');
   const trashDir = rig.resolve(pathlib.join('.wireit', 'trash'));
 
@@ -483,6 +486,22 @@ void test('a write that fails leaves no entry, and deletes its temp copy', async
   assert.deepEqual(await ctx.tempEntries(), []);
   assert.deepEqual(await ctx.trashEntries(), []);
 
+  await ctx.cacheOutput('v0');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+});
+
+void test('a second set of the same entry throws', async () => {
+  await using ctx = await setup(10);
+  await ctx.cacheOutput('v0');
+  await assert.rejects(() => ctx.cacheOutput('v0'));
+});
+
+void test('a second set of a shared entry is a hit, not an error', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
   await ctx.cacheOutput('v0');
   assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
 });

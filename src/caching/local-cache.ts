@@ -141,6 +141,29 @@ export class LocalCache implements Cache {
     const cachePackageDir = await this.#cachePackageDir(script);
     this.#packageDirs.add(cachePackageDir);
     const absCacheDir = this.#getCacheDir(cachePackageDir, script, fingerprint);
+    await (this.#shareWorktrees
+      ? this.#writeShared(script, cachePackageDir, absCacheDir, absoluteFiles)
+      : this.#writeExclusive(
+          cachePackageDir,
+          script,
+          absCacheDir,
+          absoluteFiles,
+        ));
+    await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
+    return true;
+  }
+
+  /**
+   * Copy into a temp folder and rename into place, so a killed Wireit can't
+   * leave a partial entry. An entry that already exists is an error: the
+   * Executor checks for a hit before it runs the script.
+   */
+  async #writeExclusive(
+    cachePackageDir: string,
+    script: ScriptReference,
+    absCacheDir: string,
+    absoluteFiles: AbsoluteEntry[],
+  ): Promise<void> {
     if (absoluteFiles.length === 0) {
       // No temp folder, because an empty "output" runs without the lock.
       //
@@ -153,8 +176,7 @@ export class LocalCache implements Cache {
         // checked for an existing cache hit.
         throw new Error(`Did not expect ${absCacheDir} to already exist.`);
       }
-      await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
-      return true;
+      return;
     }
     await this.#writeThroughTemp(
       cachePackageDir,
@@ -162,15 +184,47 @@ export class LocalCache implements Cache {
       absoluteFiles,
       absCacheDir,
     );
-    await Promise.all([
-      this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir)),
-      // The script lock covers this temp folder only when the cache stays in
-      // this worktree. A shared cache can have another worktree's write in it.
-      ...(this.#shareWorktrees
-        ? []
-        : [this.#trashLeftoverTemp(cachePackageDir, script)]),
-    ]);
-    return true;
+    // The script lock covers this temp folder. Anything still in it was left
+    // by a killed or failed write.
+    await this.#trashLeftoverTemp(cachePackageDir, script);
+  }
+
+  /**
+   * Temp dir plus rename, so two worktrees racing on one shared entry leave a
+   * single complete directory. If the destination already exists, that write
+   * won and this one is a hit. Does not sweep other temps: the script lock
+   * stays in this worktree, so another worktree may be writing into the same
+   * shared temp folder.
+   */
+  async #writeShared(
+    script: ScriptReference,
+    cachePackageDir: string,
+    absCacheDir: string,
+    absoluteFiles: AbsoluteEntry[],
+  ): Promise<void> {
+    const tempDir = pathlib.join(
+      this.#getScriptTempDir(cachePackageDir, script),
+      randomBytes(8).toString('hex'),
+    );
+    await fs.mkdir(this.#getScriptCacheDir(cachePackageDir, script), {
+      recursive: true,
+    });
+    try {
+      await copyEntries(absoluteFiles, script.packageDir, tempDir);
+      await fs.rename(tempDir, absCacheDir);
+    } catch (error) {
+      await fs.rmTree(tempDir).catch(() => {});
+      const {code} = error as {code?: string};
+      if (code === 'EEXIST' || code === 'ENOTEMPTY' || code === 'EPERM') {
+        try {
+          await fs.access(absCacheDir);
+          return;
+        } catch {
+          throw error;
+        }
+      }
+      throw error;
+    }
   }
 
   async #writeThroughTemp(
@@ -386,9 +440,9 @@ export class LocalCache implements Cache {
   }
 
   async #cachePackageDir(script: ScriptReference): Promise<string> {
-    return resolveCachePackageDir(script.packageDir, {
-      shareWorktrees: this.#shareWorktrees,
-    });
+    return this.#shareWorktrees
+      ? resolveCachePackageDir(script.packageDir, {shareWorktrees: true})
+      : script.packageDir;
   }
 
   #getScriptCacheDir(cachePackageDir: string, script: ScriptReference): string {
@@ -412,7 +466,7 @@ export class LocalCache implements Cache {
   ): string {
     return pathlib.join(
       this.#getScriptCacheDir(cachePackageDir, script),
-      fingerprint.hash,
+      fingerprint.localCacheEntryName(this.#shareWorktrees),
     );
   }
 }
