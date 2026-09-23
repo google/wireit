@@ -360,7 +360,8 @@ export WIREIT_CACHE_MAX_ENTRIES=2
 
 Evicted entries are moved to `.wireit/trash` and deleted at the end of the run,
 so that a script is never held up by a large delete. Interrupting that with
-Ctrl-C is safe — whatever is left is deleted by the next run.
+Ctrl-C is safe — whatever is left is deleted by the next run. Wireit then exits
+with status 130.
 
 A cache that is already over the limit, such as one written by an earlier
 version of Wireit, shrinks by one entry per write instead of all at once, so that

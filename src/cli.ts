@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import * as os from 'os';
 import {Analyzer} from './analyzer.js';
 import {getOptions, Options, packageDir} from './cli-options.js';
 import {Result} from './error.js';
@@ -127,14 +128,17 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       undefined,
       false,
     );
-    process.on('SIGINT', () => {
+    let sweeping = false;
+    let sweepStoppedBy: NodeJS.Signals | undefined;
+    const onSignal = (signal: NodeJS.Signals) => {
       executor.abort();
       sweepAbort.abort();
-    });
-    process.on('SIGTERM', () => {
-      executor.abort();
-      sweepAbort.abort();
-    });
+      if (sweeping) {
+        sweepStoppedBy ??= signal;
+      }
+    };
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
     const {persistentServices, errors} = await executor.execute();
     if (persistentServices.size > 0) {
       for (const service of persistentServices.values()) {
@@ -145,7 +149,16 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       }
     }
     logger.printMetrics();
+    sweeping = true;
     await sweepTrash(cache, sweepAbort.signal);
+    if (sweepStoppedBy !== undefined) {
+      // The scripts succeeded, but the user asked Wireit to stop. Exit as an
+      // interrupted process does, so that a shell stops a chain such as
+      // "npm run build && npm run deploy". Shells report a process ended by
+      // signal N with status 128 + N: 130 for SIGINT (2), and 143 for SIGTERM
+      // (15).
+      process.exitCode = 128 + os.constants.signals[sweepStoppedBy];
+    }
     return errors.length === 0
       ? {ok: true, value: undefined}
       : {ok: false, error: errors};
