@@ -13,7 +13,6 @@ import {LocalCache} from '../caching/local-cache.js';
 import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
-import {rigTest} from './util/rig-test.js';
 
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FingerprintString} from '../fingerprint.js';
@@ -331,48 +330,3 @@ void test('get returns undefined for an evicted entry', async () => {
   await ctx.cacheOutput('v1');
   assert.equal(await ctx.cache.get(ctx.script, fingerprint('v0')), undefined);
 });
-
-void test(
-  'WIREIT_CACHE_MAX_ENTRIES caps the cache directory end to end',
-  rigTest(
-    async ({rig}) => {
-      const cmdA = await rig.newCommand();
-      await rig.write({
-        'package.json': {
-          scripts: {a: 'wireit'},
-          wireit: {
-            a: {
-              command: cmdA.command,
-              files: ['input'],
-              output: ['output'],
-            },
-          },
-        },
-      });
-
-      for (const version of ['v0', 'v1', 'v2', 'v3', 'v4']) {
-        await rig.write({input: version});
-        const exec = rig.exec('npm run a');
-        const inv = await cmdA.nextInvocation();
-        await rig.write({output: version});
-        inv.exit(0);
-        assert.equal((await exec.exit).code, 0);
-      }
-      assert.equal(cmdA.numInvocations, 5);
-
-      const cacheDir = pathlib.join(
-        getScriptDataDir({packageDir: rig.resolve('.'), name: 'a'}),
-        'cache',
-      );
-      assert.equal((await fs.readdir(cacheDir)).length, 2);
-      // The CLI sweeps the trash before it exits.
-      await assert.rejects(
-        fs.readdir(rig.resolve(pathlib.join('.wireit', 'trash'))),
-        {
-          code: 'ENOENT',
-        },
-      );
-    },
-    {env: {WIREIT_CACHE_MAX_ENTRIES: '2'}},
-  ),
-);

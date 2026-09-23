@@ -51,6 +51,7 @@
     "test:gc": "wireit",
     "test:glob": "wireit",
     "test:json-schema": "wireit",
+    "test:local-cache": "wireit",
     "test:metrics": "wireit",
     "test:optimize-mkdirs": "wireit",
     "test:parallelism": "wireit",
@@ -104,6 +105,7 @@
         "test:ide",
         "test:gc",
         "test:json-schema",
+        "test:local-cache",
         "test:metrics",
         "test:optimize-mkdirs",
         "test:parallelism",
@@ -170,7 +172,18 @@
       "output": []
     },
     "test:cache-local": {
-      "command": "node --test --test-reporter=dot lib/test/cache-local.test.js lib/test/local-cache.test.js",
+      "command": "node --test --test-reporter=dot lib/test/cache-local.test.js",
+      "env": {
+        "NODE_OPTIONS": "--enable-source-maps"
+      },
+      "dependencies": [
+        "build"
+      ],
+      "files": [],
+      "output": []
+    },
+    "test:local-cache": {
+      "command": "node --test --test-reporter=dot lib/test/local-cache.test.js",
       "env": {
         "NODE_OPTIONS": "--enable-source-maps"
       },
