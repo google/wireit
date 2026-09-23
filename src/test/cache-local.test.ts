@@ -200,8 +200,9 @@ void test(
       sizes.push((await cacheEntries(rig)).length);
       await assertNoTrash(rig);
     }
-    // The first write trims the folder to the limit.
-    assert.deepEqual(sizes, [2, 2, 2, 2]);
+    // Each write evicts at most two entries, so the folder shrinks by one
+    // entry per write until it reaches the limit.
+    assert.deepEqual(sizes, [4, 3, 2, 2]);
   }),
 );
 

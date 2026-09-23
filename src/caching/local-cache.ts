@@ -17,11 +17,21 @@ import type {Fingerprint} from '../fingerprint.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 
 /**
+ * The most entries that one cache write evicts. A cache folder can hold far
+ * more entries than the limit, such as one filled before the limit feature was
+ * implemented. Evicting them all at once would make that run wait at exit until
+ * they are deleted, which can take minutes when "output" is large. With two per
+ * write, such a folder shrinks by one entry per write.
+ */
+const MAX_EVICTIONS_PER_WRITE = 2;
+
+/**
  * Caches script output to each package's
  * ".wireit/<script-name-hex>/cache/<cache-key-sha256-hex>" folder, keeping only
- * the {@link maxEntries} most recently read or written entries per script.
- * Evicted entries move to the package's ".wireit/trash", which
- * {@link sweepTrash} empties, so a script never waits on a large delete.
+ * the {@link maxEntries} most recently read or written entries per script. A
+ * folder over the limit shrinks by one entry per write, because each write adds
+ * an entry and evicts up to {@link MAX_EVICTIONS_PER_WRITE}. Evicted entries
+ * move to the package's ".wireit/trash", which {@link sweepTrash} empties.
  *
  * Eviction needs no lock of its own: it touches only the calling script's cache
  * folder, and StandardScriptExecution#acquireSystemLockIfNeeded already holds
@@ -90,10 +100,7 @@ export class LocalCache implements Cache {
       throw new Error(`Did not expect ${absCacheDir} to already exist.`);
     }
     await copyEntries(absoluteFiles, script.packageDir, absCacheDir);
-    await this.#evictAllButMostRecentlyUsed(
-      script,
-      pathlib.basename(absCacheDir),
-    );
+    await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
     return true;
   }
 
@@ -112,7 +119,7 @@ export class LocalCache implements Cache {
    * @param justWrittenName Never evicted. mtime resolution is coarse on some
    * filesystems, so it can tie with an older entry and lose the sort.
    */
-  async #evictAllButMostRecentlyUsed(
+  async #evictLeastRecentlyUsed(
     script: ScriptReference,
     justWrittenName: string,
   ): Promise<void> {
@@ -137,7 +144,10 @@ export class LocalCache implements Cache {
         })),
       );
       byRecency.sort((a, b) => a.mtimeMs - b.mtimeMs);
-      const doomed = byRecency.slice(0, entries.length - this.#maxEntries);
+      const doomed = byRecency.slice(
+        0,
+        Math.min(entries.length - this.#maxEntries, MAX_EVICTIONS_PER_WRITE),
+      );
       // allSettled, so one entry we can't move (EPERM on Windows, while
       // something holds it open) doesn't block evicting the rest.
       await Promise.allSettled(

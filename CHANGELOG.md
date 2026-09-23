@@ -14,7 +14,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   instead of growing without bound. Set `WIREIT_CACHE_MAX_ENTRIES` to change the
   limit, or to `infinity` for the previous behavior. Evicted entries are moved
   to `.wireit/trash` and deleted at the end of the run, which is safe to
-  interrupt. See [#71](https://github.com/google/wireit/issues/71).
+  interrupt. A cache already over the limit, such as one from an earlier
+  version, shrinks by one entry per write. To free it at once, run
+  `rm -rf .wireit/*/cache`. See [#71](https://github.com/google/wireit/issues/71).
 
 ### Fixed
 

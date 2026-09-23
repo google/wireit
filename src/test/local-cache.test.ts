@@ -143,6 +143,34 @@ void test('evicts down to the limit when it is exceeded', async () => {
   assert.deepEqual(await ctx.entryHashes(), ['v2', 'v3'].map(hashOf).sort());
 });
 
+void test('a folder far over the limit shrinks by one entry per write', async () => {
+  await using ctx = await setup(2);
+  // Entries written before there was a limit.
+  const legacy = ['v0', 'v1', 'v2', 'v3', 'v4', 'v5'];
+  for (const [index, name] of legacy.entries()) {
+    await fs.mkdir(pathlib.join(ctx.cacheDir, hashOf(name)), {recursive: true});
+    await ctx.setRecency(name, 1_000 + index);
+  }
+
+  await ctx.cacheOutput('n0');
+  await ctx.setRecency('n0', 2_000);
+  // Only the two least recently used entries go, not all five over the limit.
+  assert.deepEqual(
+    await ctx.entryHashes(),
+    ['v2', 'v3', 'v4', 'v5', 'n0'].map(hashOf).sort(),
+  );
+  assert.equal((await ctx.trashEntries()).length, 2);
+
+  const sizes = [];
+  for (const [index, name] of ['n1', 'n2', 'n3', 'n4'].entries()) {
+    await ctx.cacheOutput(name);
+    await ctx.setRecency(name, 2_001 + index);
+    sizes.push((await ctx.entryHashes()).length);
+  }
+  assert.deepEqual(sizes, [4, 3, 2, 2]);
+  assert.deepEqual(await ctx.entryHashes(), ['n3', 'n4'].map(hashOf).sort());
+});
+
 void test('evicts the least recently used entry, not the oldest', async () => {
   await using ctx = await setup(2);
   await ctx.cacheOutput('v0');
