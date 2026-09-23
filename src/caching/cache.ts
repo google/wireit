@@ -65,10 +65,16 @@ export interface Cache {
    * An evicted entry is a full copy of a script's output, so a script waits
    * only for it to be moved out of the way; the deleting happens here.
    *
-   * @param signal Stops the sweep, even part way through an entry. Safe:
-   * the next run deletes whatever is left.
+   * @param options.signal Stops the sweep, even part way through an entry.
+   * Safe: the next run deletes whatever is left.
+   * @param options.background Limit how many deletions run at once, so that
+   * other file system work, such as the next watch mode iteration, doesn't wait
+   * behind them.
    */
-  sweepTrash(signal?: AbortSignal): Promise<void>;
+  sweepTrash(options?: {
+    signal?: AbortSignal;
+    background?: boolean;
+  }): Promise<void>;
 }
 
 /**

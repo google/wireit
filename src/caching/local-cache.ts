@@ -26,6 +26,15 @@ import type {AbsoluteEntry} from '../util/glob.js';
 const MAX_EVICTIONS_PER_WRITE = 2;
 
 /**
+ * The most file system calls a background sweep can have in flight at once.
+ * This matches Node's default of 4 threads for file system calls, so the next
+ * watch mode iteration's calls wait behind at most 4 deletions. Without this
+ * limit, a sweep used the whole open file budget of 200 calls, and on a slow
+ * disk the next iteration waited for most of the sweep.
+ */
+const BACKGROUND_SWEEP_MAX_CONCURRENT = 4;
+
+/**
  * Caches script output to each package's
  * ".wireit/<script-name-hex>/cache/<cache-key-sha256-hex>" folder, keeping only
  * the {@link maxEntries} most recently read or written entries per script. A
@@ -104,10 +113,16 @@ export class LocalCache implements Cache {
     return true;
   }
 
-  async sweepTrash(signal?: AbortSignal): Promise<void> {
+  async sweepTrash({
+    signal,
+    background = false,
+  }: {signal?: AbortSignal; background?: boolean} = {}): Promise<void> {
+    const maxConcurrent = background
+      ? BACKGROUND_SWEEP_MAX_CONCURRENT
+      : undefined;
     await Promise.all(
       [...this.#packageDirs].map((packageDir) =>
-        this.#sweepPackageTrash(packageDir, signal),
+        this.#sweepPackageTrash(packageDir, {signal, maxConcurrent}),
       ),
     );
   }
@@ -170,7 +185,7 @@ export class LocalCache implements Cache {
 
   async #sweepPackageTrash(
     packageDir: string,
-    signal?: AbortSignal,
+    options: {signal?: AbortSignal; maxConcurrent?: number},
   ): Promise<void> {
     const trashDir = this.#getTrashDir(packageDir);
     let entries;
@@ -181,12 +196,12 @@ export class LocalCache implements Cache {
       return;
     }
     for (const entry of entries) {
-      if (signal?.aborted) {
+      if (options.signal?.aborted) {
         return;
       }
       try {
         // rmTree, not fs.rm, so that an abort stops part way through an entry.
-        await fs.rmTree(pathlib.join(trashDir, entry.name), {signal});
+        await fs.rmTree(pathlib.join(trashDir, entry.name), options);
       } catch {
         // Aborted, or undeletable right now (EBUSY on Windows). The next run
         // tries again; a sweep must never fail a build.

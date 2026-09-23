@@ -345,7 +345,7 @@ void test('an aborted sweep leaves the trash for the next run', async () => {
   await ctx.cacheOutput('v1');
   assert.equal((await ctx.trashEntries()).length, 1);
 
-  await ctx.cache.sweepTrash(AbortSignal.abort());
+  await ctx.cache.sweepTrash({signal: AbortSignal.abort()});
   assert.equal((await ctx.trashEntries()).length, 1);
 
   await ctx.cache.sweepTrash();

@@ -99,6 +99,15 @@ export class Watcher {
 
   /** Stops the background trash sweep when watching is aborted. */
   readonly #sweepAbort = new AbortController();
+
+  /** The background trash sweep in progress, if any. */
+  #backgroundSweep?: Promise<void>;
+
+  /**
+   * Whether an iteration finished during {@link #backgroundSweep}, and so may
+   * have evicted entries that it didn't see.
+   */
+  #sweepAgain = false;
   #debounceTimeoutId?: NodeJS.Timeout = undefined;
   #previousIterationServices?: ServiceMap = undefined;
   #previousIterationFailures = new Map<ScriptReferenceString, Fingerprint>();
@@ -284,9 +293,7 @@ export class Watcher {
       this.#previousIterationFailures,
     );
     const result = await this.#executor.execute();
-    // Unawaited: the next iteration shouldn't wait on a delete, and whatever
-    // this sweep doesn't finish the next one picks up. Never rejects.
-    void this.#cache?.sweepTrash(this.#sweepAbort.signal);
+    this.#sweepInBackground();
     this.#previousIterationServices = result.persistentServices;
     if (result.errors.length > 0) {
       for (const error of result.errors) {
@@ -410,6 +417,35 @@ export class Watcher {
         this.#inputFileWatchers.delete(oldKey);
       }
     }
+  }
+
+  /**
+   * Deletes evicted cache entries without holding up the next iteration. Runs
+   * one sweep at a time, then one more if an iteration finished meanwhile.
+   * Sweeps started by iterations in quick succession would otherwise add up:
+   * each would walk the same trash, and together they would keep more
+   * deletions in flight than a background sweep allows.
+   */
+  #sweepInBackground(): void {
+    const cache = this.#cache;
+    if (cache === undefined) {
+      return;
+    }
+    if (this.#backgroundSweep !== undefined) {
+      this.#sweepAgain = true;
+      return;
+    }
+    this.#backgroundSweep = (async () => {
+      do {
+        this.#sweepAgain = false;
+        // Never rejects. Whatever this doesn't finish, the next run does.
+        await cache.sweepTrash({
+          signal: this.#sweepAbort.signal,
+          background: true,
+        });
+      } while (this.#sweepAgain && !this.#sweepAbort.signal.aborted);
+      this.#backgroundSweep = undefined;
+    })();
   }
 
   abort(): void {

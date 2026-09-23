@@ -14,6 +14,7 @@ import {
   DEFAULT_TIMEOUT,
   pollUntil,
   rigTest,
+  wait,
   waitForLog,
   withTimeout,
 } from './util/rig-test.js';
@@ -301,6 +302,52 @@ void test(
       await waitForLog(exec, /Ran 1 script and skipped 0/);
       assert.ok(await rig.exists(TRASH));
 
+      await gate.release();
+      await pollUntil(
+        'deleting the trash',
+        async () => !(await rig.exists(TRASH)),
+        exec,
+      );
+      exec.kill();
+      await exec.exit;
+    },
+    {env: {WIREIT_CACHE_MAX_ENTRIES: '1'}},
+  ),
+);
+
+void test(
+  'watch mode sweeps one at a time, deleting at most 4 files at once',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(
+    async ({rig}) => {
+      const cmdA = await writePackage(rig);
+      await writeTrash(rig, 1, 20);
+      await using gate = await holdTrashDeletions(rig);
+      const exec = await startA(rig, cmdA, 'v0', '--watch');
+      await waitForLog(exec, /Ran 1 script and skipped 0/);
+      await gate.firstCall(exec);
+
+      // The second iteration evicts the first entry while the sweep is held.
+      // Its sweep waits for the first one, instead of starting on the same
+      // trash beside it.
+      await rig.writeAtomic({input: 'v1'});
+      const inv = await withTimeout(
+        'the second iteration',
+        cmdA.nextInvocation(),
+      );
+      await rig.write({output: 'v1'});
+      inv.exit(0);
+      await inv.closed;
+      await waitForLog(exec, /Ran 1 script and skipped 0/);
+      // Give any further deletions time to start, as they would without
+      // these limits.
+      await wait(200);
+      // Watch mode deletes at most 4 files at once, so that the next
+      // iteration's file system calls don't wait behind many deletions.
+      assert.equal(await gate.numCalls(), 4);
+
+      // The first sweep finishes, then a second one deletes the entry that
+      // the second iteration evicted.
       await gate.release();
       await pollUntil(
         'deleting the trash',

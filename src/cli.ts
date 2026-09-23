@@ -33,7 +33,7 @@ const sweepTrash = async (
   if (cache === undefined) {
     return;
   }
-  const sweep = cache.sweepTrash(signal);
+  const sweep = cache.sweepTrash({signal});
   const notice = setTimeout(() => {
     console.warn(
       '🗑️ Deleting evicted cache entries. ' +

@@ -287,31 +287,47 @@ export async function readdir(
  * at a time was several times slower than fs.rm. The signal is checked after
  * each slot is reserved, so after an abort only the deletions already running
  * finish. The promise then rejects with the signal's reason.
+ *
+ * @param options.maxConcurrent The most calls to have in flight at once, if
+ * fewer than the open file budget. Node runs file system calls on a pool of 4
+ * threads by default, in the order they are made. Every other file system call
+ * in the process waits behind the deletions already in flight, which on a slow
+ * disk can take seconds when there are hundreds.
  */
 export async function rmTree(
   path: string,
-  {signal}: {signal?: AbortSignal} = {},
+  {signal, maxConcurrent}: {signal?: AbortSignal; maxConcurrent?: number} = {},
 ): Promise<void> {
+  const context: RmTreeContext = {
+    signal,
+    slots:
+      maxConcurrent === undefined ? undefined : new Semaphore(maxConcurrent),
+  };
   let stats;
   try {
-    stats = await reserveUnlessAborted(signal, () => fs.lstat(path));
+    stats = await reserveUnlessAborted(context, () => fs.lstat(path));
   } catch (error) {
     if (isMissing(error)) {
       return;
     }
     throw error;
   }
-  await rmTreeEntry(path, stats.isDirectory(), signal);
+  await rmTreeEntry(path, stats.isDirectory(), context);
+}
+
+interface RmTreeContext {
+  readonly signal: AbortSignal | undefined;
+  readonly slots: Semaphore | undefined;
 }
 
 async function rmTreeEntry(
   path: string,
   isDirectory: boolean,
-  signal: AbortSignal | undefined,
+  context: RmTreeContext,
 ): Promise<void> {
   try {
     if (!isDirectory) {
-      await reserveUnlessAborted(signal, async () => {
+      await reserveUnlessAborted(context, async () => {
         try {
           await fs.unlink(path);
         } catch (error) {
@@ -325,7 +341,7 @@ async function rmTreeEntry(
       });
       return;
     }
-    const children = await reserveUnlessAborted(signal, () =>
+    const children = await reserveUnlessAborted(context, () =>
       fs.readdir(path, {withFileTypes: true}),
     );
     // allSettled, so that this doesn't return while the siblings of a failed
@@ -335,7 +351,7 @@ async function rmTreeEntry(
         rmTreeEntry(
           pathlib.join(path, child.name),
           child.isDirectory(),
-          signal,
+          context,
         ),
       ),
     );
@@ -345,7 +361,7 @@ async function rmTreeEntry(
     if (failure !== undefined) {
       throw failure.reason;
     }
-    await reserveUnlessAborted(signal, () => fs.rmdir(path));
+    await reserveUnlessAborted(context, () => fs.rmdir(path));
   } catch (error) {
     // Something else, such as another Wireit process, deleted it first.
     if (!isMissing(error)) {
@@ -355,11 +371,12 @@ async function rmTreeEntry(
 }
 
 async function reserveUnlessAborted<T>(
-  signal: AbortSignal | undefined,
+  context: RmTreeContext,
   operation: () => Promise<T>,
 ): Promise<T> {
+  using _slot = await context.slots?.reserve();
   using _reservation = await fileBudget.reserve();
-  signal?.throwIfAborted();
+  context.signal?.throwIfAborted();
   return await operation();
 }
 
