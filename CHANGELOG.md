@@ -16,7 +16,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   to `.wireit/trash` and deleted at the end of the run, which is safe to
   interrupt. Interrupting it makes Wireit exit with status 130 for SIGINT, or
   143 for SIGTERM. A cache already over the limit, such as one from an earlier
-  version, shrinks by one entry per write. To free it at once, run
+  version, shrinks by one entry per write, and Wireit reminds you once a day
+  while it holds more than twice the limit. To free it at once, run
   `rm -rf .wireit/*/cache`. See [#71](https://github.com/google/wireit/issues/71).
 
 ### Fixed

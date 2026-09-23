@@ -35,6 +35,16 @@ const MAX_EVICTIONS_PER_WRITE = 2;
 const BACKGROUND_SWEEP_MAX_CONCURRENT = 4;
 
 /**
+ * Wireit reminds the user when a script's cache folder holds more than this
+ * many times the limit. Such a folder takes many writes to shrink, one entry
+ * per write, and the user may rather free the space at once.
+ */
+const REMIND_OVER_LIMIT_FACTOR = 2;
+
+/** How often to remind the user about the same package. */
+const REMIND_OVER_LIMIT_EVERY_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Caches script output to each package's
  * ".wireit/<script-name-hex>/cache/<cache-key-sha256-hex>" folder, keeping only
  * the {@link maxEntries} most recently read or written entries per script. A
@@ -53,6 +63,15 @@ export class LocalCache implements Cache {
 
   /** Packages used this run, whose trash {@link sweepTrash} empties. */
   readonly #packageDirs = new Set<string>();
+
+  /** Messages for the user, which the next {@link sweepTrash} returns. */
+  #messages: string[] = [];
+
+  /**
+   * Packages that {@link #remindOverLimit} has seen this run, so that several
+   * scripts over the limit in one package give one reminder.
+   */
+  readonly #remindedPackages = new Set<string>();
 
   /** @param maxEntries Entries to retain per script, or Infinity for all. */
   constructor(maxEntries: number) {
@@ -120,12 +139,14 @@ export class LocalCache implements Cache {
     const maxConcurrent = background
       ? BACKGROUND_SWEEP_MAX_CONCURRENT
       : undefined;
-    const messages = await Promise.all(
+    const messages = this.#messages;
+    this.#messages = [];
+    const sweepMessages = await Promise.all(
       [...this.#packageDirs].map((packageDir) =>
         this.#sweepPackageTrash(packageDir, {signal, maxConcurrent}),
       ),
     );
-    return messages.flat();
+    return [...messages, ...sweepMessages.flat()];
   }
 
   /**
@@ -169,9 +190,41 @@ export class LocalCache implements Cache {
       await Promise.allSettled(
         doomed.map(({path}) => this.#moveToTrash(script.packageDir, path)),
       );
+      const numLeft = entries.length - doomed.length;
+      if (numLeft > REMIND_OVER_LIMIT_FACTOR * this.#maxEntries) {
+        await this.#remindOverLimit(script.packageDir);
+      }
     } catch {
       // See above.
     }
+  }
+
+  /**
+   * Tells the user that a package's cache is far over its limit, at most once
+   * per {@link REMIND_OVER_LIMIT_EVERY_MS}. The modification time of a file in
+   * the package's ".wireit" folder records when Wireit last did.
+   */
+  async #remindOverLimit(packageDir: string): Promise<void> {
+    if (this.#remindedPackages.has(packageDir)) {
+      return;
+    }
+    this.#remindedPackages.add(packageDir);
+    const dataDir = getPackageDataDir(packageDir);
+    const lastReminder = pathlib.join(dataDir, 'over-limit-reminder');
+    try {
+      const {mtimeMs} = await fs.stat(lastReminder);
+      if (Date.now() - mtimeMs < REMIND_OVER_LIMIT_EVERY_MS) {
+        return;
+      }
+    } catch {
+      // The file doesn't exist, so Wireit hasn't reminded the user yet.
+    }
+    await fs.writeFile(lastReminder, '', 'utf8');
+    this.#messages.push(
+      `ℹ️ The Wireit cache in ${packageDir} is far over its limit, and ` +
+        `shrinks by one entry per cache write. To free the space now, ` +
+        `delete ${pathlib.join(dataDir, '*', 'cache')}.`,
+    );
   }
 
   async #moveToTrash(packageDir: string, path: string): Promise<void> {

@@ -119,6 +119,9 @@ async function assertNoTrash(rig: WireitTestRig): Promise<void> {
   assert.equal(await rig.exists(TRASH), false);
 }
 
+/** The reminder that a package's cache is far over its limit. */
+const REMINDER = /The Wireit cache in .* is far over its limit/;
+
 const TRASH_DELETIONS = {
   functions: ['rm', 'rmdir', 'unlink'],
   path: /[\\/]\.wireit[\\/]trash[\\/]/,
@@ -206,6 +209,92 @@ void test(
     // Each write evicts at most two entries, so the folder shrinks by one
     // entry per write until it reaches the limit.
     assert.deepEqual(sizes, [4, 3, 2, 2]);
+  }),
+);
+
+void test(
+  'reminds the user once a day about a cache far over its limit',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(async ({rig}) => {
+    const cmdA = await writePackage(rig);
+    rig.env = {...rig.env, WIREIT_CACHE_MAX_ENTRIES: 'infinity'};
+    for (let i = 0; i < 10; i++) {
+      assert.equal((await (await startA(rig, cmdA, `v${i}`)).exit).code, 0);
+    }
+    rig.env = {...rig.env, WIREIT_CACHE_MAX_ENTRIES: '2'};
+
+    /** Writes an entry, and returns whether Wireit printed the reminder. */
+    const write = async (version: string) => {
+      const {code, stderr} = await (await startA(rig, cmdA, version)).exit;
+      assert.equal(code, 0);
+      return REMINDER.test(stderr);
+    };
+    // The time of the last reminder is this file's modification time.
+    const aDayPasses = async () => {
+      const lastReminder = rig.resolve(
+        pathlib.join('.wireit', 'over-limit-reminder'),
+      );
+      const aDayAgo = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      await fs.utimes(lastReminder, aDayAgo, aDayAgo);
+    };
+
+    // 11 entries less the 2 evicted leaves 9, more than twice the limit.
+    assert.equal(await write('n0'), true);
+    assert.equal((await cacheEntries(rig)).length, 9);
+    // Not again on the same day.
+    assert.equal(await write('n1'), false);
+    await aDayPasses();
+    assert.equal(await write('n2'), true);
+    assert.equal(await write('n3'), false);
+    assert.equal(await write('n4'), false);
+    // At 4 entries, the folder is no longer more than twice the limit.
+    await aDayPasses();
+    assert.equal(await write('n5'), false);
+    assert.equal((await cacheEntries(rig)).length, 4);
+  }),
+);
+
+void test(
+  'reminds once per package, however many of its scripts are over the limit',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {a: 'wireit', b: 'wireit', both: 'wireit'},
+        wireit: {
+          a: {command: cmdA.command, files: ['input'], output: ['outputA']},
+          b: {command: cmdB.command, files: ['input'], output: ['outputB']},
+          both: {dependencies: ['a', 'b']},
+        },
+      },
+    });
+    /** Runs scripts "a" and "b" with `version` as input, and returns stderr. */
+    const runBoth = async (version: string) => {
+      await rig.write({input: version});
+      const exec = rig.exec('npm run both');
+      const [invA, invB] = await Promise.all([
+        cmdA.nextInvocation(),
+        cmdB.nextInvocation(),
+      ]);
+      await rig.write({outputA: version, outputB: version});
+      invA.exit(0);
+      invB.exit(0);
+      const {code, stderr} = await exec.exit;
+      assert.equal(code, 0);
+      return stderr;
+    };
+
+    rig.env = {...rig.env, WIREIT_CACHE_MAX_ENTRIES: 'infinity'};
+    for (let i = 0; i < 4; i++) {
+      await runBoth(`v${i}`);
+    }
+    // With a limit of 1, the next write leaves each script with 3 entries,
+    // more than twice the limit.
+    rig.env = {...rig.env, WIREIT_CACHE_MAX_ENTRIES: '1'};
+    const stderr = await runBoth('n0');
+    assert.equal(stderr.match(new RegExp(REMINDER, 'g'))?.length, 1);
   }),
 );
 
