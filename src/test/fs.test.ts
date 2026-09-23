@@ -120,7 +120,7 @@ void test('rmTree stops when the signal aborts', async () => {
   }
 });
 
-void test('rmTree keeps at most maxConcurrent calls in flight', async () => {
+void test('rmTree keeps at most as many calls in flight as slots', async () => {
   const rig = new FilesystemTestRig();
   await rig.setup();
   try {
@@ -129,7 +129,7 @@ void test('rmTree keeps at most maxConcurrent calls in flight', async () => {
       functions: ['rmdir', 'unlink'],
       path: treePattern(rig),
     });
-    const removal = rmTree(rig.resolve('tree'), {maxConcurrent: 3});
+    const removal = rmTree(rig.resolve('tree'), {slots: new Semaphore(3)});
     await gate.firstCall;
     // Give any further calls time to start, as they would without the limit.
     await wait(50);

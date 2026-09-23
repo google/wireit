@@ -26,11 +26,12 @@ import type {AbsoluteEntry} from '../util/glob.js';
 const MAX_EVICTIONS_PER_WRITE = 2;
 
 /**
- * The most file system calls a background sweep can have in flight at once.
- * This matches Node's default of 4 threads for file system calls, so the next
- * watch mode iteration's calls wait behind at most 4 deletions. Without this
- * limit, a sweep used the whole open file budget of 200 calls, and on a slow
- * disk the next iteration waited for most of the sweep.
+ * The most file system calls a background sweep can have in flight at once,
+ * across all the packages it sweeps. This matches Node's default of 4 threads
+ * for file system calls, so the next watch mode iteration's calls wait behind
+ * at most 4 deletions. Without this limit, a sweep used the whole open file
+ * budget of 200 calls, and on a slow disk the next iteration waited for most of
+ * the sweep.
  */
 const BACKGROUND_SWEEP_MAX_CONCURRENT = 4;
 
@@ -136,14 +137,16 @@ export class LocalCache implements Cache {
     signal,
     background = false,
   }: {signal?: AbortSignal; background?: boolean} = {}): Promise<string[]> {
-    const maxConcurrent = background
-      ? BACKGROUND_SWEEP_MAX_CONCURRENT
+    // One Semaphore for the whole sweep. Packages are swept in parallel, so a
+    // Semaphore per package would allow that many calls per package.
+    const slots = background
+      ? new fs.Semaphore(BACKGROUND_SWEEP_MAX_CONCURRENT)
       : undefined;
     const messages = this.#messages;
     this.#messages = [];
     const sweepMessages = await Promise.all(
       [...this.#packageDirs].map((packageDir) =>
-        this.#sweepPackageTrash(packageDir, {signal, maxConcurrent}),
+        this.#sweepPackageTrash(packageDir, {signal, slots}),
       ),
     );
     return [...messages, ...sweepMessages.flat()];
@@ -239,11 +242,14 @@ export class LocalCache implements Cache {
 
   async #sweepPackageTrash(
     packageDir: string,
-    options: {signal?: AbortSignal; maxConcurrent?: number},
+    options: {signal?: AbortSignal; slots?: fs.Semaphore},
   ): Promise<string[]> {
     const trashDir = this.#getTrashDir(packageDir);
     let entries;
     try {
+      // A slot here and for the rmdir below too, not only in rmTree, because
+      // every package used this run lists its trash at once.
+      using _slot = await options.slots?.reserve();
       entries = await fs.readdir(trashDir, {withFileTypes: true});
     } catch {
       // ENOENT: nothing evicted, or another process already swept it away.
@@ -274,6 +280,7 @@ export class LocalCache implements Cache {
       }
     }
     try {
+      using _slot = await options.slots?.reserve();
       await fs.rmdir(trashDir);
     } catch {
       // Not empty: aborted, a failed entry, or another process is still

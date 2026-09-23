@@ -13,6 +13,7 @@ import {LocalCache} from '../caching/local-cache.js';
 import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
+import {FsGate} from './util/fs-gate.js';
 
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FingerprintString} from '../fingerprint.js';
@@ -350,6 +351,78 @@ void test('an aborted sweep leaves the trash for the next run', async () => {
 
   await ctx.cache.sweepTrash();
   assert.deepEqual(await ctx.trashEntries(), []);
+});
+
+/**
+ * Makes packages "pkg0", "pkg1", and so on, each with one entry of 5 files in
+ * its trash, and makes their trash part of the cache's next sweep.
+ */
+async function addPackagesWithTrash(
+  ctx: Awaited<ReturnType<typeof setup>>,
+  numPackages: number,
+): Promise<string[]> {
+  const packages = [];
+  for (let p = 0; p < numPackages; p++) {
+    const pkg = `pkg${p}`;
+    packages.push(pkg);
+    // More files than the limit, so that each package alone could fill it.
+    for (let i = 0; i < 5; i++) {
+      await ctx.rig.write(
+        pathlib.join(pkg, '.wireit', 'trash', 'entry', `f${i}`),
+        '',
+      );
+    }
+    // A cache hit makes the package's trash part of the sweep.
+    await ctx.cache.markEntryRecentlyUsed(
+      {packageDir: ctx.rig.resolve(pkg), name: SCRIPT_NAME},
+      fingerprint('v0'),
+    );
+  }
+  return packages;
+}
+
+/**
+ * Starts a background sweep while the gate holds its calls, and returns how
+ * many calls started before the held ones returned.
+ */
+async function numCallsStartedWhileHeld(
+  ctx: Awaited<ReturnType<typeof setup>>,
+  gate: FsGate,
+): Promise<number> {
+  const sweep = ctx.cache.sweepTrash({background: true});
+  await gate.firstCall;
+  // Give any further calls time to start, as they would without the limit.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const numCalls = gate.numCalls;
+  gate.release();
+  assert.deepEqual(await sweep, []);
+  return numCalls;
+}
+
+void test('a background sweep keeps at most 4 deletions in flight across packages', async () => {
+  await using ctx = await setup(1);
+  const packages = await addPackagesWithTrash(ctx, 3);
+  using gate = new FsGate({
+    functions: ['rmdir', 'unlink'],
+    path: /[\\/]\.wireit[\\/]trash[\\/]entry[\\/]/,
+  });
+  assert.equal(await numCallsStartedWhileHeld(ctx, gate), 4);
+  for (const pkg of packages) {
+    assert.equal(
+      await ctx.rig.exists(pathlib.join(pkg, '.wireit', 'trash')),
+      false,
+    );
+  }
+});
+
+void test('a background sweep lists at most 4 trash folders at once', async () => {
+  await using ctx = await setup(1);
+  await addPackagesWithTrash(ctx, 5);
+  using gate = new FsGate({
+    functions: ['readdir'],
+    path: /[\\/]\.wireit[\\/]trash$/,
+  });
+  assert.equal(await numCallsStartedWhileHeld(ctx, gate), 4);
 });
 
 void test('get returns undefined for an evicted entry', async () => {

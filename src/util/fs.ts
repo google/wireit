@@ -288,21 +288,18 @@ export async function readdir(
  * each slot is reserved, so after an abort only the deletions already running
  * finish. The promise then rejects with the signal's reason.
  *
- * @param options.maxConcurrent The most calls to have in flight at once, if
- * fewer than the open file budget. Node runs file system calls on a pool of 4
- * threads by default, in the order they are made. Every other file system call
- * in the process waits behind the deletions already in flight, which on a slow
- * disk can take seconds when there are hundreds.
+ * @param options.slots Limits the calls in flight at once, if to fewer than
+ * the open file budget. Pass the same Semaphore to several rmTree calls to
+ * limit them together. Node runs file system calls on a pool of 4 threads by
+ * default, in the order they are made. Every other file system call in the
+ * process waits behind the deletions already in flight, which on a slow disk
+ * can take seconds when there are hundreds.
  */
 export async function rmTree(
   path: string,
-  {signal, maxConcurrent}: {signal?: AbortSignal; maxConcurrent?: number} = {},
+  {signal, slots}: {signal?: AbortSignal; slots?: Semaphore} = {},
 ): Promise<void> {
-  const context: RmTreeContext = {
-    signal,
-    slots:
-      maxConcurrent === undefined ? undefined : new Semaphore(maxConcurrent),
-  };
+  const context: RmTreeContext = {signal, slots};
   let stats;
   try {
     stats = await reserveUnlessAborted(context, () => fs.lstat(path));
