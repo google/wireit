@@ -268,14 +268,18 @@ export class LocalCache implements Cache {
         if (options.signal?.aborted) {
           return messages;
         }
-        // Such as EBUSY on Windows, while another program has a file open.
+        // Such as EBUSY on Windows, while another program has a file open, or
+        // EACCES on Linux and macOS, when a folder in the entry is read-only.
         // A sweep must never fail a build, and the next run tries again, but
         // the user should know that the space isn't being freed.
         messages.push(
           `⚠️ Could not delete ${path}, a cache entry that Wireit evicted: ` +
             `${(error as Error).message}. Wireit will try again on its next ` +
-            `run. If this keeps happening, close any program that might be ` +
-            `using it, or delete it yourself.`,
+            `run. If this keeps happening, ` +
+            (mayBeOpenElsewhere(error)
+              ? `close any program that might be using it, or delete it ` +
+                `yourself.`
+              : `delete it yourself.`),
         );
       }
     }
@@ -305,6 +309,17 @@ export class LocalCache implements Cache {
     );
   }
 }
+
+/**
+ * Whether a delete may have failed because another program has the file open.
+ * Windows refuses to delete an open file, with EBUSY, or with EPERM for some
+ * kinds of open, such as a running program. Elsewhere EPERM is a permissions
+ * error, which closing programs won't fix.
+ */
+const mayBeOpenElsewhere = (error: unknown) => {
+  const code = (error as {code?: string}).code;
+  return code === 'EBUSY' || (code === 'EPERM' && process.platform === 'win32');
+};
 
 class LocalCacheHit implements CacheHit {
   /**

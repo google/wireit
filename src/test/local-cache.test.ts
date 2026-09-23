@@ -425,6 +425,34 @@ void test('a background sweep lists at most 4 trash folders at once', async () =
   assert.equal(await numCallsStartedWhileHeld(ctx, gate), 4);
 });
 
+/** Evicts an entry, then sweeps while every delete in the trash fails. */
+async function sweepWithDeletesFailing(code: string): Promise<string[]> {
+  await using ctx = await setup(1);
+  await ctx.cacheOutput('v0');
+  await ctx.cacheOutput('v1');
+  using _gate = new FsGate({
+    functions: ['rm', 'rmdir', 'unlink'],
+    path: /[\\/]\.wireit[\\/]trash[\\/]/,
+    failWith: code,
+  });
+  return await ctx.cache.sweepTrash();
+}
+
+void test('warns about an entry the sweep cannot delete', async () => {
+  const messages = await sweepWithDeletesFailing('EBUSY');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0]!, /Could not delete .*EBUSY/);
+  // Windows reports EBUSY while another program has a file open.
+  assert.match(messages[0]!, /close any program that might be using it/);
+});
+
+void test('suggests closing programs only for an error they could cause', async () => {
+  const messages = await sweepWithDeletesFailing('EACCES');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0]!, /Could not delete .*EACCES/);
+  assert.doesNotMatch(messages[0]!, /close any program/);
+});
+
 void test('get returns undefined for an evicted entry', async () => {
   await using ctx = await setup(1);
   await ctx.cacheOutput('v0');
