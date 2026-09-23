@@ -24,6 +24,7 @@ import type {ExecResult, WireitTestRig} from './test-rig.js';
  * - Wireit writes the number of gated calls so far into "calls".
  * - Wireit creates "signaled" once it has handled a SIGINT or SIGTERM.
  * - The test creates "release" to let the held calls run.
+ * - Wireit writes its exit code into "exit-code" as it exits.
  */
 export async function gateWireitFs(
   rig: WireitTestRig,
@@ -56,6 +57,16 @@ export async function gateWireitFs(
       (await fileExists('calls'))
         ? Number(await rig.read(pathlib.join(dir, 'calls')))
         : 0,
+
+    /**
+     * The exit code of the last Wireit process that made a gated call. A test
+     * that sends a signal should check this rather than the exit code of the
+     * command the rig ran. The rig runs Wireit through a shell and npm, which
+     * get the signal too, and some shells, such as dash on Ubuntu, die from it
+     * instead of passing on Wireit's exit code.
+     */
+    exitCode: async () =>
+      Number(await rig.read(pathlib.join(dir, 'exit-code'))),
 
     /** Waits until Wireit has handled a SIGINT or SIGTERM. */
     signaled: (exec: ExecResult) =>

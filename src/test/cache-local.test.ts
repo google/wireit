@@ -507,13 +507,16 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
         exec.kill(signal);
         await gate.signaled(exec);
         await gate.release();
-        const {code, stderr} = await exec.exit;
+        const {stderr} = await exec.exit;
         // Entries left by the signal are not failures.
         assert.doesNotMatch(stderr, /Could not delete/);
         // Ctrl-C ends watch mode normally. Otherwise the scripts succeeded,
         // but the sweep was cut short, so Wireit exits as an interrupted
         // process does: 130 for SIGINT, and 143 for SIGTERM.
-        assert.equal(code, watch ? 0 : {SIGINT: 130, SIGTERM: 143}[signal]);
+        assert.equal(
+          await gate.exitCode(),
+          watch ? 0 : {SIGINT: 130, SIGTERM: 143}[signal],
+        );
         // Only the deletions already running when the signal arrived finish.
         // At most MAX_OPEN_FILES run at once, so the entry being deleted is
         // left part way.
