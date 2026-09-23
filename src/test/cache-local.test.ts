@@ -316,12 +316,13 @@ void test(
 
 const NUM_ENTRIES = 3;
 const FILES_PER_ENTRY = 50;
+const MAX_OPEN_FILES = 10;
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   for (const watch of [false, true]) {
     void test(
-      `${signal} stops a sweep${watch ? ' in watch mode' : ''}, ` +
-        'and the next run finishes it',
+      `${signal} stops a sweep${watch ? ' in watch mode' : ''} part way ` +
+        'through an entry, and the next run finishes it',
       {
         // Windows has no signals. The test rig ends a process there with
         // "taskkill /f", which runs no SIGINT or SIGTERM handler. Node on
@@ -333,6 +334,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       rigTest(async ({rig}) => {
         const cmdA = await writePackage(rig);
         await writeTrash(rig, NUM_ENTRIES, FILES_PER_ENTRY);
+        rig.env = {...rig.env, WIREIT_MAX_OPEN_FILES: String(MAX_OPEN_FILES)};
         await using gate = await holdTrashDeletions(rig);
         const exec = await startA(rig, cmdA, 'v0', watch ? '--watch' : '');
         await gate.firstCall(exec);
@@ -340,9 +342,12 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
         await gate.signaled(exec);
         await gate.release();
         await exec.exit;
-        // The entry that was being deleted goes. The others are left.
+        // Only the deletions already running when the signal arrived finish.
+        // At most MAX_OPEN_FILES run at once, so the entry being deleted is
+        // left part way.
         assert.ok(
-          (await countTrashFiles(rig)) >= (NUM_ENTRIES - 1) * FILES_PER_ENTRY,
+          (await countTrashFiles(rig)) >=
+            NUM_ENTRIES * FILES_PER_ENTRY - MAX_OPEN_FILES,
         );
 
         // Fresh, so the command doesn't run, but the sweep does.

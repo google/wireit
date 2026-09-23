@@ -185,14 +185,11 @@ export class LocalCache implements Cache {
         return;
       }
       try {
-        // force, because another process may be sweeping the same folder.
-        await fs.rm(pathlib.join(trashDir, entry.name), {
-          recursive: true,
-          force: true,
-        });
+        // rmTree, not fs.rm, so that an abort stops part way through an entry.
+        await fs.rmTree(pathlib.join(trashDir, entry.name), {signal});
       } catch {
-        // Undeletable right now (EBUSY on Windows). The next run tries again;
-        // a sweep must never fail a build.
+        // Aborted, or undeletable right now (EBUSY on Windows). The next run
+        // tries again; a sweep must never fail a build.
       }
     }
     try {

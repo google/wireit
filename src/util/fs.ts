@@ -9,6 +9,7 @@
 
 import type * as fsTypes from 'fs';
 import * as fs from 'fs/promises';
+import * as pathlib from 'path';
 import {
   createReadStream as rawCreateReadStream,
   createWriteStream as rawCreateWriteStream,
@@ -276,3 +277,91 @@ export async function readdir(
   using _reservation = await fileBudget.reserve();
   return await fs.readdir(path, options);
 }
+
+/**
+ * Deletes a file or a folder tree, like fs.rm with recursive and force, but
+ * stops when the signal aborts. fs.rm takes no signal, so it can't stop part
+ * way through a large tree.
+ *
+ * Deletes in parallel, up to the open file budget, because deleting one file
+ * at a time was several times slower than fs.rm. The signal is checked after
+ * each slot is reserved, so after an abort only the deletions already running
+ * finish. The promise then rejects with the signal's reason.
+ */
+export async function rmTree(
+  path: string,
+  {signal}: {signal?: AbortSignal} = {},
+): Promise<void> {
+  let stats;
+  try {
+    stats = await reserveUnlessAborted(signal, () => fs.lstat(path));
+  } catch (error) {
+    if (isMissing(error)) {
+      return;
+    }
+    throw error;
+  }
+  await rmTreeEntry(path, stats.isDirectory(), signal);
+}
+
+async function rmTreeEntry(
+  path: string,
+  isDirectory: boolean,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  try {
+    if (!isDirectory) {
+      await reserveUnlessAborted(signal, async () => {
+        try {
+          await fs.unlink(path);
+        } catch (error) {
+          if (isMissing(error)) {
+            throw error;
+          }
+          // On Windows, fs.rm retries an EPERM, such as from a read-only file,
+          // after making the file writable.
+          await fs.rm(path, {force: true});
+        }
+      });
+      return;
+    }
+    const children = await reserveUnlessAborted(signal, () =>
+      fs.readdir(path, {withFileTypes: true}),
+    );
+    // allSettled, so that this doesn't return while the siblings of a failed
+    // child are still being deleted.
+    const results = await Promise.allSettled(
+      children.map((child) =>
+        rmTreeEntry(
+          pathlib.join(path, child.name),
+          child.isDirectory(),
+          signal,
+        ),
+      ),
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failure !== undefined) {
+      throw failure.reason;
+    }
+    await reserveUnlessAborted(signal, () => fs.rmdir(path));
+  } catch (error) {
+    // Something else, such as another Wireit process, deleted it first.
+    if (!isMissing(error)) {
+      throw error;
+    }
+  }
+}
+
+async function reserveUnlessAborted<T>(
+  signal: AbortSignal | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
+  using _reservation = await fileBudget.reserve();
+  signal?.throwIfAborted();
+  return await operation();
+}
+
+const isMissing = (error: unknown) =>
+  (error as {code?: string}).code === 'ENOENT';
