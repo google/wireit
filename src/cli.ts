@@ -23,9 +23,9 @@ const SWEEP_NOTICE_MS = 1000;
 /**
  * Delete the entries this run evicted, plus anything an earlier run left.
  *
- * The notice goes to the console rather than the logger because the default
- * logger drops cache advisories, and this one is only ever seen while a prompt
- * hasn't come back.
+ * The notice and the cache's messages go to the console rather than the
+ * logger because the default logger drops cache advisories, which it treats as
+ * chatty. The GitHub cache prints its must-see warnings the same way.
  */
 const sweepTrash = async (
   cache: Cache | undefined,
@@ -41,10 +41,14 @@ const sweepTrash = async (
         'Ctrl-C is safe; anything left is deleted on the next run.',
     );
   }, SWEEP_NOTICE_MS);
+  let messages;
   try {
-    await sweep;
+    messages = await sweep;
   } finally {
     clearTimeout(notice);
+  }
+  for (const message of messages) {
+    console.warn(message);
   }
 };
 

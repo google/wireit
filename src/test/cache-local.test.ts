@@ -119,15 +119,17 @@ async function assertNoTrash(rig: WireitTestRig): Promise<void> {
   assert.equal(await rig.exists(TRASH), false);
 }
 
+const TRASH_DELETIONS = {
+  functions: ['rm', 'rmdir', 'unlink'],
+  path: /[\\/]\.wireit[\\/]trash[\\/]/,
+};
+
 /**
  * Holds every deletion inside a trash folder, in the Wireit processes that
  * the rig starts from now on, until the test releases them.
  */
 const holdTrashDeletions = (rig: WireitTestRig) =>
-  gateWireitFs(rig, {
-    functions: ['rm', 'rmdir', 'unlink'],
-    path: /[\\/]\.wireit[\\/]trash[\\/]/,
-  });
+  gateWireitFs(rig, TRASH_DELETIONS);
 
 void test(
   'WIREIT_CACHE_MAX_ENTRIES caps the cache directory end to end',
@@ -218,6 +220,34 @@ void test(
     await writeTrash(rig, 1, 1);
     await fs.chmod(rig.resolve(pathlib.join(TRASH, 'entry0', 'file0')), 0o444);
     assert.equal((await (await startA(rig, cmdA, 'v0')).exit).code, 0);
+    await assertNoTrash(rig);
+  }),
+);
+
+void test(
+  'warns when an entry in the trash cannot be deleted',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(async ({rig}) => {
+    const cmdA = await writePackage(rig);
+    await writeTrash(rig, 1, 1);
+    // Deleting fails like this on Windows while another program has the file
+    // open.
+    await using _gate = await gateWireitFs(rig, {
+      ...TRASH_DELETIONS,
+      failWith: 'EBUSY',
+    });
+    const exec = await startA(rig, cmdA, 'v0');
+    await waitForLog(exec, /Could not delete .*entry0.*EBUSY/);
+    // The scripts succeeded, so the run does too.
+    assert.equal((await exec.exit).code, 0);
+    assert.equal(await countTrashFiles(rig), 1);
+
+    // Once the entry can be deleted, the next run deletes it without a
+    // warning.
+    rig.env = {...rig.env, WIREIT_TEST_FS_GATE: undefined};
+    const {code, stderr} = await rig.exec('npm run a').exit;
+    assert.equal(code, 0);
+    assert.doesNotMatch(stderr, /Could not delete/);
     await assertNoTrash(rig);
   }),
 );
@@ -388,7 +418,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
         exec.kill(signal);
         await gate.signaled(exec);
         await gate.release();
-        const {code} = await exec.exit;
+        const {code, stderr} = await exec.exit;
+        // Entries left by the signal are not failures.
+        assert.doesNotMatch(stderr, /Could not delete/);
         // Ctrl-C ends watch mode normally. Otherwise the scripts succeeded,
         // but the sweep was cut short, so Wireit exits as an interrupted
         // process does: 130 for SIGINT, and 143 for SIGTERM.

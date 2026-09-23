@@ -116,15 +116,16 @@ export class LocalCache implements Cache {
   async sweepTrash({
     signal,
     background = false,
-  }: {signal?: AbortSignal; background?: boolean} = {}): Promise<void> {
+  }: {signal?: AbortSignal; background?: boolean} = {}): Promise<string[]> {
     const maxConcurrent = background
       ? BACKGROUND_SWEEP_MAX_CONCURRENT
       : undefined;
-    await Promise.all(
+    const messages = await Promise.all(
       [...this.#packageDirs].map((packageDir) =>
         this.#sweepPackageTrash(packageDir, {signal, maxConcurrent}),
       ),
     );
+    return messages.flat();
   }
 
   /**
@@ -186,32 +187,46 @@ export class LocalCache implements Cache {
   async #sweepPackageTrash(
     packageDir: string,
     options: {signal?: AbortSignal; maxConcurrent?: number},
-  ): Promise<void> {
+  ): Promise<string[]> {
     const trashDir = this.#getTrashDir(packageDir);
     let entries;
     try {
       entries = await fs.readdir(trashDir, {withFileTypes: true});
     } catch {
       // ENOENT: nothing evicted, or another process already swept it away.
-      return;
+      return [];
     }
+    const messages: string[] = [];
     for (const entry of entries) {
       if (options.signal?.aborted) {
-        return;
+        return messages;
       }
+      const path = pathlib.join(trashDir, entry.name);
       try {
         // rmTree, not fs.rm, so that an abort stops part way through an entry.
-        await fs.rmTree(pathlib.join(trashDir, entry.name), options);
-      } catch {
-        // Aborted, or undeletable right now (EBUSY on Windows). The next run
-        // tries again; a sweep must never fail a build.
+        await fs.rmTree(path, options);
+      } catch (error) {
+        if (options.signal?.aborted) {
+          return messages;
+        }
+        // Such as EBUSY on Windows, while another program has a file open.
+        // A sweep must never fail a build, and the next run tries again, but
+        // the user should know that the space isn't being freed.
+        messages.push(
+          `⚠️ Could not delete ${path}, a cache entry that Wireit evicted: ` +
+            `${(error as Error).message}. Wireit will try again on its next ` +
+            `run. If this keeps happening, close any program that might be ` +
+            `using it, or delete it yourself.`,
+        );
       }
     }
     try {
       await fs.rmdir(trashDir);
     } catch {
-      // Not empty: aborted, or another process is still evicting into it.
+      // Not empty: aborted, a failed entry, or another process is still
+      // evicting into it.
     }
+    return messages;
   }
 
   /** Safe beside the per-script dirs: a hex script name can't spell "trash". */

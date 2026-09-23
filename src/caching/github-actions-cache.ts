@@ -277,8 +277,8 @@ export class GitHubActionsCache implements Cache {
   }
 
   /** No entry of this cache lives on local disk. */
-  sweepTrash(): Promise<void> {
-    return Promise.resolve();
+  sweepTrash(): Promise<string[]> {
+    return Promise.resolve([]);
   }
 
   /**

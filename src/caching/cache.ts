@@ -70,11 +70,13 @@ export interface Cache {
    * @param options.background Limit how many deletions run at once, so that
    * other file system work, such as the next watch mode iteration, doesn't wait
    * behind them.
+   * @returns Messages to show the user, such as for an entry that could not be
+   * deleted. Never rejects: a sweep must never fail a build.
    */
   sweepTrash(options?: {
     signal?: AbortSignal;
     background?: boolean;
-  }): Promise<void>;
+  }): Promise<string[]>;
 }
 
 /**

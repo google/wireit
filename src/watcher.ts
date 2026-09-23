@@ -439,10 +439,13 @@ export class Watcher {
       do {
         this.#sweepAgain = false;
         // Never rejects. Whatever this doesn't finish, the next run does.
-        await cache.sweepTrash({
+        const messages = await cache.sweepTrash({
           signal: this.#sweepAbort.signal,
           background: true,
         });
+        for (const message of messages) {
+          console.warn(message);
+        }
       } while (this.#sweepAgain && !this.#sweepAbort.signal.aborted);
       this.#backgroundSweep = undefined;
     })();
