@@ -9,6 +9,7 @@
 
 import type * as fsTypes from 'fs';
 import * as fs from 'fs/promises';
+import * as pathlib from 'path';
 import {
   createReadStream as rawCreateReadStream,
   createWriteStream as rawCreateWriteStream,
@@ -276,3 +277,105 @@ export async function readdir(
   using _reservation = await fileBudget.reserve();
   return await fs.readdir(path, options);
 }
+
+/**
+ * Deletes a file or a folder tree, like fs.rm with recursive and force, but
+ * stops when the signal aborts. fs.rm takes no signal, so it can't stop part
+ * way through a large tree.
+ *
+ * Deletes in parallel, up to the open file budget, because deleting one file
+ * at a time was several times slower than fs.rm. The signal is checked after
+ * each slot is reserved, so after an abort only the deletions already running
+ * finish. The promise then rejects with the signal's reason.
+ *
+ * @param options.slots Limits the calls in flight at once, if to fewer than
+ * the open file budget. Pass the same Semaphore to several rmTree calls to
+ * limit them together. Node runs file system calls on a pool of 4 threads by
+ * default, in the order they are made. Every other file system call in the
+ * process waits behind the deletions already in flight, which on a slow disk
+ * can take seconds when there are hundreds.
+ */
+export async function rmTree(
+  path: string,
+  {signal, slots}: {signal?: AbortSignal; slots?: Semaphore} = {},
+): Promise<void> {
+  const context: RmTreeContext = {signal, slots};
+  let stats;
+  try {
+    stats = await reserveUnlessAborted(context, () => fs.lstat(path));
+  } catch (error) {
+    if (isMissing(error)) {
+      return;
+    }
+    throw error;
+  }
+  await rmTreeEntry(path, stats.isDirectory(), context);
+}
+
+interface RmTreeContext {
+  readonly signal: AbortSignal | undefined;
+  readonly slots: Semaphore | undefined;
+}
+
+async function rmTreeEntry(
+  path: string,
+  isDirectory: boolean,
+  context: RmTreeContext,
+): Promise<void> {
+  try {
+    if (!isDirectory) {
+      await reserveUnlessAborted(context, async () => {
+        try {
+          await fs.unlink(path);
+        } catch (error) {
+          if (isMissing(error)) {
+            throw error;
+          }
+          // On Windows, fs.rm retries an EPERM, such as from a read-only file,
+          // after making the file writable.
+          await fs.rm(path, {force: true});
+        }
+      });
+      return;
+    }
+    const children = await reserveUnlessAborted(context, () =>
+      fs.readdir(path, {withFileTypes: true}),
+    );
+    // allSettled, so that this doesn't return while the siblings of a failed
+    // child are still being deleted.
+    const results = await Promise.allSettled(
+      children.map((child) =>
+        rmTreeEntry(
+          pathlib.join(path, child.name),
+          child.isDirectory(),
+          context,
+        ),
+      ),
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failure !== undefined) {
+      throw failure.reason;
+    }
+    await reserveUnlessAborted(context, () => fs.rmdir(path));
+  } catch (error) {
+    // Something else, such as another Wireit process, deleted it first.
+    if (!isMissing(error)) {
+      throw error;
+    }
+  }
+}
+
+async function reserveUnlessAborted<T>(
+  context: RmTreeContext,
+  operation: () => Promise<T>,
+): Promise<T> {
+  using _slot = await context.slots?.reserve();
+  using _reservation = await fileBudget.reserve();
+  context.signal?.throwIfAborted();
+  return await operation();
+}
+
+const isMissing = (error: unknown) =>
+  (error as {code?: string}).code === 'ENOENT';

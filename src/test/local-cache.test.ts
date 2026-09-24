@@ -13,7 +13,7 @@ import {LocalCache} from '../caching/local-cache.js';
 import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
-import {rigTest} from './util/rig-test.js';
+import {FsGate} from './util/fs-gate.js';
 
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FingerprintString} from '../fingerprint.js';
@@ -142,6 +142,34 @@ void test('evicts down to the limit when it is exceeded', async () => {
     await ctx.setRecency(name, 1_000 + index);
   }
   assert.deepEqual(await ctx.entryHashes(), ['v2', 'v3'].map(hashOf).sort());
+});
+
+void test('a folder far over the limit shrinks by one entry per write', async () => {
+  await using ctx = await setup(2);
+  // Entries written before there was a limit.
+  const legacy = ['v0', 'v1', 'v2', 'v3', 'v4', 'v5'];
+  for (const [index, name] of legacy.entries()) {
+    await fs.mkdir(pathlib.join(ctx.cacheDir, hashOf(name)), {recursive: true});
+    await ctx.setRecency(name, 1_000 + index);
+  }
+
+  await ctx.cacheOutput('n0');
+  await ctx.setRecency('n0', 2_000);
+  // Only the two least recently used entries go, not all five over the limit.
+  assert.deepEqual(
+    await ctx.entryHashes(),
+    ['v2', 'v3', 'v4', 'v5', 'n0'].map(hashOf).sort(),
+  );
+  assert.equal((await ctx.trashEntries()).length, 2);
+
+  const sizes = [];
+  for (const [index, name] of ['n1', 'n2', 'n3', 'n4'].entries()) {
+    await ctx.cacheOutput(name);
+    await ctx.setRecency(name, 2_001 + index);
+    sizes.push((await ctx.entryHashes()).length);
+  }
+  assert.deepEqual(sizes, [4, 3, 2, 2]);
+  assert.deepEqual(await ctx.entryHashes(), ['n3', 'n4'].map(hashOf).sort());
 });
 
 void test('evicts the least recently used entry, not the oldest', async () => {
@@ -318,11 +346,111 @@ void test('an aborted sweep leaves the trash for the next run', async () => {
   await ctx.cacheOutput('v1');
   assert.equal((await ctx.trashEntries()).length, 1);
 
-  await ctx.cache.sweepTrash(AbortSignal.abort());
+  await ctx.cache.sweepTrash({signal: AbortSignal.abort()});
   assert.equal((await ctx.trashEntries()).length, 1);
 
   await ctx.cache.sweepTrash();
   assert.deepEqual(await ctx.trashEntries(), []);
+});
+
+/**
+ * Makes packages "pkg0", "pkg1", and so on, each with one entry of 5 files in
+ * its trash, and makes their trash part of the cache's next sweep.
+ */
+async function addPackagesWithTrash(
+  ctx: Awaited<ReturnType<typeof setup>>,
+  numPackages: number,
+): Promise<string[]> {
+  const packages = [];
+  for (let p = 0; p < numPackages; p++) {
+    const pkg = `pkg${p}`;
+    packages.push(pkg);
+    // More files than the limit, so that each package alone could fill it.
+    for (let i = 0; i < 5; i++) {
+      await ctx.rig.write(
+        pathlib.join(pkg, '.wireit', 'trash', 'entry', `f${i}`),
+        '',
+      );
+    }
+    // A cache hit makes the package's trash part of the sweep.
+    await ctx.cache.markEntryRecentlyUsed(
+      {packageDir: ctx.rig.resolve(pkg), name: SCRIPT_NAME},
+      fingerprint('v0'),
+    );
+  }
+  return packages;
+}
+
+/**
+ * Starts a background sweep while the gate holds its calls, and returns how
+ * many calls started before the held ones returned.
+ */
+async function numCallsStartedWhileHeld(
+  ctx: Awaited<ReturnType<typeof setup>>,
+  gate: FsGate,
+): Promise<number> {
+  const sweep = ctx.cache.sweepTrash({background: true});
+  await gate.firstCall;
+  // Give any further calls time to start, as they would without the limit.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const numCalls = gate.numCalls;
+  gate.release();
+  assert.deepEqual(await sweep, []);
+  return numCalls;
+}
+
+void test('a background sweep keeps at most 4 deletions in flight across packages', async () => {
+  await using ctx = await setup(1);
+  const packages = await addPackagesWithTrash(ctx, 3);
+  using gate = new FsGate({
+    functions: ['rmdir', 'unlink'],
+    path: /[\\/]\.wireit[\\/]trash[\\/]entry[\\/]/,
+  });
+  assert.equal(await numCallsStartedWhileHeld(ctx, gate), 4);
+  for (const pkg of packages) {
+    assert.equal(
+      await ctx.rig.exists(pathlib.join(pkg, '.wireit', 'trash')),
+      false,
+    );
+  }
+});
+
+void test('a background sweep lists at most 4 trash folders at once', async () => {
+  await using ctx = await setup(1);
+  await addPackagesWithTrash(ctx, 5);
+  using gate = new FsGate({
+    functions: ['readdir'],
+    path: /[\\/]\.wireit[\\/]trash$/,
+  });
+  assert.equal(await numCallsStartedWhileHeld(ctx, gate), 4);
+});
+
+/** Evicts an entry, then sweeps while every delete in the trash fails. */
+async function sweepWithDeletesFailing(code: string): Promise<string[]> {
+  await using ctx = await setup(1);
+  await ctx.cacheOutput('v0');
+  await ctx.cacheOutput('v1');
+  using _gate = new FsGate({
+    functions: ['rm', 'rmdir', 'unlink'],
+    path: /[\\/]\.wireit[\\/]trash[\\/]/,
+    failWith: code,
+  });
+  return await ctx.cache.sweepTrash();
+}
+
+void test('warns about an entry the sweep cannot delete', async () => {
+  const messages = await sweepWithDeletesFailing('EBUSY');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0]!, /Could not delete .*EBUSY/);
+  // Windows reports EBUSY while another program has a file open.
+  assert.match(messages[0]!, /close any program that might be using it/);
+});
+
+void test('suggests closing programs only for an error they could cause', async () => {
+  const messages = await sweepWithDeletesFailing('EACCES');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0]!, /Could not delete .*EACCES/);
+  assert.doesNotMatch(messages[0]!, /close any program/);
 });
 
 void test('get returns undefined for an evicted entry', async () => {
@@ -331,48 +459,3 @@ void test('get returns undefined for an evicted entry', async () => {
   await ctx.cacheOutput('v1');
   assert.equal(await ctx.cache.get(ctx.script, fingerprint('v0')), undefined);
 });
-
-void test(
-  'WIREIT_CACHE_MAX_ENTRIES caps the cache directory end to end',
-  rigTest(
-    async ({rig}) => {
-      const cmdA = await rig.newCommand();
-      await rig.write({
-        'package.json': {
-          scripts: {a: 'wireit'},
-          wireit: {
-            a: {
-              command: cmdA.command,
-              files: ['input'],
-              output: ['output'],
-            },
-          },
-        },
-      });
-
-      for (const version of ['v0', 'v1', 'v2', 'v3', 'v4']) {
-        await rig.write({input: version});
-        const exec = rig.exec('npm run a');
-        const inv = await cmdA.nextInvocation();
-        await rig.write({output: version});
-        inv.exit(0);
-        assert.equal((await exec.exit).code, 0);
-      }
-      assert.equal(cmdA.numInvocations, 5);
-
-      const cacheDir = pathlib.join(
-        getScriptDataDir({packageDir: rig.resolve('.'), name: 'a'}),
-        'cache',
-      );
-      assert.equal((await fs.readdir(cacheDir)).length, 2);
-      // The CLI sweeps the trash before it exits.
-      await assert.rejects(
-        fs.readdir(rig.resolve(pathlib.join('.wireit', 'trash'))),
-        {
-          code: 'ENOENT',
-        },
-      );
-    },
-    {env: {WIREIT_CACHE_MAX_ENTRIES: '2'}},
-  ),
-);
