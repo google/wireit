@@ -31,6 +31,12 @@ export class FilesystemTestRig {
     }
   }
 
+  static async setup(): Promise<FilesystemTestRig> {
+    const rig = new FilesystemTestRig();
+    await rig.setup();
+    return rig;
+  }
+
   /**
    * Initialize the temporary filesystem.
    */
@@ -38,6 +44,10 @@ export class FilesystemTestRig {
     this._assertState('uninitialized');
     this.#state = 'running';
     await this.mkdir('.');
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.cleanup();
   }
 
   /**

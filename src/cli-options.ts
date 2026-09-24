@@ -63,6 +63,7 @@ export interface Options {
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
   cacheMaxEntries: number;
+  cacheWorktrees: boolean;
   failureMode: FailureMode;
   agent: Agent;
   logger: Logger;
@@ -198,6 +199,9 @@ export const getOptions = async (): Promise<Result<Options>> => {
     return cacheMaxEntriesResult;
   }
 
+  // Same rule as CI: only the exact string "true" enables it.
+  const cacheWorktrees = process.env['WIREIT_CACHE_WORKTREES'] === 'true';
+
   const failureModeResult = ((): Result<FailureMode> => {
     const str = process.env['WIREIT_FAILURES'];
     if (!str) {
@@ -285,6 +289,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       cacheMaxEntries: cacheMaxEntriesResult.value,
+      cacheWorktrees,
       failureMode: failureModeResult.value,
       agent,
       logger,

@@ -44,7 +44,7 @@ export class WireitTestRig
   extends FilesystemTestRig
   implements AsyncDisposable
 {
-  static async setup(): Promise<WireitTestRig> {
+  static override async setup(): Promise<WireitTestRig> {
     const rig = new WireitTestRig();
     await rig.setup();
     return rig;
@@ -273,7 +273,7 @@ export class WireitTestRig
     return command;
   }
 
-  async [Symbol.asyncDispose]() {
+  override async [Symbol.asyncDispose]() {
     await this.cleanup();
   }
 

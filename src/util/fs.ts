@@ -138,6 +138,15 @@ export async function lstat(path: string): Promise<fsTypes.Stats> {
   }
 }
 
+export async function realpath(path: string): Promise<string> {
+  const reservation = await fileBudget.reserve();
+  try {
+    return await fs.realpath(path);
+  } finally {
+    reservation[Symbol.dispose]();
+  }
+}
+
 export async function stat(path: string): Promise<fsTypes.Stats> {
   const reservation = await fileBudget.reserve();
   try {

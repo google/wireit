@@ -14,6 +14,7 @@ import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 import {FsGate} from './util/fs-gate.js';
+import {git, initRepo} from './util/git.js';
 
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FingerprintString} from '../fingerprint.js';
@@ -24,7 +25,10 @@ import type {ScriptReference} from '../config.js';
 
 const SCRIPT_NAME = 'a';
 
-async function setup(maxEntries: number): Promise<
+async function setup(
+  maxEntries: number,
+  shareWorktrees = false,
+): Promise<
   {
     rig: FilesystemTestRig;
     cache: LocalCache;
@@ -55,7 +59,7 @@ async function setup(maxEntries: number): Promise<
     packageDir: rig.resolve('.'),
     name: SCRIPT_NAME,
   };
-  const cache = new LocalCache(maxEntries);
+  const cache = new LocalCache(maxEntries, {shareWorktrees});
   const cacheDir = pathlib.join(getScriptDataDir(script), 'cache');
   const trashDir = rig.resolve(pathlib.join('.wireit', 'trash'));
 
@@ -458,4 +462,57 @@ void test('get returns undefined for an evicted entry', async () => {
   await ctx.cacheOutput('v0');
   await ctx.cacheOutput('v1');
   assert.equal(await ctx.cache.get(ctx.script, fingerprint('v0')), undefined);
+});
+
+void test('a second set of the same entry throws', async () => {
+  await using ctx = await setup(10);
+  await ctx.cacheOutput('v0');
+  await assert.rejects(() => ctx.cacheOutput('v0'), /Did not expect/);
+});
+
+void test('a second set of a shared entry is a hit, not an error', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  await ctx.cacheOutput('v0');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+});
+
+void test('linked worktree restores from the main worktree local cache', async () => {
+  await using rig = await FilesystemTestRig.setup();
+  const main = rig.resolve('main');
+  const linked = rig.resolve('linked');
+  await rig.mkdir('main');
+  initRepo(main);
+  await rig.write(pathlib.join('main', 'README.md'), 'x');
+  git(main, ['add', '.']);
+  git(main, ['commit', '-m', 'init']);
+  git(main, ['worktree', 'add', linked, '-b', 'other']);
+
+  const mainScript = {packageDir: main, name: SCRIPT_NAME};
+  const linkedScript = {packageDir: linked, name: SCRIPT_NAME};
+  const cache = new LocalCache(10, {shareWorktrees: true});
+  const outputEntry = {
+    path: pathlib.join(main, 'output'),
+    dirent: {
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    },
+  } as AbsoluteEntry;
+  await rig.write(pathlib.join('main', 'output'), 'from-main');
+  assert.equal(
+    await cache.set(mainScript, fingerprint('v0'), [outputEntry]),
+    true,
+  );
+
+  const linkedCacheDir = pathlib.join(getScriptDataDir(linkedScript), 'cache');
+  await assert.rejects(fs.readdir(linkedCacheDir), {code: 'ENOENT'});
+
+  const hit = await cache.get(linkedScript, fingerprint('v0'));
+  assert.ok(hit);
+  await hit.apply();
+  assert.equal(await rig.read(pathlib.join('linked', 'output')), 'from-main');
 });
