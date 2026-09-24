@@ -72,6 +72,20 @@ async function startA(
   return exec;
 }
 
+async function readdirIfExists(
+  rig: WireitTestRig,
+  path: string,
+): Promise<string[]> {
+  try {
+    return (await fs.readdir(rig.resolve(path))).sort();
+  } catch (error) {
+    if ((error as {code?: string}).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+}
+
 /** The names of the entries in script "a"'s cache folder. */
 async function cacheEntries(rig: WireitTestRig): Promise<string[]> {
   const cacheDir = pathlib.join(
@@ -80,6 +94,15 @@ async function cacheEntries(rig: WireitTestRig): Promise<string[]> {
   );
   return (await fs.readdir(cacheDir)).sort();
 }
+
+const dataDir = (rig: WireitTestRig, script: string) =>
+  getScriptDataDir({packageDir: rig.resolve('.'), name: script});
+
+const cacheEntriesIfAny = (rig: WireitTestRig, script: string) =>
+  readdirIfExists(rig, pathlib.join(dataDir(rig, script), 'cache'));
+
+const tempEntries = (rig: WireitTestRig) =>
+  readdirIfExists(rig, pathlib.join(dataDir(rig, 'a'), 'temp'));
 
 /** Writes entries into the trash, as an interrupted sweep leaves them. */
 async function writeTrash(
@@ -98,19 +121,9 @@ async function writeTrash(
 
 /** The number of files in the trash, as written by {@link writeTrash}. */
 async function countTrashFiles(rig: WireitTestRig): Promise<number> {
-  const readdirIfExists = async (path: string) => {
-    try {
-      return await fs.readdir(rig.resolve(path));
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
-  };
   let count = 0;
-  for (const entry of await readdirIfExists(TRASH)) {
-    count += (await readdirIfExists(pathlib.join(TRASH, entry))).length;
+  for (const entry of await readdirIfExists(rig, TRASH)) {
+    count += (await readdirIfExists(rig, pathlib.join(TRASH, entry))).length;
   }
   return count;
 }
@@ -133,6 +146,10 @@ const TRASH_DELETIONS = {
  */
 const holdTrashDeletions = (rig: WireitTestRig) =>
   gateWireitFs(rig, TRASH_DELETIONS);
+
+/** Holds script "a"'s writes to the cache. Restores would be held too. */
+const holdCacheWrites = (rig: WireitTestRig) =>
+  gateWireitFs(rig, {functions: ['copyFile'], path: /[\\/]output$/});
 
 void test(
   'WIREIT_CACHE_MAX_ENTRIES caps the cache directory end to end',
@@ -533,3 +550,108 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     );
   }
 }
+
+void test(
+  'a crash while writing an entry leaves no entry, and the next run cleans up',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(async ({rig}) => {
+    const cmdA = await writePackage(rig);
+    await using gate = await holdCacheWrites(rig);
+    const crashed = await startA(rig, cmdA, 'v0');
+    await gate.firstCall(crashed);
+    crashed.kill('SIGKILL');
+    await crashed.exit;
+    assert.deepEqual(await cacheEntriesIfAny(rig, 'a'), []);
+    assert.equal((await tempEntries(rig)).length, 1);
+
+    rig.env = {...rig.env, WIREIT_TEST_FS_GATE: undefined};
+    // Otherwise the killed run's lock takes 10 seconds to go stale.
+    await rig.delete(pathlib.join(dataDir(rig, 'a'), 'lock.lock'));
+    // Otherwise the run is fresh and never looks in the cache.
+    await rig.delete('output');
+    assert.equal((await (await startA(rig, cmdA, 'v0')).exit).code, 0);
+    assert.equal(cmdA.numInvocations, 2);
+    assert.deepEqual(await tempEntries(rig), []);
+    await assertNoTrash(rig);
+
+    assert.equal((await cacheEntries(rig)).length, 1);
+    await rig.delete('output');
+    assert.equal((await rig.exec('npm run a').exit).code, 0);
+    assert.equal(cmdA.numInvocations, 2);
+    assert.equal(await rig.read('output'), 'v0');
+  }),
+);
+
+void test(
+  'a run of another script leaves alone an entry still being written',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    const cmdB = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {a: 'wireit', b: 'wireit'},
+        wireit: {
+          a: {command: cmdA.command, files: ['input'], output: ['output']},
+          b: {command: cmdB.command, files: ['input'], output: ['outputB']},
+        },
+      },
+    });
+    await using gate = await holdCacheWrites(rig);
+    const execA = await startA(rig, cmdA, 'v0');
+    await gate.firstCall(execA);
+
+    rig.env = {...rig.env, WIREIT_TEST_FS_GATE: undefined};
+    const execB = rig.exec('npm run b');
+    const invB = await cmdB.nextInvocation();
+    await rig.write({outputB: 'v0'});
+    invB.exit(0);
+    assert.equal((await execB.exit).code, 0);
+    // Only a write cleans up the temp folder.
+    assert.equal((await cacheEntriesIfAny(rig, 'b')).length, 1);
+
+    await gate.release();
+    assert.equal((await execA.exit).code, 0);
+    assert.deepEqual(await tempEntries(rig), []);
+    await rig.delete('output');
+    assert.equal((await rig.exec('npm run a').exit).code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(await rig.read('output'), 'v0');
+  }),
+);
+
+void test(
+  'a run of the same script waits for an entry still being written',
+  {timeout: DEFAULT_TIMEOUT},
+  rigTest(async ({rig}) => {
+    const cmdA = await writePackage(rig);
+    await using gate = await holdCacheWrites(rig);
+    const first = await startA(rig, cmdA, 'v0');
+    await gate.firstCall(first);
+
+    // The quiet logger doesn't log waiting for a lock.
+    rig.env = {
+      ...rig.env,
+      WIREIT_TEST_FS_GATE: undefined,
+      WIREIT_LOGGER: 'simple',
+    };
+    await rig.write({input: 'v1'});
+    const second = rig.exec('npm run a');
+    await waitForLog(second, /Waiting for another process/);
+
+    await gate.release();
+    assert.equal((await first.exit).code, 0);
+    const inv = await withTimeout('the second run', cmdA.nextInvocation());
+    await rig.write({output: 'v1'});
+    inv.exit(0);
+    assert.equal((await second.exit).code, 0);
+    assert.equal((await cacheEntries(rig)).length, 2);
+    assert.deepEqual(await tempEntries(rig), []);
+
+    await rig.write({input: 'v0'});
+    await rig.delete('output');
+    assert.equal((await rig.exec('npm run a').exit).code, 0);
+    assert.equal(cmdA.numInvocations, 2);
+    assert.equal(await rig.read('output'), 'v0');
+  }),
+);

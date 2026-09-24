@@ -22,6 +22,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Fixed issue where the local cache could restore corrupt output. If Wireit was
+  killed or crashed while writing a cache entry, later runs restored the partial
+  entry, with files missing or truncated and no error. Entries are now written
+  to a temp folder and renamed into place.
 - GitHub Actions caching now uses `http` or `https` based on the scheme of
   `ACTIONS_RESULTS_URL`. Always calling `https.request` broke `http://` cache
   proxies used by some third-party runners.

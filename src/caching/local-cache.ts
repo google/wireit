@@ -53,11 +53,16 @@ const REMIND_OVER_LIMIT_EVERY_MS = 24 * 60 * 60 * 1000;
  * an entry and evicts up to {@link MAX_EVICTIONS_PER_WRITE}. Evicted entries
  * move to the package's ".wireit/trash", which {@link sweepTrash} empties.
  *
+ * Entries are copied into the script's "temp" folder and then renamed into
+ * place, so a killed Wireit can't leave a partial entry.
+ *
  * Eviction needs no lock of its own: it touches only the calling script's cache
  * folder, and StandardScriptExecution#acquireSystemLockIfNeeded already holds
  * that script's lock, except for an empty "output", where the entries are empty
- * directories. Sweeping is deliberately unlocked, so any number of Wireit
- * processes can empty the same trash at once and a vanished entry is expected.
+ * directories. The lock also means anything in the script's temp folder was
+ * left by a killed or failed write, not one in progress. Sweeping is
+ * deliberately unlocked, so any number of Wireit processes can empty the same
+ * trash at once and a vanished entry is expected.
  */
 export class LocalCache implements Cache {
   readonly #maxEntries: number;
@@ -119,18 +124,65 @@ export class LocalCache implements Cache {
   ): Promise<boolean> {
     this.#packageDirs.add(script.packageDir);
     const absCacheDir = this.#getCacheDir(script, fingerprint);
-    // Note fs.mkdir returns the first created directory, or undefined if no
-    // directory was created.
-    const existed =
-      (await fs.mkdir(absCacheDir, {recursive: true})) === undefined;
-    if (existed) {
-      // This is an unexpected error because the Executor should already have
-      // checked for an existing cache hit.
-      throw new Error(`Did not expect ${absCacheDir} to already exist.`);
+    if (absoluteFiles.length === 0) {
+      // No temp folder, because an empty "output" runs without the lock.
+      //
+      // Note fs.mkdir returns the first created directory, or undefined if no
+      // directory was created.
+      const existed =
+        (await fs.mkdir(absCacheDir, {recursive: true})) === undefined;
+      if (existed) {
+        // This is an unexpected error because the Executor should already have
+        // checked for an existing cache hit.
+        throw new Error(`Did not expect ${absCacheDir} to already exist.`);
+      }
+      await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
+      return true;
     }
-    await copyEntries(absoluteFiles, script.packageDir, absCacheDir);
-    await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
+    await this.#writeThroughTemp(script, absoluteFiles, absCacheDir);
+    await Promise.all([
+      this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir)),
+      this.#trashLeftoverTemp(script),
+    ]);
     return true;
+  }
+
+  async #writeThroughTemp(
+    script: ScriptReference,
+    absoluteFiles: AbsoluteEntry[],
+    absCacheDir: string,
+  ): Promise<void> {
+    // Short, so a path that fits the Windows limit in the cache fits here.
+    const tempDir = pathlib.join(
+      this.#getScriptTempDir(script),
+      randomBytes(8).toString('hex'),
+    );
+    await fs.mkdir(this.#getScriptCacheDir(script), {recursive: true});
+    try {
+      await copyEntries(absoluteFiles, script.packageDir, tempDir);
+      await fs.rename(tempDir, absCacheDir);
+    } catch (error) {
+      // Not moved to the trash, because creating the trash folder fails on a
+      // full disk.
+      await fs.rmTree(tempDir).catch(() => {});
+      throw error;
+    }
+  }
+
+  /** Needs the script's lock, and must run after this write's rename. */
+  async #trashLeftoverTemp(script: ScriptReference): Promise<void> {
+    const tempDir = this.#getScriptTempDir(script);
+    let leftovers;
+    try {
+      leftovers = await fs.readdir(tempDir, {withFileTypes: true});
+    } catch {
+      return;
+    }
+    await Promise.allSettled(
+      leftovers.map((entry) =>
+        this.#moveToTrash(script.packageDir, pathlib.join(tempDir, entry.name)),
+      ),
+    );
   }
 
   async sweepTrash({
@@ -300,6 +352,10 @@ export class LocalCache implements Cache {
 
   #getScriptCacheDir(script: ScriptReference): string {
     return pathlib.join(getScriptDataDir(script), 'cache');
+  }
+
+  #getScriptTempDir(script: ScriptReference): string {
+    return pathlib.join(getScriptDataDir(script), 'temp');
   }
 
   #getCacheDir(script: ScriptReference, fingerprint: Fingerprint): string {
