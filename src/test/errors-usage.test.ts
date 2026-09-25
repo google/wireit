@@ -174,6 +174,58 @@ void test(
 );
 
 void test(
+  'fractional WIREIT_MAX_OPEN_FILES',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_MAX_OPEN_FILES: '1.5'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_MAX_OPEN_FILES env variable to be a positive integer, got "1.5"`,
+      ),
+    );
+  }),
+);
+
+void test(
+  'fractional WIREIT_WATCH_POLL_MS',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_WATCH_POLL_MS: '1.5'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_WATCH_POLL_MS env variable to be a positive integer, got "1.5"`,
+      ),
+    );
+  }),
+);
+
+void test(
   'nonsense WIREIT_CACHE',
   rigTest(async ({rig}) => {
     await rig.write({
