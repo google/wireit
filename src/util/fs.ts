@@ -16,6 +16,7 @@ import {
 } from 'fs';
 import {Deferred} from './deferred.js';
 import './dispose.js';
+import {parsePositiveInteger} from './parse-positive-integer.js';
 export {constants} from 'fs';
 
 declare global {
@@ -58,18 +59,20 @@ export class Semaphore {
   }
 }
 
-export const fileBudget = (() => {
-  let maxOpenFiles = Number(process.env['WIREIT_MAX_OPEN_FILES']);
-  if (isNaN(maxOpenFiles)) {
-    // This is tricky to get right. There's no simple cross-platform way to
-    // determine what our current limits are. Windows it's 512, on macOS it
-    // defaults to 256, and on Linux it varies a lot.
-    // 200 gives us a bit of headroom for other things that might be using
-    // file descriptors in our process, like node internals.
-    maxOpenFiles = 200;
-  }
-  return new Semaphore(maxOpenFiles);
-})();
+/**
+ * This is tricky to get right. There's no simple cross-platform way to
+ * determine what our current limits are. Windows it's 512, on macOS it
+ * defaults to 256, and on Linux it varies a lot.
+ * 200 gives us a bit of headroom for other things that might be using
+ * file descriptors in our process, like node internals.
+ */
+const DEFAULT_MAX_OPEN_FILES = 200;
+
+export const fileBudget = new Semaphore(
+  // getOptions reports an invalid value as an error before any script runs.
+  parsePositiveInteger(process.env['WIREIT_MAX_OPEN_FILES'] ?? '') ??
+    DEFAULT_MAX_OPEN_FILES,
+);
 
 export async function mkdir(
   path: string,
