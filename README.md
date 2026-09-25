@@ -370,7 +370,7 @@ Wireit reminds you once a day with the folders to delete.
 
 Note the limit is applied per script, so a package with many cached scripts will
 still use a multiple of this space. To free all of it at once, use
-`rm -rf .wireit/*/cache .wireit/trash`.
+`rm -rf .wireit/*/cache .wireit/*/temp .wireit/trash`.
 
 ### GitHub Actions caching
 
