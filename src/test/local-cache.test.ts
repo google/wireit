@@ -47,6 +47,12 @@ async function setup(maxEntries: number): Promise<
 
     /** The names of the evicted entries waiting to be swept. */
     trashEntries: () => Promise<string[]>;
+
+    /** The "output" file, as {@link LocalCache.set} takes it. */
+    outputEntry: AbsoluteEntry;
+
+    /** The names in the script's folder of entries still being written. */
+    tempEntries: () => Promise<string[]>;
   } & AsyncDisposable
 > {
   const rig = new FilesystemTestRig();
@@ -76,32 +82,17 @@ async function setup(maxEntries: number): Promise<
     );
   };
 
-  const entryHashes = async () => {
-    try {
-      return (await fs.readdir(cacheDir)).sort();
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
-  };
+  const entryHashes = () => readdirIfExists(cacheDir);
 
   const setRecency = async (name: string, secondsSinceEpoch: number) => {
     const when = new Date(secondsSinceEpoch * 1000);
     await fs.utimes(pathlib.join(cacheDir, hashOf(name)), when, when);
   };
 
-  const trashEntries = async () => {
-    try {
-      return (await fs.readdir(trashDir)).sort();
-    } catch (error) {
-      if ((error as {code?: string}).code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
-  };
+  const trashEntries = () => readdirIfExists(trashDir);
+
+  const tempEntries = () =>
+    readdirIfExists(pathlib.join(getScriptDataDir(script), 'temp'));
 
   return {
     rig,
@@ -113,8 +104,21 @@ async function setup(maxEntries: number): Promise<
     setRecency,
     trashDir,
     trashEntries,
+    outputEntry,
+    tempEntries,
     [Symbol.asyncDispose]: () => rig.cleanup(),
   };
+}
+
+async function readdirIfExists(dir: string): Promise<string[]> {
+  try {
+    return (await fs.readdir(dir)).sort();
+  } catch (error) {
+    if ((error as {code?: string}).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
 }
 
 /** The cache only keys off the string form, so any distinct string works. */
@@ -458,4 +462,26 @@ void test('get returns undefined for an evicted entry', async () => {
   await ctx.cacheOutput('v0');
   await ctx.cacheOutput('v1');
   assert.equal(await ctx.cache.get(ctx.script, fingerprint('v0')), undefined);
+});
+
+void test('a write that fails leaves no entry, and deletes its temp copy', async () => {
+  await using ctx = await setup(1);
+  await ctx.rig.write({output: 'v0'});
+  {
+    using _gate = new FsGate({
+      functions: ['copyFile'],
+      path: /[\\/]output$/,
+      failWith: 'ENOSPC',
+    });
+    await assert.rejects(
+      ctx.cache.set(ctx.script, fingerprint('v0'), [ctx.outputEntry]),
+      {code: 'ENOSPC'},
+    );
+  }
+  assert.deepEqual(await ctx.entryHashes(), []);
+  assert.deepEqual(await ctx.tempEntries(), []);
+  assert.deepEqual(await ctx.trashEntries(), []);
+
+  await ctx.cacheOutput('v0');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
 });
