@@ -555,9 +555,6 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
     } else {
       void (async () => {
         const body = await readBody(res.value).catch(() => '');
-        if (this.#serviceIsDown) {
-          return;
-        }
         const message =
           status === 429
             ? `Hit GitHub Actions cache service rate limit`
