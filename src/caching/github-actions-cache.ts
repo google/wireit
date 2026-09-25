@@ -225,10 +225,10 @@ export class GitHubActionsCache implements Cache {
     const {req, resPromise} = requestResult;
     req.end(bodyBuffer);
     const result = await resPromise;
-    if (!this.#maybeHandleServiceDown(result, script)) {
+    const response = await this.#maybeHandleServiceDown(result, script);
+    if (response === undefined) {
       return undefined;
     }
-    const response = result.value;
 
     if (isOk(response)) {
       const {signed_download_url: archiveLocation} = JSON.parse(
@@ -391,10 +391,10 @@ export class GitHubActionsCache implements Cache {
         });
 
         const result = await resPromise;
-        if (!this.#maybeHandleServiceDown(result, script)) {
+        const response = await this.#maybeHandleServiceDown(result, script);
+        if (response === undefined) {
           return false;
         }
-        const response = result.value;
 
         if (!isOk(response)) {
           throw new Error(
@@ -426,14 +426,15 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
       });
       requestResult.req.end(doneXmlBody);
       const r = await requestResult.resPromise;
-      if (!this.#maybeHandleServiceDown(r, script)) {
+      const response = await this.#maybeHandleServiceDown(r, script);
+      if (response === undefined) {
         return false;
       }
-      if (!isOk(r.value)) {
+      if (!isOk(response)) {
         throw new Error(
           `GitHub Cache finalize HTTP ${String(
-            r.value.statusCode,
-          )} error: ${await readBody(r.value)}`,
+            response.statusCode,
+          )} error: ${await readBody(response)}`,
         );
       }
       return true;
@@ -479,10 +480,10 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
     req.end(bodyBuffer);
 
     const result = await resPromise;
-    if (!this.#maybeHandleServiceDown(result, script)) {
+    const response = await this.#maybeHandleServiceDown(result, script);
+    if (response === undefined) {
       return false;
     }
-    const response = result.value;
 
     if (!isOk(response)) {
       throw new Error(
@@ -518,17 +519,16 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
   /**
    * If we received a network or HTTP error from the given HTTP request, set the
    * global flag to indicate that GitHub Actions Caching is down (it's a class
-   * property, but this class should be a global singleton),  log an error
-   * (possibly asynchronously), and return false. If the request was OK, just
-   * return true.
+   * property, but this class should be a global singleton), log an error, and
+   * return undefined. If the request was OK, just return the response.
    */
-  #maybeHandleServiceDown(
+  async #maybeHandleServiceDown(
     res: Result<http.IncomingMessage, Error>,
     script: ScriptReference,
-  ): res is {ok: true; value: http.IncomingMessage} {
+  ): Promise<http.IncomingMessage | undefined> {
     const status = res.ok ? res.value.statusCode : null;
     if (res.ok && status != null && status >= 200 && status <= 299) {
-      return true;
+      return res.value;
     }
 
     if (this.#serviceIsDown) {
@@ -538,7 +538,7 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
       // stop making HTTP requests after setting this flag, there could be >1
       // pending requests out at the same time before the first error is
       // detected.
-      return false;
+      return undefined;
     }
     this.#serviceIsDown = true;
 
@@ -553,30 +553,27 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
           ` Detail:\n\n${res.error}`,
       });
     } else {
-      void (async () => {
-        const body = await readBody(res.value).catch(() => '');
-        if (this.#serviceIsDown) {
-          return;
-        }
-        const message =
-          status === 429
-            ? `Hit GitHub Actions cache service rate limit`
-            : status === 503
-              ? `GitHub Actions cache service is temporarily unavailable`
-              : `Unexpected HTTP ${status} error from GitHub Actions cache service`;
-        this.#logger.log({
-          script,
-          type: 'info',
-          detail: 'cache-info',
-          message:
-            `${message}.` +
-            ` GitHub Actions caching has been temporarily disabled.` +
-            ` Detail:\n\nHTTP ${status}: ${body}`,
-        });
-      })();
+      // Read the body before returning. The caller destroys the request as soon
+      // as we return, which would cut the body off.
+      const body = await readBody(res.value).catch(() => '');
+      const message =
+        status === 429
+          ? `Hit GitHub Actions cache service rate limit`
+          : status === 503
+            ? `GitHub Actions cache service is temporarily unavailable`
+            : `Unexpected HTTP ${status} error from GitHub Actions cache service`;
+      this.#logger.log({
+        script,
+        type: 'info',
+        detail: 'cache-info',
+        message:
+          `${message}.` +
+          ` GitHub Actions caching has been temporarily disabled.` +
+          ` Detail:\n\nHTTP ${status}: ${body}`,
+      });
     }
 
-    return false;
+    return undefined;
   }
 
   #computeCacheKey(script: ScriptReference): string {
@@ -702,10 +699,10 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
       // same script.
       return undefined;
     }
-    if (!this.#maybeHandleServiceDown(result, script)) {
+    const response = await this.#maybeHandleServiceDown(result, script);
+    if (response === undefined) {
       return undefined;
     }
-    const response = result.value;
 
     if (isOk(response)) {
       const resData = JSON.parse(await readBody(response)) as {
