@@ -314,6 +314,7 @@ void test('logs that caching was disabled after an HTTP error', async () => {
     res.stdout,
     /GitHub Actions cache service is temporarily unavailable/,
   );
+  assert.match(res.stdout, /HTTP 503: Forcing 503 error for getCacheEntry/);
 });
 
 const randomInt = (minIncl: number, maxExcl: number) =>
