@@ -695,6 +695,7 @@ export class Analyzer {
       // property plus optional extra annotations.
       let specifierResult;
       let cascade = true; // Default;
+      let stopFirst = false; // Default;
       if (maybeUnresolved.type === 'string') {
         specifierResult = failUnlessNonBlankString(
           maybeUnresolved,
@@ -754,6 +755,36 @@ export class Analyzer {
                   range: {
                     offset: cascadeResult.offset,
                     length: cascadeResult.length,
+                  },
+                },
+              },
+            });
+            continue;
+          }
+        }
+        const stopFirstResult = findNodeAtLocation(maybeUnresolved, [
+          'stopFirst',
+        ]);
+        if (stopFirstResult !== undefined) {
+          if (
+            stopFirstResult.value === true ||
+            stopFirstResult.value === false
+          ) {
+            stopFirst = stopFirstResult.value;
+          } else {
+            encounteredError = true;
+            placeholder.failures.push({
+              type: 'failure',
+              reason: 'invalid-config-syntax',
+              script: {packageDir: pathlib.dirname(packageJson.jsonFile.path)},
+              diagnostic: {
+                severity: 'error',
+                message: `The "stopFirst" property must be either true or false.`,
+                location: {
+                  file: packageJson.jsonFile,
+                  range: {
+                    offset: stopFirstResult.offset,
+                    length: stopFirstResult.length,
                   },
                 },
               },
@@ -835,6 +866,7 @@ export class Analyzer {
           specifier: unresolved,
           config: placeHolderInfo.placeholder,
           cascade,
+          stopFirst,
         });
         this.#ongoingWorkPromises.push(
           (async () => {

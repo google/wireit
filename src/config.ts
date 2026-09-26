@@ -55,6 +55,7 @@ export interface Dependency<
   config: Config;
   specifier: JsonAstNode<string>;
   cascade: boolean;
+  stopFirst: boolean;
 }
 
 export type ScriptConfig =
