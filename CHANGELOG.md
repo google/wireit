@@ -31,6 +31,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   proxies used by some third-party runners.
 - `WIREIT_PARALLEL`, `WIREIT_WATCH_POLL_MS`, and `WIREIT_MAX_OPEN_FILES` now
   reject any value that is not a positive integer, such as `2abc` or `1.5`.
+- The message explaining that GitHub Actions caching was disabled after an HTTP
+  error from the cache service is now logged. It was always skipped before.
 
 ### Changed
 

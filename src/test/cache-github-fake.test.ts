@@ -287,6 +287,36 @@ void test(`gracefully handles 409 conflict on set()`, async () => {
   assert.equal(cmdA.numInvocations, 1);
 });
 
+void test('logs that caching was disabled after an HTTP error', async () => {
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: ['input'],
+          output: [],
+        },
+      },
+    },
+    input: 'foo',
+  });
+
+  server.forceErrorOnNextRequest('getCacheEntry', 503);
+  const exec = rig.exec('npm run a', {env: {WIREIT_LOGGER: 'simple'}});
+  (await cmdA.nextInvocation()).exit(0);
+  const res = await exec.exit;
+  assertSuccess(res);
+  assert.match(
+    res.stdout,
+    /GitHub Actions cache service is temporarily unavailable/,
+  );
+  assert.match(res.stdout, /HTTP 503: Forcing 503 error for getCacheEntry/);
+});
+
 const randomInt = (minIncl: number, maxExcl: number) =>
   minIncl + Math.floor(Math.random() * (maxExcl - minIncl));
 
