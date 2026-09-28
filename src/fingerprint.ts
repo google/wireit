@@ -5,6 +5,7 @@
  */
 
 import {createHash} from 'crypto';
+import * as pathlib from 'path';
 import {createReadStream} from './util/fs.js';
 import {glob} from './util/glob.js';
 import {scriptReferenceToString} from './config.js';
@@ -138,6 +139,9 @@ export class Fingerprint {
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintSha256HexDigest]
     > = [];
+    const portableDependencyFingerprints: Array<
+      [ScriptReferenceString, string]
+    > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
       if (!dep.cascade) {
         // cascade: false means the fingerprint of the dependency isn't
@@ -150,6 +154,19 @@ export class Fingerprint {
       filteredDependencyFingerprints.push([
         scriptReferenceToString(dep.config),
         depFingerprint.hash,
+      ]);
+      // Package-relative, and hashed from the dependency's portable form, so
+      // two worktrees of one repo share a local-cache entry. This is not part
+      // of {@link Fingerprint.string}.
+      portableDependencyFingerprints.push([
+        scriptReferenceToString({
+          packageDir: pathRelativeToPackage(
+            script.packageDir,
+            dep.config.packageDir,
+          ),
+          name: dep.config.name,
+        }),
+        depFingerprint.localCacheEntryName(true),
       ]);
     }
 
@@ -193,7 +210,7 @@ export class Fingerprint {
             }
             erroredFilePaths.push(absolutePath);
           }
-          return [file.path, hash.digest('hex') as FileSha256HexDigest];
+          return [absolutePath, hash.digest('hex') as FileSha256HexDigest];
         }),
       );
 
@@ -258,12 +275,36 @@ export class Fingerprint {
       env: script.env,
     };
     fingerprint.#data = data as FingerprintData;
+    fingerprint.#portableString = JSON.stringify({
+      ...data,
+      files: Object.fromEntries(
+        fileHashes
+          .map(([filePath, hash]): [string, FileSha256HexDigest] => [
+            pathRelativeToPackage(script.packageDir, filePath),
+            hash,
+          ])
+          .sort(([aFile], [bFile]) => aFile.localeCompare(bFile)),
+      ),
+      dependencies: Object.fromEntries(
+        portableDependencyFingerprints.sort(([aRef], [bRef]) =>
+          aRef.localeCompare(bRef),
+        ),
+      ),
+    });
     return {ok: true, value: fingerprint};
   }
 
   #str?: FingerprintString;
   #data?: FingerprintData;
   #hash?: FingerprintSha256HexDigest;
+  /**
+   * Same fields as {@link string}, but file paths and dependency package dirs
+   * are package-relative and dependency hashes come from each dependency's
+   * portable form. Set only by {@link Fingerprint.compute}. Local-cache entry
+   * names use this when worktree sharing is on. Freshness and GitHub Actions
+   * caching keep using {@link string}.
+   */
+  #portableString?: string;
 
   get string(): FingerprintString {
     if (this.#str === undefined) {
@@ -288,7 +329,31 @@ export class Fingerprint {
     return this.#hash;
   }
 
+  /**
+   * Directory name of a local-cache entry.
+   *
+   * With worktree sharing off, this is {@link hash}, so existing cache folders
+   * stay valid. With sharing on, it is the hash of {@link #portableString}.
+   * A fingerprint built with {@link Fingerprint.fromString} has no portable
+   * form and falls back to {@link hash}.
+   */
+  localCacheEntryName(shareWorktrees: boolean): string {
+    const source =
+      shareWorktrees && this.#portableString !== undefined
+        ? this.#portableString
+        : this.string;
+    return source === this.string
+      ? this.hash
+      : createHash('sha256').update(source).digest('hex');
+  }
+
   equal(other: Fingerprint): boolean {
     return this.string === other.string;
   }
 }
+
+/** Package-relative so a shared local-cache entry matches across worktrees. */
+const pathRelativeToPackage = (packageDir: string, path: string): string => {
+  const relative = pathlib.relative(packageDir, path);
+  return relative === '' ? '.' : relative;
+};
