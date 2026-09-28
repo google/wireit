@@ -202,6 +202,13 @@ export class LocalCache implements Cache {
     absCacheDir: string,
     absoluteFiles: AbsoluteEntry[],
   ): Promise<void> {
+    if (absoluteFiles.length === 0) {
+      // No temp folder, because an empty "output" runs without the lock.
+      // mkdir is a hit when the directory already exists, so two worktrees
+      // caching the same empty output don't throw.
+      await fs.mkdir(absCacheDir, {recursive: true});
+      return;
+    }
     const tempDir = pathlib.join(
       this.#getScriptTempDir(cachePackageDir, script),
       randomBytes(8).toString('hex'),

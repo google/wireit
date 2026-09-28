@@ -496,6 +496,16 @@ void test('a second set of the same entry throws', async () => {
   await assert.rejects(() => ctx.cacheOutput('v0'));
 });
 
+void test('a second shared set of an empty output is a hit', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  assert.equal(await ctx.cache.set(ctx.script, fingerprint('v0'), []), true);
+  assert.equal(await ctx.cache.set(ctx.script, fingerprint('v0'), []), true);
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+});
+
 void test('a second set of a shared entry is a hit, not an error', async () => {
   await using ctx = await setup(10, true);
   // Stop the worktree walk at this temp dir, including when the checkout
