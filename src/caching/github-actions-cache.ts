@@ -618,10 +618,24 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
   async #makeTarball(paths: string[], tempDir: string): Promise<string> {
     // Create a manifest file so that we can pass a large number of files to
     // tar.
-    const manifestPath = pathlib.join(tempDir, 'manifest.txt');
-    await fs.writeFile(manifestPath, paths.join('\n'), 'utf8');
+    const manifestName = 'manifest.txt';
+    const manifestPath = pathlib.join(tempDir, manifestName);
+    // The paths are absolute, and on Windows they use the native backslash
+    // separator. GNU tar (e.g. the one Git for Windows puts on PATH) treats a
+    // backslash as an escape character in its file lists, so convert to
+    // forward slashes. BSD tar accepts both.
+    await fs.writeFile(
+      manifestPath,
+      paths.map((path) => path.replaceAll('\\', '/')).join('\n'),
+      'utf8',
+    );
     const tarballPath = pathlib.join(tempDir, 'cache.tgz');
     await new Promise<void>((resolve, reject) => {
+      // Run tar from inside the temp directory and give it relative file names,
+      // rather than absolute ones. GNU tar on Windows interprets an absolute
+      // path with a drive letter (e.g. "D:\...") as a remote host, so it fails
+      // with "Cannot connect to D:" even though the file is local. See
+      // https://github.com/google/wireit/issues/1242.
       execFile(
         'tar',
         [
@@ -636,7 +650,7 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
           '--gzip',
           '--create',
           '--file',
-          tarballPath,
+          pathlib.basename(tarballPath),
           // Use absolute paths (note we use the short form because the long
           // form is --absolute-names on GNU tar, but --absolute-paths on BSD
           // tar).
@@ -647,8 +661,9 @@ ${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n'
           // on disk.
           '--no-recursion',
           '--files-from',
-          manifestPath,
+          manifestName,
         ],
+        {cwd: tempDir},
         (error: unknown) => {
           if (error != null) {
             reject(new Error(`tar error`, {cause: error}));
@@ -786,9 +801,18 @@ class GitHubActionsCacheHit implements CacheHit {
 
   #extract(tarballPath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // Same rationale as in #makeTarball: give tar a relative file path so a
+      // drive-lettered absolute path is not mistaken for a remote host.
       execFile(
         'tar',
-        ['--extract', '--file', tarballPath, '--gzip', '-P'],
+        [
+          '--extract',
+          '--file',
+          pathlib.basename(tarballPath),
+          '--gzip',
+          '-P',
+        ],
+        {cwd: pathlib.dirname(tarballPath)},
         (error: unknown) => {
           if (error != null) {
             reject(new Error(`tar error`, {cause: error}));
