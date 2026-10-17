@@ -145,8 +145,73 @@ const readMainWorktreeRoot = async (
     ? commondir
     : pathlib.resolve(gitDir, commondir);
   const resolved = await realpathOrSelf(gitCommon);
+  if (
+    !isSupportedSharedCacheLayout(
+      await readFileOrUndefined(pathlib.join(resolved, 'config')),
+      resolved,
+    )
+  ) {
+    return undefined;
+  }
   const main = pathlib.dirname(resolved);
   return main === resolved ? undefined : main;
+};
+
+/**
+ * Whether the shared git dir's parent is a checkout, making
+ * `<parent of git dir>/<package>/.wireit` a safe cache location. Check the
+ * config first because bare and submodule git dirs usually aren't named
+ * `.git` either.
+ *
+ * - Bare clone worktrees: the shared config sets `core.bare = true`, so the
+ *   parent of the bare dir isn't a checkout.
+ * - Worktrees of a submodule: the shared config sets `core.worktree`, so the
+ *   parent is the outer repo's git folder.
+ * - `git clone --separate-git-dir`: git only names the main git dir `.git`
+ *   when it sits inside the checkout, so any other name means its parent
+ *   isn't a checkout.
+ */
+const isSupportedSharedCacheLayout = (
+  gitConfig: string | undefined,
+  gitCommon: string,
+): boolean => {
+  if (gitConfig !== undefined) {
+    const core = parseGitCoreConfig(gitConfig);
+    if (core.bare === true || core.worktree !== undefined) {
+      return false;
+    }
+  }
+  return pathlib.basename(gitCommon) === '.git';
+};
+
+/** The `[core]` section's `bare` and `worktree` settings, if set. */
+const parseGitCoreConfig = (
+  gitConfig: string,
+): {bare?: boolean; worktree?: string} => {
+  const result: {bare?: boolean; worktree?: string} = {};
+  let inCore = false;
+  for (const line of gitConfig.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('[')) {
+      inCore = /^\[\s*core\s*[\]]/i.test(trimmed);
+      continue;
+    }
+    if (!inCore) {
+      continue;
+    }
+    const match = /^([^=;#]+?)\s*=\s*(.*?)\s*$/.exec(trimmed);
+    if (match === null) {
+      continue;
+    }
+    const key = match[1]!.trim().toLowerCase();
+    const value = match[2]!.trim();
+    if (key === 'bare') {
+      result.bare = /^(true|yes|on|1)$/i.test(value);
+    } else if (key === 'worktree') {
+      result.worktree = value;
+    }
+  }
+  return result;
 };
 
 const realpathOrSelf = async (path: string): Promise<string> => {

@@ -126,14 +126,18 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         const cacheHit = fingerprint.data.fullyTracked
           ? await this.#cache?.get(this._config, fingerprint)
           : undefined;
-        if (this.#shouldNotStart) {
-          return {ok: false, error: [this.#startCancelledEvent]};
-        }
-        if (cacheHit !== undefined) {
-          return this.#handleCacheHit(cacheHit, fingerprint);
-        }
+        try {
+          if (this.#shouldNotStart) {
+            return {ok: false, error: [this.#startCancelledEvent]};
+          }
+          if (cacheHit !== undefined) {
+            return await this.#handleCacheHit(cacheHit, fingerprint);
+          }
 
-        return this.#handleNeedsRun(fingerprint);
+          return await this.#handleNeedsRun(fingerprint);
+        } finally {
+          await cacheHit?.release();
+        }
       });
     } finally {
       this._servicesNotNeeded.resolve();

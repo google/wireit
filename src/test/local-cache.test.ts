@@ -9,6 +9,7 @@ import * as assert from 'node:assert';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
+import lockfile from 'proper-lockfile';
 import {LocalCache} from '../caching/local-cache.js';
 import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
@@ -514,6 +515,136 @@ void test('a second set of a shared entry is a hit, not an error', async () => {
   await ctx.cacheOutput('v0');
   await ctx.cacheOutput('v0');
   assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+});
+
+void test('shared mode only trashes temp leftovers over an hour old', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  const tempDir = pathlib.join(getScriptDataDir(ctx.script), 'temp');
+  await fs.mkdir(pathlib.join(tempDir, 'fresh'), {recursive: true});
+  await fs.mkdir(pathlib.join(tempDir, 'old'), {recursive: true});
+  const ancient = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  await fs.utimes(pathlib.join(tempDir, 'old'), ancient, ancient);
+  await ctx.cacheOutput('v0');
+  // The fresh folder may be another worktree's save in progress; the old one
+  // is an aborted save.
+  assert.deepEqual(await ctx.tempEntries(), ['fresh']);
+});
+
+void test('exclusive mode trashes all temp leftovers', async () => {
+  await using ctx = await setup(10);
+  const tempDir = pathlib.join(getScriptDataDir(ctx.script), 'temp');
+  await fs.mkdir(pathlib.join(tempDir, 'fresh'), {recursive: true});
+  await ctx.cacheOutput('v0');
+  assert.deepEqual(await ctx.tempEntries(), []);
+});
+
+void test('shared eviction skips an entry whose lock is held', async () => {
+  await using ctx = await setup(2, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  await ctx.setRecency('v0', 1_000);
+  await ctx.cacheOutput('v1');
+  await ctx.setRecency('v1', 1_001);
+
+  // Another worktree restoring v0 holds its entry lock.
+  const lockDir = pathlib.join(getScriptDataDir(ctx.script), 'cache-locks');
+  await fs.mkdir(lockDir, {recursive: true});
+  const lockFile = pathlib.join(lockDir, hashOf('v0'));
+  await fs.writeFile(lockFile, '', 'utf8');
+  const release = await lockfile.lock(lockFile, {stale: 10_000, retries: 0});
+  try {
+    await ctx.cacheOutput('v2');
+    // v0 is oldest but locked, so the next oldest (v1) goes instead. v2 is
+    // never evicted, as the entry just written.
+    assert.deepEqual(await ctx.entryHashes(), ['v0', 'v2'].map(hashOf).sort());
+  } finally {
+    await release();
+  }
+
+  await ctx.cacheOutput('v3');
+  assert.deepEqual(await ctx.entryHashes(), ['v2', 'v3'].map(hashOf).sort());
+});
+
+void test('shared cache hit holds its lock through restore', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const lockFile = pathlib.join(
+    getScriptDataDir(ctx.script),
+    'cache-locks',
+    hashOf('v0'),
+  );
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+  await ctx.rig.delete('output');
+
+  using gate = new FsGate({
+    functions: ['copyFile'],
+    path: /[\\/]cache[\\/]/,
+  });
+  const restore = hit.apply();
+  await gate.firstCall;
+  await assert.rejects(lockfile.lock(lockFile, {stale: 10_000, retries: 0}), {
+    code: 'ELOCKED',
+  });
+  gate.release();
+  await restore;
+
+  const release = await lockfile.lock(lockFile, {stale: 10_000, retries: 0});
+  await release();
+});
+
+void test('an abandoned shared cache hit releases its lock', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const lockFile = pathlib.join(
+    getScriptDataDir(ctx.script),
+    'cache-locks',
+    hashOf('v0'),
+  );
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+
+  // StandardScriptExecution releases a hit in its finally block when it
+  // cancels or fails before apply.
+  await hit.release();
+  const release = await lockfile.lock(lockFile, {stale: 10_000, retries: 0});
+  await release();
+});
+
+void test('a failed shared restore releases its lock', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const lockFile = pathlib.join(
+    getScriptDataDir(ctx.script),
+    'cache-locks',
+    hashOf('v0'),
+  );
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+
+  await ctx.rig.delete('output');
+  using _gate = new FsGate({
+    functions: ['copyFile'],
+    path: /[\\/]cache[\\/]/,
+    failWith: 'EIO',
+  });
+  await assert.rejects(hit.apply(), {code: 'EIO'});
+  const release = await lockfile.lock(lockFile, {stale: 10_000, retries: 0});
+  await release();
 });
 
 void test('linked worktree restores from the main worktree local cache', async () => {

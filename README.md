@@ -377,7 +377,9 @@ folders. Set `WIREIT_CACHE_WORKTREES=true` to store a linked worktree's local
 cache in the main worktree's corresponding `.wireit` folders. Shared entries
 are named from package-relative paths, so both worktrees hit the same entry.
 Any other value keeps each worktree's own cache and the same entry names as
-before. Lock, fingerprint, and output-manifest files stay in the current
+before. Worktrees of bare clones, submodules, and checkouts with a separate
+git dir also keep their own cache, since the main git dir's parent isn't a
+checkout. Lock, fingerprint, and output-manifest files stay in the current
 worktree. Fingerprints and GitHub Actions caching are unchanged.
 
 Restored files are copied verbatim. Wireit does not rewrite output contents

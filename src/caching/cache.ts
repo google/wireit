@@ -94,4 +94,7 @@ export interface CacheHit {
    * before this method is called.
    */
   apply(): Promise<void>;
+
+  /** Release resources held by this hit when it won't be applied. */
+  release(): Promise<void>;
 }
