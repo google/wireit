@@ -60,6 +60,7 @@ async function assertOptions(
       watch: false,
       cache: 'local',
       cacheMaxEntries: 10,
+      cacheWorktrees: false,
       numWorkers: 10,
       failureMode: 'no-new',
       logger: 'QuietLogger',
@@ -108,6 +109,28 @@ const commands: AgentCommands[] = [
     testCmd: 'pnpm test',
     startCmd: 'pnpm start',
     needsExtraDashes: false,
+  },
+];
+
+const positiveIntegerEnvTests: Array<{
+  name: string;
+  env: Record<string, string>;
+  expected: Pick<Options, 'numWorkers'> | Pick<Options, 'cacheMaxEntries'>;
+}> = [
+  {
+    name: 'WIREIT_PARALLEL=" +02 "',
+    env: {WIREIT_PARALLEL: ' +02 '},
+    expected: {numWorkers: 2},
+  },
+  {
+    name: 'WIREIT_CACHE_MAX_ENTRIES=" +02 "',
+    env: {WIREIT_CACHE_MAX_ENTRIES: ' +02 '},
+    expected: {cacheMaxEntries: 2},
+  },
+  {
+    name: 'WIREIT_CACHE_MAX_ENTRIES=5',
+    env: {WIREIT_CACHE_MAX_ENTRIES: '5'},
+    expected: {cacheMaxEntries: 5},
   },
 ];
 
@@ -565,8 +588,29 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
     }),
   );
 
+  for (const {name, env, expected} of positiveIntegerEnvTests) {
+    void test(
+      `${agent} ${name}`,
+      rigTest(async ({rig}) => {
+        await assertOptions(
+          rig,
+          `${runCmd} main ${extraDashes}`,
+          {
+            agent,
+            script: {
+              packageDir: rig.temp,
+              name: 'main',
+            },
+            ...expected,
+          },
+          env,
+        );
+      }),
+    );
+  }
+
   void test(
-    `${agent} WIREIT_CACHE_MAX_ENTRIES=5`,
+    `${agent} WIREIT_CACHE_WORKTREES=true`,
     rigTest(async ({rig}) => {
       await assertOptions(
         rig,
@@ -577,10 +621,31 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             packageDir: rig.temp,
             name: 'main',
           },
-          cacheMaxEntries: 5,
+          cacheWorktrees: true,
         },
         {
-          WIREIT_CACHE_MAX_ENTRIES: '5',
+          WIREIT_CACHE_WORKTREES: 'true',
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_CACHE_WORKTREES=yes is false`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          cacheWorktrees: false,
+        },
+        {
+          WIREIT_CACHE_WORKTREES: 'yes',
         },
       );
     }),

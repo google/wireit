@@ -14,7 +14,30 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   instead of growing without bound. Set `WIREIT_CACHE_MAX_ENTRIES` to change the
   limit, or to `infinity` for the previous behavior. Evicted entries are moved
   to `.wireit/trash` and deleted at the end of the run, which is safe to
-  interrupt. See [#71](https://github.com/google/wireit/issues/71).
+  interrupt. Interrupting it makes Wireit exit with status 130 for SIGINT, or
+  143 for SIGTERM. A cache already over the limit, such as one from an earlier
+  version, shrinks by one entry per write, and Wireit reminds you once a day
+  while it holds more than twice the limit. To free it at once, run
+  `rm -rf .wireit/*/cache`. See [#71](https://github.com/google/wireit/issues/71).
+- Set `WIREIT_CACHE_WORKTREES=true` to store a linked Git worktree's local
+  cache in the main worktree's corresponding `.wireit` folders. Any other value
+  keeps each worktree's own cache. Fingerprints and GitHub Actions caching are
+  unchanged.
+
+### Fixed
+
+- Fixed issue where a failed GitHub Actions cache tarball download caused Wireit
+  to skip the script and record an empty output manifest instead of running the
+  script command.
+- Fixed issue where the local cache could restore corrupt output. If Wireit was
+  killed or crashed while writing a cache entry, later runs restored the partial
+  entry, with files missing or truncated and no error. Entries are now written
+  to a temp folder and renamed into place.
+- GitHub Actions caching now uses `http` or `https` based on the scheme of
+  `ACTIONS_RESULTS_URL`. Always calling `https.request` broke `http://` cache
+  proxies used by some third-party runners.
+- `WIREIT_PARALLEL`, `WIREIT_WATCH_POLL_MS`, and `WIREIT_MAX_OPEN_FILES` now
+  reject any value that is not a positive integer, such as `2abc` or `1.5`.
 
 ### Changed
 

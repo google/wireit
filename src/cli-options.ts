@@ -14,6 +14,7 @@ import {Console, Logger} from './logging/logger.js';
 import {MetricsLogger} from './logging/metrics-logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
 import * as fs from './util/fs.js';
+import {parsePositiveInteger} from './util/parse-positive-integer.js';
 import {unreachable} from './util/unreachable.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
@@ -63,6 +64,7 @@ export interface Options {
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
   cacheMaxEntries: number;
+  cacheWorktrees: boolean;
   failureMode: FailureMode;
   agent: Agent;
   logger: Logger;
@@ -112,8 +114,8 @@ export const getOptions = async (): Promise<Result<Options>> => {
     if (workerString == null || workerString === '') {
       return {ok: true, value: defaultValue};
     }
-    const parsedInt = parseInt(workerString, 10);
-    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+    const parsedInt = parsePositiveInteger(workerString);
+    if (parsedInt === undefined) {
       return {
         ok: false,
         error: {
@@ -178,8 +180,8 @@ export const getOptions = async (): Promise<Result<Options>> => {
     if (str.match(/^infinity$/i)) {
       return {ok: true, value: Infinity};
     }
-    const parsedInt = parseInt(str, 10);
-    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+    const parsedInt = parsePositiveInteger(str);
+    if (parsedInt === undefined) {
       return {
         ok: false,
         error: {
@@ -197,6 +199,30 @@ export const getOptions = async (): Promise<Result<Options>> => {
   if (!cacheMaxEntriesResult.ok) {
     return cacheMaxEntriesResult;
   }
+
+  // These are read elsewhere, which falls back to the default for an invalid
+  // value: WIREIT_MAX_OPEN_FILES when util/fs.ts loads, before this runs, and
+  // WIREIT_WATCH_POLL_MS only in watch mode. Checking them here makes an
+  // invalid value fail like the other integer options.
+  for (const name of ['WIREIT_MAX_OPEN_FILES', 'WIREIT_WATCH_POLL_MS']) {
+    const str = process.env[name] ?? '';
+    if (str !== '' && parsePositiveInteger(str) === undefined) {
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            `Expected the ${name} env variable to be ` +
+            `a positive integer, got ${JSON.stringify(str)}`,
+          script,
+          type: 'failure',
+        },
+      };
+    }
+  }
+
+  // Same rule as CI: only the exact string "true" enables it.
+  const cacheWorktrees = process.env['WIREIT_CACHE_WORKTREES'] === 'true';
 
   const failureModeResult = ((): Result<FailureMode> => {
     const str = process.env['WIREIT_FAILURES'];
@@ -285,6 +311,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
       cacheMaxEntries: cacheMaxEntriesResult.value,
+      cacheWorktrees,
       failureMode: failureModeResult.value,
       agent,
       logger,
@@ -520,23 +547,12 @@ function readWatchConfigFromEnv(): Options['watch'] {
       return DEFAULT_WATCH_STRATEGY;
     }
     case 'poll': {
-      let interval = DEFAULT_WATCH_INTERVAL;
-      const intervalStr = process.env['WIREIT_WATCH_POLL_MS'];
-      if (intervalStr) {
-        const parsed = Number(intervalStr);
-        if (Number.isNaN(parsed) || parsed <= 0) {
-          console.error(
-            `⚠️ Expected WIREIT_WATCH_POLL_MS to be a positive integer, ` +
-              `got ${JSON.stringify(intervalStr)}. Using default interval of ` +
-              `${DEFAULT_WATCH_INTERVAL}ms.`,
-          );
-        } else {
-          interval = parsed;
-        }
-      }
       return {
         strategy: 'poll',
-        interval,
+        // getOptions has already failed for an invalid value.
+        interval:
+          parsePositiveInteger(process.env['WIREIT_WATCH_POLL_MS'] ?? '') ??
+          DEFAULT_WATCH_INTERVAL,
       };
     }
     default: {
