@@ -37,6 +37,8 @@ type StandardScriptExecutionState =
  */
 export class StandardScriptExecution extends BaseExecutionWithCommand<StandardScriptConfig> {
   #state: StandardScriptExecutionState = 'before-running';
+  /** The result of {@link #outputManifestIsFresh}, once computed. */
+  #outputManifestFresh?: Promise<Result<boolean>>;
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
 
@@ -335,13 +337,16 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       // we sometimes need to read the previous fingerprint file to determine
       // this.
       const shouldClean = await this.#shouldClean(fingerprint);
+      if (!shouldClean.ok) {
+        return {ok: false, error: [shouldClean.error]};
+      }
 
       // Delete the fingerprint and other files. It's important we do this before
       // starting the command, because we don't want to think that the previous
       // fingerprint is still valid when it no longer is.
       await this.#prepareDataDir();
 
-      if (shouldClean) {
+      if (shouldClean.value) {
         const result = await this.#cleanOutput();
         if (!result.ok) {
           return {ok: false, error: [result.error]};
@@ -486,14 +491,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     return {ok: true, value: fingerprint};
   }
 
-  async #shouldClean(fingerprint: Fingerprint) {
+  async #shouldClean(fingerprint: Fingerprint): Promise<Result<boolean>> {
     const cleanValue = this._config.clean;
     switch (cleanValue) {
       case true: {
-        return true;
+        return {ok: true, value: true};
       }
       case false: {
-        return false;
+        return {ok: true, value: false};
       }
       case 'if-file-deleted': {
         const prevFingerprint = await this.#readPreviousFingerprint();
@@ -501,12 +506,19 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           // If we don't know the previous fingerprint, then we can't know
           // whether any input files were removed. It's safer to err on the
           // side of cleaning.
-          return true;
+          return {ok: true, value: true};
         }
-        return this.#anyInputFilesDeletedSinceLastRun(
-          fingerprint,
-          prevFingerprint,
-        );
+        if (
+          this.#anyInputFilesDeletedSinceLastRun(fingerprint, prevFingerprint)
+        ) {
+          return {ok: true, value: true};
+        }
+
+        const outputManifestFresh = await this.#outputManifestIsFresh();
+        if (!outputManifestFresh.ok) {
+          return outputManifestFresh;
+        }
+        return {ok: true, value: !outputManifestFresh.value};
       }
       default: {
         throw new Error(
@@ -749,8 +761,16 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Check whether the current manifest of output files matches the one from the
    * `.wireit` directory.
+   *
+   * Both the freshness check and the clean check need this before the command
+   * runs, so it is computed once per execution, and the change is logged once.
+   * The result is stale after the command runs.
    */
-  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+  #outputManifestIsFresh(): Promise<Result<boolean>> {
+    return (this.#outputManifestFresh ??= this.#compareOutputManifest());
+  }
+
+  async #compareOutputManifest(): Promise<Result<boolean>> {
     const oldManifestPromise = this.#readPreviousOutputManifest();
     const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
     if (!outputFilesBeforeRunning.ok) {

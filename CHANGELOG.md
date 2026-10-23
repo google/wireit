@@ -47,6 +47,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - An `"env"` setting that is a non-empty array, such as `["FOO"]`, now reports
   `Expected an object` instead of crashing Wireit and the VSCode extension with
   an internal error.
+- `"clean": "if-file-deleted"` now also cleans when an output file was changed or
+  deleted since the last run. Before, an incremental tool such as `tsc` could
+  skip re-emitting a missing output, and Wireit cached the incomplete result.
+  See [#1471](https://github.com/google/wireit/issues/1471).
 
 ### Changed
 
