@@ -810,13 +810,7 @@ class GitHubActionsCacheHit implements CacheHit {
       // drive-lettered absolute path is not mistaken for a remote host.
       execFile(
         'tar',
-        [
-          '--extract',
-          '--file',
-          pathlib.basename(tarballPath),
-          '--gzip',
-          '-P',
-        ],
+        ['--extract', '--file', pathlib.basename(tarballPath), '--gzip', '-P'],
         {cwd: pathlib.dirname(tarballPath)},
         (error: unknown) => {
           if (error != null) {
