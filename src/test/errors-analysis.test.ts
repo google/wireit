@@ -7,7 +7,7 @@
 import {test} from 'node:test';
 import * as assert from 'node:assert';
 import * as pathlib from 'path';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 
@@ -2093,6 +2093,39 @@ void test(
         ❌ package.json:8:14 Expected an object
           "env": []
                  ~~`,
+    );
+  }),
+);
+
+void test(
+  'env must be an object even when it has entries',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: ['FOO'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+        ❌ package.json:8:14 Expected an object
+          "env": [
+                 ~
+            "FOO"
+    ~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`,
     );
   }),
 );

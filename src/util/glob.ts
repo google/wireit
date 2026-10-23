@@ -5,7 +5,7 @@
  */
 
 import fastGlob from 'fast-glob';
-import braces from 'brace-expansion';
+import {expand as braces} from 'brace-expansion';
 import * as pathlib from 'path';
 
 import type {Entry} from 'fast-glob';

@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as assert from 'uvu/assert';
+import * as assert from 'node:assert';
 import {removeAnsiColors} from './colors.js';
-import {NODE_MAJOR_VERSION} from './node-version.js';
 
 /**
  * Remove ANSI colors and \r writeover lines and compare the final output as
@@ -20,7 +19,9 @@ export function checkScriptOutput(
   expected: string,
   message?: string,
 ) {
-  actual = removeOverwrittenLines(removeAnsiColors(actual)).trim();
+  actual = removeGpkgLines(
+    removeOverwrittenLines(removeAnsiColors(actual)),
+  ).trim();
   expected = expected.trim();
   if (actual !== expected) {
     for (let i = 0; i < actual.length; i++) {
@@ -38,9 +39,7 @@ export function checkScriptOutput(
       }
     }
   }
-  const assertOutputEqualish =
-    NODE_MAJOR_VERSION < 16 ? assert.match : assert.equal;
-  assertOutputEqualish(actual, expected, message);
+  assert.equal(actual, expected, message);
 }
 
 /**
@@ -60,4 +59,15 @@ function removeOverwrittenLines(output: string) {
     result.push(content);
   }
   return result.join('\n');
+}
+
+/**
+ * Remove "*** gpkg:" lines that are injected into stderr by some
+ * environments and are not part of wireit's output.
+ */
+function removeGpkgLines(output: string): string {
+  return output
+    .split('\n')
+    .filter((line) => !line.startsWith('*** gpkg:'))
+    .join('\n');
 }

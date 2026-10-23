@@ -4,17 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {rigTest, wait} from './util/rig-test.js';
 import * as os from 'os';
 import {IS_WINDOWS} from '../util/windows.js';
 
 import type {PackageJson} from './util/package-json.js';
 
-const test = suite<object>();
-
-test(
+void test(
   'by default we run dependencies in parallel',
   rigTest(async ({rig}) => {
     // Note the test rig set WIREIT_PARALLELISM to 10 by default, even though
@@ -58,7 +56,7 @@ test(
   }),
 );
 
-test(
+void test(
   'can set WIREIT_PARALLEL=1 to run sequentially',
   rigTest(async ({rig}) => {
     const dep1 = await rig.newCommand();
@@ -111,7 +109,7 @@ test(
   }),
 );
 
-test(
+void test(
   'can set WIREIT_PARALLEL=Infinity to run many commands in parallel',
   rigTest(async ({rig}) => {
     const main = await rig.newCommand();
@@ -162,7 +160,7 @@ test(
   }),
 );
 
-test(
+void test(
   'should fall back to default parallelism with empty WIREIT_PARALLEL',
   rigTest(async ({rig}) => {
     const dep1 = await rig.newCommand();
@@ -200,7 +198,7 @@ test(
   }),
 );
 
-test(
+void test(
   'scripts acquire exclusive locks across wireit processes',
   rigTest(
     async ({rig}) => {
@@ -249,7 +247,7 @@ test(
   ),
 );
 
-test(
+void test(
   "scripts don't acquire exclusive locks when output=[]",
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
@@ -281,5 +279,3 @@ test(
     assert.equal(cmdA.numInvocations, 2);
   }),
 );
-
-test.run();

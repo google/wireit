@@ -5,12 +5,13 @@
  */
 
 import * as fs from 'fs/promises';
+import {execFileSync} from 'child_process';
 import * as pathlib from 'path';
-import * as assert from 'uvu/assert';
+import * as assert from 'node:assert';
 import * as crypto from 'node:crypto';
 import * as selfsigned from 'selfsigned';
 import * as x509 from '@peculiar/x509';
-import {suite} from 'uvu';
+import {test, before, after, beforeEach, afterEach} from 'node:test';
 import {fileURLToPath} from 'url';
 import {ExitResult, WireitTestRig} from './util/test-rig.js';
 import {registerCommonCacheTests} from './cache-common.js';
@@ -18,7 +19,8 @@ import {
   FakeGitHubActionsCacheServer,
   type FakeGitHubActionsCacheServerMetrics,
 } from './util/fake-github-actions-cache-server.js';
-import {rigTest, DEFAULT_UVU_TIMEOUT} from './util/rig-test.js';
+import {DEFAULT_TIMEOUT} from './util/rig-test.js';
+import {IS_WINDOWS} from '../util/windows.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -46,195 +48,192 @@ const SELF_SIGNED_CERT_PATH = pathlib.resolve(
   'self-signed.cert',
 );
 
-const test = suite<{
-  rig: WireitTestRig;
-  server: FakeGitHubActionsCacheServer;
-}>();
+// Long-lived server for the common cache tests registered via
+// registerCommonCacheTests (which use rigTest internally and create their
+// own rigs, so they need a stable server URL passed as env).
+const commonAuthToken = String(Math.random()).slice(2);
+const commonServer = new FakeGitHubActionsCacheServer(commonAuthToken, {
+  cert: SELF_SIGNED_CERT.cert,
+  key: SELF_SIGNED_CERT.private,
+});
+const commonActionsCacheUrl = await commonServer.listen();
 
-test.before(async () => {
+let server: FakeGitHubActionsCacheServer;
+let rig: WireitTestRig;
+
+before(async () => {
   await fs.mkdir(pathlib.dirname(SELF_SIGNED_CERT_PATH), {recursive: true});
   await fs.writeFile(SELF_SIGNED_CERT_PATH, SELF_SIGNED_CERT.cert);
 });
 
-test.before.each(async (ctx) => {
-  try {
-    // Set up the cache service for each test (as opposed to for the whole
-    // suite) because we want fresh cache state for each test.
-    const authToken = String(Math.random()).slice(2);
-    ctx.server = new FakeGitHubActionsCacheServer(authToken, {
-      cert: SELF_SIGNED_CERT.cert,
-      key: SELF_SIGNED_CERT.private,
-    });
-    const actionsCacheUrl = await ctx.server.listen();
-    ctx.rig = new WireitTestRig();
-    ctx.rig.env = {
-      ...ctx.rig.env,
-      WIREIT_CACHE: 'github',
-      ACTIONS_RESULTS_URL: actionsCacheUrl,
-      ACTIONS_RUNTIME_TOKEN: authToken,
-      RUNNER_TEMP: pathlib.join(ctx.rig.temp, 'github-cache-temp'),
-      // Tell Node to trust our self-signed certificate for HTTPS.
-      NODE_EXTRA_CA_CERTS: SELF_SIGNED_CERT_PATH,
-    };
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
+after(async () => {
+  await commonServer.close();
+});
+
+beforeEach(async () => {
+  // Set up the cache service for each test (as opposed to for the whole
+  // suite) because we want fresh cache state for each test.
+  const authToken = String(Math.random()).slice(2);
+  server = new FakeGitHubActionsCacheServer(authToken, {
+    cert: SELF_SIGNED_CERT.cert,
+    key: SELF_SIGNED_CERT.private,
+  });
+  const actionsCacheUrl = await server.listen();
+  rig = new WireitTestRig();
+  rig.env = {
+    ...rig.env,
+    WIREIT_CACHE: 'github',
+    ACTIONS_RESULTS_URL: actionsCacheUrl,
+    ACTIONS_RUNTIME_TOKEN: authToken,
+    RUNNER_TEMP: pathlib.join(rig.temp, 'github-cache-temp'),
+    // Tell Node to trust our self-signed certificate for HTTPS.
+    NODE_EXTRA_CA_CERTS: SELF_SIGNED_CERT_PATH,
+  };
+  await rig.setup();
+});
+
+afterEach(async () => {
+  await Promise.all([server.close(), rig.cleanup()]);
+});
+
+registerCommonCacheTests((...args) => void test(...args), 'github', {
+  WIREIT_CACHE: 'github',
+  ACTIONS_RESULTS_URL: commonActionsCacheUrl,
+  ACTIONS_RUNTIME_TOKEN: commonAuthToken,
+  NODE_EXTRA_CA_CERTS: SELF_SIGNED_CERT_PATH,
+});
+
+void test('cache key affected by ImageOS environment variable', async () => {
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: ['input'],
+          output: ['output'],
+        },
+      },
+    },
+    input: 'v0',
+  });
+
+  // Initial run with input v0 and OS ubuntu18.
+  {
+    const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu18'}});
+    const inv = await cmdA.nextInvocation();
+    await rig.write({output: 'v0'});
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(await rig.read('output'), 'v0');
+  }
+
+  // Input changed to v1. Run again.
+  {
+    await rig.write({input: 'v1'});
+    const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu18'}});
+    const inv = await cmdA.nextInvocation();
+    await rig.write({output: 'v1'});
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 2);
+    assert.equal(await rig.read('output'), 'v1');
+  }
+
+  // Input changed back to v0, but OS is now ubuntu20. Output should not be
+  // cached, because we changed OS.
+  {
+    await rig.write({input: 'v0'});
+    const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu20'}});
+    const inv = await cmdA.nextInvocation();
+    assert.ok(!(await rig.exists('output')));
+    inv.exit(0);
+    const res = await exec.exit;
+    assert.equal(res.code, 0);
+    assert.equal(cmdA.numInvocations, 3);
   }
 });
 
-test.after.each(async (ctx) => {
-  try {
-    await Promise.all([ctx.server.close(), ctx.rig.cleanup()]);
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
+void test('recovers from reservation race condition', async () => {
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: [],
+          // Set empty output so that Wireit doesn't try to serialize all of
+          // our "npm run" commands. Note that we *do* cache empty output, so
+          // this is still covering the important part of this test.
+          output: [],
+        },
+      },
+    },
+  });
+
+  // Start n Wireit processes for the same script at the same time.
+  const n = 5;
+  const execs = [];
+  const invs = [];
+  for (let i = 0; i < n; i++) {
+    execs.push(rig.exec('npm run a'));
+    invs.push(cmdA.nextInvocation());
   }
-});
 
-registerCommonCacheTests(test, 'github');
+  // Wait for all script invocations to start.
+  const started = await Promise.all(invs);
 
-test(
-  'cache key affected by ImageOS environment variable',
-  rigTest(async ({rig}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: ['input'],
-            output: ['output'],
-          },
-        },
-      },
-      input: 'v0',
-    });
+  // Have all scripts exit at approximately the same time. This will trigger
+  // the race condition, because every script has already called "get" and saw
+  // a cache miss, and will now all call "set" to try and reserve and save the
+  // cache entry. But only one of them will get the reservation, the others
+  // should just continue without error.
+  for (const inv of started) {
+    inv.exit(0);
+  }
 
-    // Initial run with input v0 and OS ubuntu18.
-    {
-      const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu18'}});
-      const inv = await cmdA.nextInvocation();
-      await rig.write({output: 'v0'});
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(await rig.read('output'), 'v0');
-    }
-
-    // Input changed to v1. Run again.
-    {
-      await rig.write({input: 'v1'});
-      const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu18'}});
-      const inv = await cmdA.nextInvocation();
-      await rig.write({output: 'v1'});
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 2);
-      assert.equal(await rig.read('output'), 'v1');
-    }
-
-    // Input changed back to v0, but OS is now ubuntu20. Output should not be
-    // cached, because we changed OS.
-    {
-      await rig.write({input: 'v0'});
-      const exec = rig.exec('npm run a', {env: {ImageOS: 'ubuntu20'}});
-      const inv = await cmdA.nextInvocation();
-      assert.not(await rig.exists('output'));
-      inv.exit(0);
-      const res = await exec.exit;
-      assert.equal(res.code, 0);
-      assert.equal(cmdA.numInvocations, 3);
-    }
-  }),
-);
-
-test(
-  'recovers from reservation race condition',
-  rigTest(async ({rig, server}) => {
-    const cmdA = await rig.newCommand();
-    await rig.write({
-      'package.json': {
-        scripts: {
-          a: 'wireit',
-        },
-        wireit: {
-          a: {
-            command: cmdA.command,
-            files: [],
-            // Set empty output so that Wireit doesn't try to serialize all of
-            // our "npm run" commands. Note that we *do* cache empty output, so
-            // this is still covering the important part of this test.
-            output: [],
-          },
-        },
-      },
-    });
-
-    // Start n Wireit processes for the same script at the same time.
-    const n = 5;
-    const execs = [];
-    const invs = [];
-    for (let i = 0; i < n; i++) {
-      execs.push(rig.exec('npm run a'));
-      invs.push(cmdA.nextInvocation());
-    }
-
-    // Wait for all script invocations to start.
-    const started = await Promise.all(invs);
-
-    // Have all scripts exit at approximately the same time. This will trigger
-    // the race condition, because every script has already called "get" and saw
-    // a cache miss, and will now all call "set" to try and reserve and save the
-    // cache entry. But only one of them will get the reservation, the others
-    // should just continue without error.
-    for (const inv of started) {
-      inv.exit(0);
-    }
-
-    // All Wireit processes should successfully exit, even if the race condition
-    // occured.
-    for (const exec of execs) {
-      assert.equal((await exec.exit).code, 0);
-    }
-    assert.equal(cmdA.numInvocations, n);
-    assert.equal(server.metrics, {
-      getCacheEntry: n,
-      createCacheEntry: n,
-      putBlobBlock: 1,
-      putBlobBlockList: 1,
-      finalizeCacheEntry: 1,
-      getBlob: 0,
-    } satisfies FakeGitHubActionsCacheServerMetrics);
-
-    // Delete the ".wireit" folder so that the next run won't be considered
-    // fresh, and the "output" file so that we can be sure it gets restored from
-    // cache.
-    await rig.delete('.wireit');
-
-    // Do a final run to confirm that one of the scripts saved the cache.
-    const exec = rig.exec('npm run a');
+  // All Wireit processes should successfully exit, even if the race condition
+  // occured.
+  for (const exec of execs) {
     assert.equal((await exec.exit).code, 0);
-    assert.equal(cmdA.numInvocations, n);
-    assert.equal(server.metrics, {
-      getCacheEntry: n + 1,
-      createCacheEntry: n,
-      putBlobBlock: 1,
-      putBlobBlockList: 1,
-      finalizeCacheEntry: 1,
-      getBlob: 1,
-    } satisfies FakeGitHubActionsCacheServerMetrics);
-  }),
-);
+  }
+  assert.equal(cmdA.numInvocations, n);
+  assert.deepEqual(server.metrics, {
+    getCacheEntry: n,
+    createCacheEntry: n,
+    putBlobBlock: 1,
+    putBlobBlockList: 1,
+    finalizeCacheEntry: 1,
+    getBlob: 0,
+  } satisfies FakeGitHubActionsCacheServerMetrics);
+
+  // Delete the ".wireit" folder so that the next run won't be considered
+  // fresh, and the "output" file so that we can be sure it gets restored from
+  // cache.
+  await rig.delete('.wireit');
+
+  // Do a final run to confirm that one of the scripts saved the cache.
+  const exec = rig.exec('npm run a');
+  assert.equal((await exec.exit).code, 0);
+  assert.equal(cmdA.numInvocations, n);
+  assert.deepEqual(server.metrics, {
+    getCacheEntry: n + 1,
+    createCacheEntry: n,
+    putBlobBlock: 1,
+    putBlobBlockList: 1,
+    finalizeCacheEntry: 1,
+    getBlob: 1,
+  } satisfies FakeGitHubActionsCacheServerMetrics);
+});
 
 function assertSuccess(exitResult: ExitResult) {
   if (exitResult.code !== 0) {
@@ -244,9 +243,98 @@ function assertSuccess(exitResult: ExitResult) {
   }
 }
 
-test(
-  `gracefully handles 409 conflict on set()`,
-  rigTest(async ({rig, server}) => {
+void test(`gracefully handles 409 conflict on set()`, async () => {
+  const cmdA = await rig.newCommand();
+  const cmdB = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+        b: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: ['input'],
+          output: [],
+          dependencies: ['b'],
+        },
+        b: {
+          command: cmdB.command,
+          files: ['input'],
+          output: [],
+        },
+      },
+    },
+    input: 'foo',
+  });
+
+  server.forceErrorOnNextRequest('createCacheEntry', 409);
+  const exec = rig.exec('npm run a');
+  (await cmdB.nextInvocation()).exit(0);
+  (await cmdA.nextInvocation()).exit(0);
+  assertSuccess(await exec.exit);
+  assert.deepEqual(server.metrics, {
+    // Both scripts should check for and then try to reserve a cache entry ...
+    getCacheEntry: 2,
+    createCacheEntry: 2,
+    // ... but since the first one will fail to reserve with a 409, only the
+    // second one will actually finish uploading its entry.
+    putBlobBlock: 1,
+    putBlobBlockList: 1,
+    finalizeCacheEntry: 1,
+    getBlob: 0,
+  } satisfies FakeGitHubActionsCacheServerMetrics);
+  assert.equal(cmdA.numInvocations, 1);
+  assert.equal(cmdA.numInvocations, 1);
+});
+
+void test('logs that caching was disabled after an HTTP error', async () => {
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: ['input'],
+          output: [],
+        },
+      },
+    },
+    input: 'foo',
+  });
+
+  server.forceErrorOnNextRequest('getCacheEntry', 503);
+  const exec = rig.exec('npm run a', {env: {WIREIT_LOGGER: 'simple'}});
+  (await cmdA.nextInvocation()).exit(0);
+  const res = await exec.exit;
+  assertSuccess(res);
+  assert.match(
+    res.stdout,
+    /GitHub Actions cache service is temporarily unavailable/,
+  );
+  assert.match(res.stdout, /HTTP 503: Forcing 503 error for getCacheEntry/);
+});
+
+const randomInt = (minIncl: number, maxExcl: number) =>
+  minIncl + Math.floor(Math.random() * (maxExcl - minIncl));
+
+for (const code of [
+  'ECONNRESET',
+  (() => {
+    while (true) {
+      const status = randomInt(400, 500);
+      if (status !== /* Conflict has special meaning (see above test) */ 409) {
+        return status;
+      }
+    }
+  })(),
+  randomInt(500, 600),
+] as const) {
+  void test(`recovers from ${code} error within get()`, async () => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     await rig.write({
@@ -272,176 +360,263 @@ test(
       input: 'foo',
     });
 
-    server.forceErrorOnNextRequest('createCacheEntry', 409);
+    server.forceErrorOnNextRequest('getCacheEntry', code);
     const exec = rig.exec('npm run a');
     (await cmdB.nextInvocation()).exit(0);
     (await cmdA.nextInvocation()).exit(0);
     assertSuccess(await exec.exit);
-    assert.equal(server.metrics, {
-      // Both scripts should check for and then try to reserve a cache entry ...
+    assert.deepEqual(server.metrics, {
+      getCacheEntry: 1,
+      createCacheEntry: 0,
+      putBlobBlock: 0,
+      putBlobBlockList: 0,
+      finalizeCacheEntry: 0,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+    assert.equal(cmdA.numInvocations, 1);
+    assert.equal(cmdA.numInvocations, 1);
+  });
+
+  void test(`recovers from ${code} error within set()`, async () => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            files: ['input'],
+            output: [],
+            dependencies: ['b'],
+          },
+          b: {
+            command: 'true',
+            files: ['input'],
+            output: [],
+          },
+        },
+      },
+    });
+
+    // Do a successful run to populate the cache.
+    await rig.write('input', 'cached');
+    assertSuccess(await rig.exec('npm run a').exit);
+    assert.deepEqual(server.metrics, {
       getCacheEntry: 2,
       createCacheEntry: 2,
-      // ... but since the first one will fail to reserve with a 409, only the
-      // second one will actually finish uploading its entry.
+      putBlobBlock: 2,
+      putBlobBlockList: 2,
+      finalizeCacheEntry: 2,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+
+    // Check API
+    server.forceErrorOnNextRequest('getCacheEntry', code);
+    server.resetMetrics();
+    await rig.write('input', '0');
+    assertSuccess(await rig.exec('npm run a').exit);
+    assert.deepEqual(server.metrics, {
+      // Note that because we turn off GitHub Actions Caching after the first
+      // rate limit error, "b" fails and then "a" skips, so this count is 1
+      // instead of 2.
+      getCacheEntry: 1,
+      createCacheEntry: 0,
+      putBlobBlock: 0,
+      putBlobBlockList: 0,
+      finalizeCacheEntry: 0,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+
+    // Reserve API
+    server.forceErrorOnNextRequest('createCacheEntry', code);
+    server.resetMetrics();
+    await rig.write('input', '1');
+    assertSuccess(await rig.exec('npm run a').exit);
+    assert.deepEqual(server.metrics, {
+      getCacheEntry: 1,
+      createCacheEntry: 1,
+      putBlobBlock: 0,
+      putBlobBlockList: 0,
+      finalizeCacheEntry: 0,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+
+    // Upload API
+    server.forceErrorOnNextRequest('putBlobBlock', code);
+    server.resetMetrics();
+    await rig.write('input', '2');
+    assertSuccess(await rig.exec('npm run a').exit);
+    assert.deepEqual(server.metrics, {
+      getCacheEntry: 1,
+      createCacheEntry: 1,
+      putBlobBlock: 1,
+      putBlobBlockList: 0,
+      finalizeCacheEntry: 0,
+      getBlob: 0,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+
+    // Commit API
+    server.forceErrorOnNextRequest('finalizeCacheEntry', code);
+    server.resetMetrics();
+    await rig.write('input', '3');
+    assertSuccess(await rig.exec('npm run a').exit);
+    assert.deepEqual(server.metrics, {
+      getCacheEntry: 1,
+      createCacheEntry: 1,
       putBlobBlock: 1,
       putBlobBlockList: 1,
       finalizeCacheEntry: 1,
       getBlob: 0,
     } satisfies FakeGitHubActionsCacheServerMetrics);
-    assert.equal(cmdA.numInvocations, 1);
-    assert.equal(cmdA.numInvocations, 1);
-  }),
-);
 
-const randomInt = (minIncl: number, maxExcl: number) =>
-  minIncl + Math.floor(Math.random() * (maxExcl - minIncl));
+    // Download API
+    server.forceErrorOnNextRequest('getBlob', code);
+    server.resetMetrics();
+    await rig.write('input', 'cached');
+    assertSuccess(await rig.exec('npm run a').exit);
+    assert.deepEqual(server.metrics, {
+      getCacheEntry: 2,
+      createCacheEntry: 0,
+      putBlobBlock: 0,
+      putBlobBlockList: 0,
+      finalizeCacheEntry: 0,
+      getBlob: 2,
+    } satisfies FakeGitHubActionsCacheServerMetrics);
+  });
 
-for (const code of [
-  'ECONNRESET',
-  (() => {
-    while (true) {
-      const status = randomInt(400, 500);
-      if (status !== /* Conflict has special meaning (see above test) */ 409) {
-        return status;
-      }
-    }
-  })(),
-  randomInt(500, 600),
-] as const) {
-  test(
-    `recovers from ${code} error within get()`,
-    rigTest(async ({rig, server}) => {
-      const cmdA = await rig.newCommand();
-      const cmdB = await rig.newCommand();
-      await rig.write({
-        'package.json': {
-          scripts: {
-            a: 'wireit',
-            b: 'wireit',
-          },
-          wireit: {
-            a: {
-              command: cmdA.command,
-              files: ['input'],
-              output: [],
-              dependencies: ['b'],
-            },
-            b: {
-              command: cmdB.command,
-              files: ['input'],
-              output: [],
-            },
+  void test(`runs script when ${code} error occurs during cache tarball download`, async () => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
           },
         },
-        input: 'foo',
-      });
+      },
+      input: 'v0',
+    });
 
-      server.forceErrorOnNextRequest('getCacheEntry', code);
+    // Populate the cache.
+    {
       const exec = rig.exec('npm run a');
-      (await cmdB.nextInvocation()).exit(0);
-      (await cmdA.nextInvocation()).exit(0);
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', 'v0');
+      inv.exit(0);
       assertSuccess(await exec.exit);
-      assert.equal(server.metrics, {
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Delete local state and output, then force a download error on restore.
+    await rig.delete('.wireit');
+    await rig.delete('output');
+    server.forceErrorOnNextRequest('getBlob', code);
+    server.resetMetrics();
+
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', 'v0-rebuilt');
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v0-rebuilt');
+      assert.deepEqual(server.metrics, {
         getCacheEntry: 1,
         createCacheEntry: 0,
         putBlobBlock: 0,
         putBlobBlockList: 0,
         finalizeCacheEntry: 0,
-        getBlob: 0,
+        getBlob: 1,
       } satisfies FakeGitHubActionsCacheServerMetrics);
-      assert.equal(cmdA.numInvocations, 1);
-      assert.equal(cmdA.numInvocations, 1);
-    }),
-  );
+    }
+  });
+}
 
-  test(
-    `recovers from ${code} error within set()`,
-    rigTest(async ({rig, server}) => {
-      await rig.write({
-        'package.json': {
-          scripts: {
-            a: 'wireit',
-            b: 'wireit',
-          },
-          wireit: {
-            a: {
-              command: 'true',
-              files: ['input'],
-              output: [],
-              dependencies: ['b'],
-            },
-            b: {
-              command: 'true',
-              files: ['input'],
-              output: [],
-            },
+void test(
+  'uploads large tarball in multiple chunks',
+  {timeout: Math.max(DEFAULT_TIMEOUT, 15_000)},
+  async () => {
+    const cmdA = await rig.newCommand();
+
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
           },
         },
-      });
+      },
+    });
 
-      // Do a successful run to populate the cache.
-      await rig.write('input', 'cached');
-      assertSuccess(await rig.exec('npm run a').exit);
-      assert.equal(server.metrics, {
-        getCacheEntry: 2,
-        createCacheEntry: 2,
+    // Generate a random file which is big enough to exceed the maximum chunk
+    // size, so that it gets split into 2 separate upload requests.
+    //
+    // The maximum chunk size is defined here:
+    // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
+    //
+    // This needs to be actually random data, not just arbitrary, because the
+    // tarball will be compressed, and we need a poor compression ratio in order
+    // to hit our target size.
+    const MB = 1024 * 1024;
+    const maxChunkBytes = 32 * MB;
+    const compressionHeadroomBytes = 8 * MB; // Found experimentally.
+    const totalBytes = maxChunkBytes + compressionHeadroomBytes;
+    const fileContent = crypto.randomBytes(totalBytes).toString();
+
+    // On the initial run a large file is created and should be cached.
+    {
+      await rig.write('input', 'v0');
+      server.resetMetrics();
+
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', fileContent);
+      inv.exit(0);
+
+      // Note here is when we are creating the compressed tarball, which is the
+      // slowest part of this test.
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.deepEqual(server.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        // Since we had a file that was larger than the maximum chunk size, we
+        // should have 2 upload requests.
         putBlobBlock: 2,
-        putBlobBlockList: 2,
-        finalizeCacheEntry: 2,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
         getBlob: 0,
       } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
 
-      // Check API
-      server.forceErrorOnNextRequest('getCacheEntry', code);
+    // Invalidate cache by changing input.
+    {
+      await rig.write('input', 'v1');
       server.resetMetrics();
-      await rig.write('input', '0');
-      assertSuccess(await rig.exec('npm run a').exit);
-      assert.equal(server.metrics, {
-        // Note that because we turn off GitHub Actions Caching after the first
-        // rate limit error, "b" fails and then "a" skips, so this count is 1
-        // instead of 2.
-        getCacheEntry: 1,
-        createCacheEntry: 0,
-        putBlobBlock: 0,
-        putBlobBlockList: 0,
-        finalizeCacheEntry: 0,
-        getBlob: 0,
-      } satisfies FakeGitHubActionsCacheServerMetrics);
 
-      // Reserve API
-      server.forceErrorOnNextRequest('createCacheEntry', code);
-      server.resetMetrics();
-      await rig.write('input', '1');
-      assertSuccess(await rig.exec('npm run a').exit);
-      assert.equal(server.metrics, {
-        getCacheEntry: 1,
-        createCacheEntry: 1,
-        putBlobBlock: 0,
-        putBlobBlockList: 0,
-        finalizeCacheEntry: 0,
-        getBlob: 0,
-      } satisfies FakeGitHubActionsCacheServerMetrics);
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      assert.ok(!(await rig.exists('output')));
+      inv.exit(0);
 
-      // Upload API
-      server.forceErrorOnNextRequest('putBlobBlock', code);
-      server.resetMetrics();
-      await rig.write('input', '2');
-      assertSuccess(await rig.exec('npm run a').exit);
-      assert.equal(server.metrics, {
-        getCacheEntry: 1,
-        createCacheEntry: 1,
-        putBlobBlock: 1,
-        putBlobBlockList: 0,
-        finalizeCacheEntry: 0,
-        getBlob: 0,
-      } satisfies FakeGitHubActionsCacheServerMetrics);
-
-      // Commit API
-      server.forceErrorOnNextRequest('finalizeCacheEntry', code);
-      server.resetMetrics();
-      await rig.write('input', '3');
-      assertSuccess(await rig.exec('npm run a').exit);
-      assert.equal(server.metrics, {
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.deepEqual(server.metrics, {
         getCacheEntry: 1,
         createCacheEntry: 1,
         putBlobBlock: 1,
@@ -449,131 +624,200 @@ for (const code of [
         finalizeCacheEntry: 1,
         getBlob: 0,
       } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
 
-      // Download API
-      server.forceErrorOnNextRequest('getBlob', code);
+    // Change input back to v0. The large file should be restored from cache.
+    {
+      await rig.write('input', 'v0');
       server.resetMetrics();
-      await rig.write('input', 'cached');
-      assertSuccess(await rig.exec('npm run a').exit);
-      assert.equal(server.metrics, {
-        getCacheEntry: 2,
+
+      const exec = rig.exec('npm run a');
+
+      assert.equal((await exec.exit).code, 0);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.deepEqual(server.metrics, {
+        getCacheEntry: 1,
         createCacheEntry: 0,
         putBlobBlock: 0,
         putBlobBlockList: 0,
         finalizeCacheEntry: 0,
-        getBlob: 2,
+        getBlob: 1,
       } satisfies FakeGitHubActionsCacheServerMetrics);
-    }),
-  );
-}
-
-test(
-  'uploads large tarball in multiple chunks',
-  rigTest(
-    async ({rig, server}) => {
-      const cmdA = await rig.newCommand();
-
-      await rig.write({
-        'package.json': {
-          scripts: {
-            a: 'wireit',
-          },
-          wireit: {
-            a: {
-              command: cmdA.command,
-              files: ['input'],
-              output: ['output'],
-            },
-          },
-        },
-      });
-
-      // Generate a random file which is big enough to exceed the maximum chunk
-      // size, so that it gets split into 2 separate upload requests.
-      //
-      // The maximum chunk size is defined here:
-      // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
-      //
-      // This needs to be actually random data, not just arbitrary, because the
-      // tarball will be compressed, and we need a poor compression ratio in order
-      // to hit our target size.
-      const MB = 1024 * 1024;
-      const maxChunkBytes = 32 * MB;
-      const compressionHeadroomBytes = 8 * MB; // Found experimentally.
-      const totalBytes = maxChunkBytes + compressionHeadroomBytes;
-      const fileContent = crypto.randomBytes(totalBytes).toString();
-
-      // On the initial run a large file is created and should be cached.
-      {
-        await rig.write('input', 'v0');
-        server.resetMetrics();
-
-        const exec = rig.exec('npm run a');
-        const inv = await cmdA.nextInvocation();
-        await rig.write('output', fileContent);
-        inv.exit(0);
-
-        // Note here is when we are creating the compressed tarball, which is the
-        // slowest part of this test.
-
-        assert.equal((await exec.exit).code, 0);
-        assert.equal(cmdA.numInvocations, 1);
-        assert.equal(server.metrics, {
-          getCacheEntry: 1,
-          createCacheEntry: 1,
-          // Since we had a file that was larger than the maximum chunk size, we
-          // should have 2 upload requests.
-          putBlobBlock: 2,
-          putBlobBlockList: 1,
-          finalizeCacheEntry: 1,
-          getBlob: 0,
-        } satisfies FakeGitHubActionsCacheServerMetrics);
-      }
-
-      // Invalidate cache by changing input.
-      {
-        await rig.write('input', 'v1');
-        server.resetMetrics();
-
-        const exec = rig.exec('npm run a');
-        const inv = await cmdA.nextInvocation();
-        assert.not(await rig.exists('output'));
-        inv.exit(0);
-
-        assert.equal((await exec.exit).code, 0);
-        assert.equal(cmdA.numInvocations, 2);
-        assert.equal(server.metrics, {
-          getCacheEntry: 1,
-          createCacheEntry: 1,
-          putBlobBlock: 1,
-          putBlobBlockList: 1,
-          finalizeCacheEntry: 1,
-          getBlob: 0,
-        } satisfies FakeGitHubActionsCacheServerMetrics);
-      }
-
-      // Change input back to v0. The large file should be restored from cache.
-      {
-        await rig.write('input', 'v0');
-        server.resetMetrics();
-
-        const exec = rig.exec('npm run a');
-
-        assert.equal((await exec.exit).code, 0);
-        assert.equal(cmdA.numInvocations, 2);
-        assert.equal(server.metrics, {
-          getCacheEntry: 1,
-          createCacheEntry: 0,
-          putBlobBlock: 0,
-          putBlobBlockList: 0,
-          finalizeCacheEntry: 0,
-          getBlob: 1,
-        } satisfies FakeGitHubActionsCacheServerMetrics);
-        assert.equal(await rig.read('output'), fileContent);
-      }
-    },
-    {ms: Math.max(DEFAULT_UVU_TIMEOUT, 15_000)},
-  ),
+      assert.equal(await rig.read('output'), fileContent);
+    }
+  },
 );
 
-test.run();
+void test('caches over HTTP when ACTIONS_RESULTS_URL is http://', async () => {
+  // The suite fixtures always speak HTTPS. Stand up an HTTP server for this
+  // case, which is what some third-party runner cache proxies expose.
+  const authToken = String(Math.random()).slice(2);
+  const httpServer = new FakeGitHubActionsCacheServer(authToken);
+  const actionsCacheUrl = await httpServer.listen();
+  assert.equal(new URL(actionsCacheUrl).protocol, 'http:');
+
+  const httpRig = new WireitTestRig();
+  httpRig.env = {
+    ...httpRig.env,
+    WIREIT_CACHE: 'github',
+    ACTIONS_RESULTS_URL: actionsCacheUrl,
+    ACTIONS_RUNTIME_TOKEN: authToken,
+    RUNNER_TEMP: pathlib.join(httpRig.temp, 'github-cache-temp'),
+  };
+  await httpRig.setup();
+
+  try {
+    const cmdA = await httpRig.newCommand();
+    await httpRig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    {
+      const exec = httpRig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await httpRig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await httpRig.read('output'), 'v0');
+      assert.deepEqual(httpServer.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+
+    // Delete the ".wireit" folder so that the next run won't be considered
+    // fresh, and the "output" file so that we can be sure it gets restored from
+    // cache.
+    await httpRig.delete('.wireit');
+    await httpRig.delete('output');
+
+    {
+      const exec = httpRig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await httpRig.read('output'), 'v0');
+      assert.deepEqual(httpServer.metrics, {
+        getCacheEntry: 2,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 1,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+  } finally {
+    await Promise.all([httpServer.close(), httpRig.cleanup()]);
+  }
+});
+
+/**
+ * Returns the folder holding the GNU tar that Git for Windows ships, or
+ * undefined if there is none.
+ */
+function findGitForWindowsUsrBin(): string | undefined {
+  let execPath;
+  try {
+    // E.g. "C:/Program Files/Git/mingw64/libexec/git-core".
+    execPath = execFileSync('git', ['--exec-path'], {encoding: 'utf8'}).trim();
+  } catch {
+    return undefined;
+  }
+  const usrBin = pathlib.resolve(execPath, '..', '..', '..', 'usr', 'bin');
+  const tar = pathlib.join(usrBin, 'tar.exe');
+  try {
+    const version = execFileSync(tar, ['--version'], {encoding: 'utf8'});
+    return version.includes('GNU tar') ? usrBin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// When Git for Windows' usr/bin is on PATH ahead of System32, as in a Git bash
+// shell, "tar" is GNU tar instead of BSD tar. GNU tar reads an archive path
+// like "D:\..." as a remote host, and backslashes in a --files-from list as
+// escapes. See https://github.com/google/wireit/issues/1242.
+void test(
+  'caches with GNU tar from Git for Windows',
+  {
+    timeout: DEFAULT_TIMEOUT,
+    skip: IS_WINDOWS ? false : 'Windows only',
+  },
+  async (t) => {
+    const usrBin = findGitForWindowsUsrBin();
+    if (usrBin === undefined) {
+      // GitHub's Windows runners have Git for Windows. Fail there, so that a
+      // change to the runner image cannot silently turn this test off.
+      if (process.env.CI) {
+        assert.fail("Could not find Git for Windows' GNU tar");
+      }
+      t.skip("Git for Windows' GNU tar not found");
+      return;
+    }
+    rig.env = {
+      ...rig.env,
+      PATH: [usrBin, process.env.PATH ?? ''].join(pathlib.delimiter),
+    };
+
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output', 'dir/**'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Run, and save the output to the cache.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0', 'dir/nested/file': 'v0 nested'});
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(server.metrics.finalizeCacheEntry, 1);
+    }
+
+    // Delete the ".wireit" folder so that the next run won't be considered
+    // fresh, and the output so that we can be sure it gets restored from cache.
+    await rig.delete('.wireit');
+    await rig.delete('output');
+    await rig.delete('dir');
+
+    {
+      const exec = rig.exec('npm run a');
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(server.metrics.getBlob, 1);
+      assert.equal(await rig.read('output'), 'v0');
+      assert.equal(await rig.read('dir/nested/file'), 'v0 nested');
+    }
+  },
+);

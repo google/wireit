@@ -10,7 +10,7 @@ import * as assert from 'node:assert';
 import {Options, type Agent} from '../cli-options.js';
 import {Result} from '../error.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import {rigTest} from './util/rig-test.js';
 import {WireitTestRig} from './util/test-rig.js';
 
 const TEST_BINARY_COMMAND = `node ${pathlib.join(
@@ -59,6 +59,8 @@ async function assertOptions(
       extraArgs: [],
       watch: false,
       cache: 'local',
+      cacheMaxEntries: 10,
+      cacheWorktrees: false,
       numWorkers: 10,
       failureMode: 'no-new',
       logger: 'QuietLogger',
@@ -110,9 +112,35 @@ const commands: AgentCommands[] = [
   },
 ];
 
+const positiveIntegerEnvTests: Array<{
+  name: string;
+  env: Record<string, string>;
+  expected: Pick<Options, 'numWorkers'> | Pick<Options, 'cacheMaxEntries'>;
+}> = [
+  {
+    name: 'WIREIT_PARALLEL=" +02 "',
+    env: {WIREIT_PARALLEL: ' +02 '},
+    expected: {numWorkers: 2},
+  },
+  {
+    name: 'WIREIT_CACHE_MAX_ENTRIES=" +02 "',
+    env: {WIREIT_CACHE_MAX_ENTRIES: ' +02 '},
+    expected: {cacheMaxEntries: 2},
+  },
+  {
+    name: 'WIREIT_CACHE_MAX_ENTRIES=5',
+    env: {WIREIT_CACHE_MAX_ENTRIES: '5'},
+    expected: {cacheMaxEntries: 5},
+  },
+];
+
 for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   if (agent === 'nodeRun' && NODE_MAJOR_VERSION < 22) {
     // node --run was added in Node 22.
+    continue;
+  }
+  if (agent === 'pnpm' && NODE_MAJOR_VERSION < 22) {
+    // pnpm 11 requires Node >= 22.13.
     continue;
   }
 
@@ -176,6 +204,69 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
           },
           extraArgs: ['--extra'],
           watch: {strategy: 'event'},
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_WATCH=true run`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          watch: {strategy: 'event'},
+        },
+        {
+          WIREIT_WATCH: 'true',
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_WATCH=false run`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          watch: false,
+        },
+        {
+          WIREIT_WATCH: 'false',
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_WATCH=false run --watch`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes} --watch`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          watch: {strategy: 'event'},
+        },
+        {
+          WIREIT_WATCH: 'false',
         },
       );
     }),
@@ -446,6 +537,33 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
   );
 
   void test(
+    `${agent} WIREIT_WATCH=true WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          logger: 'QuietLogger',
+          watch: {
+            strategy: 'poll',
+            interval: 74,
+          },
+        },
+        {
+          WIREIT_WATCH: 'true',
+          WIREIT_WATCH_STRATEGY: 'poll',
+          WIREIT_WATCH_POLL_MS: '74',
+        },
+      );
+    }),
+  );
+
+  void test(
     `${agent} WIREIT_WATCH_STRATEGY=poll WIREIT_WATCH_POLL_MS=74`,
     rigTest(async ({rig}) => {
       await assertOptions(
@@ -458,13 +576,76 @@ for (const {agent, runCmd, testCmd, startCmd, needsExtraDashes} of commands) {
             name: 'main',
           },
           logger: 'QuietLogger',
-          // This is just testing that the WIREIT_WATCH environment variables
-          // don't actually turn on watch mode. Only the --watch flag does that.
+          // Testing that watch strategy variables alone don't turn on watch mode
+          // without WIREIT_WATCH=true or --watch.
           watch: false,
         },
         {
           WIREIT_WATCH_STRATEGY: 'poll',
           WIREIT_WATCH_POLL_MS: '74',
+        },
+      );
+    }),
+  );
+
+  for (const {name, env, expected} of positiveIntegerEnvTests) {
+    void test(
+      `${agent} ${name}`,
+      rigTest(async ({rig}) => {
+        await assertOptions(
+          rig,
+          `${runCmd} main ${extraDashes}`,
+          {
+            agent,
+            script: {
+              packageDir: rig.temp,
+              name: 'main',
+            },
+            ...expected,
+          },
+          env,
+        );
+      }),
+    );
+  }
+
+  void test(
+    `${agent} WIREIT_CACHE_WORKTREES=true`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          cacheWorktrees: true,
+        },
+        {
+          WIREIT_CACHE_WORKTREES: 'true',
+        },
+      );
+    }),
+  );
+
+  void test(
+    `${agent} WIREIT_CACHE_WORKTREES=yes is false`,
+    rigTest(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${runCmd} main ${extraDashes}`,
+        {
+          agent,
+          script: {
+            packageDir: rig.temp,
+            name: 'main',
+          },
+          cacheWorktrees: false,
+        },
+        {
+          WIREIT_CACHE_WORKTREES: 'yes',
         },
       );
     }),

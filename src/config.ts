@@ -58,9 +58,7 @@ export interface Dependency<
 }
 
 export type ScriptConfig =
-  | NoCommandScriptConfig
-  | StandardScriptConfig
-  | ServiceScriptConfig;
+  NoCommandScriptConfig | StandardScriptConfig | ServiceScriptConfig;
 
 /**
  * A script that doesn't run or produce anything. A pass-through for
@@ -171,8 +169,8 @@ interface BaseScriptConfig extends ScriptReference {
    *
    * - true: Before the script executes, and before restoring from cache.
    * - false: Before restoring from cache.
-   * - "if-file-deleted": If an input file has been deleted, and before restoring from
-   *   cache.
+   * - "if-file-deleted": If an input file has been deleted, if an output file has
+   *   changed, and before restoring from cache.
    */
   clean: boolean | 'if-file-deleted';
 

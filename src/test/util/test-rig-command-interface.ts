@@ -60,8 +60,7 @@ export interface EnvironmentRequestMessage {
  * A message sent from a spawned command to the test rig.
  */
 export type ChildToRigMessage =
-  | EnvironmentResponseMessage
-  | SigintReceivedMessage;
+  EnvironmentResponseMessage | SigintReceivedMessage;
 
 /**
  * Report to the rig what cwd, argv, and environment variables were set when

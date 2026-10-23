@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import chokidar from 'chokidar';
+import type {FSWatcher} from 'chokidar';
+import {chokidarWatchWithGlobs} from './util/chokidar-with-globs.js';
 import {Analyzer} from './analyzer.js';
 import {Cache} from './caching/cache.js';
 import {
@@ -44,12 +45,7 @@ import type {Fingerprint} from './fingerprint.js';
  * ```
  */
 type WatcherState =
-  | 'initial'
-  | 'watching'
-  | 'debouncing'
-  | 'running'
-  | 'queued'
-  | 'aborted';
+  'initial' | 'watching' | 'debouncing' | 'running' | 'queued' | 'aborted';
 
 function unknownState(state: never) {
   return new Error(`Unknown watcher state ${String(state)}`);
@@ -65,7 +61,7 @@ function unexpectedState(state: WatcherState) {
  */
 interface FileWatcher extends AsyncDisposable {
   patterns: string[];
-  watcher: chokidar.FSWatcher;
+  watcher: FSWatcher;
 }
 
 /**
@@ -100,6 +96,18 @@ export class Watcher {
   readonly #failureMode: FailureMode;
   readonly #agent: Agent;
   #executor?: Executor;
+
+  /** Stops the background trash sweep when watching is aborted. */
+  readonly #sweepAbort = new AbortController();
+
+  /** The background trash sweep in progress, if any. */
+  #backgroundSweep?: Promise<void>;
+
+  /**
+   * Whether an iteration finished during {@link #backgroundSweep}, and so may
+   * have evicted entries that it didn't see.
+   */
+  #sweepAgain = false;
   #debounceTimeoutId?: NodeJS.Timeout = undefined;
   #previousIterationServices?: ServiceMap = undefined;
   #previousIterationFailures = new Map<ScriptReferenceString, Fingerprint>();
@@ -285,6 +293,7 @@ export class Watcher {
       this.#previousIterationFailures,
     );
     const result = await this.#executor.execute();
+    this.#sweepInBackground();
     this.#previousIterationServices = result.persistentServices;
     if (result.errors.length > 0) {
       for (const error of result.errors) {
@@ -410,7 +419,40 @@ export class Watcher {
     }
   }
 
+  /**
+   * Deletes evicted cache entries without holding up the next iteration. Runs
+   * one sweep at a time, then one more if an iteration finished meanwhile.
+   * Sweeps started by iterations in quick succession would otherwise add up:
+   * each would walk the same trash, and together they would keep more
+   * deletions in flight than a background sweep allows.
+   */
+  #sweepInBackground(): void {
+    const cache = this.#cache;
+    if (cache === undefined) {
+      return;
+    }
+    if (this.#backgroundSweep !== undefined) {
+      this.#sweepAgain = true;
+      return;
+    }
+    this.#backgroundSweep = (async () => {
+      do {
+        this.#sweepAgain = false;
+        // Never rejects. Whatever this doesn't finish, the next run does.
+        const messages = await cache.sweepTrash({
+          signal: this.#sweepAbort.signal,
+          background: true,
+        });
+        for (const message of messages) {
+          console.warn(message);
+        }
+      } while (this.#sweepAgain && !this.#sweepAbort.signal.aborted);
+      this.#backgroundSweep = undefined;
+    })();
+  }
+
   abort(): void {
+    this.#sweepAbort.abort();
     if (this.#executor !== undefined) {
       this.#executor.abort();
       this.#executor = undefined;
@@ -493,7 +535,7 @@ export const makeWatcher = (
   // TODO(aomarks) chokidar doesn't work exactly like fast-glob, so there are
   // currently various differences in what gets watched vs what actually affects
   // the build. See https://github.com/google/wireit/issues/550.
-  const watcher = chokidar.watch(
+  const watcher = chokidarWatchWithGlobs(
     // Trim leading slashes from patterns, to "re-root" all paths to the package
     // directory, just as we do when globbing for script execution.
     patterns.map((pattern) => pattern.replace(/^\/+/, '')),

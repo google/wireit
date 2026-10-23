@@ -6,10 +6,11 @@
 
 import * as pathlib from 'path';
 import {test} from 'node:test';
-import * as assert from 'uvu/assert';
-import {rigTestNode as rigTest} from './util/rig-test.js';
+import * as assert from 'node:assert';
+import {rigTest} from './util/rig-test.js';
 import {shuffle} from '../util/shuffle.js';
 import {IS_WINDOWS} from '../util/windows.js';
+import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
 void test(
   'fresh script is skipped',
@@ -1486,6 +1487,10 @@ for (const [agent, lockfile] of [
   ['yarn', 'yarn.lock'],
   ['pnpm', 'pnpm-lock.yaml'],
 ]) {
+  if (agent === 'pnpm' && NODE_MAJOR_VERSION < 22) {
+    // pnpm 11 requires Node >= 22.13.
+    continue;
+  }
   void test(
     `changing ${lockfile} with ${agent} changes fingerprint`,
     rigTest(async ({rig}) => {
@@ -1902,7 +1907,7 @@ void test(
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
       assert.equal(await rig.read('output/subdir/foo'), '1');
-      assert.not(await rig.exists('output/subdir/bar'));
+      assert.ok(!(await rig.exists('output/subdir/bar')));
     }
 
     // Fresh again because nothing changed.
@@ -1912,7 +1917,7 @@ void test(
       assert.equal((await exec.exit).code, 0);
       assert.equal(main.numInvocations, 2);
       assert.equal(await rig.read('output/subdir/foo'), '1');
-      assert.not(await rig.exists('output/subdir/bar'));
+      assert.ok(!(await rig.exists('output/subdir/bar')));
     }
 
     // Adding an excluded file inside a directory that is included should not
