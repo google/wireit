@@ -92,8 +92,11 @@ export interface CacheHit {
    *
    * It is assumed that any existing stale output has already been cleaned
    * before this method is called.
+   *
+   * @return Whether the cached files were written. If false, the cache hit
+   * could not be applied and the script should run normally instead.
    */
-  apply(): Promise<void>;
+  apply(): Promise<boolean>;
 
   /** Release resources held by this hit when it won't be applied. */
   release(): Promise<void>;

@@ -26,6 +26,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Fixed issue where a failed GitHub Actions cache tarball download caused Wireit
+  to skip the script and record an empty output manifest instead of running the
+  script command.
 - Fixed issue where the local cache could restore corrupt output. If Wireit was
   killed or crashed while writing a cache entry, later runs restored the partial
   entry, with files missing or truncated and no error. Entries are now written
