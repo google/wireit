@@ -498,6 +498,63 @@ void test(
 );
 
 void test(
+  '"if-file-deleted" logs modified outputs once',
+  rigTest(async ({rig}) => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input/**'],
+            output: ['output/**'],
+            clean: 'if-file-deleted',
+          },
+        },
+      },
+      'input/a': 'v0',
+    });
+    // No cache, so that the run after the freshness check is a real run, and
+    // the clean check compares the outputs too.
+    const env = {WIREIT_CACHE: 'none', WIREIT_LOGGER: 'simple'};
+
+    {
+      const exec = rig.exec('npm run a', {env});
+      const inv = await cmdA.nextInvocation();
+      await rig.write({
+        'output/a': 'v0',
+        'output/b': 'v0',
+      });
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+    }
+
+    // Delete one output, and leave the inputs unchanged. Both the freshness
+    // check and the clean check find the change.
+    {
+      await rig.delete('output/a');
+      const exec = rig.exec('npm run a', {env});
+      const inv = await cmdA.nextInvocation();
+      const outputBExists = await rig.exists('output/b');
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.ok(!outputBExists);
+      assert.equal(
+        res.stdout.split('Output files were modified').length - 1,
+        1,
+      );
+    }
+
+    assert.equal(cmdA.numInvocations, 2);
+  }),
+);
+
+void test(
   'directories are not deleted unless empty',
   rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();

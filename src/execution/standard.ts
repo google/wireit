@@ -37,6 +37,8 @@ type StandardScriptExecutionState =
  */
 export class StandardScriptExecution extends BaseExecutionWithCommand<StandardScriptConfig> {
   #state: StandardScriptExecutionState = 'before-running';
+  /** The result of {@link #outputManifestIsFresh}, once computed. */
+  #outputManifestFresh?: Promise<Result<boolean>>;
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
 
@@ -759,8 +761,16 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Check whether the current manifest of output files matches the one from the
    * `.wireit` directory.
+   *
+   * Both the freshness check and the clean check need this before the command
+   * runs, so it is computed once per execution, and the change is logged once.
+   * The result is stale after the command runs.
    */
-  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+  #outputManifestIsFresh(): Promise<Result<boolean>> {
+    return (this.#outputManifestFresh ??= this.#compareOutputManifest());
+  }
+
+  async #compareOutputManifest(): Promise<Result<boolean>> {
     const oldManifestPromise = this.#readPreviousOutputManifest();
     const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
     if (!outputFilesBeforeRunning.ok) {
