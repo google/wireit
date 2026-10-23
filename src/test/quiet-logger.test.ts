@@ -4,41 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTest} from './util/rig-test.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    // process.env['SHOW_TEST_OUTPUT'] = 'true';
-    // ctx.rig.env['WIREIT_DEBUG_LOGGER'] = 'true';
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
-
-test(
+void test(
   'CI logger with a dependency chain',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // a --> b --> c
     rig.env.WIREIT_LOGGER = 'quiet-ci';
     const cmdA = await rig.newCommand();
@@ -92,7 +64,7 @@ test(
     assert.equal(cmdA.numInvocations, 1);
     assert.equal(cmdB.numInvocations, 1);
     assert.equal(cmdC.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout\n');
+    assert.match(res.stdout, /a stdout\n/);
     assert.match(res.stdout, /Ran 3 scripts and skipped 0/s);
     assertEndsWith(
       res.stderr.trim(),
@@ -110,5 +82,3 @@ function assertEndsWith(actual: string, expected: string) {
   const actualSuffix = actual.slice(-expected.length);
   assert.equal(actualSuffix, expected);
 }
-
-test.run();

@@ -7,6 +7,7 @@
 import * as pathlib from 'path';
 import * as unbudgetedFs from 'fs/promises';
 import * as fs from '../util/fs.js';
+import * as http from 'http';
 import * as https from 'https';
 import {createHash} from 'crypto';
 import {scriptReferenceToString} from '../config.js';
@@ -15,17 +16,18 @@ import '../util/dispose.js';
 import {fileBudget} from '../util/fs.js';
 import {execFile} from 'child_process';
 import '../util/dispose.js';
+import {inspect} from 'util';
 
-import type * as http from 'http';
 import type {Cache, CacheHit} from './cache.js';
 import type {ScriptReference} from '../config.js';
 import type {Fingerprint} from '../fingerprint.js';
 import type {Logger} from '../logging/logger.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {Result} from '../error.js';
+import type {InvalidUsage, UnknownErrorThrown} from '../event.js';
 
 /**
- * Caches script output to the GitHub Actions caching service.
+ * Caches script output to the GitHub Actions cache service.
  */
 export class GitHubActionsCache implements Cache {
   readonly #baseUrl: string;
@@ -48,24 +50,109 @@ export class GitHubActionsCache implements Cache {
     this.#logger = logger;
   }
 
-  static create(
+  static async create(
     logger: Logger,
-  ): Result<GitHubActionsCache, {reason: 'invalid-usage'; message: string}> {
-    // The ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN environment variables are
+  ): Promise<
+    Result<
+      GitHubActionsCache,
+      Omit<InvalidUsage, 'script'> | Omit<UnknownErrorThrown, 'script'>
+    >
+  > {
+    const custodianPort = process.env['WIREIT_CACHE_GITHUB_CUSTODIAN_PORT'];
+    if (custodianPort === undefined) {
+      if (
+        process.env['ACTIONS_RUNTIME_TOKEN'] !== undefined ||
+        process.env['ACTIONS_CACHE_URL'] !== undefined ||
+        process.env['ACTIONS_RESULTS_URL'] !== undefined
+      ) {
+        console.warn(
+          '⚠️ Please upgrade to google/wireit@setup-github-cache/v2. ' +
+            'In the future, Wireit caching for this project will stop working.\n',
+        );
+        return GitHubActionsCache.#deprecatedCreate(logger);
+      }
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-usage',
+          message:
+            'The WIREIT_CACHE_GITHUB_CUSTODIAN_PORT environment variable was ' +
+            'not set, but is required when WIREIT_CACHE=github. Use the ' +
+            'google/wireit@setup-github-cache/v2 action to automatically set ' +
+            'this environment variable.',
+        },
+      };
+    }
+    const custodianUrl = `http://localhost:${custodianPort}`;
+    let result: {
+      caching: {
+        github: {
+          ACTIONS_RESULTS_URL?: string;
+          ACTIONS_RUNTIME_TOKEN: string;
+        };
+      };
+    };
+    try {
+      const response = await fetch(custodianUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP status ${response.status}`);
+      }
+      result = (await response.json()) as typeof result;
+    } catch (error) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'unknown-error-thrown',
+          error: new Error(
+            `Error communicating with cache token mediator service: ` +
+              inspect(error),
+          ),
+        },
+      };
+    }
+    if (!result.caching.github.ACTIONS_RESULTS_URL) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'invalid-usage',
+          message:
+            'No ACTIONS_RESULTS_URL was returned by the custodian.' +
+            ' Ensure you are using at least version 2.0.3.',
+        },
+      };
+    }
+    return {
+      ok: true,
+      value: new GitHubActionsCache(
+        logger,
+        result.caching.github.ACTIONS_RESULTS_URL,
+        result.caching.github.ACTIONS_RUNTIME_TOKEN,
+      ),
+    };
+  }
+
+  static #deprecatedCreate(
+    logger: Logger,
+  ): Result<GitHubActionsCache, Omit<InvalidUsage, 'script'>> {
+    // The ACTIONS_RESULTS_URL and ACTIONS_RUNTIME_TOKEN environment variables are
     // automatically provided to GitHub Actions re-usable workflows. However,
     // they are _not_ provided to regular "run" scripts. For this reason, we
     // re-export those variables so that all "run" scripts can access them using
     // the "google/wireit@setup-github-actions-caching/v1" re-usable workflow.
     //
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L38
-    const baseUrl = process.env['ACTIONS_CACHE_URL'];
+    const baseUrl = process.env['ACTIONS_RESULTS_URL'];
     if (!baseUrl) {
       return {
         ok: false,
         error: {
+          type: 'failure',
           reason: 'invalid-usage',
           message:
-            'The ACTIONS_CACHE_URL variable was not set, but is required when ' +
+            'The ACTIONS_RESULTS_URL variable was not set, but is required when ' +
             'WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 ' +
             'action to automatically set environment variables.',
         },
@@ -78,8 +165,9 @@ export class GitHubActionsCache implements Cache {
       return {
         ok: false,
         error: {
+          type: 'failure',
           reason: 'invalid-usage',
-          message: `The ACTIONS_CACHE_URL must end in a forward-slash, got ${JSON.stringify(
+          message: `The ACTIONS_RESULTS_URL must end in a forward-slash, got ${JSON.stringify(
             baseUrl,
           )}.`,
         },
@@ -92,6 +180,7 @@ export class GitHubActionsCache implements Cache {
       return {
         ok: false,
         error: {
+          type: 'failure',
           reason: 'invalid-usage',
           message:
             'The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when ' +
@@ -117,27 +206,41 @@ export class GitHubActionsCache implements Cache {
 
     const version = this.#computeVersion(fingerprint);
     const key = this.#computeCacheKey(script);
-    const url = new URL('_apis/artifactcache/cache', this.#baseUrl);
-    url.searchParams.set('keys', key);
-    url.searchParams.set('version', version);
-
-    using requestResult = this.#request(url);
+    const url = new URL(
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L91
+      'twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL',
+      this.#baseUrl,
+    );
+    // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L246
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L101C1-L126C2
+    const requestBody = {key, version};
+    const bodyBuffer = Buffer.from(JSON.stringify(requestBody), 'utf8');
+    using requestResult = this.#request(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': bodyBuffer.length,
+      },
+    });
     const {req, resPromise} = requestResult;
-    req.end();
+    req.end(bodyBuffer);
     const result = await resPromise;
-    if (!this.#maybeHandleServiceDown(result, script)) {
-      return undefined;
-    }
-    const response = result.value;
-
-    if (response.statusCode === /* No Content */ 204) {
+    const response = await this.#maybeHandleServiceDown(result, script);
+    if (response === undefined) {
       return undefined;
     }
 
     if (isOk(response)) {
-      const {archiveLocation} = JSON.parse(await readBody(response)) as {
-        archiveLocation: string;
+      const {signed_download_url: archiveLocation} = JSON.parse(
+        await readBody(response),
+      ) as {
+        ok: boolean;
+        signed_download_url: string;
+        matched_key: string;
       };
+      if (!archiveLocation) {
+        return undefined;
+      }
       return new GitHubActionsCacheHit(script, archiveLocation, this.#logger);
     }
 
@@ -168,6 +271,16 @@ export class GitHubActionsCache implements Cache {
     );
   }
 
+  /** The service decides what to evict; recency isn't ours to report. */
+  markEntryRecentlyUsed(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  /** No entry of this cache lives on local disk. */
+  sweepTrash(): Promise<string[]> {
+    return Promise.resolve([]);
+  }
+
   /**
    * @returns True if we reserved, uploaded, and committed the tarball. False if
    * we gave up due to a rate limit error.
@@ -196,24 +309,21 @@ export class GitHubActionsCache implements Cache {
       });
       return false;
     }
-    const id = await this.#reserveCacheEntry(
-      script,
-      this.#computeCacheKey(script),
-      this.#computeVersion(fingerprint),
-      tarballBytes,
-    );
+    const key = this.#computeCacheKey(script);
+    const version = this.#computeVersion(fingerprint);
+    const blobUrl = await this.#createCacheEntry(script, key, version);
     // It's likely that we'll occasionally fail to reserve an entry and get
     // undefined here, especially when running multiple GitHub Action jobs in
     // parallel with the same scripts, because there is a window of time between
     // calling "get" and "set" on the cache in which another worker could have
     // reserved the entry before us. Non fatal, just don't save.
-    if (id === undefined) {
+    if (blobUrl === undefined) {
       return false;
     }
-    if (!(await this.#upload(script, id, tarballPath, tarballBytes))) {
+    if (!(await this.#upload(script, blobUrl, tarballPath, tarballBytes))) {
       return false;
     }
-    if (!(await this.#commit(script, id, tarballBytes))) {
+    if (!(await this.#finalize(script, key, version, tarballBytes))) {
       return false;
     }
     return true;
@@ -225,11 +335,10 @@ export class GitHubActionsCache implements Cache {
    */
   async #upload(
     script: ScriptReference,
-    id: number,
+    blobUrl: string,
     tarballPath: string,
     tarballBytes: number,
   ): Promise<boolean> {
-    const url = new URL(`_apis/artifactcache/caches/${id}`, this.#baseUrl);
     // Reference:
     // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/options.ts#L59
     const maxChunkSize = 32 * 1024 * 1024;
@@ -239,7 +348,10 @@ export class GitHubActionsCache implements Cache {
     const tarballHandle = await unbudgetedFs.open(tarballPath, 'r');
     let offset = 0;
     try {
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/internal/uploadUtils.ts#L132
       // TODO(aomarks) Chunks could be uploaded in parallel.
+      const blockIds: string[] = [];
+      let blockIdx = 0;
       while (offset < tarballBytes) {
         const chunkSize = Math.min(tarballBytes - offset, maxChunkSize);
         const start = offset;
@@ -254,13 +366,24 @@ export class GitHubActionsCache implements Cache {
         });
 
         const opts = {
-          method: 'PATCH',
+          method: 'PUT',
           headers: {
             'content-type': 'application/octet-stream',
-            'content-range': `bytes ${start}-${end}/*`,
+            'content-length': `${chunkSize}`,
+            'x-ms-blob-type': 'BlockBlob',
+            authorization: undefined,
           },
         };
-        using requestResult = this.#request(url, opts);
+        const putBlockUrl = new URL(blobUrl);
+        putBlockUrl.searchParams.set('comp', 'block');
+        // All block IDs must be the same length within a blob.
+        const blockId = Buffer.from(
+          blockIdx.toString(16).padStart(4, '0'),
+        ).toString('base64');
+        blockIdx++;
+        blockIds.push(blockId);
+        putBlockUrl.searchParams.set('blockid', blockId);
+        using requestResult = this.#request(putBlockUrl, opts);
         const {req, resPromise} = requestResult;
         tarballChunkStream.pipe(req);
         tarballChunkStream.on('close', () => {
@@ -268,10 +391,10 @@ export class GitHubActionsCache implements Cache {
         });
 
         const result = await resPromise;
-        if (!this.#maybeHandleServiceDown(result, script)) {
+        const response = await this.#maybeHandleServiceDown(result, script);
+        if (response === undefined) {
           return false;
         }
-        const response = result.value;
 
         if (!isOk(response)) {
           throw new Error(
@@ -282,6 +405,37 @@ export class GitHubActionsCache implements Cache {
             )}`,
           );
         }
+      }
+      const putBlockListUrl = new URL(blobUrl);
+      putBlockListUrl.searchParams.set('comp', 'blocklist');
+      const doneXmlBody = Buffer.from(
+        `<?xml version="1.0" encoding="utf-8"?>
+<BlockList>
+${blockIds.map((blockId) => `  <Uncommitted>${blockId}</Uncommitted>`).join('\n')}
+</BlockList>
+`,
+        'utf8',
+      );
+      using requestResult = this.#request(putBlockListUrl, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'text/plain; charset=UTF-8',
+          'content-length': `${doneXmlBody.length}`,
+          authorization: undefined,
+        },
+      });
+      requestResult.req.end(doneXmlBody);
+      const r = await requestResult.resPromise;
+      const response = await this.#maybeHandleServiceDown(r, script);
+      if (response === undefined) {
+        return false;
+      }
+      if (!isOk(response)) {
+        throw new Error(
+          `GitHub Cache finalize HTTP ${String(
+            response.statusCode,
+          )} error: ${await readBody(response)}`,
+        );
       }
       return true;
     } finally {
@@ -294,32 +448,42 @@ export class GitHubActionsCache implements Cache {
    * @returns True if we committed, false if we gave up due to a rate limit error.
    * @throws If an unexpected HTTP error occured.
    */
-  async #commit(
+  async #finalize(
     script: ScriptReference,
-    id: number,
+    key: string,
+    version: string,
     tarballBytes: number,
   ): Promise<boolean> {
     const url = new URL(
-      `_apis/artifactcache/caches/${String(id)}`,
+      // See
+      // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L132
+      `twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload`,
       this.#baseUrl,
     );
-    const reqBody = JSON.stringify({
-      size: tarballBytes,
-    });
+    // See
+    // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L555
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L57
+    const body = {
+      key,
+      version,
+      sizeBytes: tarballBytes,
+    };
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'content-length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.end(reqBody);
+    req.end(bodyBuffer);
 
     const result = await resPromise;
-    if (!this.#maybeHandleServiceDown(result, script)) {
+    const response = await this.#maybeHandleServiceDown(result, script);
+    if (response === undefined) {
       return false;
     }
-    const response = result.value;
 
     if (!isOk(response)) {
       throw new Error(
@@ -334,7 +498,9 @@ export class GitHubActionsCache implements Cache {
 
   #request(
     url: URL,
-    options?: http.RequestOptions,
+    options?: Omit<http.RequestOptions, 'headers'> & {
+      headers: http.OutgoingHttpHeaders;
+    },
   ): {
     req: http.ClientRequest;
     resPromise: Promise<Result<http.IncomingMessage, Error>>;
@@ -342,8 +508,7 @@ export class GitHubActionsCache implements Cache {
     return request(url, {
       ...options,
       headers: {
-        // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/cache/src/internal/cacheHttpClient.ts#L55
-        accept: 'application/json;api-version=6.0-preview.1',
+        accept: 'application/json',
         // https://github.com/actions/toolkit/blob/500d0b42fee2552ae9eeb5933091fe2fbf14e72d/packages/http-client/src/auth.ts#L46
         authorization: `Bearer ${this.#authToken}`,
         ...options?.headers,
@@ -352,66 +517,69 @@ export class GitHubActionsCache implements Cache {
   }
 
   /**
-   * If we received an error that indicates something is wrong with the GitHub
-   * Actions service that is not our fault, log an error and return false.
-   * Otherwise return true.
+   * If we received a network or HTTP error from the given HTTP request, set the
+   * global flag to indicate that GitHub Actions Caching is down (it's a class
+   * property, but this class should be a global singleton), log an error, and
+   * return undefined. If the request was OK, just return the response.
    */
-  #maybeHandleServiceDown(
+  async #maybeHandleServiceDown(
     res: Result<http.IncomingMessage, Error>,
     script: ScriptReference,
-  ): res is {ok: true; value: http.IncomingMessage} {
-    if (!res.ok) {
-      if (!this.#serviceIsDown) {
-        this.#logger.log({
-          script,
-          type: 'info',
-          detail: 'cache-info',
-          message:
-            `Connection error from GitHub Actions service, caching disabled. ` +
-            'Detail: ' +
-            ('code' in res.error
-              ? `${(res.error as Error & {code: string}).code} `
-              : '') +
-            res.error.message,
-        });
-      }
-    } else {
-      switch (res.value.statusCode) {
-        case /* Too Many Requests */ 429: {
-          if (!this.#serviceIsDown) {
-            this.#logger.log({
-              script,
-              type: 'info',
-              detail: 'cache-info',
-              message: `Hit GitHub Actions cache rate limit, caching disabled.`,
-            });
-          }
-          break;
-        }
-        case /* Service Unavailable */ 503: {
-          if (!this.#serviceIsDown) {
-            this.#logger.log({
-              script,
-              type: 'info',
-              detail: 'cache-info',
-              message: `GitHub Actions service is unavailable, caching disabled.`,
-            });
-          }
-          break;
-        }
-        default: {
-          return true;
-        }
-      }
+  ): Promise<http.IncomingMessage | undefined> {
+    const status = res.ok ? res.value.statusCode : null;
+    if (res.ok && status != null && status >= 200 && status <= 299) {
+      return res.value;
+    }
+
+    if (this.#serviceIsDown) {
+      // Reduce noise; just whatever the first error was is OK.
+      //
+      // Note that this cache can be accessed concurrently, so even though we
+      // stop making HTTP requests after setting this flag, there could be >1
+      // pending requests out at the same time before the first error is
+      // detected.
+      return undefined;
     }
     this.#serviceIsDown = true;
-    return false;
+
+    if (!res.ok) {
+      this.#logger.log({
+        script,
+        type: 'info',
+        detail: 'cache-info',
+        message:
+          `Network error from GitHub Actions cache service.` +
+          ` GitHub Actions caching has been temporarily disabled.` +
+          ` Detail:\n\n${res.error}`,
+      });
+    } else {
+      // Read the body before returning. The caller destroys the request as soon
+      // as we return, which would cut the body off.
+      const body = await readBody(res.value).catch(() => '');
+      const message =
+        status === 429
+          ? `Hit GitHub Actions cache service rate limit`
+          : status === 503
+            ? `GitHub Actions cache service is temporarily unavailable`
+            : `Unexpected HTTP ${status} error from GitHub Actions cache service`;
+      this.#logger.log({
+        script,
+        type: 'info',
+        detail: 'cache-info',
+        message:
+          `${message}.` +
+          ` GitHub Actions caching has been temporarily disabled.` +
+          ` Detail:\n\nHTTP ${status}: ${body}`,
+      });
+    }
+
+    return undefined;
   }
 
   #computeCacheKey(script: ScriptReference): string {
-    return createHash('sha256')
+    return `wireit-${createHash('sha256')
       .update(scriptReferenceToString(script))
-      .digest('hex');
+      .digest('hex')}`;
   }
 
   #computeVersion(fingerprint: Fingerprint): string {
@@ -447,10 +615,24 @@ export class GitHubActionsCache implements Cache {
   async #makeTarball(paths: string[], tempDir: string): Promise<string> {
     // Create a manifest file so that we can pass a large number of files to
     // tar.
-    const manifestPath = pathlib.join(tempDir, 'manifest.txt');
-    await fs.writeFile(manifestPath, paths.join('\n'), 'utf8');
+    const manifestName = 'manifest.txt';
+    const manifestPath = pathlib.join(tempDir, manifestName);
+    // The paths are absolute, and on Windows they use the native backslash
+    // separator. GNU tar (e.g. the one Git for Windows puts on PATH) treats a
+    // backslash as an escape character in its file lists, so convert to
+    // forward slashes. BSD tar accepts both.
+    await fs.writeFile(
+      manifestPath,
+      paths.map((path) => path.replaceAll('\\', '/')).join('\n'),
+      'utf8',
+    );
     const tarballPath = pathlib.join(tempDir, 'cache.tgz');
     await new Promise<void>((resolve, reject) => {
+      // Run tar from inside the temp directory and give it relative file names,
+      // rather than absolute ones. GNU tar on Windows interprets an absolute
+      // path with a drive letter (e.g. "D:\...") as a remote host, so it fails
+      // with "Cannot connect to D:" even though the file is local. See
+      // https://github.com/google/wireit/issues/1242.
       execFile(
         'tar',
         [
@@ -465,7 +647,7 @@ export class GitHubActionsCache implements Cache {
           '--gzip',
           '--create',
           '--file',
-          tarballPath,
+          pathlib.basename(tarballPath),
           // Use absolute paths (note we use the short form because the long
           // form is --absolute-names on GNU tar, but --absolute-paths on BSD
           // tar).
@@ -476,11 +658,12 @@ export class GitHubActionsCache implements Cache {
           // on disk.
           '--no-recursion',
           '--files-from',
-          manifestPath,
+          manifestName,
         ],
+        {cwd: tempDir},
         (error: unknown) => {
           if (error != null) {
-            reject(`tar error: ${String(error)}`);
+            reject(new Error(`tar error`, {cause: error}));
           } else {
             resolve();
           }
@@ -497,42 +680,50 @@ export class GitHubActionsCache implements Cache {
    * undefined if the cache entry was already reserved, or a rate limit error
    * occured.
    */
-  async #reserveCacheEntry(
+  async #createCacheEntry(
     script: ScriptReference,
     key: string,
     version: string,
-    cacheSize: number,
-  ): Promise<number | undefined> {
-    const url = new URL('_apis/artifactcache/caches', this.#baseUrl);
-    const reqBody = JSON.stringify({
+  ): Promise<string | undefined> {
+    const url = new URL(
+      // See https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.twirp-client.ts#L117
+      'twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry',
+      this.#baseUrl,
+    );
+    // See
+    // https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/cache.ts#L527
+    // and https://github.com/actions/toolkit/blob/930c89072712a3aac52d74b23338f00bb0cfcb24/packages/cache/src/generated/results/api/v1/cache.ts#L19
+    const body = {
       key,
       version,
-      cacheSize,
-    });
+    };
+    const bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
     using requestResult = this.#request(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        'content-length': bodyBuffer.length,
       },
     });
     const {req, resPromise} = requestResult;
-    req.end(reqBody);
+    req.end(bodyBuffer);
 
     const result = await resPromise;
-    if (!this.#maybeHandleServiceDown(result, script)) {
+    if (result.ok && result.value.statusCode === /* Conflict */ 409) {
+      // We must have been racing with another concurrent process running the
+      // same script.
       return undefined;
     }
-    const response = result.value;
+    const response = await this.#maybeHandleServiceDown(result, script);
+    if (response === undefined) {
+      return undefined;
+    }
 
     if (isOk(response)) {
       const resData = JSON.parse(await readBody(response)) as {
-        cacheId: number;
+        signed_upload_url: string;
       };
-      return resData.cacheId;
-    }
-
-    if (response.statusCode === /* Conflict */ 409) {
-      return undefined;
+      return resData.signed_upload_url;
     }
 
     throw new Error(
@@ -555,7 +746,7 @@ class GitHubActionsCacheHit implements CacheHit {
     this.#logger = logger;
   }
 
-  async apply(): Promise<void> {
+  async apply(): Promise<boolean> {
     if (this.#applied) {
       throw new Error('GitHubActionsCacheHit.apply was called more than once');
     }
@@ -575,9 +766,14 @@ class GitHubActionsCacheHit implements CacheHit {
       });
       // This is fine, it's as though there was nothing to restore from
       // the cache.
-      return;
+      return false;
     }
     await this.#extract(tarballPath);
+    return true;
+  }
+
+  async release(): Promise<void> {
+    // This cache hit holds no resources before apply.
   }
 
   async #download(tarballPath: string): Promise<void> {
@@ -607,12 +803,15 @@ class GitHubActionsCacheHit implements CacheHit {
 
   #extract(tarballPath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // Same rationale as in #makeTarball: give tar a relative file path so a
+      // drive-lettered absolute path is not mistaken for a remote host.
       execFile(
         'tar',
-        ['--extract', '--file', tarballPath, '--gzip', '-P'],
+        ['--extract', '--file', pathlib.basename(tarballPath), '--gzip', '-P'],
+        {cwd: pathlib.dirname(tarballPath)},
         (error: unknown) => {
           if (error != null) {
-            reject(`tar error: ${String(error)}`);
+            reject(new Error(`tar error`, {cause: error}));
           } else {
             resolve();
           }
@@ -624,7 +823,9 @@ class GitHubActionsCacheHit implements CacheHit {
 
 function request(
   url: URL | string,
-  options?: http.RequestOptions,
+  options?: Omit<http.RequestOptions, 'headers'> & {
+    headers: http.OutgoingHttpHeaders;
+  },
 ): {
   req: http.ClientRequest;
   resPromise: Promise<Result<http.IncomingMessage, Error>>;
@@ -637,10 +838,19 @@ function request(
       ...options?.headers,
     },
   };
+  for (const [key, val] of Object.entries(opts.headers)) {
+    if (!val) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete (opts.headers as Record<string, unknown>)[key];
+    }
+  }
   let req!: http.ClientRequest;
   const resPromise = new Promise<Result<http.IncomingMessage, Error>>(
     (resolve) => {
-      req = https.request(url, opts, (value) => {
+      const parsed = typeof url === 'string' ? new URL(url) : url;
+      // https.request() throws ERR_INVALID_PROTOCOL for http: URLs.
+      const transport = parsed.protocol === 'http:' ? http : https;
+      req = transport.request(url, opts, (value) => {
         resolve({ok: true, value});
       });
       req.on('error', (error) => {

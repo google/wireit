@@ -5,9 +5,9 @@
  */
 
 import * as pathlib from 'path';
-import * as assert from 'uvu/assert';
+import * as assert from 'node:assert';
 import * as jsonSchema from 'jsonschema';
-import {suite} from 'uvu';
+import {test} from 'node:test';
 import * as fs from 'fs';
 import * as url from 'url';
 
@@ -34,35 +34,33 @@ function shouldValidate(packageJson: PackageJson) {
 
 function expectValidationErrors(packageJson: object, errors: string[]) {
   const validationResult = validator.validate(packageJson, schema);
-  assert.equal(
+  assert.deepEqual(
     validationResult.errors.map((e) => e.toString()),
     errors,
   );
 }
 
-const test = suite<unknown>();
-
-test('an empty package.json file is valid', () => {
+void test('an empty package.json file is valid', () => {
   shouldValidate({});
 });
 
-test('an empty wireit config section is valid', () => {
+void test('an empty wireit config section is valid', () => {
   shouldValidate({wireit: {}});
 });
 
-test('a script with just a command is valid', () => {
+void test('a script with just a command is valid', () => {
   shouldValidate({wireit: {a: {command: 'b'}}});
 });
 
-test('a script with just dependencies is valid', () => {
+void test('a script with just dependencies is valid', () => {
   shouldValidate({wireit: {a: {dependencies: ['b']}}});
 });
 
-test('dependency object is valid', () => {
+void test('dependency object is valid', () => {
   shouldValidate({wireit: {a: {dependencies: [{script: 'b'}]}}});
 });
 
-test('dependency object with cascade:false annotation is valid', () => {
+void test('dependency object with cascade:false annotation is valid', () => {
   shouldValidate({
     wireit: {a: {dependencies: [{script: 'b', cascade: false}]}},
   });
@@ -71,13 +69,13 @@ test('dependency object with cascade:false annotation is valid', () => {
 // I couldn't figure out how to make this test pass while keeping the other
 // error messages reasonable.
 // It just turned all errors into this one.
-test.skip('an empty script is invalid', () => {
+void test.skip('an empty script is invalid', () => {
   expectValidationErrors({wireit: {a: {}}}, [
     'instance.wireit.a is not any of <a script with a command>,<a script with only dependencies>',
   ]);
 });
 
-test('a script with all fields set is valid', () => {
+void test('a script with all fields set is valid', () => {
   shouldValidate({
     wireit: {
       a: {
@@ -92,7 +90,7 @@ test('a script with all fields set is valid', () => {
   });
 });
 
-test('clean can be either a boolean or the string if-file-deleted', () => {
+void test('clean can be either a boolean or the string if-file-deleted', () => {
   shouldValidate({
     wireit: {
       a: {
@@ -132,7 +130,7 @@ test('clean can be either a boolean or the string if-file-deleted', () => {
   );
 });
 
-test('command must not be empty', () => {
+void test('command must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -145,7 +143,7 @@ test('command must not be empty', () => {
   );
 });
 
-test('dependencies[i] must not be empty', () => {
+void test('dependencies[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -164,7 +162,7 @@ test('dependencies[i] must not be empty', () => {
   );
 });
 
-test('files[i] must not be empty', () => {
+void test('files[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -178,7 +176,7 @@ test('files[i] must not be empty', () => {
   );
 });
 
-test('output[i] must not be empty', () => {
+void test('output[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -192,7 +190,7 @@ test('output[i] must not be empty', () => {
   );
 });
 
-test('packageLocks[i] must not be empty', () => {
+void test('packageLocks[i] must not be empty', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -206,7 +204,7 @@ test('packageLocks[i] must not be empty', () => {
   );
 });
 
-test('dependencies must be an array of strings', () => {
+void test('dependencies must be an array of strings', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -234,7 +232,7 @@ test('dependencies must be an array of strings', () => {
   );
 });
 
-test('dependencies[i].script is required', () => {
+void test('dependencies[i].script is required', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -250,7 +248,7 @@ test('dependencies[i].script is required', () => {
   );
 });
 
-test('dependencies[i].cascade must be boolean', () => {
+void test('dependencies[i].cascade must be boolean', () => {
   expectValidationErrors(
     {
       wireit: {
@@ -265,5 +263,3 @@ test('dependencies[i].cascade must be boolean', () => {
     ],
   );
 });
-
-test.run();

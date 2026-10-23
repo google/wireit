@@ -1,26 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "es2022",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "useDefineForClassFields": false,
-    "lib": ["es2022", "esnext.disposable"],
+    "lib": ["es2023", "esnext.disposable"],
     "rootDir": "src",
     "outDir": "lib",
     "strict": true,
     "sourceMap": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true,
     "useUnknownInCatchVariables": true,
     "noImplicitOverride": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
-    "composite": true
+    "composite": true,
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts"],
   "exclude": []

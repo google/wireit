@@ -4,21 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {test, afterEach, beforeEach} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTest} from './util/rig-test.js';
 import {
   Executor,
   registerExecutorConstructorHook,
   ServiceMap,
 } from '../executor.js';
 import {Analyzer} from '../analyzer.js';
-import {DefaultLogger} from '../logging/default-logger.js';
+import {SimpleLogger} from '../logging/simple-logger.js';
 import {WorkerPool} from '../util/worker-pool.js';
 import {registerExecutionConstructorHook} from '../execution/base.js';
-
-const test = suite<{rig: WireitTestRig}>();
+import {Console} from '../logging/logger.js';
 
 let numLiveExecutors = 0;
 let numLiveExecutions = 0;
@@ -30,44 +28,27 @@ const collectGarbage = (() => {
   return global.gc;
 })();
 
-test.before.each(async (ctx) => {
-  try {
-    const executorFinalizationRegistry = new FinalizationRegistry(() => {
-      numLiveExecutors--;
-    });
-    registerExecutorConstructorHook((executor) => {
-      numLiveExecutors++;
-      executorFinalizationRegistry.register(executor, null);
-    });
+beforeEach(() => {
+  const executorFinalizationRegistry = new FinalizationRegistry(() => {
+    numLiveExecutors--;
+  });
+  registerExecutorConstructorHook((executor) => {
+    numLiveExecutors++;
+    executorFinalizationRegistry.register(executor, null);
+  });
 
-    const executionFinalizationRegistry = new FinalizationRegistry(() => {
-      numLiveExecutions--;
-    });
-    registerExecutionConstructorHook((execution) => {
-      numLiveExecutions++;
-      executionFinalizationRegistry.register(execution, null);
-    });
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
+  const executionFinalizationRegistry = new FinalizationRegistry(() => {
+    numLiveExecutions--;
+  });
+  registerExecutionConstructorHook((execution) => {
+    numLiveExecutions++;
+    executionFinalizationRegistry.register(execution, null);
+  });
 });
 
-test.after.each(async (ctx) => {
-  try {
-    numLiveExecutors = 0;
-    numLiveExecutions = 0;
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
+afterEach(() => {
+  numLiveExecutors = 0;
+  numLiveExecutions = 0;
 });
 
 async function retryWithGcUntilCallbackDoesNotThrow(
@@ -87,9 +68,9 @@ async function retryWithGcUntilCallbackDoesNotThrow(
   cb();
 }
 
-test(
+void test(
   'standard garbage collection',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -104,7 +85,8 @@ test(
       },
     });
 
-    const logger = new DefaultLogger(rig.temp);
+    const console = new Console(process.stderr, process.stderr);
+    const logger = new SimpleLogger(rig.temp, console);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'standard'},
       [],
@@ -152,9 +134,9 @@ test(
   }),
 );
 
-test(
+void test(
   'persistent service garbage collection',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const service = await rig.newCommand();
     await rig.writeAtomic({
       'package.json': {
@@ -170,7 +152,8 @@ test(
       },
     });
 
-    const logger = new DefaultLogger(rig.temp);
+    const console = new Console(process.stderr, process.stderr);
+    const logger = new SimpleLogger(rig.temp, console);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'service'},
       [],
@@ -226,9 +209,9 @@ test(
   }),
 );
 
-test(
+void test(
   'no-command, standard, persistent service, and ephemeral service garbage collection',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const standard = await rig.newCommand();
     const servicePersistent = await rig.newCommand();
     const serviceEphemeral = await rig.newCommand();
@@ -260,7 +243,8 @@ test(
       },
     });
 
-    const logger = new DefaultLogger(rig.temp);
+    const console = new Console(process.stderr, process.stderr);
+    const logger = new SimpleLogger(rig.temp, console);
     const script = await new Analyzer('npm').analyze(
       {packageDir: rig.temp, name: 'entrypoint'},
       [],
@@ -319,5 +303,3 @@ test(
     assert.equal(serviceEphemeral.numInvocations, numIterations);
   }),
 );
-
-test.run();

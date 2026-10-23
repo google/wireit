@@ -6,7 +6,178 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## Unreleased
+
+### Added
+
+- Local caches are now limited to the 10 most recently used entries per script,
+  instead of growing without bound. Set `WIREIT_CACHE_MAX_ENTRIES` to change the
+  limit, or to `infinity` for the previous behavior. Evicted entries are moved
+  to `.wireit/trash` and deleted at the end of the run, which is safe to
+  interrupt. Interrupting it makes Wireit exit with status 130 for SIGINT, or
+  143 for SIGTERM. A cache already over the limit, such as one from an earlier
+  version, shrinks by one entry per write, and Wireit reminds you once a day
+  while it holds more than twice the limit. To free it at once, run
+  `rm -rf .wireit/*/cache`. See [#71](https://github.com/google/wireit/issues/71).
+- Set `WIREIT_CACHE_WORKTREES=true` to store a linked Git worktree's local
+  cache in the main worktree's corresponding `.wireit` folders. Any other value
+  keeps each worktree's own cache. Fingerprints and GitHub Actions caching are
+  unchanged.
+
+### Fixed
+
+- Fixed GitHub Actions caching on Windows when Git for Windows' GNU `tar` is
+  first on `PATH`, such as in a Git bash shell. Saving and restoring failed with
+  `Cannot connect to D: resolve failed`. See
+  [#1242](https://github.com/google/wireit/issues/1242).
+- Fixed issue where a failed GitHub Actions cache tarball download caused Wireit
+  to skip the script and record an empty output manifest instead of running the
+  script command.
+- Fixed issue where the local cache could restore corrupt output. If Wireit was
+  killed or crashed while writing a cache entry, later runs restored the partial
+  entry, with files missing or truncated and no error. Entries are now written
+  to a temp folder and renamed into place.
+- GitHub Actions caching now uses `http` or `https` based on the scheme of
+  `ACTIONS_RESULTS_URL`. Always calling `https.request` broke `http://` cache
+  proxies used by some third-party runners.
+- `WIREIT_PARALLEL`, `WIREIT_WATCH_POLL_MS`, and `WIREIT_MAX_OPEN_FILES` now
+  reject any value that is not a positive integer, such as `2abc` or `1.5`.
+- The message explaining that GitHub Actions caching was disabled after an HTTP
+  error from the cache service is now logged. It was always skipped before.
+- An `"env"` setting that is a non-empty array, such as `["FOO"]`, now reports
+  `Expected an object` instead of crashing Wireit and the VSCode extension with
+  an internal error.
+- `"clean": "if-file-deleted"` now also cleans when an output file was changed or
+  deleted since the last run. Before, an incremental tool such as `tsc` could
+  skip re-emitting a missing output, and Wireit cached the incomplete result.
+  See [#1471](https://github.com/google/wireit/issues/1471).
+
+### Changed
+
+- Upgraded to chokidar 4. This required a re-implementation of support for
+  watching globs, because chokidar 4 removed that feature.
+- Upgraded picomatch to 4 and glob-parent to 6.
+
+## [0.14.13] - 2026-06-23
+
+### Added
+
+- Add `WIREIT_WATCH=true` as an environment-variable escape hatch for enabling
+  watch mode when a package runner does not forward `--watch`.
+
+### Fixed
+
+- HTTP errors from the GitHub Actions cache service are no longer ever fatal,
+  and should always continue gracefully with GitHub Actions caching temporarily
+  disabled (previously only network errors and HTTP 429/503 errors failed
+  gracefully).
+
+## [0.14.12] - 2025-04-10
+
+### Fixed
+
+- Updated GitHub Actions caching to support its new v2 backend. See
+  [#1297](https://github.com/google/wireit/issues/1297) and
+  https://github.blog/changelog/2025-03-20-notification-of-upcoming-breaking-changes-in-github-actions/#decommissioned-cache-service-brownouts
+  for background.
+
+## [0.14.11] - 2025-02-07
+
+### Changed
+
+- Added `"wireit-"` prefix to GitHub Actions cache keys so that they can be identified more easily.
+
+## [0.14.10] - 2025-01-28
+
+### Fixed
+
+- Fix a bug that may have resulted in Wireit attempting to open too many files
+  at once (no known reports).
+
+- When an unexpected error occurs, the specific script that failed is now
+  reported by the logger, instead of the less-useful entry-point script.
+
+- When an output file is deleted during output manifest generation, a more
+  useful error message is reported instead of an unexpected error.
+
+## [0.14.9] - 2024-09-03
+
+### Added
+
+- Add support for forcing the use of filesystem polling instead of OS events in watch mode. Set the environment variable `WIREIT_WATCH_STRATEGY=poll`, and optionally `WIREIT_WATCH_POLL_MS` (default `500`).
+
+## [0.14.8] - 2024-08-22
+
+### Added
+
+- Added support for `node --run`, available in Node 22 and above (see
+  https://nodejs.org/en/blog/announcements/v22-release-announce#running-packagejson-scripts).
+
+## [0.14.7] - 2024-08-05
+
+- When GitHub caching fails to initialize, more information is now shown about
+  the error, and it is no longer fatal.
+
+## [0.14.6] - 2024-08-05
+
+### Added
+
+- Added support for the `v2` version of the
+  `google/wireit@setup-github-actions-caching` action, which provides improved
+  security. All users are advised to upgrade to
+  `google/wireit@setup-github-actions-caching/v2`.
+
+## [0.14.5] - 2024-07-08
+
+### Fixed
+
+- Wireit will now shut down its child processes gracefully when receiving
+  `SIGTERM`. Previously only `SIGINT` was listened for.
+
+### Changed
+
+- Updated `engines` in `package.json` so that users of Node 16 and 17 will get
+  install warnings (consistent with `0.13.0` which already raised the minimum
+  supported version to Node 18).
+
+- Replaced `braces` dependency with smaller `brace-expansion` dependency.
+
+## [0.14.4] - 2024-01-26
+
+### Fixed
+
+- When listing a symlink that points to a directory in `output` files, the
+  symlink will now be directly cached as a symlink, instead of its children
+  being cached. This also fixes an `file already exists, symlink` exception that
+  could occur in the same situation.
+
+## [0.14.3] - 2024-01-10
+
+### Fixed
+
+- Handle missing file errors thrown while trying to fingerprint an input file with a graceful abort.
+
+## [0.14.2] - 2024-01-10
+
+### Added
+
+- Added a `default` option to the `env` setting for externally-provided environment variables to use when no value is provided.
+
+### Changed
+
+- The default logger for non-interactive environments has been switched to the 'quiet-ci' logger.
+- The local cache strategy will now create copy-on-write files when supported. This can improve performance when copying output files either into the cache or restoring from out of it, as the files' underlying data doesn't need to be copied, only filesystem metadata.
+- Unhandled exceptions will now be handled more gracefully.
+
+## [0.14.1] - 2023-10-20
+
+### Fixed
+
+- Fix our `npx wireit` detection so we continue to give a good error message
+  with the latest version of `npm` when wireit is run this way.
+
+- Fix a bug where wireit would hang with an empty spinner after being killed
+  with CTRL-C when running a service whose dependencies were still starting.
 
 ## [0.14.0] - 2023-09-12
 
@@ -30,7 +201,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Added
 
-- Added a `quiet-ci` logger with output optimized for non-interactive environemnts, like a continuous integration builder (e.g. GitHub Actions). Writes less often, doesn't show a spinner, doesn't use \r to try to writeover previous output, and only prints a new status line if there's been a change.
+- Added a `quiet-ci` logger with output optimized for non-interactive environments, like a continuous integration builder (e.g. GitHub Actions). Writes less often, doesn't show a spinner, doesn't use \r to try to writeover previous output, and only prints a new status line if there's been a change.
 
 ## Fixed
 
@@ -73,9 +244,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - It is now allowed to define a wireit script without a corresponding entry in
-  the `scripts` section. Such scripts cannot be directly invoked with `npm run
-  <script>` or similar, but they can still be used as dependencies by other
-  wireit scripts.
+  the `scripts` section. Such scripts cannot be directly invoked with
+  `npm run <script>` or similar, but they can still be used as dependencies by
+  other wireit scripts.
 
 ## [0.9.3] - 2023-01-03
 
@@ -156,7 +327,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **[BREAKING]** The following folders are now excluded by default from both the
   `files` and `output` arrays:
-
   - `.git/`
   - `.hg/`
   - `.svn/`
@@ -366,7 +536,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - Added `WIREIT_FAILURES` environment variable that controls what happens when a
   script fails (meaning it returned with a non-zero exit code) with the
   following options:
-
   - `no-new` (default): Allow running scripts to continue, but don't start new
     ones.
   - `continue`: Allow running scripts to continue, and start new ones as long as
@@ -465,7 +634,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - [**Breaking**] It is now an error to include an empty string or all-whitespace
   string in any of these fields:
-
   - `command`
   - `dependencies`
   - `files`
@@ -473,7 +641,6 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   - `packageLocks`
 
 - The fingerprint now additionally includes the following fields:
-
   - The system platform (e.g. `linux`, `win32`).
   - The system CPU architecture (e.g. `x64`).
   - The system Node version (e.g. `16.7.0`).
@@ -553,8 +720,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Initial release.
 
-[unreleased]: https://github.com/google/wireit/compare/v0.13.0...HEAD
-[0.13.0]: https://github.com/google/wireit/compare/v0.13.0...v0.14.0
+[unreleased]: https://github.com/google/wireit/compare/v0.14.13...HEAD
+[0.14.13]: https://github.com/google/wireit/compare/v0.14.12...v0.14.13
+[0.14.12]: https://github.com/google/wireit/compare/v0.14.11...v0.14.12
+[0.14.11]: https://github.com/google/wireit/compare/v0.14.10...v0.14.11
+[0.14.10]: https://github.com/google/wireit/compare/v0.14.9...v0.14.10
+[0.14.9]: https://github.com/google/wireit/compare/v0.14.8...v0.14.9
+[0.14.8]: https://github.com/google/wireit/compare/v0.14.7...v0.14.8
+[0.14.7]: https://github.com/google/wireit/compare/v0.14.6...v0.14.7
+[0.14.6]: https://github.com/google/wireit/compare/v0.14.5...v0.14.6
+[0.14.5]: https://github.com/google/wireit/compare/v0.14.4...v0.14.5
+[0.14.4]: https://github.com/google/wireit/compare/v0.14.3...v0.14.4
+[0.14.3]: https://github.com/google/wireit/compare/v0.14.2...v0.14.3
+[0.14.2]: https://github.com/google/wireit/compare/v0.14.1...v0.14.2
+[0.14.1]: https://github.com/google/wireit/compare/v0.14.0...v0.14.1
+[0.14.0]: https://github.com/google/wireit/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/google/wireit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/google/wireit/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/google/wireit/compare/v0.10.0...v0.11.0

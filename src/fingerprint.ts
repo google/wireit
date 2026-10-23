@@ -5,6 +5,7 @@
  */
 
 import {createHash} from 'crypto';
+import * as pathlib from 'path';
 import {createReadStream} from './util/fs.js';
 import {glob} from './util/glob.js';
 import {scriptReferenceToString} from './config.js';
@@ -14,6 +15,8 @@ import type {
   ScriptReferenceString,
   Dependency,
 } from './config.js';
+import {Result} from './error.js';
+import {Failure} from './event.js';
 
 /**
  * All meaningful inputs of a script. Used for determining if a script is fresh,
@@ -131,10 +134,13 @@ export class Fingerprint {
   static async compute(
     script: ScriptConfig,
     dependencyFingerprints: Array<[Dependency, Fingerprint]>,
-  ): Promise<Fingerprint> {
+  ): Promise<Result<Fingerprint, Failure>> {
     let allDependenciesAreFullyTracked = true;
     const filteredDependencyFingerprints: Array<
       [ScriptReferenceString, FingerprintSha256HexDigest]
+    > = [];
+    const portableDependencyFingerprints: Array<
+      [ScriptReferenceString, string]
     > = [];
     for (const [dep, depFingerprint] of dependencyFingerprints) {
       if (!dep.cascade) {
@@ -148,6 +154,19 @@ export class Fingerprint {
       filteredDependencyFingerprints.push([
         scriptReferenceToString(dep.config),
         depFingerprint.hash,
+      ]);
+      // Package-relative, and hashed from the dependency's portable form, so
+      // two worktrees of one repo share a local-cache entry. This is not part
+      // of {@link Fingerprint.string}.
+      portableDependencyFingerprints.push([
+        scriptReferenceToString({
+          packageDir: pathRelativeToPackage(
+            script.packageDir,
+            dep.config.packageDir,
+          ),
+          name: dep.config.name,
+        }),
+        depFingerprint.localCacheEntryName(true),
       ]);
     }
 
@@ -172,16 +191,40 @@ export class Fingerprint {
       // read) as a heuristic to detect files that have likely changed, and
       // otherwise re-use cached hashes that we store in e.g.
       // ".wireit/<script>/hashes".
+      const erroredFilePaths: string[] = [];
       fileHashes = await Promise.all(
         files.map(async (file): Promise<[string, FileSha256HexDigest]> => {
           const absolutePath = file.path;
           const hash = createHash('sha256');
-          for await (const chunk of await createReadStream(absolutePath)) {
-            hash.update(chunk as Buffer);
+          try {
+            const stream = await createReadStream(absolutePath);
+            for await (const chunk of stream) {
+              hash.update(chunk as Buffer);
+            }
+          } catch (error) {
+            // It's possible for a file to be deleted between the
+            // time it is globbed and the time it is fingerprinted.
+            const {code} = error as {code: string};
+            if (code !== /* does not exist */ 'ENOENT') {
+              throw error;
+            }
+            erroredFilePaths.push(absolutePath);
           }
-          return [file.path, hash.digest('hex') as FileSha256HexDigest];
+          return [absolutePath, hash.digest('hex') as FileSha256HexDigest];
         }),
       );
+
+      if (erroredFilePaths.length > 0) {
+        return {
+          ok: false,
+          error: {
+            type: 'failure',
+            reason: 'input-file-deleted-unexpectedly',
+            script: script,
+            filePaths: erroredFilePaths,
+          },
+        };
+      }
     } else {
       fileHashes = [];
     }
@@ -232,16 +275,39 @@ export class Fingerprint {
       env: script.env,
     };
     fingerprint.#data = data as FingerprintData;
-    return fingerprint;
+    fingerprint.#portableString = JSON.stringify({
+      ...data,
+      files: Object.fromEntries(
+        fileHashes
+          .map(([filePath, hash]): [string, FileSha256HexDigest] => [
+            pathRelativeToPackage(script.packageDir, filePath),
+            hash,
+          ])
+          .sort(([aFile], [bFile]) => aFile.localeCompare(bFile)),
+      ),
+      dependencies: Object.fromEntries(
+        portableDependencyFingerprints.sort(([aRef], [bRef]) =>
+          aRef.localeCompare(bRef),
+        ),
+      ),
+    });
+    return {ok: true, value: fingerprint};
   }
 
   #str?: FingerprintString;
   #data?: FingerprintData;
   #hash?: FingerprintSha256HexDigest;
+  /**
+   * Same fields as {@link string}, but file paths and dependency package dirs
+   * are package-relative and dependency hashes come from each dependency's
+   * portable form. Set only by {@link Fingerprint.compute}. Local-cache entry
+   * names use this when worktree sharing is on. Freshness and GitHub Actions
+   * caching keep using {@link string}.
+   */
+  #portableString?: string;
 
   get string(): FingerprintString {
     if (this.#str === undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.#str = JSON.stringify(this.#data!) as FingerprintString;
     }
     return this.#str;
@@ -249,7 +315,6 @@ export class Fingerprint {
 
   get data(): FingerprintData {
     if (this.#data === undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.#data = JSON.parse(this.#str!) as FingerprintData;
     }
     return this.#data;
@@ -264,7 +329,31 @@ export class Fingerprint {
     return this.#hash;
   }
 
+  /**
+   * Directory name of a local-cache entry.
+   *
+   * With worktree sharing off, this is {@link hash}, so existing cache folders
+   * stay valid. With sharing on, it is the hash of {@link #portableString}.
+   * A fingerprint built with {@link Fingerprint.fromString} has no portable
+   * form and falls back to {@link hash}.
+   */
+  localCacheEntryName(shareWorktrees: boolean): string {
+    const source =
+      shareWorktrees && this.#portableString !== undefined
+        ? this.#portableString
+        : this.string;
+    return source === this.string
+      ? this.hash
+      : createHash('sha256').update(source).digest('hex');
+  }
+
   equal(other: Fingerprint): boolean {
     return this.string === other.string;
   }
 }
+
+/** Package-relative so a shared local-cache entry matches across worktrees. */
+const pathRelativeToPackage = (packageDir: string, path: string): string => {
+  const relative = pathlib.relative(packageDir, path);
+  return relative === '' ? '.' : relative;
+};

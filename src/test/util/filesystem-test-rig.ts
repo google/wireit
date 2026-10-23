@@ -21,6 +21,7 @@ const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 export class FilesystemTestRig {
   readonly temp = pathlib.resolve(repoRoot, 'temp', String(Math.random()));
   #state: 'uninitialized' | 'running' | 'done' = 'uninitialized';
+  #donePromise: Promise<void> | undefined = undefined;
 
   protected _assertState(expected: 'uninitialized' | 'running' | 'done') {
     if (this.#state !== expected) {
@@ -28,6 +29,12 @@ export class FilesystemTestRig {
         `Expected state to be ${expected} but was ${this.#state}`,
       );
     }
+  }
+
+  static async setup(): Promise<FilesystemTestRig> {
+    const rig = new FilesystemTestRig();
+    await rig.setup();
+    return rig;
   }
 
   /**
@@ -39,10 +46,21 @@ export class FilesystemTestRig {
     await this.mkdir('.');
   }
 
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.cleanup();
+  }
+
   /**
    * Delete the temporary filesystem.
    */
   async cleanup(): Promise<void> {
+    if (this.#donePromise === undefined) {
+      this.#donePromise = this.#actuallyCleanup();
+    }
+    return this.#donePromise;
+  }
+
+  async #actuallyCleanup(): Promise<void> {
     this._assertState('running');
     await this.delete('.');
     this.#state = 'done';

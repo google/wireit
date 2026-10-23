@@ -12,10 +12,17 @@ import {
   scriptReferenceToString,
 } from '../../config.js';
 import {Failure, Info, Success, Output, Event} from '../../event.js';
-import {DefaultLogger, labelForScript} from '../default-logger.js';
+import {SimpleLogger, labelForScript} from '../simple-logger.js';
+import {Console} from '../logger.js';
 import {DEBUG} from '../logger.js';
 import {StatusLineWriter} from './writeover-line.js';
 import {StackMap} from './stack-map.js';
+
+// To prevent using the global console accidentally, we shadow it with
+// undefined
+const console = undefined;
+function markAsUsed(_: unknown) {}
+markAsUsed(console);
 
 interface SimpleOutput {
   readonly stream: 'stdout' | 'stderr';
@@ -146,14 +153,14 @@ export class QuietRunLogger implements Disposable {
   #encounteredFailures = false;
   #servicesRunning = 0;
   #servicesStarted = 0;
-  #servicesPersistedFromPreviousRun = 0;
   #analysisInfo: AnalysisInfo | undefined = undefined;
   #finishedScriptsWithCommands = new Set<ScriptReferenceString>();
   #statusLineState: StatusLineState = 'initial';
   readonly #startTime = Date.now();
   readonly #rootPackage: string;
-  readonly #defaultLogger: DefaultLogger;
+  readonly #simpleLogger: SimpleLogger;
   readonly #statusLineWriter;
+  readonly console: Console;
   /**
    * Sometimes a script will fail multiple times, but we only want to report
    * about the first failure for it that we find. Sometimes a script will
@@ -166,11 +173,13 @@ export class QuietRunLogger implements Disposable {
   constructor(
     rootPackage: string,
     statusLineWriter: StatusLineWriter,
-    defaultLogger?: DefaultLogger,
+    console: Console,
+    simpleLogger?: SimpleLogger,
   ) {
     this.#rootPackage = rootPackage;
     this.#statusLineWriter = statusLineWriter;
-    this.#defaultLogger = defaultLogger ?? new DefaultLogger(rootPackage);
+    this.#simpleLogger = simpleLogger ?? new SimpleLogger(rootPackage, console);
+    this.console = console;
   }
 
   /**
@@ -182,13 +191,13 @@ export class QuietRunLogger implements Disposable {
     const instance = new QuietRunLogger(
       this.#rootPackage,
       this.#statusLineWriter,
-      this.#defaultLogger,
+      this.console,
+      this.#simpleLogger,
     );
     // Persistent services stay running between runs, so pass along what we
     // know.
     for (const [key, state] of this.#running) {
       if (state.service) {
-        instance.#servicesPersistedFromPreviousRun++;
         instance.#servicesRunning++;
         instance.#running.set(key, state);
         instance.#markScriptAsFinished(state.scriptReference);
@@ -272,7 +281,7 @@ export class QuietRunLogger implements Disposable {
     // run.
     const count = this.#ran + this.#servicesStarted;
     const s = count === 1 ? '' : 's';
-    console.log(
+    this.console.log(
       `✅ Ran ${count.toLocaleString()} script${s} and skipped ${this.#skipped.toLocaleString()} in ${elapsed.toLocaleString()}s.`,
     );
   }
@@ -364,7 +373,7 @@ export class QuietRunLogger implements Disposable {
 
   #handleInfo(event: Info): StatusLineResult {
     if (DEBUG) {
-      console.log(
+      this.console.log(
         `info: ${event.detail} ${labelForScript(
           this.#rootPackage,
           event.script,
@@ -454,7 +463,7 @@ export class QuietRunLogger implements Disposable {
 
   #handleSuccess(event: Success) {
     if (DEBUG) {
-      console.log(
+      this.console.log(
         `success: ${event.reason} ${labelForScript(
           this.#rootPackage,
           event.script,
@@ -490,7 +499,7 @@ export class QuietRunLogger implements Disposable {
 
   #handleFailure(event: Failure): typeof noChange {
     if (DEBUG) {
-      console.log(
+      this.console.log(
         `failure: ${event.reason} ${labelForScript(
           this.#rootPackage,
           event.script,
@@ -499,7 +508,6 @@ export class QuietRunLogger implements Disposable {
     }
     this.#encounteredFailures = true;
     {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       using _pause = this.#statusLineWriter.clearUntilDisposed();
       this.#reportFailure(event);
     }
@@ -546,6 +554,8 @@ export class QuietRunLogger implements Disposable {
         // Also logged elswhere.
         break;
       }
+      case 'input-file-deleted-unexpectedly':
+      case 'output-file-deleted-unexpectedly':
       case 'service-exited-unexpectedly':
       case 'cycle':
       case 'dependency-invalid':
@@ -565,7 +575,7 @@ export class QuietRunLogger implements Disposable {
       case 'unknown-error-thrown':
       case 'wireit-config-but-no-script':
         // The default log for these is good.
-        this.#defaultLogger.log(failure);
+        this.#simpleLogger.log(failure);
         break;
       default: {
         const never: never = failure;
@@ -603,7 +613,6 @@ export class QuietRunLogger implements Disposable {
     if (state.service) {
       // Pause the status line while we print this real quick, but then resume
       // it.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       using _pause = this.#statusLineWriter.clearUntilDisposed();
       if (event.stream === 'stdout') {
         process.stdout.write(event.data);
@@ -663,6 +672,6 @@ export class QuietRunLogger implements Disposable {
   }
 
   [Symbol.dispose]() {
-    this.#defaultLogger[Symbol.dispose]();
+    this.#simpleLogger[Symbol.dispose]();
   }
 }

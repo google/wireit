@@ -36,8 +36,9 @@ interface EventBase<T extends PackageReference = ScriptReference> {
  */
 export type Success = ExitZero | NoCommand | Fresh | Cached;
 
-interface SuccessBase<T extends PackageReference = ScriptReference>
-  extends EventBase<T> {
+interface SuccessBase<
+  T extends PackageReference = ScriptReference,
+> extends EventBase<T> {
   type: 'success';
 }
 
@@ -100,10 +101,13 @@ export type Failure =
   | DependencyInvalid
   | ServiceExitedUnexpectedly
   | DependencyServiceExitedUnexpectedly
-  | Aborted;
+  | Aborted
+  | InputFileDeletedUnexpectedly
+  | OutputFileDeletedUnexpectedly;
 
-interface ErrorBase<T extends PackageReference = ScriptReference>
-  extends EventBase<T> {
+interface ErrorBase<
+  T extends PackageReference = ScriptReference,
+> extends EventBase<T> {
   type: 'failure';
   logged?: true;
 }
@@ -282,6 +286,26 @@ export interface Aborted extends ErrorBase {
 }
 
 /**
+ * One or more input files were deleted very unexpectedly, e.g. between globbing
+ * and fingerprinting, indicating that an out-of-band process is modifying the
+ * same input location.
+ */
+export interface InputFileDeletedUnexpectedly extends ErrorBase {
+  reason: 'input-file-deleted-unexpectedly';
+  filePaths: string[];
+}
+
+/**
+ * One or more output files were deleted very unexpectedly, e.g. between
+ * globbing and generating an output manifest, indicating that an out-of-band
+ * process is modifying the same output location.
+ */
+export interface OutputFileDeletedUnexpectedly extends ErrorBase {
+  reason: 'output-file-deleted-unexpectedly';
+  filePaths: string[];
+}
+
+/**
  * We reached the point of doing cyclic dependency checking, and one of our
  * transitive dependencies had not transitioned to being locally validated.
  * This should generally only happen if we ignored the diagnostics after
@@ -361,8 +385,9 @@ export type Info =
   | AnalysisCompleted
   | CacheInfo;
 
-interface InfoBase<T extends PackageReference = ScriptReference>
-  extends EventBase<T> {
+interface InfoBase<
+  T extends PackageReference = ScriptReference,
+> extends EventBase<T> {
   type: 'info';
 }
 

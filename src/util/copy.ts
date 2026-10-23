@@ -79,7 +79,15 @@ export const copyEntries = async (
  */
 const copyFileGracefully = async (src: string, dest: string): Promise<void> => {
   try {
-    await fs.copyFile(src, dest, fs.constants.COPYFILE_EXCL);
+    await fs.copyFile(
+      src,
+      dest,
+      // COPYFILE_FICLONE: Copy the file using copy-on-write semantics, so that
+      //   the copy takes constant time and space. This is a noop currently
+      //   on some platforms, but it's a nice optimization to have.
+      //   See https://github.com/libuv/libuv/issues/2936 for macos support.
+      fs.constants.COPYFILE_EXCL | fs.constants.COPYFILE_FICLONE,
+    );
   } catch (error) {
     const {code} = error as {code: string};
     if (code === /* does not exist */ 'ENOENT') {
@@ -104,11 +112,11 @@ const copySymlinkGracefully = async (
     // need to check the type of the target.
     const windowsType = IS_WINDOWS
       ? // The target could be in the source or the destination, check both.
-        (await detectWindowsSymlinkType(target, src)) ??
+        ((await detectWindowsSymlinkType(target, src)) ??
         (await detectWindowsSymlinkType(target, dest)) ??
         // It doesn't exist in either place, so there's no way to know. Just
         // assume "file".
-        'file'
+        'file')
       : undefined;
     await fs.symlink(target, dest, windowsType);
   } catch (error) {

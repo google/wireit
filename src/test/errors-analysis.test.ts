@@ -4,42 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import * as pathlib from 'path';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 import {IS_WINDOWS} from '../util/windows.js';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
-
-test(
+void test(
   'wireit section is not an object',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -64,9 +38,9 @@ test(
   }),
 );
 
-test(
+void test(
   'wireit config is not an object',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -93,9 +67,9 @@ test(
   }),
 );
 
-test(
+void test(
   'dependencies is not an array',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -121,9 +95,9 @@ test(
   }),
 );
 
-test(
+void test(
   'dependency is not a string',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -149,36 +123,39 @@ test(
   }),
 );
 
-test(`dependencies.script is not a string (object form)`, async ({rig}) => {
-  await rig.write('package.json', {
-    scripts: {
-      a: 'wireit',
-    },
-    wireit: {
-      a: {
-        dependencies: [
-          {
-            script: [],
-          },
-        ],
+void test(
+  `dependencies.script is not a string (object form)`,
+  rigTest(async ({rig}) => {
+    await rig.write('package.json', {
+      scripts: {
+        a: 'wireit',
       },
-    },
-  });
-  const execResult = rig.exec(`npm run a`);
-  const done = await execResult.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+      wireit: {
+        a: {
+          dependencies: [
+            {
+              script: [],
+            },
+          ],
+        },
+      },
+    });
+    const execResult = rig.exec(`npm run a`);
+    const done = await execResult.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ package.json:9:21 Expected a string, but was array.
               "script": []
                         ~~`,
-  );
-});
+    );
+  }),
+);
 
-test(
+void test(
   'dependency is empty or blank',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -204,69 +181,75 @@ test(
   }),
 );
 
-test(`dependencies.script is empty or blank (object form)`, async ({rig}) => {
-  await rig.write('package.json', {
-    scripts: {
-      a: 'wireit',
-      1: 'wireit',
-    },
-    wireit: {
-      a: {
-        command: 'true',
-        dependencies: [
-          {
-            script: '',
-          },
-        ],
+void test(
+  `dependencies.script is empty or blank (object form)`,
+  rigTest(async ({rig}) => {
+    await rig.write('package.json', {
+      scripts: {
+        a: 'wireit',
+        1: 'wireit',
       },
-      1: {
-        command: 'true',
+      wireit: {
+        a: {
+          command: 'true',
+          dependencies: [
+            {
+              script: '',
+            },
+          ],
+        },
+        1: {
+          command: 'true',
+        },
       },
-    },
-  });
-  const execResult = rig.exec(`npm run a`);
-  const done = await execResult.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+    });
+    const execResult = rig.exec(`npm run a`);
+    const done = await execResult.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ package.json:14:21 Expected this field to be nonempty
               "script": ""
                         ~~`,
-  );
-});
+    );
+  }),
+);
 
-test(`dependencies.script is missing (object form)`, async ({rig}) => {
-  await rig.write('package.json', {
-    scripts: {
-      a: 'wireit',
-      1: 'wireit',
-    },
-    wireit: {
-      a: {
-        command: 'true',
-        dependencies: [{}],
+void test(
+  `dependencies.script is missing (object form)`,
+  rigTest(async ({rig}) => {
+    await rig.write('package.json', {
+      scripts: {
+        a: 'wireit',
+        1: 'wireit',
       },
-      1: {
-        command: 'true',
+      wireit: {
+        a: {
+          command: 'true',
+          dependencies: [{}],
+        },
+        1: {
+          command: 'true',
+        },
       },
-    },
-  });
-  const execResult = rig.exec(`npm run a`);
-  const done = await execResult.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+    });
+    const execResult = rig.exec(`npm run a`);
+    const done = await execResult.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ package.json:13:9 Dependency object must set a "script" property.
             {}
             ~~`,
-  );
-});
+    );
+  }),
+);
 
-test(
+void test(
   'command is not a string',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -292,9 +275,9 @@ test(
   }),
 );
 
-test(
+void test(
   'command is empty or blank',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -320,9 +303,9 @@ test(
   }),
 );
 
-test(
+void test(
   'files is not an array',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -349,9 +332,9 @@ test(
   }),
 );
 
-test(
+void test(
   'file item is not a string',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -378,9 +361,9 @@ test(
   }),
 );
 
-test(
+void test(
   'file item is empty or blank',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -407,9 +390,9 @@ test(
   }),
 );
 
-test(
+void test(
   'output is not an array',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -436,9 +419,9 @@ test(
   }),
 );
 
-test(
+void test(
   'output item is not a string',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -465,9 +448,9 @@ test(
   }),
 );
 
-test(
+void test(
   'output item is empty or blank',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -494,9 +477,9 @@ test(
   }),
 );
 
-test(
+void test(
   'clean is not a boolean or "if-file-deleted"',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -523,9 +506,9 @@ test(
   }),
 );
 
-test(
+void test(
   'allowUsuallyExcludedPaths is not a boolean',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -552,9 +535,9 @@ test(
   }),
 );
 
-test(
+void test(
   'packageLocks is not an array',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -581,9 +564,9 @@ test(
   }),
 );
 
-test(
+void test(
   'packageLocks item is not a string',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -610,9 +593,9 @@ test(
   }),
 );
 
-test(
+void test(
   'packageLocks item is empty or blank',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -639,9 +622,9 @@ test(
   }),
 );
 
-test(
+void test(
   'packageLocks item is not a filename',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -668,9 +651,9 @@ test(
   }),
 );
 
-test(
+void test(
   'missing dependency',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -696,9 +679,9 @@ test(
   }),
 );
 
-test(
+void test(
   'missing cross package dependency',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -729,9 +712,9 @@ test(
   }),
 );
 
-test(
+void test(
   'missing cross package dependency (object form)',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -762,9 +745,9 @@ test(
   }),
 );
 
-test(
+void test(
   'missing same-package dependency with colon in name',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -789,9 +772,9 @@ test(
     );
   }),
 );
-test(
+void test(
   'missing cross package dependency with complicated escaped names',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test writes a file with a name that windows can't handle.
     if (IS_WINDOWS) {
       return;
@@ -826,9 +809,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cross-package dependency with complicated escaped name leads to directory without package.json',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'foo/package.json': {
         scripts: {
@@ -856,9 +839,9 @@ test(
   }),
 );
 
-test(
+void test(
   'duplicate dependency',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -889,9 +872,9 @@ test(
   }),
 );
 
-test(
+void test(
   'script command is not wireit',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -926,9 +909,9 @@ test(
   }),
 );
 
-test(
+void test(
   'script is wireit but has no wireit config',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -951,9 +934,9 @@ test(
   }),
 );
 
-test(
+void test(
   'script has no command, dependencies, or files',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -977,9 +960,9 @@ test(
   }),
 );
 
-test(
+void test(
   'script has no command and empty dependencies and files',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1006,9 +989,9 @@ test(
   }),
 );
 
-test(
+void test(
   "cross-package dependency doesn't have a colon",
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1035,9 +1018,9 @@ test(
   }),
 );
 
-test(
+void test(
   "cross-package dependency doesn't have a script name",
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1064,9 +1047,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cross-package dependency resolves to the same package (".")',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1093,9 +1076,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cross-package dependency resolves to the same package (up and back)',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'foo/package.json': {
         scripts: {
@@ -1122,9 +1105,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cross-package dependency leads to directory without package.json',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'foo/package.json': {
         scripts: {
@@ -1152,9 +1135,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cross-package dependency leads to package.json with invalid JSON',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'foo/package.json': {
         scripts: {
@@ -1185,9 +1168,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle of length 1',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  a
     //  ^ \
     //  |  |
@@ -1222,9 +1205,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle of length 2',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  a --> b
     //  ^     |
     //  |     |
@@ -1267,9 +1250,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle of length 3',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  a --> b --> c
     //  ^           |
     //  |           |
@@ -1320,9 +1303,9 @@ test(
   }),
 );
 
-test(
+void test(
   '2 cycles of length 1',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  a -----> b
     //  ^ \     ^ \
     //  | |     | |
@@ -1361,9 +1344,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle with lead up and lead out',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  a --> b --> c --> d --> e
     //        ^           |
     //        |           |
@@ -1421,9 +1404,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle with multiple trails',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //    +------+
     //   /        \
     //  /          v
@@ -1482,9 +1465,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle with multiple trails (with different dependency order)',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //    +------+
     //   /        \
     //  /          v
@@ -1545,9 +1528,9 @@ test(
   }),
 );
 
-test(
+void test(
   'cycle across packages',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //  foo:a --> bar:b
     //    ^         |
     //    |         |
@@ -1596,9 +1579,9 @@ test(
   }),
 );
 
-test(
+void test(
   'multiple errors',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1632,186 +1615,191 @@ test(
   }),
 );
 
-test(`we don't produce a duplicate analysis error for the same dependency`, async ({
-  rig,
-}) => {
-  await rig.write({
-    'package.json': {
-      scripts: {
-        a: 'wireit',
-        b: 'wireit',
-        c: 'wireit',
-        errors: 'wireit',
+void test(
+  `we don't produce a duplicate analysis error for the same dependency`,
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+          errors: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b', 'c'],
+          },
+          b: {
+            dependencies: ['errors'],
+          },
+          c: {
+            dependencies: ['errors'],
+          },
+          errors: {
+            command: {},
+          },
+        },
       },
-      wireit: {
-        a: {
-          dependencies: ['b', 'c'],
-        },
-        b: {
-          dependencies: ['errors'],
-        },
-        c: {
-          dependencies: ['errors'],
-        },
-        errors: {
-          command: {},
-        },
-      },
-    },
-  });
-  const result = rig.exec('npm run a');
-  const done = await result.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ package.json:26:18 Expected a string, but was object.
           "command": {}
                      ~~`,
-  );
-});
+    );
+  }),
+);
 
-test(`we don't produce a duplicate not found error when there's multiple deps into the same file`, async ({
-  rig,
-}) => {
-  await rig.write({
-    'package.json': {
-      scripts: {
-        a: 'wireit',
-      },
-      wireit: {
-        a: {
-          dependencies: ['./child:error1', './child:error2'],
+void test(
+  `we don't produce a duplicate not found error when there's multiple deps into the same file`,
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:error1', './child:error2'],
+          },
         },
       },
-    },
-  });
-  const result = rig.exec('npm run a');
-  const done = await result.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ package.json:8:10 package.json file missing: "${rig.resolve(
-      'child/package.json',
-    )}"
+        'child/package.json',
+      )}"
             "./child:error1",
              ~~~~~~~`,
-  );
-});
+    );
+  }),
+);
 
-test(`we don't produce a duplicate error when there's multiple deps into the same invalid file`, async ({
-  rig,
-}) => {
-  await rig.write({
-    'package.json': {
-      scripts: {
-        a: 'wireit',
-      },
-      wireit: {
-        a: {
-          dependencies: ['./child:error1', './child:error2'],
+void test(
+  `we don't produce a duplicate error when there's multiple deps into the same invalid file`,
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['./child:error1', './child:error2'],
+          },
         },
       },
-    },
-    'child/package.json': {
-      scripts: 'bad',
-    },
-  });
-  const result = rig.exec('npm run a');
-  const done = await result.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+      'child/package.json': {
+        scripts: 'bad',
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ child${pathlib.sep}package.json:2:14 Expected an object, but was string.
       "scripts": "bad"
                  ~~~~~
 ❌ package.json:8:18 Cannot find script named "error1" in package "${rig.resolve(
-      'child',
-    )}"
+        'child',
+      )}"
             "./child:error1",
                      ~~~~~~`,
-  );
-});
+    );
+  }),
+);
 
-test(`we don't produce a duplicate error when there's multiple deps on a script that fails`, async ({
-  rig,
-}) => {
-  const willFail = await rig.newCommand();
-  await rig.write({
-    'package.json': {
+void test(
+  `we don't produce a duplicate error when there's multiple deps on a script that fails`,
+  rigTest(async ({rig}) => {
+    const willFail = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+          b: 'wireit',
+          c: 'wireit',
+          errors: 'wireit',
+        },
+        wireit: {
+          a: {
+            dependencies: ['b', 'c'],
+          },
+          b: {
+            dependencies: ['errors'],
+          },
+          c: {
+            dependencies: ['errors'],
+          },
+          errors: {
+            command: willFail.command,
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const invok = await willFail.nextInvocation();
+    invok.exit(1);
+    await invok.closed;
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ [errors] exited with exit code 1.
+❌ 1 script failed.`,
+    );
+  }),
+);
+
+void test(
+  `repro an issue with looking for a colon in missing dependency`,
+  rigTest(async ({rig}) => {
+    await rig.write('package.json', {
       scripts: {
         a: 'wireit',
         b: 'wireit',
-        c: 'wireit',
-        errors: 'wireit',
       },
       wireit: {
         a: {
-          dependencies: ['b', 'c'],
+          // There's no colon in this dependency name, but there are more colons
+          // later on in the file. Ensure that we still draw the squiggles
+          // correctly.
+          dependencies: ['c'],
         },
         b: {
-          dependencies: ['errors'],
-        },
-        c: {
-          dependencies: ['errors'],
-        },
-        errors: {
-          command: willFail.command,
+          command: 'foo:bar important mainly that this includes a colon',
         },
       },
-    },
-  });
-  const result = rig.exec('npm run a');
-  const invok = await willFail.nextInvocation();
-  invok.exit(1);
-  await invok.closed;
-  const done = await result.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
-❌ [errors] exited with exit code 1.
-❌ 1 script failed.`,
-  );
-});
-
-test(`repro an issue with looking for a colon in missing dependency`, async ({
-  rig,
-}) => {
-  await rig.write('package.json', {
-    scripts: {
-      a: 'wireit',
-      b: 'wireit',
-    },
-    wireit: {
-      a: {
-        // There's no colon in this dependency name, but there are more colons
-        // later on in the file. Ensure that we still draw the squiggles
-        // correctly.
-        dependencies: ['c'],
-      },
-      b: {
-        command: 'foo:bar important mainly that this includes a colon',
-      },
-    },
-  });
-  const execResult = rig.exec(`npm run a`);
-  const done = await execResult.exit;
-  assert.equal(done.code, 1);
-  checkScriptOutput(
-    done.stderr,
-    `
+    });
+    const execResult = rig.exec(`npm run a`);
+    const done = await execResult.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
 ❌ package.json:9:9 Cannot find script named "c" in package "${rig.temp}"
             "c"
             ~~~`,
-  );
-});
+    );
+  }),
+);
 
-test(
+void test(
   'script without command cannot have output',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1846,9 +1834,9 @@ test(
   }),
 );
 
-test(
+void test(
   'service is not a boolean or object',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1875,9 +1863,9 @@ test(
   }),
 );
 
-test(
+void test(
   'service does not have command',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1908,9 +1896,9 @@ test(
   }),
 );
 
-test(
+void test(
   'service cannot have output',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1942,9 +1930,9 @@ test(
   }),
 );
 
-test(
+void test(
   'dependencies.cascade is not a boolean',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -1979,9 +1967,9 @@ test(
   }),
 );
 
-test(
+void test(
   'service.readyWhen must be an object',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2014,9 +2002,9 @@ test(
   }),
 );
 
-test(
+void test(
   'service.readyWhen.lineMatches must be a string',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2047,9 +2035,9 @@ test(
   }),
 );
 
-test(
+void test(
   'service.readyWhen.lineMatches must be a valid regular expression',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2080,9 +2068,9 @@ test(
   }),
 );
 
-test(
+void test(
   'env must be an object',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2109,9 +2097,42 @@ test(
   }),
 );
 
-test(
+void test(
+  'env must be an object even when it has entries',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: ['FOO'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+        ❌ package.json:8:14 Expected an object
+          "env": [
+                 ~
+            "FOO"
+    ~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`,
+    );
+  }),
+);
+
+void test(
   'env entry value must be a string or object',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2140,9 +2161,9 @@ test(
   }),
 );
 
-test(
+void test(
   'env entry value that is object must have an "external" property',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2177,9 +2198,9 @@ test(
   }),
 );
 
-test(
+void test(
   'env entry value that is object must have "external" set to true',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2210,9 +2231,43 @@ test(
   }),
 );
 
-test(
+void test(
+  'env entry value that is object with "default" property must be a string',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: {
+              FOO: {
+                external: true,
+                default: {},
+              },
+            },
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+      ❌ package.json:11:22 Expected "default" to be a string
+              "default": {}
+                         ~~`,
+    );
+  }),
+);
+
+void test(
   "script with no command can't have env",
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -2244,5 +2299,3 @@ test(
     );
   }),
 );
-
-test.run();

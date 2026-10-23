@@ -4,58 +4,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import pathlib from 'path';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {rigTest} from './util/rig-test.js';
 import {NODE_MAJOR_VERSION} from './util/node-version.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
-
-test(
+void test(
   'invoked directly',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const result = rig.exec(
       `node ${pathlib.join('..', '..', 'bin', 'wireit.js')}`,
     );
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ wireit must be launched with "npm run" or a compatible command.
-    More info: Wireit could not identify the script to run.`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ wireit must be launched with "npm run" or a compatible command.\n    More info: Wireit could not identify the script to run.`,
+      ),
     );
   }),
 );
 
-test(
+void test(
   'invoked through npx',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const result = rig.exec('npx wireit');
     const done = await result.exit;
     assert.equal(done.code, 1);
@@ -66,18 +39,17 @@ test(
       NODE_MAJOR_VERSION > 14
         ? 'Launching Wireit with npx is not supported.'
         : 'Wireit could not identify the script to run.';
-    assert.match(
-      done.stderr,
-      `
-❌ wireit must be launched with "npm run" or a compatible command.
-    More info: ${detail}`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ wireit must be launched with "npm run" or a compatible command.\n    More info: ${detail}`,
+      ),
     );
   }),
 );
 
-test(
+void test(
   'negative parallelism',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -91,17 +63,17 @@ test(
     const result = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '-1'}});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "-1"`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "-1"`,
+      ),
     );
   }),
 );
 
-test(
+void test(
   'zero parallelism',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -115,17 +87,17 @@ test(
     const result = rig.exec('npm run main', {env: {WIREIT_PARALLEL: '0'}});
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "0"`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "0"`,
+      ),
     );
   }),
 );
 
-test(
+void test(
   'nonsense parallelism',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -141,17 +113,121 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "aklsdjflajsdkflj"`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "aklsdjflajsdkflj"`,
+      ),
     );
   }),
 );
 
-test(
+void test(
+  'partially numeric parallelism',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_PARALLEL: '2abc'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_PARALLEL env variable to be a positive integer, got "2abc"`,
+      ),
+    );
+  }),
+);
+
+void test(
+  'partially numeric WIREIT_CACHE_MAX_ENTRIES',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_CACHE_MAX_ENTRIES: '2abc'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_CACHE_MAX_ENTRIES env variable to be a positive integer or "infinity", got "2abc"`,
+      ),
+    );
+  }),
+);
+
+void test(
+  'fractional WIREIT_MAX_OPEN_FILES',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_MAX_OPEN_FILES: '1.5'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_MAX_OPEN_FILES env variable to be a positive integer, got "1.5"`,
+      ),
+    );
+  }),
+);
+
+void test(
+  'fractional WIREIT_WATCH_POLL_MS',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          main: 'wireit',
+        },
+        wireit: {
+          main: {command: 'node --version'},
+        },
+      },
+    });
+    const result = rig.exec('npm run main', {
+      env: {WIREIT_WATCH_POLL_MS: '1.5'},
+    });
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_WATCH_POLL_MS env variable to be a positive integer, got "1.5"`,
+      ),
+    );
+  }),
+);
+
+void test(
   'nonsense WIREIT_CACHE',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -167,17 +243,17 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local", "github", or "none", got "aklsdjflajsdkflj"`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_CACHE env variable to be "local", "github", or "none", got "aklsdjflajsdkflj"`,
+      ),
     );
   }),
 );
 
-test(
+void test(
   'nonsense WIREIT_FAILURES',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     await rig.write({
       'package.json': {
         scripts: {
@@ -193,102 +269,112 @@ test(
     });
     const done = await result.exit;
     assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: Expected the WIREIT_FAILURES env variable to be "no-new", "continue", or "kill", got "aklsdjflajsdkflj"`.trim(),
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: Expected the WIREIT_FAILURES env variable to be "no-new", "continue", or "kill", got "aklsdjflajsdkflj"`,
+      ),
     );
   }),
 );
 
-test(
-  'github caching without ACTIONS_CACHE_URL',
-  timeout(async ({rig}) => {
+void test(
+  'github caching without ACTIONS_RESULTS_URL',
+  rigTest(async ({rig}) => {
+    const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
         scripts: {
           main: 'wireit',
         },
         wireit: {
-          main: {command: (await rig.newCommand()).command},
+          main: {
+            command: cmd.command,
+          },
         },
       },
     });
     const result = rig.exec('npm run main', {
       env: {
         WIREIT_CACHE: 'github',
-        ACTIONS_CACHE_URL: undefined,
+        ACTIONS_RESULTS_URL: undefined,
         ACTIONS_RUNTIME_TOKEN: 'token',
       },
     });
+    (await cmd.nextInvocation()).exit(0);
     const done = await result.exit;
-    assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: The ACTIONS_CACHE_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim(),
+    assert.equal(done.code, 0);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: The ACTIONS_RESULTS_URL variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`,
+      ),
     );
   }),
 );
 
-test(
-  'github caching but ACTIONS_CACHE_URL does not end in slash',
-  timeout(async ({rig}) => {
+void test(
+  'github caching but ACTIONS_RESULTS_URL does not end in slash',
+  rigTest(async ({rig}) => {
+    const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
         scripts: {
           main: 'wireit',
         },
         wireit: {
-          main: {command: (await rig.newCommand()).command},
+          main: {
+            command: cmd.command,
+          },
         },
       },
     });
     const result = rig.exec('npm run main', {
       env: {
         WIREIT_CACHE: 'github',
-        ACTIONS_CACHE_URL: 'http://example.com',
+        ACTIONS_RESULTS_URL: 'http://example.com',
         ACTIONS_RUNTIME_TOKEN: 'token',
       },
     });
+    (await cmd.nextInvocation()).exit(0);
     const done = await result.exit;
-    assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: The ACTIONS_CACHE_URL must end in a forward-slash, got "http://example.com".`.trim(),
+    assert.equal(done.code, 0);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: The ACTIONS_RESULTS_URL must end in a forward-slash, got "http://example.com".`,
+      ),
     );
   }),
 );
 
-test(
+void test(
   'github caching without ACTIONS_RUNTIME_TOKEN',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
+    const cmd = await rig.newCommand();
     await rig.write({
       'package.json': {
         scripts: {
           main: 'wireit',
         },
         wireit: {
-          main: {command: (await rig.newCommand()).command},
+          main: {
+            command: cmd.command,
+          },
         },
       },
     });
     const result = rig.exec('npm run main', {
       env: {
         WIREIT_CACHE: 'github',
-        ACTIONS_CACHE_URL: 'http://example.com/',
+        ACTIONS_RESULTS_URL: 'http://example.com/',
         ACTIONS_RUNTIME_TOKEN: undefined,
       },
     });
+    (await cmd.nextInvocation()).exit(0);
     const done = await result.exit;
-    assert.equal(done.code, 1);
-    assert.match(
-      done.stderr,
-      `
-❌ [main] Invalid usage: The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`.trim(),
+    assert.equal(done.code, 0);
+    assert.ok(
+      done.stderr.includes(
+        `❌ [main] Invalid usage: The ACTIONS_RUNTIME_TOKEN variable was not set, but is required when WIREIT_CACHE=github. Use the google/wireit@setup-github-cache/v1 action to automatically set environment variables.`,
+      ),
     );
   }),
 );
-
-test.run();

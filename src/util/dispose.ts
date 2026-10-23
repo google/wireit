@@ -18,4 +18,11 @@ if (!Symbol.asyncDispose) {
   ) as typeof Symbol.asyncDispose;
 }
 
+if (!Symbol.asyncDispose) {
+  type Writeable<T> = {-readonly [P in keyof T]: T[P]};
+  (Symbol as Writeable<typeof Symbol>).asyncDispose = Symbol(
+    'asyncDispose',
+  ) as typeof Symbol.asyncDispose;
+}
+
 export {};

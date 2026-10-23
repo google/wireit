@@ -17,17 +17,42 @@ import {
 } from '../../util/windows.js';
 import {FilesystemTestRig} from './filesystem-test-rig.js';
 import {NODE_MAJOR_VERSION} from './node-version.js';
+import '../../util/dispose.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
 const repoRoot = pathlib.resolve(__dirname, '..', '..', '..');
 
+type ExitReport =
+  | {
+      ok: true;
+      startTime: number;
+      command: string;
+      exit: ExitResult;
+    }
+  | {
+      ok: false;
+      startTime: number;
+      command: string;
+      error: Error;
+    };
+
 /**
  * A test rig for managing a temporary filesystem and executing Wireit.
  */
-export class WireitTestRig extends FilesystemTestRig {
+export class WireitTestRig
+  extends FilesystemTestRig
+  implements AsyncDisposable
+{
+  static override async setup(): Promise<WireitTestRig> {
+    const rig = new WireitTestRig();
+    await rig.setup();
+    return rig;
+  }
   readonly #activeChildProcesses = new Set<ExecResult>();
+  readonly #completedChildProcesses = new Set<ExitReport>();
   readonly #commands: Array<WireitTestRigCommand> = [];
+  #cleanupFinished: undefined | Promise<void>;
 
   /**
    * Environment variables to set on spawned child processes.
@@ -115,13 +140,20 @@ export class WireitTestRig extends FilesystemTestRig {
    * Delete the temporary filesystem and perform other cleanup.
    */
   override async cleanup(): Promise<void> {
+    if (this.#cleanupFinished === undefined) {
+      this.#cleanupFinished = this.#actuallyCleanup();
+    }
+    return this.#cleanupFinished;
+  }
+
+  async #actuallyCleanup() {
     await Promise.all(this.#commands.map((command) => command.close()));
     for (const child of this.#activeChildProcesses) {
       // Force kill child processes, because we're cleaning up the test rig
       // at the end of the test, and if any are still running then the test
       // has probably failed from timeout. If the process is hung, we'll
       // already see that from the timeout.
-      child.kill({force: true});
+      child.kill('SIGTERM');
       await child.exit;
     }
     await super.cleanup();
@@ -141,17 +173,23 @@ export class WireitTestRig extends FilesystemTestRig {
     this._assertState('running');
     const cwd = this.#resolve(opts?.cwd ?? '.');
     const result = new ExecResult(command, cwd, {
+      // GitHub Actions sets CI=true, but we want our tests to act like they are
+      // running locally by default, even when they are actually running on CI.
+      CI: undefined,
+      // Remove all WIREIT_ prefixed variables because we don't want our tests
+      // to inherit any configuration that is for our CI environment.
+      ...Object.fromEntries(
+        Object.keys(process.env)
+          .filter((name) => name.startsWith('WIREIT_'))
+          .map((name) => [name, undefined]),
+      ),
       // We hard code the parallelism here because by default we infer a value
       // based on the number of cores we find on the machine, but we want tests
       // to behave as consistently as possible across machines.
       WIREIT_PARALLEL: '10',
-      // GitHub Actions sets CI=true, but we want our tests to act like they are
-      // running locally by default, even when they are actually running on CI.
-      CI: undefined,
       // Unset GitHub Actions caching environment variables that are set when we
-      // are running these tests in CI.
-      WIREIT_CACHE: undefined,
-      WIREIT_FAILURES: undefined,
+      // are running these tests in CI using the v1 version of the action.
+      ACTIONS_RESULTS_URL: undefined,
       ACTIONS_CACHE_URL: undefined,
       ACTIONS_RUNTIME_TOKEN: undefined,
       // In npm 6 (which ships with Node 14), "npm run" only includes the
@@ -180,7 +218,26 @@ export class WireitTestRig extends FilesystemTestRig {
       ...(opts?.env ?? {}),
     });
     this.#activeChildProcesses.add(result);
-    void result.exit.finally(() => this.#activeChildProcesses.delete(result));
+    void result.exit
+      .then(
+        (exitResult) => {
+          this.#completedChildProcesses.add({
+            ok: true,
+            startTime: result.startTime,
+            command,
+            exit: exitResult,
+          });
+        },
+        (error: Error) => {
+          this.#completedChildProcesses.add({
+            ok: false,
+            startTime: result.startTime,
+            command,
+            error,
+          });
+        },
+      )
+      .finally(() => this.#activeChildProcesses.delete(result));
     return result;
   }
 
@@ -215,6 +272,57 @@ export class WireitTestRig extends FilesystemTestRig {
     await command.listen();
     return command;
   }
+
+  override async [Symbol.asyncDispose]() {
+    await this.cleanup();
+  }
+
+  // The test failed. Give a full report of every exec call.
+  async reportFullLogs() {
+    await this[Symbol.asyncDispose]();
+    const exitReports = [...this.#completedChildProcesses].sort(
+      (a, b) => a.startTime - b.startTime,
+    );
+    for (const exitReport of exitReports) {
+      if (exitReport.ok) {
+        const exitCodeMessage =
+          exitReport.exit.code === 0
+            ? ''
+            : `Exited with code ${exitReport.exit.code}. `;
+        const duration = Math.round(exitReport.exit.duration / 100) / 10;
+        console.log(
+          `Ran ${JSON.stringify(
+            exitReport.command,
+          )} in ${duration.toLocaleString()}s. ${exitCodeMessage}`,
+        );
+        if (exitReport.exit.stdout.trim() !== '') {
+          console.log('Stdout:');
+          console.group();
+          console.log(exitReport.exit.stdout.replace(/\r/g, '↵\n'));
+          console.groupEnd();
+        }
+        if (exitReport.exit.stderr.trim() !== '') {
+          console.log('Stderr:');
+          console.group();
+          console.log(exitReport.exit.stderr.replace(/\r/g, '↵\n'));
+          console.groupEnd();
+        }
+        if (exitReport.exit.debugLog !== undefined) {
+          console.log('Debug log:');
+          console.group();
+          console.log(exitReport.exit.debugLog.replace(/\r/g, '↵\n'));
+          console.groupEnd();
+        }
+        console.log('\n');
+      } else {
+        console.error(`Failed to run ${JSON.stringify(exitReport.command)}:\n`);
+        console.group();
+        console.error(exitReport.error);
+        console.groupEnd();
+        console.log('\n');
+      }
+    }
+  }
 }
 
 export type {ExecResult};
@@ -223,8 +331,11 @@ export type {ExecResult};
  * The object returned by {@link WireitTestRig.exec}.
  */
 class ExecResult {
+  readonly #command: string;
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #exited = new Deferred<ExitResult>();
+  readonly #debugLogPath: string;
+  readonly startTime = performance.now();
   #running = true;
   #allStdout = '';
   #allStderr = '';
@@ -236,6 +347,11 @@ class ExecResult {
     cwd: string,
     env: Record<string, string | undefined>,
   ) {
+    this.#command = command;
+    env['WIREIT_DEBUG_LOG_FILE'] ??= pathlib.resolve(
+      pathlib.join(cwd, '.wireit-debug.log'),
+    );
+    this.#debugLogPath = env['WIREIT_DEBUG_LOG_FILE']!;
     // Remove any environment variables that start with "npm_", because those
     // will have been set by the "npm test" or similar command that launched
     // this test itself, and we want a more pristine simulation of running
@@ -274,13 +390,26 @@ class ExecResult {
     this.#child.stdout.on('data', this.#onStdout);
     this.#child.stderr.on('data', this.#onStderr);
 
-    this.#child.on('close', (code, signal) => {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+    this.#child.on('close', async (code, signal) => {
       this.#running = false;
+      const duration = performance.now() - this.startTime;
+
+      let debugLog: string | undefined;
+      try {
+        debugLog = await fs.readFile(this.#debugLogPath, {encoding: 'utf8'});
+      } catch {
+        // ignore
+      }
+
       this.#exited.resolve({
+        command,
         code,
         signal,
         stdout: this.#allStdout,
         stderr: this.#allStderr,
+        debugLog,
+        duration,
       });
     });
 
@@ -303,11 +432,10 @@ class ExecResult {
   get exit(): Promise<ExitResult> {
     return this.#exited.promise;
   }
-
   /**
-   * Kill the child process.
+   * Send a kill signal to the child process. SIGINT by default.
    */
-  kill({force} = {force: false}): void {
+  kill(signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL' = 'SIGINT'): void {
     if (!this.running) {
       throw new Error("Can't kill child process because it is not running");
     }
@@ -326,17 +454,14 @@ class ExecResult {
       // own process group. Passing the negative of the child's pid kills all
       // processes in the group (without the negative only the leader "sh"
       // process would be killed).
-      if (force) {
-        process.kill(-this.#child.pid, 'SIGKILL');
-      } else {
-        process.kill(-this.#child.pid, 'SIGINT');
-      }
+      process.kill(-this.#child.pid, signal);
     }
   }
 
   readonly #logMatchers = new Set<{
     re: RegExp;
     deferred: Deferred<void>;
+    stack: string | undefined;
   }>();
 
   /**
@@ -347,10 +472,39 @@ class ExecResult {
    */
   waitForLog(matcher: RegExp): Promise<void> {
     const deferred = new Deferred<void>();
-    this.#logMatchers.add({re: matcher, deferred});
+    this.#logMatchers.add({
+      re: matcher,
+      deferred,
+      stack: new Error().stack,
+    });
     // In case we've already received the log we're watching for
     this.#checkMatchersAgainstLogs();
     return deferred.promise;
+  }
+
+  reportStalledLogMatchers() {
+    if (this.#logMatchers.size === 0) {
+      return;
+    }
+    console.log(
+      `${JSON.stringify(
+        this.#command,
+      )} was still waiting to see logs matching:`,
+    );
+    for (const {re, stack} of this.#logMatchers) {
+      console.log('  ', re);
+      console.group();
+      console.log('Source:', stack?.split('\n')[2]);
+      console.groupEnd();
+    }
+    console.log(`Unconsumed stdout:`);
+    console.group();
+    console.log(this.#matcherStdout.replace(/\r/g, '↵\n'));
+    console.groupEnd();
+    console.log(`Unconsumed stderr:`);
+    console.group();
+    console.log(this.#matcherStderr.replace(/\r/g, '↵\n'));
+    console.groupEnd();
   }
 
   #checkMatchersAgainstLogs() {
@@ -412,10 +566,14 @@ class ExecResult {
  * The result of {@link ExecResult.exit}.
  */
 export interface ExitResult {
+  command: string;
   stdout: string;
   stderr: string;
+  debugLog: string | undefined;
   /** The exit code, or null if the child process exited with a signal. */
   code: number | null;
   /** The exit signal, or null if the child process did not exit with a signal. */
   signal: NodeJS.Signals | null;
+  /** The duration that the command was running for, in milliseconds. */
+  duration: number;
 }

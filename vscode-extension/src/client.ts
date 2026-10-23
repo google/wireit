@@ -37,7 +37,8 @@ export async function activate(context: vscode.ExtensionContext) {
           pattern: '**/package.json',
         },
       ],
-      traceOutputChannel: outputChannel,
+      // Uncomment for more debugging info:
+      // traceOutputChannel: outputChannel,
     },
   );
   context.subscriptions.push(

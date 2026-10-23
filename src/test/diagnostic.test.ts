@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {test} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {drawSquiggle, OffsetToPositionConverter, Position} from '../error.js';
 import {removeAnsiColors} from './util/colors.js';
 
@@ -39,10 +39,10 @@ function assertSquiggleAndPosition(
     );
   }
   assert.equal(removeAnsiColors(squiggle), expectedSquiggle.slice(1));
-  assert.equal(position, expectedPosition);
+  assert.deepEqual(position, expectedPosition);
 }
 
-test('drawing squiggles under ranges in single-line files', () => {
+void test('drawing squiggles under ranges in single-line files', () => {
   assertSquiggleAndPosition(
     {
       offset: 0,
@@ -81,7 +81,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles single-line ranges at the end of multi-line files', () => {
+void test('drawing squiggles single-line ranges at the end of multi-line files', () => {
   assertSquiggleAndPosition(
     {
       offset: 4,
@@ -141,7 +141,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles under multi-line ranges', () => {
+void test('drawing squiggles under multi-line ranges', () => {
   assertSquiggleAndPosition(
     {
       offset: 0,
@@ -192,7 +192,7 @@ aaabbbccc
   );
 });
 
-test('drawing squiggles under one line of a multi-line input', () => {
+void test('drawing squiggles under one line of a multi-line input', () => {
   assertSquiggleAndPosition(
     {offset: 0, length: 0, contents: 'abc\ndef\nhij'},
     `
@@ -255,5 +255,3 @@ hij
     {line: 1, character: 3},
   );
 });
-
-test.run();

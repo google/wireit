@@ -4,25 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as assert from 'uvu/assert';
+import * as assert from 'node:assert';
+import * as crypto from 'node:crypto';
 import * as pathlib from 'path';
-import {timeout} from './util/uvu-timeout.js';
+import {DEFAULT_TIMEOUT, rigTest} from './util/rig-test.js';
 import {sep} from 'path';
 import {checkScriptOutput} from './util/check-script-output.js';
 
-import type {Test} from 'uvu';
-import type {WireitTestRig} from './util/test-rig.js';
+import type {TestFn} from 'node:test';
 
 /**
  * Registers test cases that are common to all cache implementations.
  */
 export const registerCommonCacheTests = (
-  test: Test<{rig: WireitTestRig}>,
+  test: (name: string, fn: TestFn) => void,
   cacheMode: 'local' | 'github',
+  env?: Record<string, string | undefined>,
 ) => {
+  // Wrapper that forwards the env to rigTest so that each test rig
+  // gets the right environment variables (e.g. WIREIT_CACHE for the
+  // github-real cache tests).
+  const cacheRigTest: typeof rigTest = (handler, options) =>
+    rigTest(handler, {...options, env});
+
   test(
     'caches single file',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -88,8 +95,70 @@ export const registerCommonCacheTests = (
   );
 
   test(
+    'caches large file',
+    cacheRigTest(
+      async ({rig}) => {
+        const cmdA = await rig.newCommand();
+
+        await rig.write({
+          'package.json': {
+            scripts: {
+              a: 'wireit',
+            },
+            wireit: {
+              a: {
+                command: cmdA.command,
+                files: ['input'],
+                output: ['output'],
+              },
+            },
+          },
+        });
+
+        const MB = 1024 * 1024;
+        const totalBytes = 48 * MB;
+        // Note we need random data so that our compression ratio is bad so that
+        // the compressed tarball is actually about the size we want to test.
+        const fileContent = crypto.randomBytes(totalBytes).toString();
+
+        // On the initial run a large file is created and should be cached.
+        {
+          await rig.write('input', 'v0');
+          const exec = rig.exec('npm run a');
+          const inv = await cmdA.nextInvocation();
+          await rig.write('output', fileContent);
+          inv.exit(0);
+          assert.equal((await exec.exit).code, 0);
+          assert.equal(cmdA.numInvocations, 1);
+        }
+
+        // Invalidate cache by changing input.
+        {
+          await rig.write('input', 'v1');
+          const exec = rig.exec('npm run a');
+          const inv = await cmdA.nextInvocation();
+          assert.ok(!(await rig.exists('output')));
+          inv.exit(0);
+          assert.equal((await exec.exit).code, 0);
+          assert.equal(cmdA.numInvocations, 2);
+        }
+
+        // Change input back to v0. The large file should be restored from cache.
+        {
+          await rig.write('input', 'v0');
+          const exec = rig.exec('npm run a');
+          assert.equal((await exec.exit).code, 0);
+          assert.equal(cmdA.numInvocations, 2);
+          assert.equal(await rig.read('output'), fileContent);
+        }
+      },
+      {ms: Math.max(DEFAULT_TIMEOUT, 30_000)},
+    ),
+  );
+
+  test(
     'caching follows glob patterns',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -131,9 +200,9 @@ export const registerCommonCacheTests = (
         const inv = await cmdA.nextInvocation();
 
         // Previous output should be deleted.
-        assert.not(await rig.exists('output/0/a'));
-        assert.not(await rig.exists('output/0/b'));
-        assert.not(await rig.exists('output/0/c/d/e'));
+        assert.ok(!(await rig.exists('output/0/a')));
+        assert.ok(!(await rig.exists('output/0/b')));
+        assert.ok(!(await rig.exists('output/0/c/d/e')));
         assert.equal(await rig.read('output/excluded/foo'), 'excluded');
 
         await rig.write({'output/1/a': 'v1'});
@@ -154,9 +223,9 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
 
-        assert.not(await rig.exists('output/1/a'));
-        assert.not(await rig.exists('output/1/b'));
-        assert.not(await rig.exists('output/1/c/d/e'));
+        assert.ok(!(await rig.exists('output/1/a')));
+        assert.ok(!(await rig.exists('output/1/b')));
+        assert.ok(!(await rig.exists('output/1/c/d/e')));
         assert.equal(await rig.read('output/0/a'), 'v0');
         assert.equal(await rig.read('output/0/b'), 'v0');
         assert.equal(await rig.read('output/0/c/d/e'), 'v0');
@@ -171,9 +240,9 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
 
-        assert.not(await rig.exists('output/0/a'));
-        assert.not(await rig.exists('output/0/b'));
-        assert.not(await rig.exists('output/0/c/d/e'));
+        assert.ok(!(await rig.exists('output/0/a')));
+        assert.ok(!(await rig.exists('output/0/b')));
+        assert.ok(!(await rig.exists('output/0/c/d/e')));
         assert.equal(await rig.read('output/1/a'), 'v1');
         assert.equal(await rig.read('output/1/b'), 'v1');
         assert.equal(await rig.read('output/1/c/d/e'), 'v1');
@@ -184,7 +253,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caching supports glob re-inclusion',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -216,7 +285,7 @@ export const registerCommonCacheTests = (
         // The excluded file should be un-touched. The reincluded file should
         // have been cleaned.
         assert.equal(await rig.read('output/subdir/excluded'), 'v0');
-        assert.not(await rig.exists('output/subdir/reincluded'));
+        assert.ok(!(await rig.exists('output/subdir/reincluded')));
 
         // Write v0 output.
         await rig.write({'output/subdir/reincluded': 'v0'});
@@ -236,7 +305,7 @@ export const registerCommonCacheTests = (
         // The excluded file should be un-touched. The reincluded file should
         // have been cleaned.
         assert.equal(await rig.read('output/subdir/excluded'), 'v0');
-        assert.not(await rig.exists('output/subdir/reincluded'));
+        assert.ok(!(await rig.exists('output/subdir/reincluded')));
 
         // Write v1 output.
         await rig.write({'output/subdir/reincluded': 'v1'});
@@ -279,7 +348,7 @@ export const registerCommonCacheTests = (
 
   test(
     'cleans output when restoring from cache even when clean setting is false',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -310,7 +379,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 1);
         assert.equal(await rig.read('output/both'), 'v0');
         assert.equal(await rig.read('output/only-v0'), 'v0');
-        assert.not(await rig.exists('output/only-v1'));
+        assert.ok(!(await rig.exists('output/only-v1')));
       }
 
       // Input changed to v1. Run again.
@@ -328,7 +397,7 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output/both'), 'v1');
-        assert.not(await rig.exists('output/only-v0'));
+        assert.ok(!(await rig.exists('output/only-v0')));
         assert.equal(await rig.read('output/only-v1'), 'v1');
       }
 
@@ -342,7 +411,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output/both'), 'v0');
         assert.equal(await rig.read('output/only-v0'), 'v0');
-        assert.not(await rig.exists('output/only-v1'));
+        assert.ok(!(await rig.exists('output/only-v1')));
       }
 
       // Input changed back to v1. Output should be cached, and the only-v0 file
@@ -354,7 +423,7 @@ export const registerCommonCacheTests = (
         assert.equal(res.code, 0);
         assert.equal(cmdA.numInvocations, 2);
         assert.equal(await rig.read('output/both'), 'v1');
-        assert.not(await rig.exists('output/only-v0'));
+        assert.ok(!(await rig.exists('output/only-v0')));
         assert.equal(await rig.read('output/only-v1'), 'v1');
       }
     }),
@@ -362,7 +431,7 @@ export const registerCommonCacheTests = (
 
   test(
     'does not cache script with undefined output',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -416,7 +485,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caches script with defined but empty output',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -469,7 +538,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caches symlinks to files without following them',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -495,7 +564,7 @@ export const registerCommonCacheTests = (
       {
         const exec = rig.exec('npm run a');
         const inv = await cmdA.nextInvocation();
-        assert.not(await rig.exists('symlink'));
+        assert.ok(!(await rig.exists('symlink')));
         await rig.symlink('target', 'symlink', 'file');
         inv.exit(0);
         const res = await exec.exit;
@@ -508,7 +577,7 @@ export const registerCommonCacheTests = (
         await rig.write({input: 'v1'});
         const exec = rig.exec('npm run a');
         const inv = await cmdA.nextInvocation();
-        assert.not(await rig.exists('symlink'));
+        assert.ok(!(await rig.exists('symlink')));
         await rig.symlink('target', 'symlink', 'file');
         inv.exit(0);
         const res = await exec.exit;
@@ -539,7 +608,7 @@ export const registerCommonCacheTests = (
 
   test(
     'caches symlinks to directories without following them',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -585,7 +654,7 @@ export const registerCommonCacheTests = (
         assert.equal(await rig.read('target'), 'v0');
 
         // Symlink should have been cleaned.
-        assert.not(await rig.exists('symlink'));
+        assert.ok(!(await rig.exists('symlink')));
 
         inv.exit(0);
         const res = await exec.exit;
@@ -607,7 +676,7 @@ export const registerCommonCacheTests = (
         assert.equal(cmdA.numInvocations, 2);
 
         // The target directory should not have been restored.
-        assert.not(await rig.exists('target'));
+        assert.ok(!(await rig.exists('target')));
 
         // The symlink file should have been restored, and it should be a
         // symlink to the directory.
@@ -618,7 +687,7 @@ export const registerCommonCacheTests = (
 
   test(
     'does not cache when WIREIT_CACHE=none',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -678,7 +747,7 @@ export const registerCommonCacheTests = (
 
   test(
     'does not cache when CI=true and WIREIT_CACHE is unset',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -744,7 +813,7 @@ export const registerCommonCacheTests = (
 
   test(
     `caches when CI=true and WIREIT_CACHE=${cacheMode}`,
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -819,7 +888,7 @@ export const registerCommonCacheTests = (
 
   test(
     'can cache empty directory',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -891,14 +960,14 @@ export const registerCommonCacheTests = (
 
         assert.ok(await rig.isDirectory('empty'));
         assert.ok(await rig.isDirectory('with-exclusion'));
-        assert.not(await rig.exists('with-exclusion/excluded'));
+        assert.ok(!(await rig.exists('with-exclusion/excluded')));
       }
     }),
   );
 
   test(
     'leading slash on output glob is package relative',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'package.json': {
@@ -965,7 +1034,7 @@ export const registerCommonCacheTests = (
 
   test(
     'errors if caching output outside of the package',
-    timeout(async ({rig}) => {
+    cacheRigTest(async ({rig}) => {
       const cmdA = await rig.newCommand();
       await rig.write({
         'foo/package.json': {
@@ -990,7 +1059,10 @@ export const registerCommonCacheTests = (
       const res = await exec.exit;
       assert.equal(res.code, 1);
       checkScriptOutput(
-        res.stderr,
+        res.stderr.replace(
+          '⚠️ Please upgrade to google/wireit@setup-github-cache/v2. In the future, Wireit caching for this project will stop working.',
+          '',
+        ),
         `
 ❌ package.json:9:17 Output files must be within the package: ${JSON.stringify(
           pathlib.join(rig.temp, 'outside'),

@@ -23,11 +23,17 @@ export class NoCommandScriptExecution extends BaseExecution<NoCommandScriptConfi
       this._config,
       dependencyFingerprints.value,
     );
+    if (!fingerprint.ok) {
+      return {
+        ok: false,
+        error: [fingerprint.error],
+      };
+    }
     this._logger.log({
       script: this._config,
       type: 'success',
       reason: 'no-command',
     });
-    return {ok: true, value: fingerprint};
+    return {ok: true, value: fingerprint.value};
   }
 }

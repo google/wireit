@@ -39,18 +39,18 @@ export function computeManifestEntry(stats: Stats): FileManifestEntry {
     t: stats.isFile()
       ? 'f'
       : stats.isDirectory()
-      ? 'd'
-      : stats.isSymbolicLink()
-      ? 'l'
-      : stats.isBlockDevice()
-      ? 'b'
-      : stats.isCharacterDevice()
-      ? 'c'
-      : stats.isFIFO()
-      ? 'p'
-      : stats.isSocket()
-      ? 's'
-      : '?',
+        ? 'd'
+        : stats.isSymbolicLink()
+          ? 'l'
+          : stats.isBlockDevice()
+            ? 'b'
+            : stats.isCharacterDevice()
+              ? 'c'
+              : stats.isFIFO()
+                ? 'p'
+                : stats.isSocket()
+                  ? 's'
+                  : '?',
     // Don't include timestamp or size for directories, because they can change
     // when a child is added or removed. If we are tracking the child, then it
     // will have its own entry. If we are not tracking the child, then we don't

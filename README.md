@@ -104,9 +104,7 @@ and replace the original script with the `wireit` command.
 </table>
 
 Now when you run `npm run build`, Wireit upgrades the script to be smarter and
-more efficient. Wireit works with [yarn](https://yarnpkg.com/)
-(both 1.X "[Classic](https://classic.yarnpkg.com/)" and its successor "Berry")
-and [pnpm](https://pnpm.io/), too.
+more efficient. Wireit also works with [`node --run`](https://nodejs.org/en/blog/announcements/v22-release-announce#running-packagejson-scripts), [yarn](https://yarnpkg.com/), and [pnpm](https://pnpm.io/).
 
 You should also add `.wireit` to your `.gitignore` file. Wireit uses the
 `.wireit` directory to store caches and other data for your scripts.
@@ -238,6 +236,19 @@ npm or Wireit:
 npm run build -- --verbose
 ```
 
+Or in general:
+
+```sh
+npm run {script} {npm args} {wireit args} -- {script args}
+```
+
+An additional `--` is required when using `node --run` in order to distinguish
+between arguments intended for `node`, `wireit`, and the script itself:
+
+```sh
+node --run {script} {node args} -- {wireit args} -- {script args}
+```
+
 ## Input and output files
 
 The `files` and `output` properties of `wireit.<script>` tell Wireit what your
@@ -335,10 +346,44 @@ Local caching is enabled by default, unless the
 environment variable is detected. To force local caching, set
 `WIREIT_CACHE=local`. To disable local caching, set `WIREIT_CACHE=none`.
 
-> ⚠️ Wireit does not currently limit the size of local caches. To free up this
-> space, use `rm -rf .wireit/*/cache`. Automatic cache size limits will be added
-> in an upcoming release, tracked at
-> [wireit#71](https://github.com/google/wireit/issues/71).
+Each script retains its 10 most recently used cache entries. Whenever a new
+entry is written, any entries beyond that limit are evicted, least recently used
+first. Because an entry is a full copy of the script's `output` files, this caps
+a script's cache at roughly 10× the size of its output.
+
+To change the limit, set `WIREIT_CACHE_MAX_ENTRIES` to a positive integer, or to
+`infinity` to retain every entry:
+
+```sh
+export WIREIT_CACHE_MAX_ENTRIES=2
+```
+
+Evicted entries are moved to `.wireit/trash` and deleted at the end of the run,
+so that a script is never held up by a large delete. Interrupting that with
+Ctrl-C is safe — whatever is left is deleted by the next run. Wireit then exits
+with status 130.
+
+A cache that is already over the limit, such as one written by an earlier
+version of Wireit, shrinks by one entry per write instead of all at once, so that
+no single run is held up deleting it. While it holds more than twice the limit,
+Wireit reminds you once a day with the folders to delete.
+
+Note the limit is applied per script, so a package with many cached scripts will
+still use a multiple of this space. To free all of it at once, use
+`rm -rf .wireit/*/cache .wireit/*/temp .wireit/trash`.
+
+Linked Git worktrees (`git worktree add`) keep their own `.wireit` cache
+folders. Set `WIREIT_CACHE_WORKTREES=true` to store a linked worktree's local
+cache in the main worktree's corresponding `.wireit` folders. Shared entries
+are named from package-relative paths, so both worktrees hit the same entry.
+Any other value keeps each worktree's own cache and the same entry names as
+before. Worktrees of bare clones, submodules, and checkouts with a separate
+git dir also keep their own cache, since the main git dir's parent isn't a
+checkout. Lock, fingerprint, and output-manifest files stay in the current
+worktree. Fingerprints and GitHub Actions caching are unchanged.
+
+Restored files are copied verbatim. Wireit does not rewrite output contents
+that embed another checkout's absolute path.
 
 ### GitHub Actions caching
 
@@ -360,7 +405,7 @@ clause to your workflow. It can appear anywhere before the first `npm run` or
 `npm test` command:
 
 ```yaml
-- uses: google/wireit@setup-github-actions-caching/v1
+- uses: google/wireit@setup-github-actions-caching/v2
 ```
 
 #### Example workflow
@@ -374,14 +419,14 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 18
+          node-version: 24
           cache: npm
 
       # Set up GitHub Actions caching for Wireit.
-      - uses: google/wireit@setup-github-actions-caching/v1
+      - uses: google/wireit@setup-github-actions-caching/v2
 
       # Install npm dependencies.
       - run: npm ci
@@ -402,31 +447,35 @@ Cleaning is enabled by default as long as the
 [`output`](#input-and-output-files) array is defined. To change this behavior,
 set the `wireit.<script>.clean` property to one of these values:
 
-| Setting             | Description                                                                                                                                                                                                                                                                                     |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `true`              | Clean before every run (the default).                                                                                                                                                                                                                                                           |
-| `"if-file-deleted"` | Clean only if an input file has been deleted since the last run.<br><br>Use this option for tools that have incremental build support, but do not clean up outdated output when a source file has been deleted, such as `tsc --build` (see [TypeScript](#typescript) for more on this example.) |
-| `false`             | Do not clean.<br><br>Only use this option if you are certain that the script command itself already takes care of removing outdated files from previous runs.                                                                                                                                   |
+| Setting             | Description                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `true`              | Clean before every run (the default).                                                                                                                                                                                                                                                                                        |
+| `"if-file-deleted"` | Clean if an input file has been deleted, or if an output file has changed since the last run.<br><br>Use this option for tools that have incremental build support, but do not clean up outdated output when a source file has been deleted, such as `tsc --build` (see [TypeScript](#typescript) for more on this example.) |
+| `false`             | Do not clean.<br><br>Only use this option if you are certain that the script command itself already takes care of removing outdated files from previous runs.                                                                                                                                                                |
 
 ## Watch mode
 
 In _watch_ mode, Wireit monitors all `files` of a script, and all `files` of its
 transitive dependencies, and when there is a change, it re-runs only the
-affected scripts. To enable watch mode, ensure that the
-[`files`](#input-and-output-files) array is defined, and add the `--watch`
-flag:
+affected scripts. To enable watch mode, first ensure that the
+[`files`](#input-and-output-files) array is defined, and then run:
 
 ```sh
-npm run <script> --watch
+WIREIT_WATCH=true npm run <script>
 ```
 
-The benefit of Wireit's watch mode over built-in watch modes are:
+The benefit of Wireit's watch mode over the built-in watch modes of Node and other programs are:
 
 - Wireit watches the entire dependency graph, so a single watch command replaces
   many built-in ones.
 - It prevents problems that can occur when running many separate watch commands
   simultaneously, such as build steps being triggered before all preceding steps
   have finished.
+
+By default, watch mode uses whichever filesystem change API is available on your
+OS. This behavior can be changed with the `WIREIT_WATCH_STRATEGY` and
+`WIREIT_WATCH_POLL_MS` environment variables (see
+[below](#environment-variable-reference)).
 
 ## Environment variables
 
@@ -467,7 +516,8 @@ If an environment variable affects the behavior of a script but is set
 _externally_ (i.e. it is passed to the `wireit` parent process), set the `env`
 property to `{"external": true}`. This tells Wireit that if the value of an
 environment variable changes across executions of a script, then its output
-should not be re-used.
+should not be re-used. You may also set a `default` value for the variable
+to use when none is provided externally.
 
 ```json
 {
@@ -477,6 +527,10 @@ should not be re-used.
       "env": {
         "MY_VARIABLE": {
           "external": true
+        },
+        "MY_VARIABLE_2": {
+          "external": true,
+          "default": "foo"
         }
       }
     }
@@ -714,7 +768,7 @@ WIREIT_FAILURES=kill
 By default, Wireit automatically treats package manager lock files as input
 files
 ([`package-lock.json`](https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json)
-for npm,
+for npm and `node --run`,
 [`yarn.lock`](https://yarnpkg.com/configuration/yarnrc#lockfileFilename) for
 yarn, and [`pnpm-lock.yaml`](https://pnpm.io/git#lockfiles) for pnpm). Wireit
 will look for these lock files in the script's package, and all parent
@@ -831,6 +885,7 @@ The following properties can be set inside `wireit.<script>` objects in
 | `clean`                   | `boolean \| "if-file-deleted"`     | `true`                  | [Delete output files before running](#cleaning-output).                                                                         |
 | `env`                     | `Record<string, string \| object>` | `false`                 | [Environment variables](#environment-variables) to set when running this command, or that are external and affect the behavior. |
 | `env[i].external`         | `true \| undefined`                | `undefined`             | `true` if an [environment variable](#environment-variables) is set externally and affects the script's behavior.                |
+| `env[i].default`          | `string \| undefined`              | `undefined`             | Default value to use when an external [environment variable](#environment-variables) is not provided.                           |
 | `service`                 | `boolean`                          | `false`                 | [Whether this script is long-running, e.g. a server](#cleaning-output).                                                         |
 | `packageLocks`            | `string[]`                         | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                                                  |
 
@@ -847,14 +902,20 @@ The following syntaxes can be used in the `wireit.<script>.dependencies` array:
 
 The following environment variables affect the behavior of Wireit:
 
-| Variable                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `WIREIT_FAILURES`       | [How to handle script failures](#failures-and-errors).<br><br>Options:<br><ul><li>[`no-new`](#failures-and-errors) (default): Allow running scripts to finish, but don't start new ones.</li><li>[`continue`](#continue): Allow running scripts to continue, and start new ones unless any of their dependencies failed.</li><li>[`kill`](#kill): Immediately kill running scripts, and don't start new ones.</li></ul>                                                                                                                                                                                                                                                                               |
-| `WIREIT_PARALLEL`       | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 2×logical CPU cores.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `WIREIT_CACHE`          | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v1`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul>                                                                                                                                                                                                                                                                  |
-| `CI`                    | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`.                                                                                                                                                                                                                                                                                                                                             |
-| `WIREIT_MAX_OPEN_FILES` | Limits the number of file descriptors Wireit will have open concurrently. Prevents resource exhaustion when checking large numbers of cached files. Set to a lower number if you hit file descriptor limits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `WIREIT_LOGGER`         | How to present progress and results on the command line.<br><br>Options:<br><ul><li>`quiet` (default): writes a single dynamically updating line summarizing progress. Only passes along stdout and stderr from commands if there's a failure, or if the command is a service. The planned new default, please try it out.</li><li>`simple` (default): A verbose logger that presents clear information about the work that Wireit is doing.</li><li>`metrics`: Like `simple`, but also presents a summary table of results once a command is finished.</li><li>`quiet-ci` (default when env.CI): like `quiet` but optimized for non-interactive environments, like GitHub Actions runners.</li></ul> |
+| Variable                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WIREIT_CACHE`             | [Caching mode](#caching).<br><br>Defaults to `local` unless `CI` is `true`, in which case defaults to `none`.<br><br>Automatically set to `github` by the [`google/wireit@setup-github-actions-caching/v2`](#github-actions-caching) action.<br><br>Options:<ul><li>[`local`](#local-caching): Cache to local disk.</li><li>[`github`](#github-actions-caching): Cache to GitHub Actions.</li><li>`none`: Disable caching.</li></ul>                                                                                                                                                                                                                                                      |
+| `WIREIT_FAILURES`          | [How to handle script failures](#failures-and-errors).<br><br>Options:<br><ul><li>[`no-new`](#failures-and-errors) (default): Allow running scripts to finish, but don't start new ones.</li><li>[`continue`](#continue): Allow running scripts to continue, and start new ones unless any of their dependencies failed.</li><li>[`kill`](#kill): Immediately kill running scripts, and don't start new ones.</li></ul>                                                                                                                                                                                                                                                                   |
+| `WIREIT_LOGGER`            | How to present progress and results on the command line.<br><br>Options:<br><ul><li>`quiet` (default for normal execution): Writes a single dynamically updating line summarizing progress. Only passes along stdout and stderr from commands if there's a failure, or if the command is a service.</li><li>`quiet-ci` (default when `env.CI` or `!stdout.isTTY`): like `quiet` but optimized for non-interactive environments, like GitHub Actions runners.</li><li>`simple`: A verbose logger that presents clear information about the work that Wireit is doing.</li><li>`metrics`: Like `simple`, but also presents a summary table of results once a command is finished.</li></ul> |
+| `WIREIT_CACHE_MAX_ENTRIES` | Maximum number of [local cache](#local-caching) entries to retain per script.<br><br>Defaults to `10`.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `WIREIT_CACHE_WORKTREES`   | Set to `true` to store a linked Git worktree's [local cache](#local-caching) in the main worktree's corresponding `.wireit` folders.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`. Does not affect fingerprints or GitHub Actions caching.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `WIREIT_DEBUG_LOG_FILE`    | Path to a file which will receive detailed event logging.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `WIREIT_MAX_OPEN_FILES`    | Limits the number of file descriptors Wireit will have open concurrently. Prevents resource exhaustion when checking large numbers of cached files. Set to a lower number if you hit file descriptor limits.<br><br>Defaults to `200`.<br><br>Must be a positive integer.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `WIREIT_PARALLEL`          | [Maximum number of scripts to run at one time](#parallelism).<br><br>Defaults to 2×logical CPU cores.<br><br>Must be a positive integer or `infinity`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `WIREIT_WATCH`             | Set to `true` to enable [watch mode](#watch-mode).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `WIREIT_WATCH_STRATEGY`    | How Wireit determines when a file has changed which warrants a new watch iteration.<br><br>Options:<br><ul><li>`event` (default): Register OS file system watcher callbacks (using [chokidar](https://github.com/paulmillr/chokidar)).</li><li>`poll`: Poll the filesystem every `WIREIT_WATCH_POLL_MS` milliseconds. Less responsive and worse performance than `event`, but a good fallback for when `event` does not work well or at all (e.g. filesystems that don't support filesystem events, or performance and memory problems with large file trees).</li></ul>                                                                                                                  |
+| `WIREIT_WATCH_POLL_MS`     | When `WIREIT_WATCH_STRATEGY` is `poll`, how many milliseconds to wait between each filesystem poll. Defaults to `500`.<br><br>Must be a positive integer.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `CI`                       | Affects the default value of `WIREIT_CACHE`.<br><br>Automatically set to `true` by [GitHub Actions](https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables) and most other CI (continuous integration) services.<br><br>Must be exactly `true`. If unset or any other value, interpreted as `false`.                                                                                                                                                                                                                                                                                                                                 |
 
 ### Glob patterns
 
@@ -902,7 +963,7 @@ cache](#caching).
 - The environment variable values configured in `env`.
 - The system platform (e.g. `linux`, `win32`).
 - The system CPU architecture (e.g. `x64`).
-- The system Node version (e.g. `16.7.0`).
+- The system Node version (e.g. `24.11.1`).
 - The fingerprint of all transitive dependencies, unless `cascade` is set to
   `false`.
 
@@ -915,16 +976,9 @@ input also affects the fingerprint:
 
 Wireit is supported on Linux, macOS, and Windows.
 
-Wireit is supported on Node Current (20), LTS (18), and Maintenance (16).
-See [Node releases](https://nodejs.org/en/about/releases/) for the schedule.
+Wireit is supported on Node 18+.
 
-> **Warning**
-> Wireit will drop support for Node 16 soon after it reaches end-of-life on
-> 2023-09-11. We recommend upgrading to Node 20.
-
-Wireit is supported on the npm versions that ship with the latest versions of
-the above supported Node versions (6 and 8), Yarn Classic (1), Yarn Berry (3),
-and pnpm (7).
+Wireit scripts can be launched via `npm`, `node --run`, `pnpm`, and `yarn`.
 
 ## Related tools
 
@@ -935,6 +989,7 @@ recommend you check them out too:
 - [Turborepo](https://turborepo.org/)
 - [Chomp](https://chompbuild.com/)
 - [Bazel](https://bazel.build/)
+- [Nix] (https://nixos.org/)
 
 Here are some things you might especially like about Wireit:
 

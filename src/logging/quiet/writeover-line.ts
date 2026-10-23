@@ -4,8 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {DEBUG} from '../logger.js';
+import {DEBUG, Console} from '../logger.js';
 import '../../util/dispose.js';
+
+// To prevent using the global console accidentally, we shadow it with
+// undefined
+const console = undefined;
+function markAsUsed(_: unknown) {}
+markAsUsed(console);
 
 export interface StatusLineWriter extends Disposable {
   clearAndStopRendering(): void;
@@ -23,6 +29,11 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
    */
   protected _writeOver = !DEBUG;
   #disposed = false;
+  readonly console: Console;
+
+  constructor(console: Console) {
+    this.console = console;
+  }
 
   /**
    * Called periodically, so that the status line can be updated if needed.
@@ -47,16 +58,16 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
       if (line === '') {
         return;
       }
-      process.stderr.write(line);
-      process.stderr.write('\n');
+      this.console.stderr.write(line);
+      this.console.stderr.write('\n');
       return;
     }
-    process.stderr.write(line);
+    this.console.stderr.write(line);
     const overflow = this.#previousLineLength - line.length;
     if (overflow > 0) {
-      process.stderr.write(' '.repeat(overflow));
+      this.console.stderr.write(' '.repeat(overflow));
     }
-    process.stderr.write('\r');
+    this.console.stderr.write('\r');
     this.#previousLineLength = line.length;
   }
 
@@ -101,7 +112,7 @@ abstract class BaseWriteoverLine implements StatusLineWriter {
     if (DEBUG) {
       if (this._line !== line) {
         // Ensure that every line is written immediately in debug mode
-        process.stderr.write(`  ${line}\n`);
+        this.console.stderr.write(`  ${line}\n`);
       }
     }
     this._line = line;
@@ -152,8 +163,8 @@ export class WriteoverLine extends BaseWriteoverLine {
   protected override _update() {
     if (this._line === this.#previouslyWrittenLine) {
       // just write over the spinner
-      process.stderr.write(this.#spinner.nextFrame);
-      process.stderr.write('\r');
+      this.console.stderr.write(this.#spinner.nextFrame);
+      this.console.stderr.write('\r');
       return;
     }
     this.#previouslyWrittenLine = this._line;
@@ -167,8 +178,8 @@ export class WriteoverLine extends BaseWriteoverLine {
  * if the status line line hasn't changed.
  */
 export class CiWriter extends BaseWriteoverLine {
-  constructor() {
-    super();
+  constructor(console: Console) {
+    super(console);
     // Don't write too much, no need to flood the CI logs.
     this._targetFps = 1;
     // GitHub seems to handle \r carraige returns the same as \n, but

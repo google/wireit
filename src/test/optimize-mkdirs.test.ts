@@ -4,39 +4,39 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {test} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {optimizeMkdirs} from '../util/optimize-mkdirs.js';
 import {shuffle} from '../util/shuffle.js';
 import {windowsifyPathIfOnWindows} from './util/windows.js';
 
 const check = (input: string[], expected: string[]) =>
-  assert.equal(
+  assert.deepEqual(
     optimizeMkdirs(input.map(windowsifyPathIfOnWindows)).sort(),
     expected.map(windowsifyPathIfOnWindows).sort(),
   );
 
-test('empty', () => {
+void test('empty', () => {
   check([], []);
 });
 
-test('1 item', () => {
+void test('1 item', () => {
   check(['a'], ['a']);
 });
 
-test('duplicates', () => {
+void test('duplicates', () => {
   check(['a', 'a'], ['a']);
 });
 
-test('parent and children', () => {
+void test('parent and children', () => {
   check(['a', 'a/b', 'a/b/c'], ['a/b/c']);
 });
 
-test('parent and child reversed', () => {
+void test('parent and child reversed', () => {
   check(['a/b/c', 'a/b', 'a'], ['a/b/c']);
 });
 
-test('various shuffled cases', () => {
+void test('various shuffled cases', () => {
   const input = [
     '',
     'a/b/c',
@@ -59,5 +59,3 @@ test('various shuffled cases', () => {
     check(input, expected);
   }
 });
-
-test.run();

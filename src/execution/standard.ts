@@ -27,17 +27,18 @@ import type {Cache, CacheHit} from '../caching/cache.js';
 import type {Failure, StartCancelled} from '../event.js';
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FileManifestEntry, FileManifestString} from '../util/manifest.js';
+import {Stats} from 'fs';
 
 type StandardScriptExecutionState =
-  | 'before-running'
-  | 'running'
-  | 'after-running';
+  'before-running' | 'running' | 'after-running';
 
 /**
  * Execution for a {@link StandardScriptConfig}.
  */
 export class StandardScriptExecution extends BaseExecutionWithCommand<StandardScriptConfig> {
   #state: StandardScriptExecutionState = 'before-running';
+  /** The result of {@link #outputManifestIsFresh}, once computed. */
+  #outputManifestFresh?: Promise<Result<boolean>>;
   readonly #cache?: Cache;
   readonly #workerPool: WorkerPool;
 
@@ -79,10 +80,17 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         // Note we must wait for dependencies to finish before generating the
         // cache key, because a dependency could create or modify an input file to
         // this script, which would affect the key.
-        const fingerprint = await Fingerprint.compute(
+        const fingerprintResponse = await Fingerprint.compute(
           this._config,
           dependencyFingerprints.value,
         );
+        if (!fingerprintResponse.ok) {
+          return {
+            ok: false,
+            error: [fingerprintResponse.error],
+          };
+        }
+        const fingerprint = fingerprintResponse.value;
         if (
           this._executor.failedInPreviousWatchIteration(
             this._config,
@@ -106,7 +114,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
             return {ok: false, error: [manifestFresh.error]};
           }
           if (manifestFresh.value) {
-            return this.#handleFresh(fingerprint);
+            return await this.#handleFresh(fingerprint);
           }
         }
 
@@ -120,14 +128,18 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
         const cacheHit = fingerprint.data.fullyTracked
           ? await this.#cache?.get(this._config, fingerprint)
           : undefined;
-        if (this.#shouldNotStart) {
-          return {ok: false, error: [this.#startCancelledEvent]};
-        }
-        if (cacheHit !== undefined) {
-          return this.#handleCacheHit(cacheHit, fingerprint);
-        }
+        try {
+          if (this.#shouldNotStart) {
+            return {ok: false, error: [this.#startCancelledEvent]};
+          }
+          if (cacheHit !== undefined) {
+            return await this.#handleCacheHit(cacheHit, fingerprint);
+          }
 
-        return this.#handleNeedsRun(fingerprint);
+          return await this.#handleNeedsRun(fingerprint);
+        } finally {
+          await cacheHit?.release();
+        }
       });
     } finally {
       this._servicesNotNeeded.resolve();
@@ -242,12 +254,15 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script is already fresh.
    */
-  #handleFresh(fingerprint: Fingerprint): ExecutionResult {
+  async #handleFresh(fingerprint: Fingerprint): Promise<ExecutionResult> {
     this._logger.log({
       script: this._config,
       type: 'success',
       reason: 'fresh',
     });
+    // Nothing to restore, but this entry is the one we would have used, so a
+    // usually-fresh script must not have it evicted for looking untouched.
+    await this.#cache?.markEntryRecentlyUsed(this._config, fingerprint);
     return {ok: true, value: fingerprint};
   }
 
@@ -258,10 +273,6 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     cacheHit: CacheHit,
     fingerprint: Fingerprint,
   ): Promise<ExecutionResult> {
-    // Optimization: early signal that services are not needed while we're still
-    // restoring from cache.
-    this._servicesNotNeeded.resolve();
-
     // Delete the fingerprint and other files. It's important we do this before
     // restoring from cache, because we don't want to think that the previous
     // fingerprint is still valid when it no longer is.
@@ -275,9 +286,18 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // incremental change to the input files. When we restore from cache, we are
     // directly replacing the output files, and not invoking the tool at all, so
     // there is no way for the tool to do any cleanup.
-    await this.#cleanOutput();
+    const cleanResult = await this.#cleanOutput();
+    if (!cleanResult.ok) {
+      return {ok: false, error: [cleanResult.error]};
+    }
 
-    await cacheHit.apply();
+    if (!(await cacheHit.apply())) {
+      return this.#handleNeedsRun(fingerprint, {
+        alreadyPreparedAndCleaned: true,
+        saveToCache: false,
+      });
+    }
+    this._servicesNotNeeded.resolve();
     this.#state = 'after-running';
 
     const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
@@ -286,9 +306,13 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this.#writeOutputManifest(
-        await this.#computeOutputManifest(outputFilesAfterRunning.value),
+      const outputManifest = await this.#computeOutputManifest(
+        outputFilesAfterRunning.value,
       );
+      if (!outputManifest.ok) {
+        return {ok: false, error: [outputManifest.error]};
+      }
+      await this.#writeOutputManifest(outputManifest.value);
     }
     await writeFingerprintPromise;
 
@@ -304,21 +328,29 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script was stale and we need to run it.
    */
-  async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
-    // Check if we should clean before we delete the fingerprint file, because
-    // we sometimes need to read the previous fingerprint file to determine
-    // this.
-    const shouldClean = await this.#shouldClean(fingerprint);
+  async #handleNeedsRun(
+    fingerprint: Fingerprint,
+    options?: {alreadyPreparedAndCleaned?: boolean; saveToCache?: boolean},
+  ): Promise<ExecutionResult> {
+    if (!options?.alreadyPreparedAndCleaned) {
+      // Check if we should clean before we delete the fingerprint file, because
+      // we sometimes need to read the previous fingerprint file to determine
+      // this.
+      const shouldClean = await this.#shouldClean(fingerprint);
+      if (!shouldClean.ok) {
+        return {ok: false, error: [shouldClean.error]};
+      }
 
-    // Delete the fingerprint and other files. It's important we do this before
-    // starting the command, because we don't want to think that the previous
-    // fingerprint is still valid when it no longer is.
-    await this.#prepareDataDir();
+      // Delete the fingerprint and other files. It's important we do this before
+      // starting the command, because we don't want to think that the previous
+      // fingerprint is still valid when it no longer is.
+      await this.#prepareDataDir();
 
-    if (shouldClean) {
-      const result = await this.#cleanOutput();
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
+      if (shouldClean.value) {
+        const result = await this.#cleanOutput();
+        if (!result.ok) {
+          return {ok: false, error: [result.error]};
+        }
       }
     }
 
@@ -439,13 +471,17 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
       return {ok: false, error: [outputFilesAfterRunning.error]};
     }
     if (outputFilesAfterRunning.value !== undefined) {
-      await this.#writeOutputManifest(
-        await this.#computeOutputManifest(outputFilesAfterRunning.value),
+      const outputManifest = await this.#computeOutputManifest(
+        outputFilesAfterRunning.value,
       );
+      if (!outputManifest.ok) {
+        return {ok: false, error: [outputManifest.error]};
+      }
+      await this.#writeOutputManifest(outputManifest.value);
     }
     await writeFingerprintPromise;
 
-    if (fingerprint.data.fullyTracked) {
+    if (fingerprint.data.fullyTracked && (options?.saveToCache ?? true)) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
       if (!result.ok) {
         return {ok: false, error: [result.error]};
@@ -455,14 +491,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     return {ok: true, value: fingerprint};
   }
 
-  async #shouldClean(fingerprint: Fingerprint) {
+  async #shouldClean(fingerprint: Fingerprint): Promise<Result<boolean>> {
     const cleanValue = this._config.clean;
     switch (cleanValue) {
       case true: {
-        return true;
+        return {ok: true, value: true};
       }
       case false: {
-        return false;
+        return {ok: true, value: false};
       }
       case 'if-file-deleted': {
         const prevFingerprint = await this.#readPreviousFingerprint();
@@ -470,12 +506,19 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
           // If we don't know the previous fingerprint, then we can't know
           // whether any input files were removed. It's safer to err on the
           // side of cleaning.
-          return true;
+          return {ok: true, value: true};
         }
-        return this.#anyInputFilesDeletedSinceLastRun(
-          fingerprint,
-          prevFingerprint,
-        );
+        if (
+          this.#anyInputFilesDeletedSinceLastRun(fingerprint, prevFingerprint)
+        ) {
+          return {ok: true, value: true};
+        }
+
+        const outputManifestFresh = await this.#outputManifestIsFresh();
+        if (!outputManifestFresh.ok) {
+          return outputManifestFresh;
+        }
+        return {ok: true, value: !outputManifestFresh.value};
       }
       default: {
         throw new Error(
@@ -680,23 +723,54 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
    */
   async #computeOutputManifest(
     outputEntries: AbsoluteEntry[],
-  ): Promise<FileManifestString> {
+  ): Promise<Result<FileManifestString>> {
     outputEntries.sort((a, b) => a.path.localeCompare(b.path));
-    const stats = await Promise.all(
-      outputEntries.map((entry) => fs.lstat(entry.path)),
+    const stats: Stats[] = [];
+    const deleted: string[] = [];
+    await Promise.all(
+      outputEntries.map(async (entry, i) => {
+        try {
+          stats[i] = await fs.lstat(entry.path);
+        } catch (e) {
+          if ((e as {code?: string}).code === 'ENOENT') {
+            deleted.push(entry.path);
+          } else {
+            throw e;
+          }
+        }
+      }),
     );
+    if (deleted.length > 0) {
+      return {
+        ok: false,
+        error: {
+          type: 'failure',
+          reason: 'output-file-deleted-unexpectedly',
+          script: this._config,
+          filePaths: deleted.sort(),
+        },
+      };
+    }
     const manifest: Record<string, FileManifestEntry> = {};
     for (let i = 0; i < outputEntries.length; i++) {
       manifest[outputEntries[i]!.path] = computeManifestEntry(stats[i]!);
     }
-    return JSON.stringify(manifest) as FileManifestString;
+    return {ok: true, value: JSON.stringify(manifest) as FileManifestString};
   }
 
   /**
    * Check whether the current manifest of output files matches the one from the
    * `.wireit` directory.
+   *
+   * Both the freshness check and the clean check need this before the command
+   * runs, so it is computed once per execution, and the change is logged once.
+   * The result is stale after the command runs.
    */
-  async #outputManifestIsFresh(): Promise<Result<boolean>> {
+  #outputManifestIsFresh(): Promise<Result<boolean>> {
+    return (this.#outputManifestFresh ??= this.#compareOutputManifest());
+  }
+
+  async #compareOutputManifest(): Promise<Result<boolean>> {
     const oldManifestPromise = this.#readPreviousOutputManifest();
     const outputFilesBeforeRunning = await this.#globOutputFilesBeforeRunning();
     if (!outputFilesBeforeRunning.ok) {
@@ -708,11 +782,14 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     const newManifest = await this.#computeOutputManifest(
       outputFilesBeforeRunning.value,
     );
+    if (!newManifest.ok) {
+      return newManifest;
+    }
     const oldManifest = await oldManifestPromise;
     if (oldManifest === undefined) {
       return {ok: true, value: false};
     }
-    const equal = newManifest === oldManifest;
+    const equal = newManifest.value === oldManifest;
     if (!equal) {
       this._logger.log({
         script: this._config,

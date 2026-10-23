@@ -4,39 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
-import {timeout} from './util/uvu-timeout.js';
-import {WireitTestRig} from './util/test-rig.js';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
+import {rigTest} from './util/rig-test.js';
+import type {ExitResult} from './util/test-rig.js';
 
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
-
-test(
+void test(
   'runs one script that fails',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -61,14 +36,14 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 1);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
-    assert.match(res.stderr, 'a stderr');
+    assert.match(res.stdout, /a stdout/);
+    assert.match(res.stderr, /a stderr/);
   }),
 );
 
-test(
+void test(
   'runs one non-root script that fails',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     rig.env['WIREIT_LOGGER'] = 'quiet';
     const cmdA = await rig.newCommand();
     await rig.write({
@@ -97,14 +72,14 @@ test(
     const res = await exec.exit;
     assert.equal(res.code, 1);
     assert.equal(cmdA.numInvocations, 1);
-    assert.match(res.stdout, 'a stdout');
-    assert.match(res.stderr, 'a stderr');
+    assert.match(res.stdout, /a stdout/);
+    assert.match(res.stderr, /a stderr/);
   }),
 );
 
-test(
+void test(
   'dependency chain in one package that fails in the middle',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // a --> b* --> c
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
@@ -147,9 +122,9 @@ test(
   }),
 );
 
-test(
+void test(
   'dependency chain in one package that fails in nested dependency',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     const cmdA = await rig.newCommand();
     const cmdB = await rig.newCommand();
     const cmdC = await rig.newCommand();
@@ -199,11 +174,11 @@ test(
 );
 
 for (const envSetting of ['no-new', undefined]) {
-  test(
+  void test(
     `don't start new script after unrelated failure when WIREIT_FAILURES=${
       envSetting ?? '<unset>'
     }`,
-    timeout(async ({rig}) => {
+    rigTest(async ({rig}) => {
       //   main
       //    / \
       //   |   \
@@ -315,9 +290,9 @@ for (const envSetting of ['no-new', undefined]) {
   );
 }
 
-test(
+void test(
   "don't start new script after unrelated failure with constrained parallelism in no-new mode",
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     // This test covers handling for a race condition that occurs where the
     // WorkerPool might release a slot and let the next script start before a
     // failure has asynchronously propagated to the Executor.
@@ -379,9 +354,9 @@ test(
   }),
 );
 
-test(
+void test(
   'allow unrelated scripts to start after failure in continue mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //   main
     //    /\
     //   |  |
@@ -451,9 +426,9 @@ test(
   }),
 );
 
-test(
+void test(
   'kill running script after failure in kill mode',
-  timeout(async ({rig}) => {
+  rigTest(async ({rig}) => {
     //   main
     //    / \
     //   |   |
@@ -504,4 +479,162 @@ test(
   }),
 );
 
-test.run();
+void test(
+  'unexpected input file deletion during fingerprinting',
+  {timeout: 2 * 60 * 1000},
+  rigTest(
+    async ({rig}) => {
+      // Spam our input file with writes and deletes out-of-band with wireit.
+      let spamming = true;
+      void (async () => {
+        while (spamming) {
+          try {
+            await rig.write('input', Math.random());
+            await rig.delete('input');
+          } catch {
+            // Sometimes we get an EPERM error here on Windows CI. Probably
+            // writing too fast, just sleep a bit.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+        }
+      })();
+
+      let finalExit: ExitResult;
+      try {
+        // It could take multiple attempts to hit the race condition.
+        for (let i = 0; i < 100; i++) {
+          const failer = await rig.newCommand();
+          await rig.write({
+            'package.json': {
+              scripts: {
+                main: 'wireit',
+                failer: 'wireit',
+              },
+              wireit: {
+                main: {
+                  dependencies: ['failer'],
+                },
+                failer: {
+                  command: failer.command,
+                  files: ['input'],
+                  output: ['output'],
+                },
+              },
+            },
+          });
+          const wireit = rig.exec('npm run main');
+          // If the error occurs, it will happen before invocation.
+          const exitOrInvocation = await Promise.race([
+            wireit.exit,
+            failer.nextInvocation(),
+          ]);
+          if ('code' in exitOrInvocation) {
+            if (exitOrInvocation.stderr.includes('EPERM')) {
+              // See note about EPERM above, it can also happen within wireit.
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              continue;
+            } else {
+              finalExit = exitOrInvocation;
+              break;
+            }
+          }
+          await rig.write('output', '1');
+          exitOrInvocation.exit(0);
+          finalExit = await wireit.exit;
+          if (finalExit.code !== 0) {
+            if (finalExit.stderr.includes('EPERM')) {
+              // See note about EPERM above, it can also happen within wireit.
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } else {
+              break;
+            }
+          }
+        }
+      } finally {
+        spamming = false;
+      }
+
+      assert.equal(finalExit!.code, 1);
+      assert.ok(
+        finalExit!.stderr.includes(
+          `[failer] Input file "${rig.resolve('input')}" was deleted unexpectedly.` +
+            ` Is another process writing to the same location?`,
+        ),
+      );
+    },
+    {flaky: true},
+  ),
+);
+
+void test(
+  'unexpected output file deletion during manifest generation',
+  {timeout: 2 * 60 * 1000},
+  rigTest(
+    async ({rig}) => {
+      // Spam our output file with writes and deletes out-of-band with wireit.
+      let spamming = true;
+      void (async () => {
+        while (spamming) {
+          try {
+            await rig.write('output', Math.random());
+            await rig.delete('output');
+          } catch {
+            // Sometimes we get an EPERM error here on Windows CI. Probably
+            // writing too fast, just sleep a bit.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+        }
+      })();
+
+      let finalExit: ExitResult;
+      try {
+        // It could take multiple attempts to hit the race condition.
+        for (let i = 0; i < 100; i++) {
+          const failer = await rig.newCommand();
+          await rig.write({
+            'package.json': {
+              scripts: {
+                main: 'wireit',
+                failer: 'wireit',
+              },
+              wireit: {
+                main: {
+                  dependencies: ['failer'],
+                },
+                failer: {
+                  command: failer.command,
+                  files: ['input'],
+                  output: ['output'],
+                },
+              },
+            },
+          });
+          const wireit = rig.exec('npm run main');
+          const failerInv = await failer.nextInvocation();
+          await rig.write('output', '1');
+          failerInv.exit(0);
+          finalExit = await wireit.exit;
+          if (finalExit.code !== 0) {
+            if (finalExit.stderr.includes('EPERM')) {
+              // See note about EPERM above, it can also happen within wireit.
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } else {
+              break;
+            }
+          }
+        }
+      } finally {
+        spamming = false;
+      }
+
+      assert.equal(finalExit!.code, 1);
+      assert.ok(
+        finalExit!.stderr.includes(
+          `[failer] Output file "${rig.resolve('output')}" was deleted unexpectedly.` +
+            ` Is another process writing to the same location?`,
+        ),
+      );
+    },
+    {flaky: true},
+  ),
+);

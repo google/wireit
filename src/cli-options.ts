@@ -5,21 +5,23 @@
  */
 
 import * as os from 'os';
-import * as fs from './util/fs.js';
 import * as pathlib from 'path';
-import {Result} from './error.js';
-import {MetricsLogger} from './logging/metrics-logger.js';
 import {ScriptReference} from './config.js';
+import {Result} from './error.js';
 import {FailureMode} from './executor.js';
-import {unreachable} from './util/unreachable.js';
-import {Logger} from './logging/logger.js';
+import {SimpleLogger} from './logging/simple-logger.js';
+import {Console, Logger} from './logging/logger.js';
+import {MetricsLogger} from './logging/metrics-logger.js';
 import {QuietCiLogger, QuietLogger} from './logging/quiet-logger.js';
-import {DefaultLogger} from './logging/default-logger.js';
+import * as fs from './util/fs.js';
+import {parsePositiveInteger} from './util/parse-positive-integer.js';
+import {unreachable} from './util/unreachable.js';
 
 export const packageDir = await (async (): Promise<string | undefined> => {
-  // Recent versions of npm set this environment variable that tells us the
-  // package.
-  const packageJsonPath = process.env.npm_package_json;
+  // Recent versions of npm, and node --run, set environment variables to tell
+  // us the current package.json.
+  const packageJsonPath =
+    process.env.npm_package_json ?? process.env.NODE_RUN_PACKAGE_JSON_PATH;
   if (packageJsonPath) {
     return pathlib.dirname(packageJsonPath);
   }
@@ -45,23 +47,34 @@ export const packageDir = await (async (): Promise<string | undefined> => {
   }
 })();
 
-export type Agent = 'npm' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
+/**
+ * Bounded, because an entry is a full copy of a script's output, and scripts
+ * with large outputs are what make an unbounded cache painful. Ten is enough to
+ * survive a fair amount of churn, like jumping between a few branches, without
+ * the folder growing without limit.
+ */
+const DEFAULT_CACHE_MAX_ENTRIES = 10;
+
+export type Agent = 'npm' | 'nodeRun' | 'pnpm' | 'yarnClassic' | 'yarnBerry';
 
 export interface Options {
   script: ScriptReference;
-  watch: boolean;
+  watch: false | {strategy: 'event'} | {strategy: 'poll'; interval: number};
   extraArgs: string[] | undefined;
   numWorkers: number;
   cache: 'local' | 'github' | 'none';
+  cacheMaxEntries: number;
+  cacheWorktrees: boolean;
   failureMode: FailureMode;
   agent: Agent;
   logger: Logger;
 }
 
-export const getOptions = (): Result<Options> => {
+export const getOptions = async (): Promise<Result<Options>> => {
   // This environment variable is set by npm, yarn, and pnpm, and tells us which
   // script is running.
-  const scriptName = process.env.npm_lifecycle_event;
+  const scriptName =
+    process.env.npm_lifecycle_event ?? process.env['NODE_RUN_SCRIPT_NAME'];
   // We need to handle "npx wireit" as a special case, because it sets
   // "npm_lifecycle_event" to "npx". The "npm_execpath" will be "npx-cli.js",
   // though, so we use that combination to detect this special case.
@@ -101,8 +114,8 @@ export const getOptions = (): Result<Options> => {
     if (workerString == null || workerString === '') {
       return {ok: true, value: defaultValue};
     }
-    const parsedInt = parseInt(workerString, 10);
-    if (Number.isNaN(parsedInt) || parsedInt <= 0) {
+    const parsedInt = parsePositiveInteger(workerString);
+    if (parsedInt === undefined) {
       return {
         ok: false,
         error: {
@@ -159,6 +172,58 @@ export const getOptions = (): Result<Options> => {
     return cacheResult;
   }
 
+  const cacheMaxEntriesResult = ((): Result<number> => {
+    const str = process.env['WIREIT_CACHE_MAX_ENTRIES'] ?? '';
+    if (str === '') {
+      return {ok: true, value: DEFAULT_CACHE_MAX_ENTRIES};
+    }
+    if (str.match(/^infinity$/i)) {
+      return {ok: true, value: Infinity};
+    }
+    const parsedInt = parsePositiveInteger(str);
+    if (parsedInt === undefined) {
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            `Expected the WIREIT_CACHE_MAX_ENTRIES env variable to be ` +
+            `a positive integer or "infinity", got ${JSON.stringify(str)}`,
+          script,
+          type: 'failure',
+        },
+      };
+    }
+    return {ok: true, value: parsedInt};
+  })();
+  if (!cacheMaxEntriesResult.ok) {
+    return cacheMaxEntriesResult;
+  }
+
+  // These are read elsewhere, which falls back to the default for an invalid
+  // value: WIREIT_MAX_OPEN_FILES when util/fs.ts loads, before this runs, and
+  // WIREIT_WATCH_POLL_MS only in watch mode. Checking them here makes an
+  // invalid value fail like the other integer options.
+  for (const name of ['WIREIT_MAX_OPEN_FILES', 'WIREIT_WATCH_POLL_MS']) {
+    const str = process.env[name] ?? '';
+    if (str !== '' && parsePositiveInteger(str) === undefined) {
+      return {
+        ok: false,
+        error: {
+          reason: 'invalid-usage',
+          message:
+            `Expected the ${name} env variable to be ` +
+            `a positive integer, got ${JSON.stringify(str)}`,
+          script,
+          type: 'failure',
+        },
+      };
+    }
+  }
+
+  // Same rule as CI: only the exact string "true" enables it.
+  const cacheWorktrees = process.env['WIREIT_CACHE_WORKTREES'] === 'true';
+
   const failureModeResult = ((): Result<FailureMode> => {
     const str = process.env['WIREIT_FAILURES'];
     if (!str) {
@@ -185,26 +250,27 @@ export const getOptions = (): Result<Options> => {
 
   const agent = getNpmUserAgent();
 
+  const console = new Console(process.stdout, process.stderr);
+  const packageRoot = packageDir ?? process.cwd();
   const loggerResult = ((): Result<Logger> => {
-    const packageRoot = packageDir ?? process.cwd();
     const str = process.env['WIREIT_LOGGER'];
     if (!str) {
-      if (process.env.CI) {
-        return {ok: true, value: new QuietCiLogger(packageRoot)};
+      if (process.env.CI || !process.stdout.isTTY) {
+        return {ok: true, value: new QuietCiLogger(packageRoot, console)};
       }
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
     if (str === 'quiet') {
-      return {ok: true, value: new QuietLogger(packageRoot)};
+      return {ok: true, value: new QuietLogger(packageRoot, console)};
     }
     if (str === 'quiet-ci') {
-      return {ok: true, value: new QuietCiLogger(packageRoot)};
+      return {ok: true, value: new QuietCiLogger(packageRoot, console)};
     }
     if (str === 'simple') {
-      return {ok: true, value: new DefaultLogger(packageRoot)};
+      return {ok: true, value: new SimpleLogger(packageRoot, console)};
     }
     if (str === 'metrics') {
-      return {ok: true, value: new MetricsLogger(packageRoot)};
+      return {ok: true, value: new MetricsLogger(packageRoot, console)};
     }
     return {
       ok: false,
@@ -222,15 +288,33 @@ export const getOptions = (): Result<Options> => {
     return loggerResult;
   }
 
+  let logger = loggerResult.value;
+  if (process.env['WIREIT_DEBUG_LOG_FILE']) {
+    const [{DebugLogger}, {CombinationLogger}] = await Promise.all([
+      import('./logging/debug-logger.js'),
+      import('./logging/combination-logger.js'),
+    ]);
+    const debugLogStream = await fs.createWriteStream(
+      process.env['WIREIT_DEBUG_LOG_FILE'],
+    );
+    const debugLogConsole = new Console(debugLogStream, debugLogStream, true);
+    logger = new CombinationLogger(
+      [logger, new DebugLogger(packageRoot, debugLogConsole)],
+      console,
+    );
+  }
+
   return {
     ok: true,
     value: {
       script,
       numWorkers: numWorkersResult.value,
       cache: cacheResult.value,
+      cacheMaxEntries: cacheMaxEntriesResult.value,
+      cacheWorktrees,
       failureMode: failureModeResult.value,
       agent,
-      logger: loggerResult.value,
+      logger,
       ...getArgvOptions(script, agent),
     },
   };
@@ -257,10 +341,21 @@ function getArgvOptions(
       //
       // npm 8.11.0
       //   - Like npm 6, except there is no "npm_config_argv" environment variable.
+      //
+      // npm 12 (https://github.com/npm/cli/pull/8071)
+      //   - "npm run build --watch" is rejected as an unrecognized npm argument
+      //     instead of being silently turned into "npm_config_watch", so we also
+      //     accept WIREIT_WATCH=true as an escape hatch (see #1346).
       return {
-        watch: process.env['npm_config_watch'] !== undefined,
+        watch:
+          process.env['npm_config_watch'] !== undefined
+            ? readWatchConfigFromEnv()
+            : readWatchConfigFromWireitWatchEnv(),
         extraArgs: process.argv.slice(2),
       };
+    }
+    case 'nodeRun': {
+      return parseRemainingArgs(process.argv.slice(2));
     }
     case 'yarnClassic': {
       // yarn 1.22.18
@@ -296,6 +391,9 @@ function getArgvOptions(
  * Try to find the npm user agent being used. If we can't detect it, assume npm.
  */
 function getNpmUserAgent(): Agent {
+  if (process.env['NODE_RUN_SCRIPT_NAME'] !== undefined) {
+    return 'nodeRun';
+  }
   const userAgent = process.env['npm_config_user_agent'];
   if (userAgent !== undefined) {
     const match = userAgent.match(/^(npm|yarn|pnpm)\//);
@@ -303,7 +401,6 @@ function getNpmUserAgent(): Agent {
       if (match[1] === 'yarn') {
         return /^yarn\/[01]\./.test(userAgent) ? 'yarnClassic' : 'yarnBerry';
       }
-
       return match[1] as 'npm' | 'pnpm';
     }
   }
@@ -397,7 +494,7 @@ function findRemainingArgsFromNpmConfigArgv(
 function parseRemainingArgs(
   args: string[],
 ): Pick<Options, 'watch' | 'extraArgs'> {
-  let watch = false;
+  let watch: Options['watch'] = false;
   let extraArgs: string[] = [];
   const unrecognized = [];
   for (let i = 0; i < args.length; i++) {
@@ -406,7 +503,7 @@ function parseRemainingArgs(
       extraArgs = args.slice(i + 1);
       break;
     } else if (arg === '--watch') {
-      watch = true;
+      watch = readWatchConfigFromEnv();
     } else {
       unrecognized.push(arg);
     }
@@ -419,8 +516,52 @@ function parseRemainingArgs(
         `e.g. "npm run build -- --extra".`,
     );
   }
+  // Also accept WIREIT_WATCH as an escape hatch (matches the npm branch behavior,
+  // useful for yarn/pnpm/node --run wrappers that scrub --watch from argv).
+  if (!watch) {
+    watch = readWatchConfigFromWireitWatchEnv();
+  }
   return {
     watch,
     extraArgs,
   };
+}
+
+const DEFAULT_WATCH_STRATEGY = {strategy: 'event'} as const;
+const DEFAULT_WATCH_INTERVAL = 500;
+
+function readWatchConfigFromWireitWatchEnv(): Options['watch'] {
+  return process.env['WIREIT_WATCH']?.toLowerCase() === 'true'
+    ? readWatchConfigFromEnv()
+    : false;
+}
+
+/**
+ * Interpret the WIREIT_WATCH_* environment variables.
+ */
+function readWatchConfigFromEnv(): Options['watch'] {
+  switch (process.env['WIREIT_WATCH_STRATEGY']) {
+    case 'event':
+    case '':
+    case undefined: {
+      return DEFAULT_WATCH_STRATEGY;
+    }
+    case 'poll': {
+      return {
+        strategy: 'poll',
+        // getOptions has already failed for an invalid value.
+        interval:
+          parsePositiveInteger(process.env['WIREIT_WATCH_POLL_MS'] ?? '') ??
+          DEFAULT_WATCH_INTERVAL,
+      };
+    }
+    default: {
+      console.error(
+        `⚠️ Unrecognized WIREIT_WATCH_STRATEGY: ` +
+          `${JSON.stringify(process.env['WIREIT_WATCH_STRATEGY'])}. ` +
+          `Using default strategy of ${DEFAULT_WATCH_STRATEGY.strategy}.`,
+      );
+      return DEFAULT_WATCH_STRATEGY;
+    }
+  }
 }

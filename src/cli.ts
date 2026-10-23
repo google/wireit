@@ -4,55 +4,85 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Result} from './error.js';
+import * as os from 'os';
 import {Analyzer} from './analyzer.js';
-import {Executor} from './executor.js';
-import {WorkerPool} from './util/worker-pool.js';
-import {unreachable} from './util/unreachable.js';
+import {getOptions, Options, packageDir} from './cli-options.js';
+import {Result} from './error.js';
 import {Failure} from './event.js';
-import {packageDir, getOptions, Options} from './cli-options.js';
-import {DefaultLogger} from './logging/default-logger.js';
+import {Executor} from './executor.js';
+import {SimpleLogger} from './logging/simple-logger.js';
+import {Console} from './logging/logger.js';
+import {unreachable} from './util/unreachable.js';
+import {WorkerPool} from './util/worker-pool.js';
+
+import type {Cache} from './caching/cache.js';
+
+/** Below this, a sweep finishes before the user wonders why they're waiting. */
+const SWEEP_NOTICE_MS = 1000;
+
+/**
+ * Delete the entries this run evicted, plus anything an earlier run left.
+ *
+ * The notice and the cache's messages go to the console rather than the
+ * logger because the default logger drops cache advisories, which it treats as
+ * chatty. The GitHub cache prints its must-see warnings the same way.
+ */
+const sweepTrash = async (
+  cache: Cache | undefined,
+  signal: AbortSignal,
+): Promise<void> => {
+  if (cache === undefined) {
+    return;
+  }
+  const sweep = cache.sweepTrash({signal});
+  const notice = setTimeout(() => {
+    console.warn(
+      '🗑️ Deleting evicted cache entries. ' +
+        'Ctrl-C is safe; anything left is deleted on the next run.',
+    );
+  }, SWEEP_NOTICE_MS);
+  let messages;
+  try {
+    messages = await sweep;
+  } finally {
+    clearTimeout(notice);
+  }
+  for (const message of messages) {
+    console.warn(message);
+  }
+};
 
 const run = async (options: Options): Promise<Result<void, Failure[]>> => {
   using logger = options.logger;
   const workerPool = new WorkerPool(options.numWorkers);
+  const sweepAbort = new AbortController();
 
   let cache;
   switch (options.cache) {
     case 'local': {
       // Import dynamically so that we import fewer unnecessary modules.
       const {LocalCache} = await import('./caching/local-cache.js');
-      cache = new LocalCache();
+      cache = new LocalCache(options.cacheMaxEntries, {
+        shareWorktrees: options.cacheWorktrees,
+      });
       break;
     }
     case 'github': {
-      const {GitHubActionsCache} = await import(
-        './caching/github-actions-cache.js'
-      );
-      const cacheResult = GitHubActionsCache.create(logger);
-      if (!cacheResult.ok) {
-        if (cacheResult.error.reason === 'invalid-usage') {
-          return {
-            ok: false,
-            error: [
-              {
-                script: options.script,
-                type: 'failure',
-                reason: 'invalid-usage',
-                message: cacheResult.error.message,
-              },
-            ],
-          };
-        } else {
-          const never: never = cacheResult.error.reason;
-          throw new Error(
-            `Internal error: unexpected cache result error reason: ${String(
-              never,
-            )}`,
-          );
-        }
+      const {GitHubActionsCache} =
+        await import('./caching/github-actions-cache.js');
+      const cacheResult = await GitHubActionsCache.create(logger);
+      if (cacheResult.ok) {
+        cache = cacheResult.value;
+      } else {
+        cache = undefined;
+        console.warn(
+          '⚠️ Error initializing GitHub cache. Caching is disabled for this run',
+        );
+        logger.log({
+          script: options.script,
+          ...cacheResult.error,
+        });
       }
-      cache = cacheResult.value;
       break;
     }
     case 'none': {
@@ -76,11 +106,18 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       cache,
       options.failureMode,
       options.agent,
+      options.watch,
     );
     process.on('SIGINT', () => {
       watcher.abort();
+      sweepAbort.abort();
+    });
+    process.on('SIGTERM', () => {
+      watcher.abort();
+      sweepAbort.abort();
     });
     await watcher.watch();
+    await sweepTrash(cache, sweepAbort.signal);
     return {ok: true, value: undefined};
   } else {
     const analyzer = new Analyzer(options.agent, logger);
@@ -97,9 +134,17 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       undefined,
       false,
     );
-    process.on('SIGINT', () => {
+    let sweeping = false;
+    let sweepStoppedBy: NodeJS.Signals | undefined;
+    const onSignal = (signal: NodeJS.Signals) => {
       executor.abort();
-    });
+      sweepAbort.abort();
+      if (sweeping) {
+        sweepStoppedBy ??= signal;
+      }
+    };
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
     const {persistentServices, errors} = await executor.execute();
     if (persistentServices.size > 0) {
       for (const service of persistentServices.values()) {
@@ -110,17 +155,28 @@ const run = async (options: Options): Promise<Result<void, Failure[]>> => {
       }
     }
     logger.printMetrics();
+    sweeping = true;
+    await sweepTrash(cache, sweepAbort.signal);
+    if (sweepStoppedBy !== undefined) {
+      // The scripts succeeded, but the user asked Wireit to stop. Exit as an
+      // interrupted process does, so that a shell stops a chain such as
+      // "npm run build && npm run deploy". Shells report a process ended by
+      // signal N with status 128 + N: 130 for SIGINT (2), and 143 for SIGTERM
+      // (15).
+      process.exitCode = 128 + os.constants.signals[sweepStoppedBy];
+    }
     return errors.length === 0
       ? {ok: true, value: undefined}
       : {ok: false, error: errors};
   }
 };
 
-const optionsResult = getOptions();
+const optionsResult = await getOptions();
 if (!optionsResult.ok) {
   // if we can't figure out our options, we can't figure out what logger
   // we should use here, so just use the default logger.
-  const logger = new DefaultLogger(packageDir ?? process.cwd());
+  const console = new Console(process.stderr, process.stderr);
+  const logger = new SimpleLogger(packageDir ?? process.cwd(), console);
   logger.log(optionsResult.error);
   process.exit(1);
 }

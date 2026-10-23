@@ -3,7 +3,7 @@
 	"displayName": "wireit",
 	"publisher": "google",
 	"description": "For the wireit script runner",
-	"version": "0.7.0",
+	"version": "0.8.0",
 	"contributes": {
 		"commands": [],
 		"jsonValidation": [

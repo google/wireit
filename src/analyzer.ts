@@ -5,31 +5,31 @@
  */
 
 import * as pathlib from 'path';
+import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
+import {findNodeAtLocation, JsonFile} from './util/ast.js';
 import * as fs from './util/fs.js';
 import {
   CachingPackageJsonReader,
   FileSystem,
 } from './util/package-json-reader.js';
-import {Dependency, scriptReferenceToString, ServiceConfig} from './config.js';
-import {findNodeAtLocation, JsonFile} from './util/ast.js';
 import {IS_WINDOWS} from './util/windows.js';
 
+import type {Agent} from './cli-options.js';
+import type {
+  ScriptConfig,
+  ScriptReference,
+  ScriptReferenceString,
+} from './config.js';
+import type {Diagnostic, MessageLocation, Result} from './error.js';
+import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
+import {Logger} from './logging/logger.js';
 import type {
   ArrayNode,
   JsonAstNode,
   NamedAstNode,
   ValueTypes,
 } from './util/ast.js';
-import type {Diagnostic, MessageLocation, Result} from './error.js';
-import type {Cycle, DependencyOnMissingPackageJson, Failure} from './event.js';
 import type {PackageJson, ScriptSyntaxInfo} from './util/package-json.js';
-import type {
-  ScriptConfig,
-  ScriptReference,
-  ScriptReferenceString,
-} from './config.js';
-import type {Agent} from './cli-options.js';
-import {Logger} from './logging/logger.js';
 
 export interface AnalyzeResult {
   config: Result<ScriptConfig, Failure[]>;
@@ -118,6 +118,7 @@ const DEFAULT_EXCLUDE_PATHS = [
 
 const DEFAULT_LOCKFILES: Record<Agent, string[]> = {
   npm: ['package-lock.json'],
+  nodeRun: ['package-lock.json'],
   yarnClassic: ['yarn.lock'],
   yarnBerry: ['yarn.lock'],
   pnpm: ['pnpm-lock.yaml'],
@@ -341,6 +342,53 @@ export class Analyzer {
   }
 
   /**
+   * Adds the given package.json files to the known set, and analyzes all
+   * scripts reachable from any of them, recursively.
+   *
+   * Useful for whole program analysis, e.g. for "find all references" in the
+   * IDE.
+   */
+  async analyzeAllScripts(
+    packageJsonPaths: Iterable<string>,
+  ): Promise<Iterable<PlaceholderInfo>> {
+    const done = new Set<ScriptReferenceString>();
+    const todo: ScriptReference[] = [];
+    for (const file of packageJsonPaths) {
+      const packageDir = pathlib.dirname(file);
+      const packageJsonResult = await this.getPackageJson(packageDir);
+      if (!packageJsonResult.ok) {
+        continue;
+      }
+      for (const script of packageJsonResult.value.scripts) {
+        todo.push({name: script.name, packageDir});
+      }
+    }
+
+    while (true) {
+      await Promise.all(
+        todo.map(async (ref) => {
+          await this.analyze(ref, undefined);
+          done.add(scriptReferenceToString(ref));
+        }),
+      );
+      todo.length = 0;
+      for (const info of this.#placeholders.values()) {
+        if (
+          info.placeholder.state === 'unvalidated' &&
+          !done.has(scriptReferenceToString(info.placeholder))
+        ) {
+          todo.push(info.placeholder);
+        }
+      }
+      if (todo.length === 0) {
+        break;
+      }
+    }
+
+    return this.#placeholders.values();
+  }
+
+  /**
    * Create or return a cached placeholder script configuration object for the
    * given script reference.
    */
@@ -511,8 +559,7 @@ export class Analyzer {
     let command: JsonAstNode<string> | undefined;
     let commandError = false;
     const commandAst = findNodeAtLocation(wireitConfig, ['command']) as
-      | undefined
-      | JsonAstNode<string>;
+      undefined | JsonAstNode<string>;
     if (commandAst !== undefined) {
       const result = failUnlessNonBlankString(commandAst, packageJson.jsonFile);
       if (result.ok) {
@@ -999,8 +1046,7 @@ export class Analyzer {
       return defaultValue;
     }
     const clean = findNodeAtLocation(syntaxInfo.wireitConfigNode, ['clean']) as
-      | undefined
-      | JsonAstNode<true | false | 'if-file-deleted'>;
+      undefined | JsonAstNode<true | false | 'if-file-deleted'>;
     if (
       clean !== undefined &&
       clean.value !== true &&
@@ -1309,6 +1355,7 @@ export class Analyzer {
           },
         },
       });
+      return {};
     }
     if (envNode.children === undefined) {
       return {};
@@ -1374,9 +1421,31 @@ export class Analyzer {
           });
           continue;
         }
+        const defaultNode = findNodeAtLocation(val, ['default']);
+        if (defaultNode && defaultNode.type !== 'string') {
+          placeholder.failures.push({
+            type: 'failure',
+            reason: 'invalid-config-syntax',
+            script: placeholder,
+            diagnostic: {
+              severity: 'error',
+              message: 'Expected "default" to be a string',
+              location: {
+                file: packageJson.jsonFile,
+                range: {
+                  length: (defaultNode ?? val).length,
+                  offset: (defaultNode ?? val).offset,
+                },
+              },
+            },
+          });
+          continue;
+        }
         const envValue = process.env[keyStr];
         if (envValue !== undefined) {
           entries.push([keyStr, envValue]);
+        } else if (defaultNode) {
+          entries.push([keyStr, defaultNode.value as string]);
         }
       }
     }
@@ -1430,7 +1499,6 @@ export class Analyzer {
         const current = trailArray[i]!;
         const next = trailArray[i + 1];
         if (current.state === 'unvalidated') {
-          dependencyStillUnvalidated = current;
           continue;
         }
         const nextNode = current.dependencies.find(
@@ -1843,7 +1911,7 @@ const failUnlessArray = (
 export const failUnlessJsonObject = (
   astNode: JsonAstNode,
   file: JsonFile,
-): Failure | void => {
+): Failure | undefined => {
   if (astNode.type !== 'object') {
     return {
       type: 'failure',

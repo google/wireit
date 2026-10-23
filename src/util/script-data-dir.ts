@@ -9,12 +9,17 @@ import * as pathlib from 'path';
 import type {ScriptReference} from '../config.js';
 
 /**
+ * Get the directory name where Wireit data can be saved for a package.
+ */
+export const getPackageDataDir = (packageDir: string) =>
+  pathlib.join(packageDir, '.wireit');
+
+/**
  * Get the directory name where Wireit data can be saved for a script.
  */
 export const getScriptDataDir = (script: ScriptReference) =>
   pathlib.join(
-    script.packageDir,
-    '.wireit',
+    getPackageDataDir(script.packageDir),
     // Script names can contain any character, so they aren't safe to use
     // directly in a filepath, because certain characters aren't allowed on
     // certain filesystems (e.g. ":" is forbidden on Windows). Hex-encode

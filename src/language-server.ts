@@ -10,8 +10,6 @@
 
 // jsonc-parser often uses 'any' when they mean 'unknown'. We might want to
 // declare our own types for them, but for now, we'll just quiet down eslint.
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 
 import {
   createConnection,
@@ -30,7 +28,12 @@ import {IdeAnalyzer} from './ide.js';
 const ideAnalyzer = new IdeAnalyzer();
 const connection = createConnection(ProposedFeatures.all);
 
-connection.onInitialize(() => {
+connection.onInitialize((init) => {
+  const workspacePaths: string[] = [];
+  for (const folder of init.workspaceFolders ?? []) {
+    workspacePaths.push(url.fileURLToPath(folder.uri));
+  }
+  ideAnalyzer.setWorkspaceRoots(workspacePaths);
   const result: InitializeResult = {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -43,19 +46,25 @@ connection.onInitialize(() => {
         ],
       },
       definitionProvider: true,
+      referencesProvider: true,
+      completionProvider: {
+        // We don't have more information later, so don't bother asking.
+        resolveProvider: false,
+        completionItem: {},
+        triggerCharacters: ['"', ':', '/'],
+      },
     },
   };
   return result;
 });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function log(...values: unknown[]) {
   for (const value of values) {
-    let message;
+    let message: string;
     if (typeof value === 'string') {
       message = value;
     } else {
-      message = inspect(value);
+      message = inspect(value, {depth: 4});
     }
     connection.console.log(message);
   }
@@ -130,6 +139,19 @@ connection.onDefinition(async (params) => {
   const path = url.fileURLToPath(params.textDocument.uri);
   const position = params.position;
   return ideAnalyzer.getDefinition(path, position);
+});
+
+connection.onReferences(async (params) => {
+  // TODO: handle params.context.includeDeclaration
+  const path = url.fileURLToPath(params.textDocument.uri);
+  const position = params.position;
+  return ideAnalyzer.findAllReferences(path, position);
+});
+
+connection.onCompletion(async (params) => {
+  const path = url.fileURLToPath(params.textDocument.uri);
+  const position = params.position;
+  return ideAnalyzer.getCompletions(path, position);
 });
 
 // Actually start listening

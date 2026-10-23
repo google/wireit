@@ -9,12 +9,14 @@
 
 import type * as fsTypes from 'fs';
 import * as fs from 'fs/promises';
+import * as pathlib from 'path';
 import {
   createReadStream as rawCreateReadStream,
   createWriteStream as rawCreateWriteStream,
 } from 'fs';
 import {Deferred} from './deferred.js';
 import './dispose.js';
+import {parsePositiveInteger} from './parse-positive-integer.js';
 export {constants} from 'fs';
 
 declare global {
@@ -57,18 +59,20 @@ export class Semaphore {
   }
 }
 
-export const fileBudget = (() => {
-  let maxOpenFiles = Number(process.env['WIREIT_MAX_OPEN_FILES']);
-  if (isNaN(maxOpenFiles)) {
-    // This is tricky to get right. There's no simple cross-platform way to
-    // determine what our current limits are. Windows it's 512, on macOS it
-    // defaults to 256, and on Linux it varies a lot.
-    // 200 gives us a bit of headroom for other things that might be using
-    // file descriptors in our process, like node internals.
-    maxOpenFiles = 200;
-  }
-  return new Semaphore(maxOpenFiles);
-})();
+/**
+ * This is tricky to get right. There's no simple cross-platform way to
+ * determine what our current limits are. Windows it's 512, on macOS it
+ * defaults to 256, and on Linux it varies a lot.
+ * 200 gives us a bit of headroom for other things that might be using
+ * file descriptors in our process, like node internals.
+ */
+const DEFAULT_MAX_OPEN_FILES = 200;
+
+export const fileBudget = new Semaphore(
+  // getOptions reports an invalid value as an error before any script runs.
+  parsePositiveInteger(process.env['WIREIT_MAX_OPEN_FILES'] ?? '') ??
+    DEFAULT_MAX_OPEN_FILES,
+);
 
 export async function mkdir(
   path: string,
@@ -76,7 +80,7 @@ export async function mkdir(
 ): Promise<string | undefined> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.mkdir(path, options);
+    return await fs.mkdir(path, options);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -85,7 +89,7 @@ export async function mkdir(
 export async function mkdtemp(path: string): Promise<string> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.mkdtemp(path);
+    return await fs.mkdtemp(path);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -98,7 +102,7 @@ export async function writeFile(
 ): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.writeFile(path, contents, encoding);
+    return await fs.writeFile(path, contents, encoding);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -110,7 +114,7 @@ export async function readFile(
 ): Promise<string> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.readFile(path, encoding);
+    return await fs.readFile(path, encoding);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -122,7 +126,7 @@ export async function rm(
 ): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.rm(path, options);
+    return await fs.rm(path, options);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -131,7 +135,16 @@ export async function rm(
 export async function lstat(path: string): Promise<fsTypes.Stats> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.lstat(path);
+    return await fs.lstat(path);
+  } finally {
+    reservation[Symbol.dispose]();
+  }
+}
+
+export async function realpath(path: string): Promise<string> {
+  const reservation = await fileBudget.reserve();
+  try {
+    return await fs.realpath(path);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -140,16 +153,30 @@ export async function lstat(path: string): Promise<fsTypes.Stats> {
 export async function stat(path: string): Promise<fsTypes.Stats> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.stat(path);
+    return await fs.stat(path);
   } finally {
     reservation[Symbol.dispose]();
   }
 }
 
+export async function utimes(
+  path: string,
+  atime: Date,
+  mtime: Date,
+): Promise<void> {
+  using _reservation = await fileBudget.reserve();
+  return await fs.utimes(path, atime, mtime);
+}
+
+export async function rename(oldPath: string, newPath: string): Promise<void> {
+  using _reservation = await fileBudget.reserve();
+  return await fs.rename(oldPath, newPath);
+}
+
 export async function access(path: string): Promise<void> {
   const reservation = await fileBudget.reserve();
   try {
-    return fs.access(path);
+    return await fs.access(path);
   } finally {
     reservation[Symbol.dispose]();
   }
@@ -194,7 +221,7 @@ export async function createWriteStream(
 export async function copyFile(
   src: fsTypes.PathLike,
   dest: fsTypes.PathLike,
-  flags?: number | undefined,
+  flags?: number,
 ) {
   const reservation = await fileBudget.reserve();
   try {
@@ -254,3 +281,113 @@ export async function rmdir(target: string) {
     reservation[Symbol.dispose]();
   }
 }
+
+export async function readdir(
+  path: string,
+  options: {withFileTypes: true},
+): Promise<fsTypes.Dirent[]> {
+  using _reservation = await fileBudget.reserve();
+  return await fs.readdir(path, options);
+}
+
+/**
+ * Deletes a file or a folder tree, like fs.rm with recursive and force, but
+ * stops when the signal aborts. fs.rm takes no signal, so it can't stop part
+ * way through a large tree.
+ *
+ * Deletes in parallel, up to the open file budget, because deleting one file
+ * at a time was several times slower than fs.rm. The signal is checked after
+ * each slot is reserved, so after an abort only the deletions already running
+ * finish. The promise then rejects with the signal's reason.
+ *
+ * @param options.slots Limits the calls in flight at once, if to fewer than
+ * the open file budget. Pass the same Semaphore to several rmTree calls to
+ * limit them together. Node runs file system calls on a pool of 4 threads by
+ * default, in the order they are made. Every other file system call in the
+ * process waits behind the deletions already in flight, which on a slow disk
+ * can take seconds when there are hundreds.
+ */
+export async function rmTree(
+  path: string,
+  {signal, slots}: {signal?: AbortSignal; slots?: Semaphore} = {},
+): Promise<void> {
+  const context: RmTreeContext = {signal, slots};
+  let stats;
+  try {
+    stats = await reserveUnlessAborted(context, () => fs.lstat(path));
+  } catch (error) {
+    if (isMissing(error)) {
+      return;
+    }
+    throw error;
+  }
+  await rmTreeEntry(path, stats.isDirectory(), context);
+}
+
+interface RmTreeContext {
+  readonly signal: AbortSignal | undefined;
+  readonly slots: Semaphore | undefined;
+}
+
+async function rmTreeEntry(
+  path: string,
+  isDirectory: boolean,
+  context: RmTreeContext,
+): Promise<void> {
+  try {
+    if (!isDirectory) {
+      await reserveUnlessAborted(context, async () => {
+        try {
+          await fs.unlink(path);
+        } catch (error) {
+          if (isMissing(error)) {
+            throw error;
+          }
+          // On Windows, fs.rm retries an EPERM, such as from a read-only file,
+          // after making the file writable.
+          await fs.rm(path, {force: true});
+        }
+      });
+      return;
+    }
+    const children = await reserveUnlessAborted(context, () =>
+      fs.readdir(path, {withFileTypes: true}),
+    );
+    // allSettled, so that this doesn't return while the siblings of a failed
+    // child are still being deleted.
+    const results = await Promise.allSettled(
+      children.map((child) =>
+        rmTreeEntry(
+          pathlib.join(path, child.name),
+          child.isDirectory(),
+          context,
+        ),
+      ),
+    );
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failure !== undefined) {
+      throw failure.reason;
+    }
+    await reserveUnlessAborted(context, () => fs.rmdir(path));
+  } catch (error) {
+    // Something else, such as another Wireit process, deleted it first.
+    if (!isMissing(error)) {
+      throw error;
+    }
+  }
+}
+
+async function reserveUnlessAborted<T>(
+  context: RmTreeContext,
+  operation: () => Promise<T>,
+): Promise<T> {
+  using _slot = await context.slots?.reserve();
+  using _reservation = await fileBudget.reserve();
+  context.signal?.throwIfAborted();
+  return await operation();
+}
+
+const isMissing = (error: unknown) =>
+  (error as {code?: string}).code === 'ENOENT';

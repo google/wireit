@@ -4,38 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {suite} from 'uvu';
-import * as assert from 'uvu/assert';
+import {test} from 'node:test';
+import * as assert from 'node:assert';
 import {IdeAnalyzer} from '../ide.js';
 import {WireitTestRig} from './util/test-rig.js';
 import type {CodeAction} from 'vscode-languageclient';
 import * as jsonParser from 'jsonc-parser';
 import {OffsetToPositionConverter} from '../error.js';
-
-const test = suite<{rig: WireitTestRig}>();
-
-test.before.each(async (ctx) => {
-  try {
-    ctx.rig = new WireitTestRig();
-    await ctx.rig.setup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu before error', error);
-    process.exit(1);
-  }
-});
-
-test.after.each(async (ctx) => {
-  try {
-    await ctx.rig.cleanup();
-  } catch (error) {
-    // Uvu has a bug where it silently ignores failures in before and after,
-    // see https://github.com/lukeed/uvu/issues/191.
-    console.error('uvu after error', error);
-    process.exit(1);
-  }
-});
 
 /**
  * Get the code actions that would be offered for the given contents.
@@ -93,7 +68,7 @@ async function assertCodeAction(options: {
     });
   }
   const {actions, contents} = await getCodeActions(options);
-  assert.equal(
+  assert.deepEqual(
     actions.map((a) => a.title),
     [options.expectedTitle],
     `Error getting code actions for ${JSON.stringify(
@@ -105,7 +80,7 @@ async function assertCodeAction(options: {
   if (typeof options.expectedOutput === 'string') {
     assert.equal(newContents, options.expectedOutput);
   } else {
-    assert.equal(JSON.parse(newContents), options.expectedOutput);
+    assert.deepEqual(JSON.parse(newContents), options.expectedOutput);
   }
 }
 
@@ -114,7 +89,7 @@ async function assertNoCodeActions(options: {
   contentsWithPipe: string | object;
 }) {
   const {actions} = await getCodeActions(options);
-  assert.equal(
+  assert.deepEqual(
     actions.map((a) => a.title),
     [],
     `Expected no code action in: ${JSON.stringify(options.contentsWithPipe)}\n`,
@@ -130,9 +105,9 @@ function applyEdit(
     throw new Error(`Action ${action.title} had no edit`);
   }
   const edit = action.edit;
-  assert.equal(Object.keys(edit), ['changes']);
+  assert.deepEqual(Object.keys(edit), ['changes']);
   const filename = rig.resolve('package.json');
-  assert.equal(Object.keys(edit?.changes ?? {}), [filename]);
+  assert.deepEqual(Object.keys(edit?.changes ?? {}), [filename]);
   const textEdits = edit?.changes?.[filename];
   if (textEdits === undefined) {
     throw new Error(`Action ${action.title} had no edits for ${filename}`);
@@ -149,7 +124,8 @@ function applyEdit(
   );
 }
 
-test('can refactor a script to use wireit', async ({rig}) => {
+void test('can refactor a script to use wireit', async () => {
+  await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
     contentsWithPipe: {scripts: {test: "echo| 'test'"}},
@@ -194,9 +170,8 @@ test('can refactor a script to use wireit', async ({rig}) => {
   });
 });
 
-test(`we don't do code actions when there are syntax or type errors`, async ({
-  rig,
-}) => {
+void test(`we don't do code actions when there are syntax or type errors`, async () => {
+  await using rig = await WireitTestRig.setup();
   // trailing comma
   await assertNoCodeActions({
     rig,
@@ -216,7 +191,8 @@ test(`we don't do code actions when there are syntax or type errors`, async ({
   });
 });
 
-test(`we try to match the existing file's formatting`, async ({rig}) => {
+void test(`we try to match the existing file's formatting`, async () => {
+  await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
     contentsWithPipe: `{"scripts": {"test": "echo| 'test'"}}`,
@@ -285,9 +261,8 @@ test(`we try to match the existing file's formatting`, async ({rig}) => {
   });
 });
 
-test(`we suggest adding a wireit-only script to scripts section`, async ({
-  rig,
-}) => {
+void test(`we suggest adding a wireit-only script to scripts section`, async () => {
+  await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
     contentsWithPipe: {wireit: {foo: {command: "echo| 'test'"}}},
@@ -308,7 +283,8 @@ test(`we suggest adding a wireit-only script to scripts section`, async ({
   });
 });
 
-test(`we suggest moving command into wireit section`, async ({rig}) => {
+void test(`we suggest moving command into wireit section`, async () => {
+  await using rig = await WireitTestRig.setup();
   await assertCodeAction({
     rig,
     contentsWithPipe: {
@@ -394,5 +370,3 @@ test(`we suggest moving command into wireit section`, async ({rig}) => {
     expectedTitle: `Move this script's command into the wireit config.`,
   });
 });
-
-test.run();

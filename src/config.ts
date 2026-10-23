@@ -58,9 +58,7 @@ export interface Dependency<
 }
 
 export type ScriptConfig =
-  | NoCommandScriptConfig
-  | StandardScriptConfig
-  | ServiceScriptConfig;
+  NoCommandScriptConfig | StandardScriptConfig | ServiceScriptConfig;
 
 /**
  * A script that doesn't run or produce anything. A pass-through for
@@ -77,8 +75,7 @@ export interface NoCommandScriptConfig extends BaseScriptConfig {
  * A script with a command that exits by itself.
  */
 export interface StandardScriptConfig
-  extends BaseScriptConfig,
-    ScriptReferenceWithCommand {
+  extends BaseScriptConfig, ScriptReferenceWithCommand {
   service: undefined;
 }
 
@@ -92,8 +89,7 @@ export type ServiceConfig = {
  * A service script.
  */
 export interface ServiceScriptConfig
-  extends BaseScriptConfig,
-    ScriptReferenceWithCommand {
+  extends BaseScriptConfig, ScriptReferenceWithCommand {
   service: ServiceConfig;
 
   /**
@@ -173,8 +169,8 @@ interface BaseScriptConfig extends ScriptReference {
    *
    * - true: Before the script executes, and before restoring from cache.
    * - false: Before restoring from cache.
-   * - "if-file-deleted": If an input file has been deleted, and before restoring from
-   *   cache.
+   * - "if-file-deleted": If an input file has been deleted, if an output file has
+   *   changed, and before restoring from cache.
    */
   clean: boolean | 'if-file-deleted';
 

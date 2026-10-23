@@ -5,7 +5,7 @@
  */
 
 import * as fs from './util/fs.js';
-import {Analyzer} from './analyzer.js';
+import {Analyzer, PotentiallyValidScriptConfig} from './analyzer.js';
 import * as url from 'url';
 import * as pathlib from 'path';
 import * as jsonParser from 'jsonc-parser';
@@ -17,18 +17,22 @@ import {
 } from './error.js';
 
 import type {FileSystem} from './util/package-json-reader.js';
-import type {
-  Diagnostic as IdeDiagnostic,
-  DiagnosticSeverity,
-  DiagnosticRelatedInformation,
-  CodeAction,
-  TextEdit,
-  WorkspaceEdit,
-  Position,
-  DefinitionLink,
+import {
+  type Diagnostic as IdeDiagnostic,
+  type DiagnosticSeverity,
+  type DiagnosticRelatedInformation,
+  type CodeAction,
+  type TextEdit,
+  type WorkspaceEdit,
+  type Position,
+  type DefinitionLink,
+  type Location,
+  type CompletionList,
+  type CompletionItemKind,
+  type CompletionItem,
 } from 'vscode-languageclient';
 import type {PackageJson} from './util/package-json.js';
-import type {JsonFile} from './util/ast.js';
+import type {JsonAstNode, JsonFile} from './util/ast.js';
 
 class OverlayFilesystem implements FileSystem {
   // filename to contents
@@ -43,6 +47,14 @@ class OverlayFilesystem implements FileSystem {
   }
 }
 
+export const completionItemKinds = {
+  service: 24, // CompletionItemKind.Operator
+  normalScript: 2, // CompletionItemKind.Method
+  dependenciesOnly: 9, // CompletionItemKind.Module
+  filesOnly: 17, // CompletionItemKind.File
+  folder: 19, // CompletionItemKind.Folder
+} as const;
+
 /**
  * The interface for an IDE to communicate with wireit's analysis pipeline.
  *
@@ -55,10 +67,15 @@ class OverlayFilesystem implements FileSystem {
  */
 export class IdeAnalyzer {
   readonly #overlayFs;
+  #workspaceRoots: readonly string[] = [];
   #analyzer;
   constructor() {
     this.#overlayFs = new OverlayFilesystem();
     this.#analyzer = new Analyzer('npm', undefined, this.#overlayFs);
+  }
+
+  setWorkspaceRoots(roots: readonly string[]) {
+    this.#workspaceRoots = roots;
   }
 
   /**
@@ -345,6 +362,237 @@ export class IdeAnalyzer {
         ];
       }
     }
+  }
+
+  async findAllReferences(
+    path: string,
+    position: Position,
+  ): Promise<Location[] | undefined> {
+    const packageDir = pathlib.dirname(path);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      return undefined;
+    }
+    const packageJson = packageJsonResult.value;
+    const ourPosition = OffsetToPositionConverter.get(
+      packageJson.jsonFile,
+    ).idePositionToOffset(position);
+    const scriptInfo = await this.#getInfoAboutLocation(
+      packageJson,
+      ourPosition,
+    );
+    if (scriptInfo == null) {
+      return undefined;
+    }
+    let scriptToLookup;
+    if (scriptInfo.kind === 'dependency') {
+      scriptToLookup = scriptInfo.dependency.config;
+    } else {
+      scriptToLookup = scriptInfo.script;
+    }
+    const allScripts = await this.#analyzer.analyzeAllScripts([
+      ...this.openFiles,
+      ...this.#workspaceRoots.map((r) => pathlib.join(r, 'package.json')),
+    ]);
+    const references: Location[] = [];
+    for (const script of allScripts) {
+      const dependencies = script.placeholder.dependencies;
+      if (dependencies == null) {
+        continue;
+      }
+      for (const dep of dependencies) {
+        const depFile = script.placeholder.declaringFile;
+        if (depFile === undefined) {
+          continue;
+        }
+        if (dep.config.name !== scriptToLookup.name) {
+          continue;
+        }
+        if (dep.config.packageDir !== scriptToLookup.packageDir) {
+          continue;
+        }
+        references.push({
+          uri: url.pathToFileURL(depFile.path).toString(),
+          range: OffsetToPositionConverter.get(depFile).toIdeRange(
+            dep.specifier,
+          ),
+        });
+      }
+    }
+    // sort the references, first by file, then by offset
+    references.sort((a, b) => {
+      if (a.uri < b.uri) {
+        return -1;
+      }
+      if (a.uri > b.uri) {
+        return 1;
+      }
+      return a.range.start.line - b.range.start.line;
+    });
+    return references;
+  }
+
+  async getCompletions(
+    path: string,
+    position: Position,
+  ): Promise<CompletionList | undefined> {
+    const packageDir = pathlib.dirname(path);
+    const packageJsonResult = await this.#analyzer.getPackageJson(packageDir);
+    if (!packageJsonResult.ok) {
+      return undefined;
+    }
+    const packageJson = packageJsonResult.value;
+    const ourPosition = OffsetToPositionConverter.get(
+      packageJson.jsonFile,
+    ).idePositionToOffset(position);
+    const scriptInfo = await this.#getInfoAboutLocation(
+      packageJson,
+      ourPosition,
+    );
+    if (scriptInfo === undefined) {
+      return undefined;
+    }
+    let scriptSpecifier: JsonAstNode<string>;
+    if (scriptInfo.kind !== 'dependency') {
+      // Annoyingly, it's particularly important that we offer completions
+      // when the user is typing inside an empty dependency specifier, which
+      // is not a syntactically valid script config. So we need special logic
+      // here
+      const dependenciesProp =
+        scriptInfo.scriptSyntaxInfo.wireitConfigNode?.children?.find(
+          (child) =>
+            child.type === 'property' &&
+            child.children?.[0]?.value === 'dependencies',
+        );
+      const dependency = dependenciesProp?.children?.[1]?.children?.find(
+        (child) => offsetInsideRange(ourPosition, child),
+      );
+      if (typeof dependency?.value !== 'string') {
+        return undefined;
+      }
+      scriptSpecifier = dependency as JsonAstNode<string>;
+    } else {
+      scriptSpecifier = scriptInfo.dependency.specifier;
+    }
+    // Ok, the user is typing inside a dependency specifier, so we want to
+    // offer them completion items. Next question, are we in the (optional)
+    // file path portion of the specifier, or the script name portion?
+    const distanceInto =
+      ourPosition - scriptSpecifier.offset - 1; /* for the leading quote */
+    const specifierBeforeCursor = scriptSpecifier.value.slice(0, distanceInto);
+    let targetPackageJson: PackageJson;
+    let targetPackageDir: string;
+    if (specifierBeforeCursor.startsWith('.')) {
+      const indexOfColon = specifierBeforeCursor.indexOf(':');
+      if (indexOfColon === -1) {
+        // We'd be autocompleting on the file path portion of the specifier.
+        // Not implemented yet.
+        const items = await this.#completionItemsForPath(
+          packageDir,
+          specifierBeforeCursor,
+        );
+        if (items == null) {
+          return undefined;
+        }
+        return {
+          isIncomplete: true,
+          items,
+        };
+      }
+      targetPackageDir = pathlib.join(
+        packageDir,
+        specifierBeforeCursor.slice(0, indexOfColon),
+      );
+      const result = await this.#analyzer.getPackageJson(targetPackageDir);
+      if (!result.ok) {
+        return undefined;
+      }
+      targetPackageJson = result.value;
+    } else {
+      targetPackageJson = packageJson;
+      targetPackageDir = packageDir;
+    }
+
+    // analyze the scripts in this file
+    const potentiallyValidScripts = await Promise.all(
+      [...targetPackageJson.scripts].map((script) => {
+        return this.#analyzer.analyzeIgnoringErrors({
+          name: script.name,
+          packageDir: targetPackageDir,
+        });
+      }),
+    );
+
+    const result: CompletionList = {
+      // If the user hasn't typed anything yet, our results are incomplete
+      // because they could type ./ or ../ and we don't complete those yet.
+      isIncomplete: specifierBeforeCursor === '',
+      items: potentiallyValidScripts.map((script) => {
+        return {
+          label: script.name,
+          kind: this.#completionKindForScript(script),
+        };
+      }),
+    };
+
+    // Sort results for deterministic tests.
+    result.items.sort((a, b) => a.label.localeCompare(b.label));
+
+    return result;
+  }
+
+  #completionKindForScript(
+    script: PotentiallyValidScriptConfig,
+  ): CompletionItemKind {
+    if (script !== undefined) {
+      if (script.service !== undefined) {
+        return completionItemKinds.service;
+      } else if (script.command !== undefined) {
+        return completionItemKinds.normalScript;
+      } else if (
+        script.dependencies !== undefined &&
+        script.dependencies.length > 0
+      ) {
+        return completionItemKinds.dependenciesOnly;
+      } else if (script.files !== undefined) {
+        return completionItemKinds.filesOnly;
+      }
+    }
+    return completionItemKinds.normalScript;
+  }
+
+  async #completionItemsForPath(
+    packageDir: string,
+    specifierSoFar: string,
+  ): Promise<CompletionItem[] | undefined> {
+    const result: CompletionItem[] = [];
+    const relPathToDirCompletingIn = specifierSoFar.endsWith('/')
+      ? specifierSoFar
+      : pathlib.dirname(specifierSoFar);
+    const pathToDirCompletingIn = pathlib.join(
+      packageDir,
+      relPathToDirCompletingIn,
+    );
+    let dirContents;
+    try {
+      dirContents = await fs.readdir(pathToDirCompletingIn, {
+        withFileTypes: true,
+      });
+    } catch {
+      return undefined;
+    }
+    for (const dirent of dirContents) {
+      if (dirent.name === 'node_modules' || dirent.name.startsWith('.')) {
+        continue;
+      }
+      if (dirent.isDirectory()) {
+        result.push({
+          label: dirent.name,
+          kind: completionItemKinds.folder,
+        });
+      }
+    }
+    return result;
   }
 
   async getPackageJsonForTest(
