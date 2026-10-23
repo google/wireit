@@ -536,6 +536,35 @@ void test(
 );
 
 void test(
+  'description is not a string',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            description: 1,
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+❌ package.json:8:22 Must be a string
+          "description": 1
+                         ~`,
+    );
+  }),
+);
+
+void test(
   'packageLocks is not an array',
   rigTest(async ({rig}) => {
     await rig.write({

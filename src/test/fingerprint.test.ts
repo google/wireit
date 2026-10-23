@@ -42,6 +42,7 @@ const scriptAt = (packageDir: string): StandardScriptConfig => ({
   services: [],
   scriptAstNode: undefined,
   configAstNode: undefined,
+  description: undefined,
   declaringFile: {
     path: pathlib.join(packageDir, 'package.json'),
     contents: '{}',
