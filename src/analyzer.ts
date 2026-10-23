@@ -1355,6 +1355,7 @@ export class Analyzer {
           },
         },
       });
+      return {};
     }
     if (envNode.children === undefined) {
       return {};

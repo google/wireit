@@ -44,6 +44,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   reject any value that is not a positive integer, such as `2abc` or `1.5`.
 - The message explaining that GitHub Actions caching was disabled after an HTTP
   error from the cache service is now logged. It was always skipped before.
+- An `"env"` setting that is a non-empty array, such as `["FOO"]`, now reports
+  `Expected an object` instead of crashing Wireit and the VSCode extension with
+  an internal error.
 
 ### Changed
 
