@@ -17,7 +17,8 @@ export interface WorktreeInfo {
  * (not lock/fingerprint/manifest).
  *
  * Linked git worktrees share the main worktree only when `shareWorktrees` is
- * true. Otherwise `packageDir` (Wireit's historical layout).
+ * true. Otherwise `packageDir` (Wireit's historical layout). A package also
+ * keeps its own cache until the main worktree has the package.
  */
 export const resolveCachePackageDir = async (
   packageDir: string,
@@ -34,10 +35,18 @@ export const resolveCachePackageDir = async (
   ) {
     return absPackageDir;
   }
-  return pathlib.join(
+  const mainPackageDir = pathlib.join(
     worktree.mainWorktreeRoot,
     pathlib.relative(worktree.worktreeRoot, absPackageDir),
   );
+  // Share only when the main worktree has this package. Otherwise Wireit would
+  // create the package's folder in the main worktree. This happens for a
+  // package that only this worktree's branch has.
+  const mainPackageJson = pathlib.join(mainPackageDir, 'package.json');
+  if ((await lstatOrUndefined(mainPackageJson)) === undefined) {
+    return absPackageDir;
+  }
+  return mainPackageDir;
 };
 
 export const detectWorktree = async (

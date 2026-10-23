@@ -48,10 +48,20 @@ const REMIND_OVER_LIMIT_FACTOR = 2;
 const REMIND_OVER_LIMIT_EVERY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * In worktree-shared mode, leftover temp folders younger than this are assumed
- * to belong to another worktree's save in progress, not an aborted one.
+ * The minimum age of a leftover temp folder before Wireit trashes it. A
+ * younger folder may belong to a save that is still running in another
+ * worktree.
  */
-const SHARED_TEMP_MAX_AGE_MS = 60 * 60 * 1000;
+const TEMP_LEFTOVER_MIN_AGE_MS = 60 * 60 * 1000;
+
+/** The name of the lock that an eviction takes in an entry's lock folder. */
+const EVICT_LOCK = 'evict';
+
+/**
+ * The prefix of each restore's lock name. The rest of the name is random. So
+ * two restores never take the same lock.
+ */
+const RESTORE_LOCK_PREFIX = 'restore-';
 
 const ENTRY_LOCK_OPTIONS = {
   // A crashed holder stops updating mtime, so the lock becomes acquirable.
@@ -59,6 +69,12 @@ const ENTRY_LOCK_OPTIONS = {
   stale: 10_000,
   update: 2000,
   retries: 0,
+  // Don't resolve the lock's real path. By default proper-lockfile resolves
+  // it, and that needs a file at the path. Wireit would then have to create
+  // an empty file for each entry and leave it behind. With this option off,
+  // no file is needed. The lock is a ".lock" folder, and releasing the lock
+  // deletes the folder.
+  realpath: false,
 };
 
 /**
@@ -72,21 +88,25 @@ const ENTRY_LOCK_OPTIONS = {
  * Entries are copied into the script's "temp" folder and then renamed into
  * place, so a killed Wireit can't leave a partial entry.
  *
- * In worktree-shared mode, worktrees share the cache folder but not the
- * script lock, so each entry gets its own lock in a "cache-locks" folder
- * beside the cache. Restoring holds the entry's lock while copying, and
- * eviction skips entries whose lock is held, so eviction can't delete an
- * entry out from under a restore. The lock also means leftover temp folders
- * may belong to another worktree's in-progress save, so only ones over an
- * hour old are trashed.
+ * A linked worktree with WIREIT_CACHE_WORKTREES stores its cache in the main
+ * worktree's cache folder. It does this even when the main worktree does not
+ * set the flag. The worktrees share the folder, but each worktree has its own
+ * script lock. So every cache follows two rules, with or without the flag:
  *
- * Eviction needs no lock of its own: it touches only the calling script's cache
- * folder, and StandardScriptExecution#acquireSystemLockIfNeeded already holds
- * that script's lock, except for an empty "output", where the entries are empty
- * directories. The lock also means anything in the script's temp folder was
- * left by a killed or failed write, not one in progress. Sweeping is
- * deliberately unlocked, so any number of Wireit processes can empty the same
- * trash at once and a vanished entry is expected.
+ * - Each entry has locks in a "cache-locks" folder next to the cache. A
+ *   restore holds a lock while it copies. Eviction skips an entry while a
+ *   restore holds a lock on it. So eviction never deletes an entry during a
+ *   restore.
+ * - Wireit trashes a leftover in the script's "temp" folder only when the
+ *   leftover is over an hour old. A newer leftover may be a save that is still
+ *   running in another worktree.
+ *
+ * Eviction needs no other lock. It only changes the calling script's cache
+ * folder. Within one worktree, the script's lock already covers that folder.
+ * StandardScriptExecution#acquireSystemLockIfNeeded takes that lock. The one
+ * exception is an empty "output", whose entries are empty directories.
+ * Sweeping takes no lock on purpose. Any number of Wireit processes can empty
+ * the same trash at once. So an entry can disappear during a sweep.
  */
 export class LocalCache implements Cache {
   readonly #maxEntries: number;
@@ -103,6 +123,12 @@ export class LocalCache implements Cache {
    * scripts over the limit in one package give one reminder.
    */
   readonly #remindedPackages = new Set<string>();
+
+  /**
+   * Maps each package folder to the package that holds its cache. Finding
+   * that package reads several git files, so the cache finds it once per run.
+   */
+  readonly #cachePackageDirs = new Map<string, Promise<string>>();
 
   /**
    * @param maxEntries Entries to retain per script, or Infinity for all.
@@ -124,29 +150,26 @@ export class LocalCache implements Cache {
       this.#getScriptCacheDir(cachePackageDir, script),
       entryName,
     );
-    if (!this.#shareWorktrees) {
-      try {
-        await fs.access(cacheDir);
-      } catch (error) {
-        if ((error as Error & {code?: string}).code === 'ENOENT') {
-          return;
-        }
+    // A miss takes no lock.
+    if (!(await exists(cacheDir))) {
+      return undefined;
+    }
+    // Hold a restore lock during the restore. Then eviction in another
+    // worktree cannot delete the entry while it is being copied. Check that
+    // the entry still exists after taking the lock. It may have been evicted
+    // while this run waited.
+    let release: () => Promise<void>;
+    try {
+      release = await this.#lockForRestore(
+        this.#getEntryLockDir(cachePackageDir, script, entryName),
+      );
+    } catch (error) {
+      if (!cannotWrite(error)) {
         throw error;
       }
-      await this.markEntryRecentlyUsed(script, fingerprint);
-      return new LocalCacheHit(cacheDir, script.packageDir);
-    }
-    // Shared mode: hold the entry's lock while restoring, so eviction in
-    // another worktree can't delete it mid-copy. Re-check existence after
-    // acquiring, since it may have been evicted while waiting.
-    const release = await this.#acquireEntryLock(
-      cachePackageDir,
-      script,
-      entryName,
-      true,
-    );
-    if (release === undefined) {
-      throw new Error('Expected to acquire the cache entry lock.');
+      // The cache folder is read-only, such as on a read-only mount. Restore
+      // without a lock. No run can evict from a folder it cannot write.
+      release = async () => {};
     }
     try {
       try {
@@ -206,16 +229,9 @@ export class LocalCache implements Cache {
     if (absoluteFiles.length === 0) {
       // No temp folder, because an empty "output" runs without the lock.
       //
-      // Note fs.mkdir returns the first created directory, or undefined if no
-      // directory was created.
-      const existed =
-        (await fs.mkdir(absCacheDir, {recursive: true})) === undefined;
-      if (existed && !this.#shareWorktrees) {
-        // This is an unexpected error because the Executor should already have
-        // checked for an existing cache hit. In shared mode, another worktree
-        // may have written the same empty output first, so it's a hit.
-        throw new Error(`Did not expect ${absCacheDir} to already exist.`);
-      }
+      // The entry may already exist. Another worktree may have saved the same
+      // empty output first. Then this save counts as done.
+      await fs.mkdir(absCacheDir, {recursive: true});
     } else {
       await this.#writeThroughTemp(
         cachePackageDir,
@@ -223,10 +239,9 @@ export class LocalCache implements Cache {
         absoluteFiles,
         absCacheDir,
       );
-      // Must run after this write's rename. In exclusive mode the script lock
-      // means leftovers are from a killed or failed write. In shared mode
-      // another worktree may be saving into the same temp folder, so only
-      // trash ones over an hour old.
+      // This must run after this write's rename. Another worktree may be
+      // saving into the same temp folder. So only leftovers over an hour old
+      // are trashed.
       await this.#trashLeftoverTemp(cachePackageDir, script);
     }
     await this.#evictLeastRecentlyUsed(script, pathlib.basename(absCacheDir));
@@ -234,10 +249,10 @@ export class LocalCache implements Cache {
   }
 
   /**
-   * Copy into a temp folder and rename into place, so a killed Wireit can't
-   * leave a partial entry. In shared mode, two worktrees racing on one entry
-   * leave a single complete directory: if the destination already exists,
-   * that write won and this one is a hit.
+   * Copies into a temp folder and renames the copy into place. So a killed
+   * Wireit can't leave a partial entry. Another worktree may save the same
+   * entry at the same time, and only one rename can succeed. If the entry
+   * already exists, the other save won, and this save counts as done.
    */
   async #writeThroughTemp(
     cachePackageDir: string,
@@ -262,15 +277,13 @@ export class LocalCache implements Cache {
       // Not moved to the trash, because creating the trash folder fails on a
       // full disk.
       await fs.rmTree(tempDir).catch(() => {});
-      if (this.#shareWorktrees) {
-        const {code} = error as {code?: string};
-        if (code === 'EEXIST' || code === 'ENOTEMPTY' || code === 'EPERM') {
-          try {
-            await fs.access(absCacheDir);
-            return;
-          } catch {
-            throw error;
-          }
+      const {code} = error as {code?: string};
+      if (code === 'EEXIST' || code === 'ENOTEMPTY' || code === 'EPERM') {
+        try {
+          await fs.access(absCacheDir);
+          return;
+        } catch {
+          throw error;
         }
       }
       throw error;
@@ -289,24 +302,21 @@ export class LocalCache implements Cache {
     } catch {
       return;
     }
-    let names = leftovers.map((entry) => entry.name);
-    if (this.#shareWorktrees) {
-      // Another worktree may be saving into this folder right now. Only trash
-      // ones old enough to be leftovers from an aborted save.
-      const cutoff = Date.now() - SHARED_TEMP_MAX_AGE_MS;
-      names = (
-        await Promise.all(
-          names.map(async (name) => {
-            try {
-              const {mtimeMs} = await fs.lstat(pathlib.join(tempDir, name));
-              return mtimeMs <= cutoff ? name : undefined;
-            } catch {
-              return undefined;
-            }
-          }),
-        )
-      ).filter((name): name is string => name !== undefined);
-    }
+    // Another worktree may be saving into this folder right now. Trash only
+    // the folders that are old enough to be left from an aborted save.
+    const cutoff = Date.now() - TEMP_LEFTOVER_MIN_AGE_MS;
+    const names = (
+      await Promise.all(
+        leftovers.map(async ({name}) => {
+          try {
+            const {mtimeMs} = await fs.lstat(pathlib.join(tempDir, name));
+            return mtimeMs <= cutoff ? name : undefined;
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter((name): name is string => name !== undefined);
     await Promise.allSettled(
       names.map((name) =>
         this.#moveToTrash(cachePackageDir, pathlib.join(tempDir, name)),
@@ -366,11 +376,11 @@ export class LocalCache implements Cache {
         })),
       );
       byRecency.sort((a, b) => a.mtimeMs - b.mtimeMs);
-      // In shared mode, entries whose lock is held are skipped: another
-      // worktree is restoring them, and deleting mid-copy would corrupt the
-      // restore. The next oldest is evicted instead. One entry's failure
-      // (EPERM on Windows, while something holds it open) doesn't block the
-      // rest.
+      // Skip an entry that another run is restoring or evicting. Deleting an
+      // entry during a restore would corrupt the restore. Evict the next
+      // oldest entry instead. If one entry fails to move, continue with the
+      // rest. For example, Windows fails with EPERM while a program has the
+      // entry open.
       const quota = Math.min(
         entries.length - this.#maxEntries,
         MAX_EVICTIONS_PER_WRITE,
@@ -380,17 +390,15 @@ export class LocalCache implements Cache {
         if (evicted >= quota) {
           break;
         }
-        let release: (() => Promise<void>) | undefined;
-        if (this.#shareWorktrees) {
-          release = await this.#acquireEntryLock(
+        const release = await this.#lockForEviction(
+          this.#getEntryLockDir(
             cachePackageDir,
             script,
             pathlib.basename(path),
-            false,
-          );
-          if (release === undefined) {
-            continue;
-          }
+          ),
+        );
+        if (release === undefined) {
+          continue;
         }
         try {
           await this.#moveToTrash(cachePackageDir, path);
@@ -398,12 +406,14 @@ export class LocalCache implements Cache {
         } catch {
           // Housekeeping: the entry just written is still valid.
         } finally {
-          await release?.().catch(() => {});
+          await release().catch(() => {});
         }
       }
       const numLeft = entries.length - evicted;
       if (numLeft > REMIND_OVER_LIMIT_FACTOR * this.#maxEntries) {
-        await this.#remindOverLimit(script.packageDir);
+        // Pass the package that holds the cache. With WIREIT_CACHE_WORKTREES,
+        // a linked worktree's cache is in the main worktree.
+        await this.#remindOverLimit(cachePackageDir);
       }
     } catch {
       // See above.
@@ -507,12 +517,23 @@ export class LocalCache implements Cache {
   }
 
   /**
-   * Lock file guarding one shared cache entry while it is restored. Beside
-   * the cache folder, so evicting or sweeping the entry never moves the lock
-   * itself. One tiny file per entry ever cached; never deleted, since another
-   * worktree may be waiting on it.
+   * Returns the folder of locks for one cache entry. The folder is next to
+   * the cache folder, so evicting or sweeping the entry never moves the locks.
+   *
+   * Each restore takes its own lock in the folder. Its name is
+   * {@link RESTORE_LOCK_PREFIX} followed by random hex digits. So restores in
+   * different worktrees never wait for each other. An eviction takes the
+   * {@link EVICT_LOCK} lock. It evicts the entry only if no restore holds a
+   * lock. When a restore finds {@link EVICT_LOCK} held, it releases its own
+   * lock and tries again.
+   *
+   * Each side takes its own lock before it checks for the other side's lock.
+   * This order makes sure that at least one side sees the other.
+   *
+   * Each lock is a ".lock" folder. Releasing the last lock also deletes the
+   * entry's lock folder. So nothing is left when no lock is held.
    */
-  #getEntryLockFile(
+  #getEntryLockDir(
     cachePackageDir: string,
     script: ScriptReference,
     entryName: string,
@@ -524,36 +545,111 @@ export class LocalCache implements Cache {
     );
   }
 
-  /** Acquire the entry lock, waiting while another worktree holds it. */
-  async #acquireEntryLock(
-    cachePackageDir: string,
-    script: ScriptReference,
-    entryName: string,
-    waitForLock: boolean,
-  ): Promise<(() => Promise<void>) | undefined> {
-    const lockFile = this.#getEntryLockFile(cachePackageDir, script, entryName);
-    await fs.mkdir(pathlib.dirname(lockFile), {recursive: true});
-    await fs.writeFile(lockFile, '', 'utf8');
+  /** Takes a restore lock. Waits while an eviction of the entry is running. */
+  async #lockForRestore(lockDir: string): Promise<() => Promise<void>> {
     while (true) {
+      const release = await this.#lockIn(
+        lockDir,
+        RESTORE_LOCK_PREFIX + randomBytes(8).toString('hex'),
+      );
+      if (
+        !(await lockfile.check(
+          pathlib.join(lockDir, EVICT_LOCK),
+          ENTRY_LOCK_OPTIONS,
+        ))
+      ) {
+        return release;
+      }
+      await release();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  /**
+   * Takes the eviction lock. Returns undefined if another eviction holds it.
+   * Also returns undefined if a restore holds a lock.
+   */
+  async #lockForEviction(
+    lockDir: string,
+  ): Promise<(() => Promise<void>) | undefined> {
+    let release;
+    try {
+      release = await this.#lockIn(lockDir, EVICT_LOCK);
+    } catch (error) {
+      if ((error as {code?: string}).code === 'ELOCKED') {
+        return undefined;
+      }
+      throw error;
+    }
+    let names: string[];
+    try {
+      names = (await fs.readdir(lockDir, {withFileTypes: true})).map(
+        (entry) => entry.name,
+      );
+    } catch (error) {
+      await release();
+      throw error;
+    }
+    for (const name of names) {
+      if (!name.startsWith(RESTORE_LOCK_PREFIX) || !name.endsWith('.lock')) {
+        continue;
+      }
+      const restoreLock = pathlib.join(lockDir, name.slice(0, -'.lock'.length));
+      if (await lockfile.check(restoreLock, ENTRY_LOCK_OPTIONS)) {
+        await release();
+        return undefined;
+      }
+      // This lock is stale. A restore crashed while it held the lock. Delete
+      // the lock so that the folder can be deleted later.
+      await fs.rmdir(pathlib.join(lockDir, name)).catch(() => {});
+    }
+    return release;
+  }
+
+  /**
+   * Takes the lock named {@link name} in {@link lockDir}. The returned
+   * function releases the lock. It also deletes the folder if the folder holds
+   * no other lock.
+   */
+  async #lockIn(lockDir: string, name: string): Promise<() => Promise<void>> {
+    while (true) {
+      await fs.mkdir(lockDir, {recursive: true});
+      let release;
       try {
-        return await lockfile.lock(lockFile, ENTRY_LOCK_OPTIONS);
+        release = await lockfile.lock(
+          pathlib.join(lockDir, name),
+          ENTRY_LOCK_OPTIONS,
+        );
       } catch (error) {
-        if ((error as {code?: string}).code === 'ELOCKED') {
-          if (!waitForLock) {
-            return undefined;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 200));
+        // Another run released its lock and deleted the folder after this run
+        // created it. Create the folder again.
+        if ((error as {code?: string}).code === 'ENOENT') {
           continue;
         }
         throw error;
       }
+      return async () => {
+        await release();
+        await fs.rmdir(lockDir).catch(() => {});
+      };
     }
   }
 
   async #cachePackageDir(script: ScriptReference): Promise<string> {
-    return this.#shareWorktrees
-      ? resolveCachePackageDir(script.packageDir, {shareWorktrees: true})
-      : script.packageDir;
+    if (!this.#shareWorktrees) {
+      return script.packageDir;
+    }
+    const {packageDir} = script;
+    let cachePackageDir = this.#cachePackageDirs.get(packageDir);
+    if (cachePackageDir === undefined) {
+      cachePackageDir = resolveCachePackageDir(packageDir, {
+        shareWorktrees: true,
+      });
+      this.#cachePackageDirs.set(packageDir, cachePackageDir);
+      // Forget a failed lookup. The next call tries again.
+      cachePackageDir.catch(() => this.#cachePackageDirs.delete(packageDir));
+    }
+    return cachePackageDir;
   }
 
   #getScriptCacheDir(cachePackageDir: string, script: ScriptReference): string {
@@ -582,6 +678,25 @@ export class LocalCache implements Cache {
   }
 }
 
+/** Whether a call failed because the file system refused to write. */
+const cannotWrite = (error: unknown) => {
+  const code = (error as {code?: string}).code;
+  return code === 'EACCES' || code === 'EPERM' || code === 'EROFS';
+};
+
+/** Whether {@link path} exists. */
+const exists = async (path: string): Promise<boolean> => {
+  try {
+    await fs.access(path);
+    return true;
+  } catch (error) {
+    if ((error as {code?: string}).code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+};
+
 /**
  * Whether a delete may have failed because another program has the file open.
  * Windows refuses to delete an open file, with EBUSY, or with EPERM for some
@@ -606,15 +721,15 @@ class LocalCacheHit implements CacheHit {
   readonly #destination: string;
 
   /**
-   * Shared-mode entry lock, released after {@link apply} so eviction in
-   * another worktree can't delete the entry mid-copy.
+   * Releases the entry's lock. {@link apply} calls it when the copy is done.
+   * Until then, eviction in another worktree cannot delete the entry.
    */
   #release: (() => Promise<void>) | undefined;
 
   constructor(
     source: string,
     destination: string,
-    release?: () => Promise<void>,
+    release: () => Promise<void>,
   ) {
     this.#source = source;
     this.#destination = destination;

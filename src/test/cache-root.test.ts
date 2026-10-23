@@ -54,7 +54,10 @@ void test('linked worktree cache package dir maps onto the main tree when sharin
   git(main, ['worktree', 'add', linked, '-b', 'other']);
   const mainPkg = pathlib.join(main, 'packages', 'foo');
   const linkedPkg = pathlib.join(linked, 'packages', 'foo');
-  await rig.mkdir(pathlib.join('main', 'packages', 'foo'));
+  await rig.write(
+    pathlib.join('main', 'packages', 'foo', 'package.json'),
+    '{}',
+  );
   await rig.mkdir(pathlib.join('linked', 'packages', 'foo'));
   const info = await detectWorktree(linkedPkg);
   assert.ok(info);
@@ -81,7 +84,10 @@ void test('worktree inside main checkout maps cache into matching package dir', 
   git(main, ['worktree', 'add', linked, '-b', 'other']);
   const mainPkg = pathlib.join(main, 'packages', 'foo');
   const linkedPkg = pathlib.join(linked, 'packages', 'foo');
-  await rig.mkdir(pathlib.join('main', 'packages', 'foo'));
+  await rig.write(
+    pathlib.join('main', 'packages', 'foo', 'package.json'),
+    '{}',
+  );
   await rig.mkdir(
     pathlib.join('.claude', 'worktrees', 'linked', 'packages', 'foo'),
   );
@@ -92,6 +98,30 @@ void test('worktree inside main checkout maps cache into matching package dir', 
     ),
     await realpath(mainPkg),
   );
+});
+
+void test('linked worktree keeps its own cache for a package the main worktree lacks', async () => {
+  await using rig = await FilesystemTestRig.setup();
+  const main = rig.resolve('main');
+  const linked = rig.resolve('linked');
+  await rig.mkdir('main');
+  initRepo(main);
+  await rig.write(pathlib.join('main', 'README.md'), 'x');
+  git(main, ['add', '.']);
+  git(main, ['commit', '-m', 'init']);
+  git(main, ['worktree', 'add', linked, '-b', 'other']);
+  // Only the linked worktree's branch has this package.
+  const linkedPkg = pathlib.join(linked, 'packages', 'bar');
+  await rig.write(
+    pathlib.join('linked', 'packages', 'bar', 'package.json'),
+    '{}',
+  );
+
+  assert.equal(
+    await resolveCachePackageDir(linkedPkg, {shareWorktrees: true}),
+    linkedPkg,
+  );
+  assert.equal(await rig.exists(pathlib.join('main', 'packages')), false);
 });
 
 void test('bare clone worktree keeps its own cache package dir', async () => {
