@@ -26,6 +26,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Fixed GitHub Actions caching on Windows when Git for Windows' GNU `tar` is
+  first on `PATH`, such as in a Git bash shell. Saving and restoring failed with
+  `Cannot connect to D: resolve failed`. See
+  [#1242](https://github.com/google/wireit/issues/1242).
 - Fixed issue where a failed GitHub Actions cache tarball download caused Wireit
   to skip the script and record an empty output manifest instead of running the
   script command.
