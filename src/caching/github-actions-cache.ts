@@ -759,6 +759,10 @@ class GitHubActionsCacheHit implements CacheHit {
     await this.#extract(tarballPath);
   }
 
+  async release(): Promise<void> {
+    // This cache hit holds no resources before apply.
+  }
+
   async #download(tarballPath: string): Promise<void> {
     using requestResult = request(this.#url);
     const {req, resPromise} = requestResult;
