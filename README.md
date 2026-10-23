@@ -888,6 +888,7 @@ The following properties can be set inside `wireit.<script>` objects in
 | `env[i].default`          | `string \| undefined`              | `undefined`             | Default value to use when an external [environment variable](#environment-variables) is not provided.                           |
 | `service`                 | `boolean`                          | `false`                 | [Whether this script is long-running, e.g. a server](#cleaning-output).                                                         |
 | `packageLocks`            | `string[]`                         | `['package-lock.json']` | [Names of package lock files](#package-locks).                                                                                  |
+| `description`             | `string`                           | `undefined`             | A human-readable description of what this script does. Wireit does not use it.                                                  |
 
 ### Dependency syntax
 

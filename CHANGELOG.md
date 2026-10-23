@@ -23,6 +23,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cache in the main worktree's corresponding `.wireit` folders. Any other value
   keeps each worktree's own cache. Fingerprints and GitHub Actions caching are
   unchanged.
+- Added the optional `description` property to `wireit.<script>` configs, for a
+  human-readable description of what the script does. See
+  [#1015](https://github.com/google/wireit/issues/1015).
 
 ### Fixed
 

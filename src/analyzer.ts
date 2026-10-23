@@ -503,6 +503,7 @@ export class Analyzer {
       declaringFile: packageJson.jsonFile,
       services: [],
       env: {},
+      description: undefined,
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -631,6 +632,11 @@ export class Analyzer {
     );
 
     const env = this.#processEnv(placeholder, packageJson, syntaxInfo, command);
+    const description = this.#processDescription(
+      placeholder,
+      packageJson,
+      syntaxInfo,
+    );
 
     if (placeholder.failures.length > 0) {
       // A script with locally-determined errors doesn't get upgraded to
@@ -657,6 +663,7 @@ export class Analyzer {
       declaringFile: packageJson.jsonFile,
       services: [],
       env,
+      description,
     };
     Object.assign(placeholder, remainingConfig);
   }
@@ -942,6 +949,39 @@ export class Analyzer {
       },
     });
     return defaultValue;
+  }
+
+  #processDescription(
+    placeholder: UnvalidatedConfig,
+    packageJson: PackageJson,
+    syntaxInfo: ScriptSyntaxInfo,
+  ): string | undefined {
+    if (syntaxInfo.wireitConfigNode == null) {
+      return undefined;
+    }
+    const node = findNodeAtLocation(syntaxInfo.wireitConfigNode, [
+      'description',
+    ]);
+    if (node === undefined) {
+      return undefined;
+    }
+    if (typeof node.value === 'string') {
+      return node.value;
+    }
+    placeholder.failures.push({
+      type: 'failure',
+      reason: 'invalid-config-syntax',
+      script: placeholder,
+      diagnostic: {
+        severity: 'error',
+        message: `Must be a string`,
+        location: {
+          file: packageJson.jsonFile,
+          range: {length: node.length, offset: node.offset},
+        },
+      },
+    });
+    return undefined;
   }
 
   #processFiles(

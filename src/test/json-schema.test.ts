@@ -80,6 +80,7 @@ void test('a script with all fields set is valid', () => {
     wireit: {
       a: {
         command: 'b',
+        description: 'A description.',
         dependencies: ['c', {script: 'c', cascade: false}],
         files: ['d'],
         output: ['e'],
@@ -261,5 +262,30 @@ void test('dependencies[i].cascade must be boolean', () => {
     [
       'instance.wireit.a.dependencies[0] is not any of [subschema 0],[subschema 1]',
     ],
+  );
+});
+
+void test('description is valid when set to a string', () => {
+  shouldValidate({
+    wireit: {
+      a: {
+        command: 'b',
+        description: 'A human-readable description of this script.',
+      },
+    },
+  });
+});
+
+void test('description must be a string', () => {
+  expectValidationErrors(
+    {
+      wireit: {
+        a: {
+          command: 'b',
+          description: 123,
+        },
+      },
+    },
+    ['instance.wireit.a.description is not of a type(s) string'],
   );
 });
