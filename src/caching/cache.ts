@@ -97,4 +97,7 @@ export interface CacheHit {
    * could not be applied and the script should run normally instead.
    */
   apply(): Promise<boolean>;
+
+  /** Release resources held by this hit when it won't be applied. */
+  release(): Promise<void>;
 }

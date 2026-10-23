@@ -9,11 +9,13 @@ import * as assert from 'node:assert';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
 import {createHash} from 'crypto';
+import lockfile from 'proper-lockfile';
 import {LocalCache} from '../caching/local-cache.js';
 import {Fingerprint} from '../fingerprint.js';
 import {getScriptDataDir} from '../util/script-data-dir.js';
 import {FilesystemTestRig} from './util/filesystem-test-rig.js';
 import {FsGate} from './util/fs-gate.js';
+import {git, initRepo} from './util/git.js';
 
 import type {AbsoluteEntry} from '../util/glob.js';
 import type {FingerprintString} from '../fingerprint.js';
@@ -24,7 +26,10 @@ import type {ScriptReference} from '../config.js';
 
 const SCRIPT_NAME = 'a';
 
-async function setup(maxEntries: number): Promise<
+async function setup(
+  maxEntries: number,
+  shareWorktrees = false,
+): Promise<
   {
     rig: FilesystemTestRig;
     cache: LocalCache;
@@ -61,7 +66,7 @@ async function setup(maxEntries: number): Promise<
     packageDir: rig.resolve('.'),
     name: SCRIPT_NAME,
   };
-  const cache = new LocalCache(maxEntries);
+  const cache = new LocalCache(maxEntries, {shareWorktrees});
   const cacheDir = pathlib.join(getScriptDataDir(script), 'cache');
   const trashDir = rig.resolve(pathlib.join('.wireit', 'trash'));
 
@@ -120,6 +125,10 @@ async function readdirIfExists(dir: string): Promise<string[]> {
     throw error;
   }
 }
+
+/** Takes an entry's lock the same way {@link LocalCache} does. */
+const lockEntry = (lockFile: string) =>
+  lockfile.lock(lockFile, {stale: 10_000, retries: 0, realpath: false});
 
 /** The cache only keys off the string form, so any distinct string works. */
 const fingerprint = (name: string) =>
@@ -184,10 +193,10 @@ void test('evicts the least recently used entry, not the oldest', async () => {
   await ctx.setRecency('v1', 1_001);
 
   // Reading v0 makes it the most recently used, though v1 is the newest.
-  assert.notEqual(
-    await ctx.cache.get(ctx.script, fingerprint('v0')),
-    undefined,
-  );
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+  // A hit holds the entry's lock until it is applied or released.
+  await hit.release();
 
   await ctx.cacheOutput('v2');
   assert.deepEqual(await ctx.entryHashes(), ['v0', 'v2'].map(hashOf).sort());
@@ -484,4 +493,548 @@ void test('a write that fails leaves no entry, and deletes its temp copy', async
 
   await ctx.cacheOutput('v0');
   assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+});
+
+for (const shareWorktrees of [false, true]) {
+  void test(`a second set of an empty output is a hit (shareWorktrees: ${shareWorktrees})`, async () => {
+    await using ctx = await setup(10, shareWorktrees);
+    // Stop the worktree walk at this temp dir, including when the checkout
+    // running the test is itself a linked worktree.
+    await ctx.rig.mkdir('.git');
+    assert.equal(await ctx.cache.set(ctx.script, fingerprint('v0'), []), true);
+    assert.equal(await ctx.cache.set(ctx.script, fingerprint('v0'), []), true);
+    assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+  });
+
+  void test(`a second set of the same entry is a hit (shareWorktrees: ${shareWorktrees})`, async () => {
+    await using ctx = await setup(10, shareWorktrees);
+    // Stop the worktree walk at this temp dir, including when the checkout
+    // running the test is itself a linked worktree.
+    await ctx.rig.mkdir('.git');
+    await ctx.cacheOutput('v0');
+    await ctx.cacheOutput('v0');
+    assert.deepEqual(await ctx.entryHashes(), [hashOf('v0')]);
+  });
+}
+
+for (const shareWorktrees of [false, true]) {
+  void test(`only temp leftovers over an hour old are trashed (shareWorktrees: ${shareWorktrees})`, async () => {
+    await using ctx = await setup(10, shareWorktrees);
+    // Stop the worktree walk at this temp dir, including when the checkout
+    // running the test is itself a linked worktree.
+    await ctx.rig.mkdir('.git');
+    const tempDir = pathlib.join(getScriptDataDir(ctx.script), 'temp');
+    await fs.mkdir(pathlib.join(tempDir, 'fresh'), {recursive: true});
+    await fs.mkdir(pathlib.join(tempDir, 'old'), {recursive: true});
+    const ancient = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await fs.utimes(pathlib.join(tempDir, 'old'), ancient, ancient);
+    await ctx.cacheOutput('v0');
+    // The fresh folder may be another worktree's save in progress; the old one
+    // is an aborted save.
+    assert.deepEqual(await ctx.tempEntries(), ['fresh']);
+  });
+
+  void test(`eviction skips an entry whose lock is held (shareWorktrees: ${shareWorktrees})`, async () => {
+    await using ctx = await setup(2, shareWorktrees);
+    // Stop the worktree walk at this temp dir, including when the checkout
+    // running the test is itself a linked worktree.
+    await ctx.rig.mkdir('.git');
+    await ctx.cacheOutput('v0');
+    await ctx.setRecency('v0', 1_000);
+    await ctx.cacheOutput('v1');
+    await ctx.setRecency('v1', 1_001);
+
+    // Another worktree is restoring v0.
+    const restoring = await new LocalCache(10, {shareWorktrees}).get(
+      ctx.script,
+      fingerprint('v0'),
+    );
+    assert.ok(restoring);
+    await ctx.setRecency('v0', 1_000);
+    try {
+      await ctx.cacheOutput('v2');
+      // v0 is oldest but locked, so the next oldest (v1) goes instead. v2 is
+      // never evicted, as the entry just written.
+      assert.deepEqual(
+        await ctx.entryHashes(),
+        ['v0', 'v2'].map(hashOf).sort(),
+      );
+    } finally {
+      await restoring.release();
+    }
+
+    await ctx.cacheOutput('v3');
+    assert.deepEqual(await ctx.entryHashes(), ['v2', 'v3'].map(hashOf).sort());
+  });
+}
+
+/**
+ * Returns {@link promise}, but rejects after 5 seconds. A call that waits for a
+ * held lock does not finish in that time.
+ */
+const soon = <T>(promise: Promise<T>): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Timed out')), 5000).unref();
+    }),
+  ]);
+
+/** Caches an empty output. This runs eviction without writing a file. */
+const cacheEmpty = (
+  ctx: {cache: LocalCache; script: ScriptReference},
+  name: string,
+) => ctx.cache.set(ctx.script, fingerprint(name), []);
+
+void test('shared cache hit holds its lock through restore', async () => {
+  await using ctx = await setup(1, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+  await ctx.rig.delete('output');
+
+  {
+    using gate = new FsGate({
+      functions: ['copyFile'],
+      path: /[\\/]cache[\\/]/,
+    });
+    const restore = hit.apply();
+    await gate.firstCall;
+    // This write puts the folder over its limit of 1. v0 stays because it is
+    // being restored.
+    await cacheEmpty(ctx, 'v1');
+    assert.deepEqual(await ctx.entryHashes(), ['v0', 'v1'].map(hashOf).sort());
+    gate.release();
+    await restore;
+  }
+  assert.equal(await ctx.rig.read('output'), 'v0');
+
+  await cacheEmpty(ctx, 'v2');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v2')]);
+});
+
+void test('an abandoned shared cache hit releases its lock', async () => {
+  await using ctx = await setup(1, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+
+  // StandardScriptExecution releases a hit in its finally block when it
+  // cancels or fails before apply.
+  await hit.release();
+  await cacheEmpty(ctx, 'v1');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v1')]);
+});
+
+void test('a failed shared restore releases its lock', async () => {
+  await using ctx = await setup(1, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+
+  await ctx.rig.delete('output');
+  {
+    using _gate = new FsGate({
+      functions: ['copyFile'],
+      path: /[\\/]cache[\\/]/,
+      failWith: 'EIO',
+    });
+    await assert.rejects(hit.apply(), {code: 'EIO'});
+  }
+  await cacheEmpty(ctx, 'v1');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v1')]);
+});
+
+void test('two worktrees restore the same entry at once', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const first = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(first);
+  try {
+    const second = await soon(
+      new LocalCache(10, {shareWorktrees: true}).get(
+        ctx.script,
+        fingerprint('v0'),
+      ),
+    );
+    assert.ok(second);
+    const lockNames = await readdirIfExists(
+      pathlib.join(getScriptDataDir(ctx.script), 'cache-locks', hashOf('v0')),
+    );
+    assert.equal(lockNames.length, 2);
+    for (const name of lockNames) {
+      assert.match(name, /^restore-[0-9a-f]{16}\.lock$/);
+    }
+    await ctx.rig.delete('output');
+    await second.apply();
+    assert.equal(await ctx.rig.read('output'), 'v0');
+  } finally {
+    await first.release();
+  }
+});
+
+void test('a restore waits for an eviction of its entry in progress', async () => {
+  await using ctx = await setup(10, true);
+  // Stop the worktree walk at this temp dir, including when the checkout
+  // running the test is itself a linked worktree.
+  await ctx.rig.mkdir('.git');
+  await ctx.cacheOutput('v0');
+  const lockDir = pathlib.join(
+    getScriptDataDir(ctx.script),
+    'cache-locks',
+    hashOf('v0'),
+  );
+  await fs.mkdir(lockDir, {recursive: true});
+  const releaseEviction = await lockEntry(pathlib.join(lockDir, 'evict'));
+
+  let settled = false;
+  const get = ctx.cache.get(ctx.script, fingerprint('v0')).finally(() => {
+    settled = true;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(settled, false);
+
+  // Finish the eviction by hand.
+  await fs.rm(pathlib.join(ctx.cacheDir, hashOf('v0')), {recursive: true});
+  await releaseEviction();
+  assert.equal(await soon(get), undefined);
+});
+
+for (const shareWorktrees of [false, true]) {
+  void test(`a lookup that misses takes no lock (shareWorktrees: ${shareWorktrees})`, async () => {
+    await using ctx = await setup(10, shareWorktrees);
+    // Stop the worktree walk at this temp dir, including when the checkout
+    // running the test is itself a linked worktree.
+    await ctx.rig.mkdir('.git');
+    assert.equal(await ctx.cache.get(ctx.script, fingerprint('v0')), undefined);
+    assert.deepEqual(
+      await readdirIfExists(
+        pathlib.join(getScriptDataDir(ctx.script), 'cache-locks'),
+      ),
+      [],
+    );
+  });
+
+  void test(`a hit restores from a cache folder that cannot be written (shareWorktrees: ${shareWorktrees})`, async () => {
+    await using ctx = await setup(10, shareWorktrees);
+    // Stop the worktree walk at this temp dir, including when the checkout
+    // running the test is itself a linked worktree.
+    await ctx.rig.mkdir('.git');
+    await ctx.cacheOutput('v0');
+    await ctx.rig.delete('output');
+    // The lock folder cannot be created, as on a read-only mount.
+    using _gate = new FsGate({
+      functions: ['mkdir'],
+      path: /[\\/]cache-locks/,
+      failWith: 'EACCES',
+    });
+    const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+    assert.ok(hit);
+    await hit.apply();
+    assert.equal(await ctx.rig.read('output'), 'v0');
+  });
+}
+
+/**
+ * Creates a git repo in "main" and linked worktrees in "linked" and "linked2".
+ */
+async function addWorktrees(
+  rig: FilesystemTestRig,
+): Promise<{main: string; linked: string; linked2: string}> {
+  const main = rig.resolve('main');
+  const linked = rig.resolve('linked');
+  const linked2 = rig.resolve('linked2');
+  await rig.mkdir('main');
+  initRepo(main);
+  await rig.write(pathlib.join('main', 'package.json'), '{}');
+  git(main, ['add', '.']);
+  git(main, ['commit', '-m', 'init']);
+  git(main, ['worktree', 'add', linked, '-b', 'other']);
+  git(main, ['worktree', 'add', linked2, '-b', 'other2']);
+  return {main, linked, linked2};
+}
+
+/** Returns a file entry in the form that {@link LocalCache.set} takes. */
+const fileEntry = (path: string) =>
+  ({
+    path,
+    dirent: {
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    },
+  }) as AbsoluteEntry;
+
+void test('the over-limit reminder names the shared cache folder', async () => {
+  await using rig = await FilesystemTestRig.setup();
+  const {main, linked} = await addWorktrees(rig);
+  const mainCacheDir = pathlib.join(
+    getScriptDataDir({packageDir: main, name: SCRIPT_NAME}),
+    'cache',
+  );
+  // Fill the main worktree's cache with old entries. A Wireit version without
+  // a limit could leave this many.
+  for (const name of ['v0', 'v1', 'v2', 'v3', 'v4', 'v5']) {
+    await fs.mkdir(pathlib.join(mainCacheDir, hashOf(name)), {recursive: true});
+  }
+
+  const cache = new LocalCache(1, {shareWorktrees: true});
+  await rig.write(pathlib.join('linked', 'output'), 'n0');
+  await cache.set({packageDir: linked, name: SCRIPT_NAME}, fingerprint('n0'), [
+    fileEntry(pathlib.join(linked, 'output')),
+  ]);
+
+  // The message must name the main worktree's folder. The linked worktree has
+  // no cache of its own.
+  const messages = await cache.sweepTrash();
+  assert.equal(messages.length, 1);
+  const mainDataDir = pathlib.join(await fs.realpath(main), '.wireit');
+  assert.ok(messages[0]!.includes(mainDataDir), messages[0]);
+  assert.ok(!messages[0]!.includes(linked), messages[0]);
+});
+
+void test('restoring and evicting entries leave no lock files behind', async () => {
+  await using ctx = await setup(1);
+  await ctx.cacheOutput('v0');
+  const hit = await ctx.cache.get(ctx.script, fingerprint('v0'));
+  assert.ok(hit);
+  await ctx.rig.delete('output');
+  await hit.apply();
+  // This write evicts v0.
+  await ctx.cacheOutput('v1');
+  assert.deepEqual(await ctx.entryHashes(), [hashOf('v1')]);
+
+  assert.deepEqual(
+    await readdirIfExists(
+      pathlib.join(getScriptDataDir(ctx.script), 'cache-locks'),
+    ),
+    [],
+  );
+});
+
+// A linked worktree with WIREIT_CACHE_WORKTREES stores its cache in the main
+// worktree's cache folder. It does this even when the main worktree does not
+// set the flag. So two runs share a folder when each run is either in the
+// main worktree or in a linked worktree with the flag. Each test below puts a
+// run with the flag in a linked worktree. It puts a run without the flag in
+// the main worktree. The tests try every combination.
+
+/** The parts of a Wireit run that the cache uses. */
+interface Run {
+  cache: LocalCache;
+  script: ScriptReference;
+  /** The package folder in the run's worktree. */
+  dir: string;
+}
+
+/**
+ * Creates a run. A run without the flag is in the main worktree. A run with
+ * the flag is in the linked worktree {@link linked}.
+ */
+const run = (
+  worktrees: {main: string},
+  shareWorktrees: boolean,
+  linked: string,
+  maxEntries: number,
+): Run => {
+  const dir = shareWorktrees ? linked : worktrees.main;
+  return {
+    cache: new LocalCache(maxEntries, {shareWorktrees}),
+    script: {packageDir: dir, name: SCRIPT_NAME},
+    dir,
+  };
+};
+
+const onOff = (flag: boolean) => (flag ? 'on' : 'off');
+
+// A fingerprint from Fingerprint.fromString has the same entry name with or
+// without the flag. A real fingerprint does too when the script has no input
+// files and no dependencies.
+for (const first of [false, true]) {
+  for (const second of [false, true]) {
+    for (const empty of [false, true]) {
+      void test(`a second save of an entry is a hit (flag ${onOff(first)} in the first run, ${onOff(second)} in the second run, ${empty ? 'empty output' : 'one file'})`, async () => {
+        await using rig = await FilesystemTestRig.setup();
+        const worktrees = await addWorktrees(rig);
+        for (const r of [
+          run(worktrees, first, worktrees.linked, 10),
+          run(worktrees, second, worktrees.linked2, 10),
+        ]) {
+          const output = pathlib.join(r.dir, 'output');
+          await fs.writeFile(output, 'v0');
+          assert.equal(
+            await r.cache.set(
+              r.script,
+              fingerprint('v0'),
+              empty ? [] : [fileEntry(output)],
+            ),
+            true,
+          );
+        }
+      });
+    }
+  }
+}
+
+for (const restoring of [false, true]) {
+  for (const evicting of [false, true]) {
+    void test(`an entry being restored is not evicted (flag ${onOff(restoring)} in the restoring run, ${onOff(evicting)} in the evicting run)`, async () => {
+      await using rig = await FilesystemTestRig.setup();
+      const worktrees = await addWorktrees(rig);
+      const restorer = run(worktrees, restoring, worktrees.linked, 10);
+      const evictor = run(worktrees, evicting, worktrees.linked2, 1);
+
+      const output = pathlib.join(restorer.dir, 'output');
+      await fs.writeFile(output, 'v0');
+      await restorer.cache.set(restorer.script, fingerprint('v0'), [
+        fileEntry(output),
+      ]);
+      const hit = await restorer.cache.get(restorer.script, fingerprint('v0'));
+      assert.ok(hit);
+      await fs.rm(output);
+
+      // This run saves an empty output, so it writes no file. A file could
+      // collide with the restore when both runs are in the main worktree. Its
+      // limit is 1, so it would evict v0, the only other entry.
+      await evictor.cache.set(evictor.script, fingerprint('v1'), []);
+
+      await hit.apply();
+      assert.equal(await fs.readFile(output, 'utf8'), 'v0');
+    });
+  }
+}
+
+for (const saving of [false, true]) {
+  for (const cleaning of [false, true]) {
+    void test(`a save in progress is not trashed (flag ${onOff(saving)} in the saving run, ${onOff(cleaning)} in the cleaning run)`, async () => {
+      await using rig = await FilesystemTestRig.setup();
+      const worktrees = await addWorktrees(rig);
+      const saver = run(worktrees, saving, worktrees.linked, 10);
+      const cleaner = run(worktrees, cleaning, worktrees.linked2, 10);
+
+      // The two runs use different file names. Then the gate pauses only the
+      // saving run's copy, even when both runs are in the main worktree.
+      const saved = pathlib.join(saver.dir, 'saved');
+      const cleanerOutput = pathlib.join(cleaner.dir, 'output');
+      await fs.writeFile(saved, 'v0');
+      await fs.writeFile(cleanerOutput, 'v1');
+      {
+        using gate = new FsGate({
+          functions: ['copyFile'],
+          path: /[\\/]saved$/,
+        });
+        const save = saver.cache.set(saver.script, fingerprint('v0'), [
+          fileEntry(saved),
+        ]);
+        await gate.firstCall;
+        // This write cleans up the script's temp folder. The saving run's
+        // copy is still in progress there.
+        await cleaner.cache.set(cleaner.script, fingerprint('v1'), [
+          fileEntry(cleanerOutput),
+        ]);
+        gate.release();
+        assert.equal(await save, true);
+      }
+
+      await fs.rm(saved);
+      const hit = await saver.cache.get(saver.script, fingerprint('v0'));
+      assert.ok(hit);
+      await hit.apply();
+      assert.equal(await fs.readFile(saved, 'utf8'), 'v0');
+    });
+  }
+}
+
+void test('a linked worktree finds its shared cache folder once per run', async () => {
+  await using rig = await FilesystemTestRig.setup();
+  const {linked} = await addWorktrees(rig);
+  const linkedScript = {packageDir: linked, name: SCRIPT_NAME};
+  const cache = new LocalCache(10, {shareWorktrees: true});
+  await rig.write(pathlib.join('linked', 'output'), 'v0');
+  await cache.set(linkedScript, fingerprint('v0'), [
+    fileEntry(pathlib.join(linked, 'output')),
+  ]);
+
+  // Hide the linked worktree's ".git" file. A new lookup would now treat the
+  // worktree as a separate checkout.
+  await fs.rename(
+    pathlib.join(linked, '.git'),
+    pathlib.join(linked, '.git-hidden'),
+  );
+  // Stop a new lookup's walk at the rig. The checkout that runs the test may
+  // itself be a linked worktree.
+  await rig.mkdir('.git');
+  const hit = await cache.get(linkedScript, fingerprint('v0'));
+  assert.ok(hit);
+  await hit.release();
+});
+
+void test('a package that only a linked worktree has keeps its own cache', async () => {
+  await using rig = await FilesystemTestRig.setup();
+  const {linked} = await addWorktrees(rig);
+  // Only the linked worktree's branch has this package.
+  const pkg = pathlib.join(linked, 'packages', 'bar');
+  await rig.write(
+    pathlib.join('linked', 'packages', 'bar', 'package.json'),
+    '{}',
+  );
+  await rig.write(pathlib.join('linked', 'packages', 'bar', 'output'), 'v0');
+  const script = {packageDir: pkg, name: SCRIPT_NAME};
+  const cache = new LocalCache(10, {shareWorktrees: true});
+  await cache.set(script, fingerprint('v0'), [
+    fileEntry(pathlib.join(pkg, 'output')),
+  ]);
+
+  const cacheDir = pathlib.join(getScriptDataDir(script), 'cache');
+  assert.deepEqual(await readdirIfExists(cacheDir), [hashOf('v0')]);
+  assert.equal(await rig.exists(pathlib.join('main', 'packages')), false);
+});
+
+void test('linked worktree restores from the main worktree local cache', async () => {
+  await using rig = await FilesystemTestRig.setup();
+  const main = rig.resolve('main');
+  const linked = rig.resolve('linked');
+  await rig.mkdir('main');
+  initRepo(main);
+  await rig.write(pathlib.join('main', 'package.json'), '{}');
+  git(main, ['add', '.']);
+  git(main, ['commit', '-m', 'init']);
+  git(main, ['worktree', 'add', linked, '-b', 'other']);
+
+  const mainScript = {packageDir: main, name: SCRIPT_NAME};
+  const linkedScript = {packageDir: linked, name: SCRIPT_NAME};
+  const cache = new LocalCache(10, {shareWorktrees: true});
+  const outputEntry = {
+    path: pathlib.join(main, 'output'),
+    dirent: {
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    },
+  } as AbsoluteEntry;
+  await rig.write(pathlib.join('main', 'output'), 'from-main');
+  assert.equal(
+    await cache.set(mainScript, fingerprint('v0'), [outputEntry]),
+    true,
+  );
+
+  const linkedCacheDir = pathlib.join(getScriptDataDir(linkedScript), 'cache');
+  await assert.rejects(fs.readdir(linkedCacheDir), {code: 'ENOENT'});
+
+  const hit = await cache.get(linkedScript, fingerprint('v0'));
+  assert.ok(hit);
+  await hit.apply();
+  assert.equal(await rig.read(pathlib.join('linked', 'output')), 'from-main');
 });

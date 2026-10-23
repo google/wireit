@@ -562,7 +562,16 @@ void test(
     crashed.kill('SIGKILL');
     await crashed.exit;
     assert.deepEqual(await cacheEntriesIfAny(rig, 'a'), []);
-    assert.equal((await tempEntries(rig)).length, 1);
+    const leftovers = await tempEntries(rig);
+    assert.equal(leftovers.length, 1);
+    // Make the leftover two hours old. A write trashes only leftovers over an
+    // hour old, because a newer one may be a save in another worktree.
+    const hoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await fs.utimes(
+      pathlib.join(dataDir(rig, 'a'), 'temp', leftovers[0]!),
+      hoursAgo,
+      hoursAgo,
+    );
 
     rig.env = {...rig.env, WIREIT_TEST_FS_GATE: undefined};
     // Otherwise the killed run's lock takes 10 seconds to go stale.
