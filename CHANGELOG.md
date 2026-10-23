@@ -19,9 +19,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   version, shrinks by one entry per write, and Wireit reminds you once a day
   while it holds more than twice the limit. To free it at once, run
   `rm -rf .wireit/*/cache`. See [#71](https://github.com/google/wireit/issues/71).
+- Set `WIREIT_CACHE_WORKTREES=true` to store a linked Git worktree's local
+  cache in the main worktree's corresponding `.wireit` folders. Any other value
+  keeps each worktree's own cache. Fingerprints and GitHub Actions caching are
+  unchanged.
 
 ### Fixed
 
+- Fixed GitHub Actions caching on Windows when Git for Windows' GNU `tar` is
+  first on `PATH`, such as in a Git bash shell. Saving and restoring failed with
+  `Cannot connect to D: resolve failed`. See
+  [#1242](https://github.com/google/wireit/issues/1242).
+- Fixed issue where a failed GitHub Actions cache tarball download caused Wireit
+  to skip the script and record an empty output manifest instead of running the
+  script command.
 - Fixed issue where the local cache could restore corrupt output. If Wireit was
   killed or crashed while writing a cache entry, later runs restored the partial
   entry, with files missing or truncated and no error. Entries are now written
@@ -31,6 +42,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   proxies used by some third-party runners.
 - `WIREIT_PARALLEL`, `WIREIT_WATCH_POLL_MS`, and `WIREIT_MAX_OPEN_FILES` now
   reject any value that is not a positive integer, such as `2abc` or `1.5`.
+- The message explaining that GitHub Actions caching was disabled after an HTTP
+  error from the cache service is now logged. It was always skipped before.
 - An `"env"` setting that is a non-empty array, such as `["FOO"]`, now reports
   `Expected an object` instead of crashing Wireit and the VSCode extension with
   an internal error.
