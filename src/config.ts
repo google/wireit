@@ -58,9 +58,7 @@ export interface Dependency<
 }
 
 export type ScriptConfig =
-  | NoCommandScriptConfig
-  | StandardScriptConfig
-  | ServiceScriptConfig;
+  NoCommandScriptConfig | StandardScriptConfig | ServiceScriptConfig;
 
 /**
  * A script that doesn't run or produce anything. A pass-through for

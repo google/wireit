@@ -5,6 +5,7 @@
  */
 
 import * as fs from 'fs/promises';
+import {execFileSync} from 'child_process';
 import * as pathlib from 'path';
 import * as assert from 'node:assert';
 import * as crypto from 'node:crypto';
@@ -19,6 +20,7 @@ import {
   type FakeGitHubActionsCacheServerMetrics,
 } from './util/fake-github-actions-cache-server.js';
 import {DEFAULT_TIMEOUT} from './util/rig-test.js';
+import {IS_WINDOWS} from '../util/windows.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = pathlib.dirname(__filename);
@@ -287,6 +289,36 @@ void test(`gracefully handles 409 conflict on set()`, async () => {
   assert.equal(cmdA.numInvocations, 1);
 });
 
+void test('logs that caching was disabled after an HTTP error', async () => {
+  const cmdA = await rig.newCommand();
+  await rig.write({
+    'package.json': {
+      scripts: {
+        a: 'wireit',
+      },
+      wireit: {
+        a: {
+          command: cmdA.command,
+          files: ['input'],
+          output: [],
+        },
+      },
+    },
+    input: 'foo',
+  });
+
+  server.forceErrorOnNextRequest('getCacheEntry', 503);
+  const exec = rig.exec('npm run a', {env: {WIREIT_LOGGER: 'simple'}});
+  (await cmdA.nextInvocation()).exit(0);
+  const res = await exec.exit;
+  assertSuccess(res);
+  assert.match(
+    res.stdout,
+    /GitHub Actions cache service is temporarily unavailable/,
+  );
+  assert.match(res.stdout, /HTTP 503: Forcing 503 error for getCacheEntry/);
+});
+
 const randomInt = (minIncl: number, maxExcl: number) =>
   minIncl + Math.floor(Math.random() * (maxExcl - minIncl));
 
@@ -453,6 +485,60 @@ for (const code of [
       getBlob: 2,
     } satisfies FakeGitHubActionsCacheServerMetrics);
   });
+
+  void test(`runs script when ${code} error occurs during cache tarball download`, async () => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Populate the cache.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', 'v0');
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Delete local state and output, then force a download error on restore.
+    await rig.delete('.wireit');
+    await rig.delete('output');
+    server.forceErrorOnNextRequest('getBlob', code);
+    server.resetMetrics();
+
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', 'v0-rebuilt');
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v0-rebuilt');
+      assert.deepEqual(server.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 0,
+        putBlobBlock: 0,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 1,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+  });
 }
 
 void test(
@@ -558,6 +644,180 @@ void test(
         getBlob: 1,
       } satisfies FakeGitHubActionsCacheServerMetrics);
       assert.equal(await rig.read('output'), fileContent);
+    }
+  },
+);
+
+void test('caches over HTTP when ACTIONS_RESULTS_URL is http://', async () => {
+  // The suite fixtures always speak HTTPS. Stand up an HTTP server for this
+  // case, which is what some third-party runner cache proxies expose.
+  const authToken = String(Math.random()).slice(2);
+  const httpServer = new FakeGitHubActionsCacheServer(authToken);
+  const actionsCacheUrl = await httpServer.listen();
+  assert.equal(new URL(actionsCacheUrl).protocol, 'http:');
+
+  const httpRig = new WireitTestRig();
+  httpRig.env = {
+    ...httpRig.env,
+    WIREIT_CACHE: 'github',
+    ACTIONS_RESULTS_URL: actionsCacheUrl,
+    ACTIONS_RUNTIME_TOKEN: authToken,
+    RUNNER_TEMP: pathlib.join(httpRig.temp, 'github-cache-temp'),
+  };
+  await httpRig.setup();
+
+  try {
+    const cmdA = await httpRig.newCommand();
+    await httpRig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    {
+      const exec = httpRig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await httpRig.write({output: 'v0'});
+      inv.exit(0);
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await httpRig.read('output'), 'v0');
+      assert.deepEqual(httpServer.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 0,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+
+    // Delete the ".wireit" folder so that the next run won't be considered
+    // fresh, and the "output" file so that we can be sure it gets restored from
+    // cache.
+    await httpRig.delete('.wireit');
+    await httpRig.delete('output');
+
+    {
+      const exec = httpRig.exec('npm run a');
+      const res = await exec.exit;
+      assert.equal(res.code, 0);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await httpRig.read('output'), 'v0');
+      assert.deepEqual(httpServer.metrics, {
+        getCacheEntry: 2,
+        createCacheEntry: 1,
+        putBlobBlock: 1,
+        putBlobBlockList: 1,
+        finalizeCacheEntry: 1,
+        getBlob: 1,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+  } finally {
+    await Promise.all([httpServer.close(), httpRig.cleanup()]);
+  }
+});
+
+/**
+ * Returns the folder holding the GNU tar that Git for Windows ships, or
+ * undefined if there is none.
+ */
+function findGitForWindowsUsrBin(): string | undefined {
+  let execPath;
+  try {
+    // E.g. "C:/Program Files/Git/mingw64/libexec/git-core".
+    execPath = execFileSync('git', ['--exec-path'], {encoding: 'utf8'}).trim();
+  } catch {
+    return undefined;
+  }
+  const usrBin = pathlib.resolve(execPath, '..', '..', '..', 'usr', 'bin');
+  const tar = pathlib.join(usrBin, 'tar.exe');
+  try {
+    const version = execFileSync(tar, ['--version'], {encoding: 'utf8'});
+    return version.includes('GNU tar') ? usrBin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// When Git for Windows' usr/bin is on PATH ahead of System32, as in a Git bash
+// shell, "tar" is GNU tar instead of BSD tar. GNU tar reads an archive path
+// like "D:\..." as a remote host, and backslashes in a --files-from list as
+// escapes. See https://github.com/google/wireit/issues/1242.
+void test(
+  'caches with GNU tar from Git for Windows',
+  {
+    timeout: DEFAULT_TIMEOUT,
+    skip: IS_WINDOWS ? false : 'Windows only',
+  },
+  async (t) => {
+    const usrBin = findGitForWindowsUsrBin();
+    if (usrBin === undefined) {
+      // GitHub's Windows runners have Git for Windows. Fail there, so that a
+      // change to the runner image cannot silently turn this test off.
+      if (process.env.CI) {
+        assert.fail("Could not find Git for Windows' GNU tar");
+      }
+      t.skip("Git for Windows' GNU tar not found");
+      return;
+    }
+    rig.env = {
+      ...rig.env,
+      PATH: [usrBin, process.env.PATH ?? ''].join(pathlib.delimiter),
+    };
+
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output', 'dir/**'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Run, and save the output to the cache.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write({output: 'v0', 'dir/nested/file': 'v0 nested'});
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(server.metrics.finalizeCacheEntry, 1);
+    }
+
+    // Delete the ".wireit" folder so that the next run won't be considered
+    // fresh, and the output so that we can be sure it gets restored from cache.
+    await rig.delete('.wireit');
+    await rig.delete('output');
+    await rig.delete('dir');
+
+    {
+      const exec = rig.exec('npm run a');
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(server.metrics.getBlob, 1);
+      assert.equal(await rig.read('output'), 'v0');
+      assert.equal(await rig.read('dir/nested/file'), 'v0 nested');
     }
   },
 );

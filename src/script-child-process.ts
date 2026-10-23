@@ -40,10 +40,7 @@ const PATH_ENV_SUFFIX = (() => {
 })();
 
 export type ScriptChildProcessState =
-  | 'starting'
-  | 'started'
-  | 'killing'
-  | 'stopped';
+  'starting' | 'started' | 'killing' | 'stopped';
 
 /**
  * A child process spawned during execution of a script.

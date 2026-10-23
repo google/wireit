@@ -2098,6 +2098,39 @@ void test(
 );
 
 void test(
+  'env must be an object even when it has entries',
+  rigTest(async ({rig}) => {
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: 'true',
+            env: ['FOO'],
+          },
+        },
+      },
+    });
+    const result = rig.exec('npm run a');
+    const done = await result.exit;
+    assert.equal(done.code, 1);
+    checkScriptOutput(
+      done.stderr,
+      `
+        ❌ package.json:8:14 Expected an object
+          "env": [
+                 ~
+            "FOO"
+    ~~~~~~~~~~~~~
+          ]
+    ~~~~~~~`,
+    );
+  }),
+);
+
+void test(
   'env entry value must be a string or object',
   rigTest(async ({rig}) => {
     await rig.write({

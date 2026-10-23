@@ -214,6 +214,49 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
+  // A file named "all" could potentially be confused with chokidar's special
+  // "all" event name (see the emit filter in chokidar-with-globs.ts), so check
+  // that it behaves just like any other file.
+  void test(`[${mode}] file named "all"`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['all', 'foo'],
+      patterns: ['all'],
+      expected: ['all'],
+    });
+  });
+
+  void test(`[${mode}] glob matching file named "all"`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['all', 'foo'],
+      patterns: ['*'],
+      expected: ['all', 'foo'],
+    });
+  });
+
+  void test(`[${mode}] negation of file named "all"`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['all', 'foo'],
+      patterns: ['*', '!all'],
+      expected: ['foo'],
+    });
+  });
+
+  void test(`[${mode}] ** glob with ! glob negation`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['src/a.ts', 'src/b.js', 'src/sub/c.ts', 'src/sub/d.js'],
+      patterns: ['src/**/*', '!src/**/*.js'],
+      expected: ['src/a.ts', 'src/sub/c.ts'],
+    });
+  });
+
   void test(`[${mode}] inclusion of directory with trailing slash`, async () => {
     await using ctx = await setup();
     await ctx.check({
@@ -604,6 +647,20 @@ for (const mode of ['once', 'watch'] as const) {
         files: ['foo'],
         patterns: ['!foo', 'foo'],
         expected: ['foo'],
+      });
+    },
+  );
+
+  void test(
+    `[${mode}] re-inclusion after negation`,
+    {skip: skipIfWatchOnWindows},
+    async () => {
+      await using ctx = await setup();
+      await ctx.check({
+        mode,
+        files: ['foo/a.js', 'foo/bar.js', 'foo/c.js'],
+        patterns: ['foo/*.js', '!foo/bar.js', 'foo/bar.js'],
+        expected: ['foo/a.js', 'foo/bar.js', 'foo/c.js'],
       });
     },
   );
