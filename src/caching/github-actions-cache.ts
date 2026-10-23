@@ -734,7 +734,7 @@ class GitHubActionsCacheHit implements CacheHit {
     this.#logger = logger;
   }
 
-  async apply(): Promise<void> {
+  async apply(): Promise<boolean> {
     if (this.#applied) {
       throw new Error('GitHubActionsCacheHit.apply was called more than once');
     }
@@ -754,9 +754,10 @@ class GitHubActionsCacheHit implements CacheHit {
       });
       // This is fine, it's as though there was nothing to restore from
       // the cache.
-      return;
+      return false;
     }
     await this.#extract(tarballPath);
+    return true;
   }
 
   async #download(tarballPath: string): Promise<void> {

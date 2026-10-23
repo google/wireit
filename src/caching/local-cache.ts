@@ -394,7 +394,7 @@ class LocalCacheHit implements CacheHit {
     this.#destination = destination;
   }
 
-  async apply(): Promise<void> {
+  async apply(): Promise<boolean> {
     const entries = await glob(['**'], {
       cwd: this.#source,
       followSymlinks: false,
@@ -404,5 +404,6 @@ class LocalCacheHit implements CacheHit {
       throwIfOutsideCwd: true,
     });
     await copyEntries(entries, this.#source, this.#destination);
+    return true;
   }
 }

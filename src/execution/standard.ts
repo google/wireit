@@ -267,10 +267,6 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     cacheHit: CacheHit,
     fingerprint: Fingerprint,
   ): Promise<ExecutionResult> {
-    // Optimization: early signal that services are not needed while we're still
-    // restoring from cache.
-    this._servicesNotNeeded.resolve();
-
     // Delete the fingerprint and other files. It's important we do this before
     // restoring from cache, because we don't want to think that the previous
     // fingerprint is still valid when it no longer is.
@@ -284,9 +280,18 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     // incremental change to the input files. When we restore from cache, we are
     // directly replacing the output files, and not invoking the tool at all, so
     // there is no way for the tool to do any cleanup.
-    await this.#cleanOutput();
+    const cleanResult = await this.#cleanOutput();
+    if (!cleanResult.ok) {
+      return {ok: false, error: [cleanResult.error]};
+    }
 
-    await cacheHit.apply();
+    if (!(await cacheHit.apply())) {
+      return this.#handleNeedsRun(fingerprint, {
+        alreadyPreparedAndCleaned: true,
+        saveToCache: false,
+      });
+    }
+    this._servicesNotNeeded.resolve();
     this.#state = 'after-running';
 
     const writeFingerprintPromise = this.#writeFingerprintFile(fingerprint);
@@ -317,21 +322,26 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
   /**
    * Handle the outcome where the script was stale and we need to run it.
    */
-  async #handleNeedsRun(fingerprint: Fingerprint): Promise<ExecutionResult> {
-    // Check if we should clean before we delete the fingerprint file, because
-    // we sometimes need to read the previous fingerprint file to determine
-    // this.
-    const shouldClean = await this.#shouldClean(fingerprint);
+  async #handleNeedsRun(
+    fingerprint: Fingerprint,
+    options?: {alreadyPreparedAndCleaned?: boolean; saveToCache?: boolean},
+  ): Promise<ExecutionResult> {
+    if (!options?.alreadyPreparedAndCleaned) {
+      // Check if we should clean before we delete the fingerprint file, because
+      // we sometimes need to read the previous fingerprint file to determine
+      // this.
+      const shouldClean = await this.#shouldClean(fingerprint);
 
-    // Delete the fingerprint and other files. It's important we do this before
-    // starting the command, because we don't want to think that the previous
-    // fingerprint is still valid when it no longer is.
-    await this.#prepareDataDir();
+      // Delete the fingerprint and other files. It's important we do this before
+      // starting the command, because we don't want to think that the previous
+      // fingerprint is still valid when it no longer is.
+      await this.#prepareDataDir();
 
-    if (shouldClean) {
-      const result = await this.#cleanOutput();
-      if (!result.ok) {
-        return {ok: false, error: [result.error]};
+      if (shouldClean) {
+        const result = await this.#cleanOutput();
+        if (!result.ok) {
+          return {ok: false, error: [result.error]};
+        }
       }
     }
 
@@ -462,7 +472,7 @@ export class StandardScriptExecution extends BaseExecutionWithCommand<StandardSc
     }
     await writeFingerprintPromise;
 
-    if (fingerprint.data.fullyTracked) {
+    if (fingerprint.data.fullyTracked && (options?.saveToCache ?? true)) {
       const result = await this.#saveToCacheIfPossible(fingerprint);
       if (!result.ok) {
         return {ok: false, error: [result.error]};

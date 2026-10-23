@@ -453,6 +453,60 @@ for (const code of [
       getBlob: 2,
     } satisfies FakeGitHubActionsCacheServerMetrics);
   });
+
+  void test(`runs script when ${code} error occurs during cache tarball download`, async () => {
+    const cmdA = await rig.newCommand();
+    await rig.write({
+      'package.json': {
+        scripts: {
+          a: 'wireit',
+        },
+        wireit: {
+          a: {
+            command: cmdA.command,
+            files: ['input'],
+            output: ['output'],
+          },
+        },
+      },
+      input: 'v0',
+    });
+
+    // Populate the cache.
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', 'v0');
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 1);
+      assert.equal(await rig.read('output'), 'v0');
+    }
+
+    // Delete local state and output, then force a download error on restore.
+    await rig.delete('.wireit');
+    await rig.delete('output');
+    server.forceErrorOnNextRequest('getBlob', code);
+    server.resetMetrics();
+
+    {
+      const exec = rig.exec('npm run a');
+      const inv = await cmdA.nextInvocation();
+      await rig.write('output', 'v0-rebuilt');
+      inv.exit(0);
+      assertSuccess(await exec.exit);
+      assert.equal(cmdA.numInvocations, 2);
+      assert.equal(await rig.read('output'), 'v0-rebuilt');
+      assert.deepEqual(server.metrics, {
+        getCacheEntry: 1,
+        createCacheEntry: 0,
+        putBlobBlock: 0,
+        putBlobBlockList: 0,
+        finalizeCacheEntry: 0,
+        getBlob: 1,
+      } satisfies FakeGitHubActionsCacheServerMetrics);
+    }
+  });
 }
 
 void test(
