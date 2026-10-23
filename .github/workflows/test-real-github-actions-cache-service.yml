@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - node: 20 # LTS
+          - node: 24 # LTS
             os: ubuntu-22.04
 
     runs-on: ${{ matrix.os }}

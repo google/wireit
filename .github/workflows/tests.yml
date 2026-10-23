@@ -32,17 +32,20 @@ jobs:
             os: ubuntu-22.04
             os-name: Linux
           - node: 18
-            os: macos-14
+            os: macos-15
             os-name: Mac
           - node: 18
             os: windows-2022
             os-name: Windows
 
-          # Node LTS (All Active & Maintenance)
+          # Node EOL (Others)
           #   on Linux (Latest)
           - node: 20
             os: ubuntu-24.04
             os-name: Linux
+
+          # Node LTS (All Active & Maintenance)
+          #   on Linux (Latest)
           - node: 22
             os: ubuntu-24.04
             os-name: Linux
@@ -52,13 +55,13 @@ jobs:
 
           # Node Current
           #   on Linux/Mac/Windows (Latest)
-          - node: 25
+          - node: 26
             os: ubuntu-24.04
             os-name: Linux
-          - node: 25
+          - node: 26
             os: macos-26
             os-name: Mac
-          - node: 25
+          - node: 26
             os: windows-2025
             os-name: Windows
 
