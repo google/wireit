@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {StringDecoder} from 'node:string_decoder';
+
 import {Deferred} from './deferred.js';
 
 import type {ScriptChildProcess} from '../script-child-process.js';
@@ -22,6 +24,12 @@ export class LineMonitor {
   readonly #matched = new Deferred<Result<void, void>>();
   #stdout = '';
   #stderr = '';
+
+  // A multi-byte UTF-8 character can be split across consecutive output
+  // chunks. StringDecoder buffers incomplete byte sequences so they are
+  // combined with the next chunk instead of becoming replacement characters.
+  readonly #stdoutDecoder = new StringDecoder('utf8');
+  readonly #stderrDecoder = new StringDecoder('utf8');
 
   /**
    * Resolves to `{"ok": true}` when a match was found or `{"ok": false}` when
@@ -47,11 +55,15 @@ export class LineMonitor {
   }
 
   #onStdout = (data: string | Buffer) => {
-    this.#stdout = this.#check(this.#stdout + String(data));
+    this.#stdout = this.#check(
+      this.#stdout + this.#stdoutDecoder.write(data),
+    );
   };
 
   #onStderr = (data: string | Buffer) => {
-    this.#stderr = this.#check(this.#stderr + String(data));
+    this.#stderr = this.#check(
+      this.#stderr + this.#stderrDecoder.write(data),
+    );
   };
 
   #check(buffer: string): string {
