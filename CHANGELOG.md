@@ -8,6 +8,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.15.0] - 2026-10-23
+
 ### Added
 
 - Local caches are now limited to the 10 most recently used entries per script,
@@ -723,7 +725,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Initial release.
 
-[unreleased]: https://github.com/google/wireit/compare/v0.14.13...HEAD
+[unreleased]: https://github.com/google/wireit/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/google/wireit/compare/v0.14.13...v0.15.0
 [0.14.13]: https://github.com/google/wireit/compare/v0.14.12...v0.14.13
 [0.14.12]: https://github.com/google/wireit/compare/v0.14.11...v0.14.12
 [0.14.11]: https://github.com/google/wireit/compare/v0.14.10...v0.14.11
