@@ -961,8 +961,8 @@ cache](#caching).
 - The SHA256 content hashes of all files matching `files`.
 - The SHA256 content hashes of all files matching `packageLocks` in the current
   package and all parent directories.
-- The `name`, `main`, `type`, `exports`, and `imports` fields of the package's
-  `package.json` file.
+- The `name`, `main`, `type`, `exports`, `imports`, `types`, `typings`, and
+  `typesVersions` fields of the package's `package.json` file.
 - The environment variable values configured in `env`.
 - The system platform (e.g. `linux`, `win32`).
 - The system CPU architecture (e.g. `x64`).

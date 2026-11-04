@@ -213,11 +213,7 @@ interface BaseScriptConfig extends ScriptReference {
   /** The parsed JSON file that declared this script. */
   declaringFile: JsonFile;
 
-  /**
-   * The "name", "main", "type", "exports" and "imports" fields of the
-   * package.json file that declared this script, which change how Node.js
-   * resolves and loads the package.
-   */
+  /** The fingerprinted fields of the declaring package.json file. */
   packageJsonFields: Record<string, unknown>;
   failures: Failure[];
 }

@@ -94,14 +94,7 @@ export interface FingerprintData {
 
   env: Record<string, string>;
 
-  /**
-   * The "name", "main", "type", "exports" and "imports" fields of the
-   * package.json file that declared the script.
-   *
-   * These are included because they change how Node.js resolves and loads the
-   * package, so e.g. editing "exports" can change the output of a build even
-   * though no input file changed.
-   */
+  /** The fingerprinted fields of the declaring package.json file. */
   packageJsonFields: Record<string, unknown>;
 }
 

@@ -27,11 +27,19 @@ export type LocationSyntaxInfo =
   | {kind: 'wireit-section-script'; scriptSyntaxInfo: ScriptSyntaxInfo};
 
 /**
- * The package.json fields that change how Node.js resolves and loads the
- * package, so they are part of the fingerprint of every script in it. See
- * https://nodejs.org/api/packages.html#nodejs-packagejson-field-definitions
+ * The package.json fields that change how Node.js or TypeScript resolves the
+ * package, which are part of the fingerprint of every script in it.
  */
-const FINGERPRINTED_FIELDS = ['name', 'main', 'type', 'exports', 'imports'];
+const FINGERPRINTED_FIELDS = [
+  'name',
+  'main',
+  'type',
+  'exports',
+  'imports',
+  'types',
+  'typings',
+  'typesVersions',
+];
 
 /**
  * A parsed and minimally analyzed package.json file.
@@ -57,9 +65,7 @@ export class PackageJson {
   readonly failures: readonly Failure[];
   readonly scriptsSection: NamedAstNode | undefined = undefined;
   readonly wireitSection: NamedAstNode | undefined = undefined;
-  /**
-   * The values of the {@link FINGERPRINTED_FIELDS} set in this file.
-   */
+  /** The values of the fingerprinted fields set in this file. */
   readonly fingerprintedFields: Record<string, unknown>;
   constructor(jsonFile: JsonFile, fileAstNode: JsonAstNode) {
     this.jsonFile = jsonFile;
