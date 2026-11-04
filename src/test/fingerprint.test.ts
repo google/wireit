@@ -47,6 +47,7 @@ const scriptAt = (packageDir: string): StandardScriptConfig => ({
     path: pathlib.join(packageDir, 'package.json'),
     contents: '{}',
   },
+  packageJsonFields: {},
   failures: [],
 });
 

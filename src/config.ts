@@ -212,6 +212,9 @@ interface BaseScriptConfig extends ScriptReference {
 
   /** The parsed JSON file that declared this script. */
   declaringFile: JsonFile;
+
+  /** The fingerprinted fields of the declaring package.json file. */
+  packageJsonFields: Record<string, unknown>;
   failures: Failure[];
 }
 

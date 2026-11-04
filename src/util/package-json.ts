@@ -3,7 +3,8 @@
  * Copyright 2022 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
-import {findNamedNodeAtLocation, JsonFile} from './ast.js';
+import {getNodeValue} from 'jsonc-parser';
+import {findNamedNodeAtLocation, findNodeAtLocation, JsonFile} from './ast.js';
 import {JsonAstNode, NamedAstNode} from './ast.js';
 import {Failure} from '../event.js';
 import {
@@ -24,6 +25,21 @@ export interface ScriptSyntaxInfo {
 export type LocationSyntaxInfo =
   | {kind: 'scripts-section-script'; scriptSyntaxInfo: ScriptSyntaxInfo}
   | {kind: 'wireit-section-script'; scriptSyntaxInfo: ScriptSyntaxInfo};
+
+/**
+ * The package.json fields that change how Node.js or TypeScript resolves the
+ * package, which are part of the fingerprint of every script in it.
+ */
+const FINGERPRINTED_FIELDS = [
+  'name',
+  'main',
+  'type',
+  'exports',
+  'imports',
+  'types',
+  'typings',
+  'typesVersions',
+];
 
 /**
  * A parsed and minimally analyzed package.json file.
@@ -49,6 +65,8 @@ export class PackageJson {
   readonly failures: readonly Failure[];
   readonly scriptsSection: NamedAstNode | undefined = undefined;
   readonly wireitSection: NamedAstNode | undefined = undefined;
+  /** The values of the fingerprinted fields set in this file. */
+  readonly fingerprintedFields: Record<string, unknown>;
   constructor(jsonFile: JsonFile, fileAstNode: JsonAstNode) {
     this.jsonFile = jsonFile;
     this.#fileAstNode = fileAstNode;
@@ -56,6 +74,18 @@ export class PackageJson {
     this.scriptsSection = this.#analyzeScriptsSection(failures);
     this.wireitSection = this.#analyzeWireitSection(failures);
     this.failures = failures;
+    this.fingerprintedFields = this.#readFingerprintedFields();
+  }
+
+  #readFingerprintedFields(): Record<string, unknown> {
+    const fields: Record<string, unknown> = {};
+    for (const field of FINGERPRINTED_FIELDS) {
+      const node = findNodeAtLocation(this.#fileAstNode, [field]);
+      if (node !== undefined) {
+        fields[field] = getNodeValue(node);
+      }
+    }
+    return fields;
   }
 
   getScriptInfo(name: string): ScriptSyntaxInfo | undefined {

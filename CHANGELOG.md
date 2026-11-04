@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Changed
+
+- The fingerprint now additionally includes the `name`, `main`, `type`,
+  `exports`, `imports`, `types`, `typings`, and `typesVersions` fields of the
+  script's `package.json` file, because they change how Node.js or TypeScript
+  resolves the package. See
+  [#1315](https://github.com/google/wireit/issues/1315).
+
 ## [0.15.0] - 2026-10-23
 
 ### Added

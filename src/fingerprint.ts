@@ -93,6 +93,9 @@ export interface FingerprintData {
     | undefined;
 
   env: Record<string, string>;
+
+  /** The fingerprinted fields of the declaring package.json file. */
+  packageJsonFields: Record<string, unknown>;
 }
 
 /**
@@ -273,6 +276,7 @@ export class Fingerprint {
               },
             },
       env: script.env,
+      packageJsonFields: script.packageJsonFields,
     };
     fingerprint.#data = data as FingerprintData;
     fingerprint.#portableString = JSON.stringify({
