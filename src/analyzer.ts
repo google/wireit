@@ -1163,7 +1163,10 @@ export class Analyzer {
               message: `Expected an object.`,
               location: {
                 file: packageJson.jsonFile,
-                range: {length: serviceNode.length, offset: serviceNode.offset},
+                range: {
+                  length: waitForNode.length,
+                  offset: waitForNode.offset,
+                },
               },
             },
           });

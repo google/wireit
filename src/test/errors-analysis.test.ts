@@ -2020,13 +2020,9 @@ void test(
     checkScriptOutput(
       done.stderr,
       `
-    ❌ package.json:8:18 Expected an object.
-          "service": {
-                     ~
+    ❌ package.json:9:22 Expected an object.
             "readyWhen": 1
-    ~~~~~~~~~~~~~~~~~~~~~~
-          }
-    ~~~~~~~`,
+                         ~`,
     );
   }),
 );
