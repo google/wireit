@@ -16,6 +16,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   resolves the package. See
   [#1315](https://github.com/google/wireit/issues/1315).
 
+### Fixed
+
+- The "Expected an object." error for a `service.readyWhen` value that is not
+  an object now points at the `readyWhen` value instead of the whole `service`
+  object.
+
 ## [0.15.0] - 2026-10-23
 
 ### Added
