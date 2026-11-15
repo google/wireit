@@ -560,28 +560,36 @@ for (const mode of ['once', 'watch'] as const) {
     });
   });
 
-  void test(
-    `[${mode}] {} groups with expand directories`,
-    {skip: skipIfWatch},
-    async () => {
-      await using ctx = await setup();
-      await ctx.check({
-        mode,
-        files: [
-          '1',
-          '2',
-          'foo/1',
-          'foo/2',
-          'foo/bar/1',
-          'foo/bar/2',
-          'foo/baz/',
-        ],
-        patterns: ['{foo,baz}'],
-        expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
-        expandDirectories: true,
-      });
-    },
-  );
+  void test(`[${mode}] {} groups with expand directories`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: ['1', '2', 'foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2', 'foo/baz/'],
+      patterns: ['{foo,baz}'],
+      expected: ['foo/1', 'foo/2', 'foo/bar/1', 'foo/bar/2'],
+      expandDirectories: true,
+    });
+  });
+
+  void test(`[${mode}] * star matching directories with expandDirectories=true`, async () => {
+    await using ctx = await setup();
+    await ctx.check({
+      mode,
+      files: [
+        'packages/a/src/index.js',
+        'packages/a/src/lib/util.js',
+        'packages/a/README.md',
+        'packages/b/src/index.js',
+      ],
+      patterns: ['packages/*/src'],
+      expected: [
+        'packages/a/src/index.js',
+        'packages/a/src/lib/util.js',
+        'packages/b/src/index.js',
+      ],
+      expandDirectories: true,
+    });
+  });
 
   void test(`[${mode}] empty pattern throws`, {skip: skipIfWatch}, async () => {
     await using ctx = await setup();

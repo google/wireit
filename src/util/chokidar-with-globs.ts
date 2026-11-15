@@ -79,7 +79,14 @@ export function chokidarWatchWithGlobs(
       });
     } else if (isGlob) {
       staticWatchPaths.add(globParent(absoluteFwd));
-      rules.push({ignore: false, test: picomatch(absoluteFwd, {dot: true})});
+      rules.push({
+        ignore: false,
+        // Also match the recursive children of any directory that the glob
+        // matches (e.g. "packages/*/src" matches "packages/foo/src/index.js"),
+        // just like the non-glob case below, and like glob() does when
+        // expandDirectories is true.
+        test: picomatch([absoluteFwd, absoluteFwd + '/**'], {dot: true}),
+      });
     } else {
       staticWatchPaths.add(absoluteFwd);
       rules.push({
