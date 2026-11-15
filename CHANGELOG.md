@@ -8,6 +8,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Fixed
+
+- In watch mode, changing a file inside a directory that is matched by a glob
+  in `files`, such as `packages/foo/src/index.js` for `"packages/*/src"`, now
+  triggers a new run. These files were already part of the fingerprint, but the
+  watcher ignored them. See
+  [#550](https://github.com/google/wireit/issues/550).
+
 ### Changed
 
 - The fingerprint now additionally includes the `name`, `main`, `type`,
