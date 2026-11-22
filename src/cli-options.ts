@@ -278,7 +278,7 @@ export const getOptions = async (): Promise<Result<Options>> => {
         reason: 'invalid-usage',
         message:
           `Expected the WIREIT_LOGGER env variable to be ` +
-          `"quiet", "simple", or "metrics", got ${JSON.stringify(str)}`,
+          `"quiet", "quiet-ci", "simple", or "metrics", got ${JSON.stringify(str)}`,
         script,
         type: 'failure',
       },
